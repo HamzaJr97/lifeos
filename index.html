@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <!-- ── CRITICAL: viewport-fit=cover fills the notch/home bar area ── -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+
+  <title>LifeOS</title>
+  <meta name="description" content="Your personal life operating system" />
+
+  <!-- ── PWA / Home Screen ── -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#05050d" />
+
+  <!-- ── iPhone / iPad specific ── -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LifeOS" />
+
+  <!-- Apple touch icons (generate these from your icon) -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-120.png" />
+
+  <!-- ── Prevent white flash before React loads ── -->
+  <style>
+    /* These run BEFORE React — they kill the white edges immediately */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      background: #05050d !important;
+      height: 100%;
+      /* Extend background into safe areas */
+      background-attachment: fixed;
+    }
+
+    body {
+      background: #05050d !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      min-height: 100dvh;
+      min-height: -webkit-fill-available;
+      overflow-x: hidden;
+      /* Fill the notch area with the app background colour */
+      padding-top: env(safe-area-inset-top);
+      padding-top: constant(safe-area-inset-top);
+    }
+
+    #root {
+      background: #05050d;
+      min-height: 100dvh;
+      min-height: -webkit-fill-available;
+      width: 100%;
+      overflow-x: hidden;
+    }
+
+    /* Splash screen while JS loads */
+    #splash {
+      position: fixed;
+      inset: 0;
+      background: #05050d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      flex-direction: column;
+      gap: 16px;
+      transition: opacity 0.4s ease;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash-icon {
+      font-size: 64px;
+      animation: splashPulse 1.4s ease-in-out infinite;
+    }
+    #splash-text {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: #7c6fff;
+      letter-spacing: 2px;
+    }
+    @keyframes splashPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Splash screen — hidden once React mounts -->
+  <div id="splash">
+    <div id="splash-icon">⚡</div>
+    <div id="splash-text">LIFEOS</div>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="module" src="/src/main.jsx"></script>
+
+  <!-- Register service worker for offline support -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(() => console.log('SW registered'))
+          .catch(e => console.log('SW failed:', e));
+      });
+    }
+    // Hide splash once page is interactive
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const splash = document.getElementById('splash');
+        if (splash) {
+          splash.classList.add('hidden');
+          setTimeout(() => splash.remove(), 500);
+        }
+      }, 600);
+    });
+  </script>
+</body>
+</html>
