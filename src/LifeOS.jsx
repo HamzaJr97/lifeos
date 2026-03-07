@@ -1099,6 +1099,8 @@ export default function LifeOS() {
   const [gmailToken, setGmailToken] = useLocalStorage('los_gmail_token', null);
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [openHub, setOpenHub] = useState(null); // which hub is expanded: 'money'|'life'|'mind'|'career'|null
+  const [lastHubTab, setLastHubTab] = useLocalStorage('los_lasthub', {}); // N10: remember last visited sub-page per hub
   const [showQuickNote, setShowQuickNote] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [navOpen, setNavOpen] = useState(true);
@@ -1146,11 +1148,6 @@ export default function LifeOS() {
   const [undoAction, setUndoAction] = useState(null);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [showAI, setShowAI] = useState(false);
-  const [dockHover, setDockHover] = useState(null);
-  const [dockMouseX, setDockMouseX] = useState(null);
-  const dockBtnRefs = useRef({});
-  const dockScrollRef = useRef(null);
-
   const notifTimer = useRef(null);
   const addXP = useCallback((amount, reason) => {
     // C11 — sleep-aware XP multiplier: boost if slept ≥7h, penalty if <5h
@@ -1791,257 +1788,220 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       {showQuickCapture && <QuickCaptureModal T={T} s={s} expenses={expenses} setExpenses={setExpenses} habits={habits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} quickNotes={quickNotes} setQuickNotes={setQuickNotes} settings={settings} addXP={addXP} customCategories={customCategories} onClose={()=>setShowQuickCapture(false)} />}
 
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* macOS-STYLE DOCK — fisheye + group separators + dot   */}
-      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* 6-HUB DOCK + SUB-PAGE DRAWER (N1–N10)                     */}
+      {/* ═══════════════════════════════════════════════════════════ */}
       {(() => {
-        const DOCK_GROUPS = [
-          { section: 'MONEY',  tabs: ['moneyhub','portfolio','goals','debts'] },
-          { section: 'LIFE',   tabs: ['character','mindbody'] },
-          { section: null,     tabs: ['dashboard'], isCenter: true },
-          { section: 'MIND',   tabs: ['notes','learn','calendar','history','insights'] },
-          { section: 'CAREER', tabs: ['career','gmail','settings'] },
+        const HUBS = [
+          {
+            id: 'money', icon: '💰', label: 'Money',
+            tabs: [
+              { id:'moneyhub',   icon:'💰', label:'Spending' },
+              { id:'portfolio',  icon:'💹', label:'Portfolio' },
+              { id:'goals',      icon:'🏆', label:'Goals' },
+              { id:'debts',      icon:'💳', label:'Debts' },
+            ]
+          },
+          {
+            id: 'life', icon: '⚔️', label: 'Life',
+            tabs: [
+              { id:'character',  icon:'⚔️', label:'Character' },
+              { id:'mindbody',   icon:'🧘', label:'Mind & Body' },
+            ]
+          },
+          {
+            id: 'dashboard', icon: '🏠', label: 'Home', isSingle: true,
+            tabs: [{ id:'dashboard', icon:'🏠', label:'Dashboard' }]
+          },
+          {
+            id: 'mind', icon: '🧠', label: 'Mind',
+            tabs: [
+              { id:'notes',      icon:'📝', label:'Notes' },
+              { id:'learn',      icon:'📚', label:'Learn' },
+              { id:'calendar',   icon:'📅', label:'Calendar' },
+              { id:'history',    icon:'🗂️',  label:'History' },
+              { id:'insights',   icon:'🧠', label:'Insights' },
+            ]
+          },
+          {
+            id: 'career', icon: '💼', label: 'Career',
+            tabs: [
+              { id:'career',     icon:'💼', label:'Career' },
+              { id:'gmail',      icon:'📬', label:'Gmail' },
+              { id:'settings',   icon:'⚙️', label:'Settings' },
+            ]
+          },
         ];
 
-        // Bubble data for each dock icon
-        const getBubble = (tabId) => {
+        // Badge counts per tab
+        const getBadge = (tabId) => {
           switch(tabId) {
-            case 'dashboard':  return null; // center icon, no bubble needed
-            case 'character':  return level > 1 ? { label: `LV${level}`, color: T.accent } : null;
-            case 'mindbody':   return todayDoneCount > 0 ? { label: `${todayDoneCount}✓`, color: T.success } : null;
-            case 'moneyhub':   return thisMonthSpend > 0 ? { label: `${fmtN(thisMonthSpend)}`, color: T.warning } : null;
-            case 'portfolio':  return investments?.length > 0 ? { label: `${investments.length}`, color: T.accent } : null;
-            case 'hoard':      return assets?.length > 0 ? { label: `${assets.length}`, color: T.success } : null;
-            case 'goals':      return goals?.length > 0 ? { label: `${goals.length}`, color: T.accent } : null;
-            case 'debts':      return debts?.length > 0 ? { label: `${debts.length}`, color: T.danger } : null;
-            case 'career':     return careerApps?.length > 0 ? { label: `${careerApps.length}`, color: T.accent } : null;
-            case 'gmail':      return gmailToken ? { label: '●', color: T.success } : null;
-            case 'notes':      return notes?.length > 0 ? { label: `${notes.length}`, color: T.accent } : null;
-            case 'learn':      return null;
-            case 'calendar':   return null;
-            case 'history':    return null;
-            case 'insights':   return null;
-            case 'settings':   return null;
+            case 'character':  return level > 1 ? `LV${level}` : null;
+            case 'moneyhub':   return thisMonthSpend > 0 ? fmtN(thisMonthSpend) : null;
+            case 'portfolio':  return investments?.length > 0 ? `${investments.length}` : null;
+            case 'goals':      return goals?.length > 0 ? `${goals.length}` : null;
+            case 'debts':      return debts?.length > 0 ? `${debts.length}` : null;
+            case 'career':     return careerApps?.length > 0 ? `${careerApps.length}` : null;
+            case 'gmail':      return gmailToken ? '●' : null;
+            case 'notes':      return notes?.length > 0 ? `${notes.length}` : null;
+            case 'mindbody':   return todayDoneCount > 0 ? `${todayDoneCount}✓` : null;
             default:           return null;
           }
         };
-        const flatItems = [];
-        DOCK_GROUPS.forEach((group, gi) => {
-          if (gi > 0) flatItems.push({ type:'sep', key:`sep-${gi}`, section:group.section, isCenter: group.isCenter });
-          group.tabs.forEach(tabId => {
-            const tab = TABS.find(t => t.id === tabId);
-            if (tab) flatItems.push({ type:'tab', ...tab, isCenter: !!group.isCenter });
-          });
-        });
-        const tabItems = flatItems.filter(i => i.type === 'tab');
-        const getScale = (tabId) => {
-          if (dockMouseX === null) return 1;
-          const el = dockBtnRefs.current[tabId];
-          if (!el) return 1;
-          const rect = el.getBoundingClientRect();
-          const btnCenterX = rect.left + rect.width / 2;
-          const dist = Math.abs(btnCenterX - dockMouseX);
-          const radius = isMobile ? 80 : 110;
-          if (dist >= radius) return 1;
-          const t = 1 - dist / radius;
-          // smooth cubic curve, max scale 1.8
-          return 1 + t * t * 0.8;
+
+        // Hub-level badge: summarise sub-tabs
+        const getHubBadge = (hub) => {
+          if (hub.isSingle) {
+            return smartAlerts.length > 0 ? `${smartAlerts.length}` : null;
+          }
+          const anyBadge = hub.tabs.find(t => getBadge(t.id));
+          return anyBadge ? '●' : null;
         };
+
+        // Is any sub-tab of this hub the active page?
+        const hubIsActive = (hub) => hub.tabs.some(t => t.id === activeTab);
+
+        function openHubOrGo(hub) {
+          if (hub.isSingle) {
+            setActiveTab('dashboard');
+            setOpenHub(null);
+            return;
+          }
+          if (openHub === hub.id) {
+            setOpenHub(null); // toggle closed
+          } else {
+            setOpenHub(hub.id);
+          }
+        }
+
+        function goToTab(hubId, tabId) {
+          setActiveTab(tabId);
+          setLastHubTab(prev => ({...prev, [hubId]: tabId}));
+          setOpenHub(null);
+        }
+
+        const expandedHub = HUBS.find(h => h.id === openHub);
+
         return (
-          <div style={{
-            position:'fixed', bottom:0, left:0, right:0, zIndex:200,
-            display:'flex', justifyContent:'center', alignItems:'flex-end',
-            paddingBottom:'max(10px, env(safe-area-inset-bottom))',
-            paddingLeft:'env(safe-area-inset-left)',
-            paddingRight:'env(safe-area-inset-right)',
-            pointerEvents:'none',
-          }}>
-            {/* Outer: limits width + allows Y overflow for scaled icons */}
-            <div style={{
-              maxWidth:`calc(100vw - ${isMobile ? '12px' : '48px'})`,
-              overflow:'visible',
-              pointerEvents:'auto',
-              position:'relative',
-            }}>
-            <div
-              style={{
-                background:`${T.surface}ee`,
-                backdropFilter:'blur(32px)', WebkitBackdropFilter:'blur(32px)',
-                borderRadius:'24px',
-                border:`1px solid ${T.accent}28`,
-                boxShadow:`0 -2px 32px #00000044, 0 16px 48px #00000055, inset 0 1px 0 ${T.accent}14`,
-                overflow:'visible',
-                padding:'0',
-              }}
-            >
-            {/* Scroll track — overflow-y:clip lets X scroll without clipping Y */}
-            <div
-              ref={dockScrollRef}
-              onMouseLeave={() => { setDockHover(null); setDockMouseX(null); }}
-              onMouseMove={(e) => setDockMouseX(e.clientX)}
-              onWheel={(e) => {
-                if (dockScrollRef.current) {
-                  e.preventDefault();
-                  dockScrollRef.current.scrollLeft += e.deltaY + e.deltaX;
-                }
-              }}
-              style={{
-                display:'flex', alignItems:'flex-end',
-                padding: isMobile ? '8px 8px 10px' : '10px 14px 12px',
-                paddingTop: isMobile ? '36px' : '44px',
-                overflowX:'auto',
-                overflowY:'visible',
-                scrollbarWidth:'none',
-                WebkitOverflowScrolling:'touch',
-                // Use clip via mask to allow Y overflow while scrolling X
-                // No overflow-y clip — items scale upward freely
-              }}
-            >
-              {flatItems.map((item) => {
-                if (item.type === 'sep') {
-                  return (
-                    <div key={item.key} style={{
-                      display:'flex', flexDirection:'column',
-                      alignItems:'center', justifyContent:'flex-end',
-                      padding:`0 ${isMobile ? '4' : '6'}px`,
-                      paddingBottom:'18px', alignSelf:'flex-end',
-                      height: isMobile ? '54px' : '66px', gap:'4px',
-                    }}>
-                      {item.section && <span style={{
-                        fontSize:'7px', color:T.textDim, letterSpacing:'1.5px',
-                        fontWeight:'800', textTransform:'uppercase',
-                        whiteSpace:'nowrap', lineHeight:1,
-                      }}>{item.section}</span>}
-                      <div style={{
-                        width:'1px', height: item.isCenter ? '0px' : '18px',
-                        background:T.border, borderRadius:'1px', opacity:0.7,
-                      }}/>
-                    </div>
-                  );
-                }
-                const isActive = activeTab === item.id;
-                const isCenterItem = item.isCenter;
-                const scale = getScale(item.id);
-                const lift = scale > 1 ? (scale - 1) * 10 : 0;
-                const bubble = getBubble(item.id);
-                // Center dashboard icon is bigger
-                const baseIconSize = isCenterItem
-                  ? (isMobile ? '26px' : '30px')
-                  : (isMobile ? '20px' : '24px');
-                const btnMinW = isCenterItem
-                  ? (isMobile ? '48px' : '58px')
-                  : (isMobile ? '38px' : '46px');
-                return (
-                  <button
-                    key={item.id}
-                    ref={el => { if (el) dockBtnRefs.current[item.id] = el; else delete dockBtnRefs.current[item.id]; }}
-                    onClick={() => setActiveTab(item.id)}
-                    onMouseEnter={() => setDockHover(item.id)}
-                    onTouchStart={() => { setDockHover(item.id); setDockMouseX(null); }}
-                    onTouchEnd={() => setTimeout(() => { setDockHover(null); setDockMouseX(null); }, 400)}
-                    title={item.label}
-                    style={{
-                      display:'flex', flexDirection:'column', alignItems:'center',
-                      justifyContent:'flex-end', gap:'2px',
-                      background: 'transparent',
-                      border:'none', cursor:'pointer',
-                      padding:`4px ${isMobile ? '4' : '6'}px 0`,
-                      borderRadius:'16px',
-                      transition:'transform 0.12s cubic-bezier(.25,1,.5,1)',
-                      transform:`scale(${scale}) translateY(-${lift}px)`,
-                      transformOrigin:'bottom center',
-                      position:'relative', flexShrink:0,
-                      minWidth: btnMinW,
-                    }}
-                  >
-                    {/* ── BUBBLE BACKGROUND ── */}
-                    <div style={{
-                      position:'relative',
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      width: isCenterItem ? (isMobile ? '44px' : '52px') : (isMobile ? '36px' : '42px'),
-                      height: isCenterItem ? (isMobile ? '44px' : '52px') : (isMobile ? '36px' : '42px'),
-                      borderRadius: isCenterItem ? '16px' : '14px',
-                      background: isCenterItem
-                        ? (isActive ? T.accentGrad : `${T.accent}22`)
-                        : (isActive ? `${T.accent}22` : `${T.surface}cc`),
-                      border: isCenterItem
-                        ? `1.5px solid ${isActive ? T.accent : T.accent + '55'}`
-                        : `1px solid ${isActive ? T.accent + '55' : T.border + 'aa'}`,
-                      boxShadow: isCenterItem
-                        ? (isActive
-                            ? `0 0 20px ${T.accentGlow}, 0 4px 16px #00000055`
-                            : `0 0 12px ${T.accentGlow}44, 0 2px 8px #00000033`)
-                        : (isActive
-                            ? `0 0 10px ${T.accentGlow}44, 0 2px 6px #00000033`
-                            : `0 1px 4px #00000022`),
-                      transition:'all 0.18s ease',
-                      backdropFilter:'blur(8px)',
-                    }}>
-                      <div style={{
-                        fontSize: baseIconSize,
-                        lineHeight:1,
-                        filter: isActive
-                          ? `drop-shadow(0 0 ${isCenterItem ? '10' : '6'}px ${T.accentGlow})`
-                          : scale > 1.3
-                            ? `drop-shadow(0 ${Math.round((scale-1)*10)}px ${Math.round((scale-1)*14)}px #00000055)`
-                            : 'none',
-                        transition:'filter 0.2s',
-                      }}>
-                        {item.icon}
-                      </div>
-
-                      {/* ── BADGE BUBBLE (top-right) ── */}
-                      {bubble && (
-                        <div style={{
-                          position:'absolute', top:'-5px', right:'-6px',
-                          background: bubble.color,
-                          color: '#fff',
-                          fontSize:'8px', fontWeight:'800',
-                          lineHeight:1,
-                          padding: bubble.label === '●' ? '4px' : '2px 5px',
-                          borderRadius:'99px',
-                          minWidth:'14px', textAlign:'center',
-                          boxShadow:`0 1px 6px ${bubble.color}88`,
-                          border:`1.5px solid ${T.surface}`,
-                          whiteSpace:'nowrap',
-                          maxWidth:'36px', overflow:'hidden', textOverflow:'ellipsis',
-                          transition:'all 0.2s',
-                          letterSpacing:'-0.3px',
+          <>
+            {/* ── SUB-PAGE DRAWER (slides up above dock) ── */}
+            {expandedHub && (
+              <>
+                {/* Backdrop */}
+                <div onClick={()=>setOpenHub(null)} style={{position:'fixed',inset:0,zIndex:190,background:'#00000055'}} />
+                {/* Drawer */}
+                <div style={{
+                  position:'fixed', bottom:'calc(76px + env(safe-area-inset-bottom, 0px))', left:'50%',
+                  transform:'translateX(-50%)',
+                  zIndex:195, width:'min(420px, 95vw)',
+                  background:`${T.surface}f5`, backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+                  borderRadius:'20px', border:`1px solid ${T.accent}33`,
+                  boxShadow:`0 -4px 40px #00000055`,
+                  padding:'12px 12px 8px',
+                  animation:'slideUpDrawer 0.22s cubic-bezier(.25,1,.5,1)',
+                }}>
+                  <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'800',letterSpacing:'2px',textAlign:'center',marginBottom:'10px',textTransform:'uppercase'}}>
+                    {expandedHub.icon} {expandedHub.label}
+                  </div>
+                  <div style={{display:'grid', gridTemplateColumns:`repeat(${Math.min(expandedHub.tabs.length, 4)},1fr)`, gap:'8px'}}>
+                    {expandedHub.tabs.map(tab => {
+                      const isActive = activeTab === tab.id;
+                      const badge = getBadge(tab.id);
+                      return (
+                        <button key={tab.id} onClick={()=>goToTab(expandedHub.id, tab.id)} style={{
+                          display:'flex', flexDirection:'column', alignItems:'center', gap:'5px',
+                          padding:'12px 6px', borderRadius:'14px', border:'none', cursor:'pointer',
+                          background: isActive ? T.accentSoft : `${T.card}cc`,
+                          border: `1px solid ${isActive ? T.accent+'66' : T.border}`,
+                          position:'relative', transition:'all 0.15s',
                         }}>
-                          {bubble.label !== '●' ? bubble.label : ''}
-                        </div>
-                      )}
-                    </div>
+                          <span style={{fontSize:'24px',lineHeight:1,filter:isActive?`drop-shadow(0 0 6px ${T.accentGlow})`:'none'}}>{tab.icon}</span>
+                          <span style={{fontSize:'10px',fontWeight:isActive?'700':'500',color:isActive?T.accent:T.textMuted,whiteSpace:'nowrap'}}>{tab.label}</span>
+                          {isActive && <div style={{position:'absolute',bottom:'4px',left:'50%',transform:'translateX(-50%)',width:'4px',height:'4px',borderRadius:'50%',background:T.accent}}/>}
+                          {badge && <div style={{position:'absolute',top:'4px',right:'4px',background:T.accent,color:'#fff',fontSize:'8px',fontWeight:'800',padding:'1px 4px',borderRadius:'99px',lineHeight:1.4}}>{badge}</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
 
-                    {/* ── LABEL ── */}
-                    <div style={{
-                      fontSize: isMobile ? '8px' : '9px',
-                      fontWeight: isActive ? '700' : '400',
-                      color: isActive ? T.accent : T.textMuted,
-                      letterSpacing:'0.2px', whiteSpace:'nowrap',
-                      transition:'color 0.18s', lineHeight:1,
-                      marginBottom:'6px',
+            {/* ── 6-ICON HUB DOCK ── */}
+            <div style={{
+              position:'fixed', bottom:0, left:0, right:0, zIndex:200,
+              display:'flex', justifyContent:'center', alignItems:'flex-end',
+              paddingBottom:'max(10px, env(safe-area-inset-bottom))',
+              pointerEvents:'none',
+            }}>
+              <div style={{
+                pointerEvents:'auto',
+                background:`${T.surface}ee`, backdropFilter:'blur(32px)', WebkitBackdropFilter:'blur(32px)',
+                borderRadius:'26px', border:`1px solid ${T.accent}28`,
+                boxShadow:`0 -2px 32px #00000044, 0 16px 48px #00000055`,
+                padding: isMobile ? '8px 12px 10px' : '10px 20px 12px',
+                display:'flex', gap: isMobile ? '4px' : '8px', alignItems:'flex-end',
+              }}>
+                {HUBS.map((hub, hi) => {
+                  const isActive = hubIsActive(hub);
+                  const isOpen = openHub === hub.id;
+                  const hubBadge = getHubBadge(hub);
+                  const isCenter = hub.isSingle;
+                  const iconSize = isCenter ? (isMobile ? '28px' : '32px') : (isMobile ? '22px' : '26px');
+                  const btnSize = isCenter ? (isMobile ? '50px' : '58px') : (isMobile ? '40px' : '48px');
+                  return (
+                    <button key={hub.id} onClick={()=>openHubOrGo(hub)} style={{
+                      display:'flex', flexDirection:'column', alignItems:'center', gap:'3px',
+                      background:'transparent', border:'none', cursor:'pointer', padding:'0',
+                      position:'relative',
                     }}>
-                      {item.label}
-                    </div>
-
-                    {/* ── ACTIVE DOT ── */}
-                    <div style={{
-                      position:'absolute', bottom:'-2px',
-                      left:'50%', transform:'translateX(-50%)',
-                      width: isActive ? '5px' : '0px',
-                      height: isActive ? '5px' : '0px',
-                      borderRadius:'50%', background: T.accent,
-                      boxShadow: isActive ? `0 0 8px ${T.accentGlow}` : 'none',
-                      transition:'all 0.22s cubic-bezier(.34,1.4,.64,1)',
-                    }}/>
-                  </button>
-                );
-              })}
-            </div>{/* /scroll track */}
-            </div>{/* /pill */}
-            </div>{/* /outer overflow wrapper */}
-          </div>
+                      <div style={{
+                        width:btnSize, height:btnSize, borderRadius: isCenter ? '18px' : '16px',
+                        display:'flex', alignItems:'center', justifyContent:'center',
+                        background: isCenter
+                          ? (isActive ? T.accentGrad : `${T.accent}22`)
+                          : (isActive || isOpen ? `${T.accent}22` : `${T.surface}cc`),
+                        border: `1.5px solid ${isActive || isOpen ? T.accent+'66' : T.border+'aa'}`,
+                        boxShadow: isCenter
+                          ? `0 0 ${isActive?'20':'12'}px ${T.accentGlow}${isActive?'':'44'}`
+                          : isActive || isOpen ? `0 0 10px ${T.accentGlow}44` : `0 1px 4px #00000022`,
+                        transition:'all 0.18s',
+                        position:'relative',
+                      }}>
+                        <span style={{
+                          fontSize:iconSize, lineHeight:1,
+                          filter: isActive ? `drop-shadow(0 0 ${isCenter?'10':'6'}px ${T.accentGlow})` : 'none',
+                          transition:'filter 0.2s',
+                        }}>{hub.icon}</span>
+                        {/* Hub badge */}
+                        {hubBadge && (
+                          <div style={{
+                            position:'absolute', top:'-5px', right:'-5px',
+                            background: T.accent, color:'#fff',
+                            fontSize:'8px', fontWeight:'800', lineHeight:1,
+                            padding: hubBadge==='●' ? '4px' : '2px 5px',
+                            borderRadius:'99px', minWidth:'14px', textAlign:'center',
+                            border:`1.5px solid ${T.surface}`,
+                          }}>{hubBadge !== '●' ? hubBadge : ''}</div>
+                        )}
+                        {/* Open chevron indicator */}
+                        {isOpen && !isCenter && (
+                          <div style={{position:'absolute',bottom:'-8px',left:'50%',transform:'translateX(-50%)',width:0,height:0,borderLeft:'5px solid transparent',borderRight:'5px solid transparent',borderBottom:`5px solid ${T.accent}`}}/>
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: isMobile ? '8px' : '9px',
+                        fontWeight: isActive || isOpen ? '700' : '400',
+                        color: isActive || isOpen ? T.accent : T.textMuted,
+                        lineHeight:1, marginBottom:'4px', whiteSpace:'nowrap',
+                      }}>{hub.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <style>{`@keyframes slideUpDrawer { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }`}</style>
+          </>
         );
       })()}
 
@@ -2090,8 +2050,16 @@ function AIAssistantPanel({ T, s, settings, onClose, context }) {
     '😴 How does my sleep affect my habits?',
   ];
 
-  // Probe Ollama on mount
+  // Probe Ollama only if provider is ollama; otherwise mark ready immediately
   useEffect(() => {
+    const provider = settings.aiProvider || 'groq';
+    if (provider !== 'ollama') {
+      // For Groq/Anthropic: just check if key is set
+      const key = provider === 'groq' ? settings.groqKey : settings.anthropicKey;
+      setStatus(key ? 'ok' : 'error');
+      inputRef.current?.focus();
+      return;
+    }
     (async () => {
       try {
         const res = await fetch(`${ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(3000) });
@@ -2205,7 +2173,12 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
           <div style={{ flex:1 }}>
             <div style={{ fontSize:15, fontWeight:700, color:T.text }}>AI Coach</div>
             <div style={{ fontSize:11, color: status==='ok' ? T.success : status==='error' ? T.danger : T.textMuted }}>
-              {status==='ok' ? `🟢 Ollama connected` : status==='error' ? '🔴 Ollama offline' : '⏳ Connecting...'}
+              {(() => {
+                const provider = settings.aiProvider || 'groq';
+                if (status === 'ok') return `🟢 ${provider === 'ollama' ? 'Ollama connected' : provider === 'anthropic' ? 'Anthropic ready' : 'Groq ready'}`;
+                if (status === 'error') return provider === 'ollama' ? '🔴 Ollama offline' : `🔴 No ${provider === 'anthropic' ? 'Anthropic' : 'Groq'} key — check ⚙️ Settings`;
+                return '⏳ Connecting...';
+              })()}
             </div>
           </div>
           {/* Model selector */}
@@ -2259,7 +2232,9 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
         <div style={{ padding:'16px 20px', borderTop:`1px solid ${T.border}` }}>
           {status === 'error' && (
             <div style={{ fontSize:11, color:T.danger, marginBottom:10, padding:'8px 10px', background:T.danger+'18', borderRadius:6 }}>
-              ⚠️ Ollama not reachable. Run <code style={{ fontFamily:'monospace' }}>ollama serve</code> in your terminal.
+              {(settings.aiProvider||'groq') === 'ollama'
+                ? <>⚠️ Ollama not reachable. Run <code style={{ fontFamily:'monospace' }}>ollama serve</code> in your terminal.</>
+                : <>⚠️ No API key set. Go to ⚙️ Settings → AI and add your {(settings.aiProvider||'groq') === 'anthropic' ? 'Anthropic' : 'Groq'} key.</>}
             </div>
           )}
           <div style={{ display:'flex', gap:8 }}>
@@ -4614,7 +4589,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
         <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} />
       )}
       {subTab==='expenses' && (
-        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} />
+        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />
       )}
       {subTab==='intelligence' && (
         <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} />
@@ -5039,7 +5014,7 @@ function CashFlowView({ T, s, settings, expenses, incomes, recurringExpenses, su
 }
 
 
-function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo }) {
+function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals }) {
   const [form, setForm] = useState({ amount:'', category:'🍽️ Food', subcategory:'Groceries', note:'', date:today() });
   const [incomeForm, setIncomeForm] = useState({ amount:'', note:'', date:today() });
   const [showBudgets, setShowBudgets] = useState(false);
