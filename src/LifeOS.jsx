@@ -1155,6 +1155,14 @@ export default function LifeOS() {
   const [onboarded, setOnboarded] = useLocalStorage('los_onboarded', false);
   const [onboardStep, setOnboardStep] = useState(0);
   const [showFocusMode, setShowFocusMode] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
   const [pinLocked, setPinLocked] = useState(() => {
     try { const v = localStorage.getItem('los_pin'); return !!v && JSON.parse(v) !== ''; } catch { return false; }
   });
@@ -1294,6 +1302,8 @@ export default function LifeOS() {
         alerts.push({type:'danger', msg:`📉 Price alert: ${pa.symbol} dropped to ${settings.currency}${fmtN(price)} — below your stop of ${settings.currency}${fmtN(pa.target)}`});
       }
     });
+    // C7 — Subscription duplicate detection alert (set when expense is logged)
+    if (window._pendingSubAlert) { alerts.push(window._pendingSubAlert); delete window._pendingSubAlert; }
     return alerts.slice(0,8);
   }, [budgetTargets, expenses, incomes, savingsRate, bills, settings.currency, thisMonthSpend, financialHealthScore, habits, priceAlerts, investments]);
 
@@ -1776,13 +1786,14 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         <div className="los-main" style={s.main}>
           <ErrorBoundary>
 
-          {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} checkins={checkins} setCheckins={setCheckins} incomes={incomes} />}
+          {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} checkins={checkins} setCheckins={setCheckins} incomes={incomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} />}
           {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} customChallenges={customChallenges} setCustomChallenges={setCustomChallenges} thisMonthIncome={thisMonthIncome} />}
           {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} investments={investments} debts={debts} />}
           {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
           {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} bondTracker={bondTracker} setBondTracker={setBondTracker} checkins={checkins} setCheckins={setCheckins} expenseRegrets={expenseRegrets} setExpenseRegrets={setExpenseRegrets} assetDepreciation={assetDepreciation} setAssetDepreciation={setAssetDepreciation} freelanceData={freelanceData} setFreelanceData={setFreelanceData} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} />}
           {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} tradeJournal={tradeJournal} setTradeJournal={setTradeJournal} priceAlerts={priceAlerts} setPriceAlerts={setPriceAlerts} goals={goals} setGoals={setGoals} />}
           {activeTab === 'notes' && <NotesTab T={T} s={s} notes={notes} setNotes={setNotes} settings={settings} addXP={addXP} />}
+          {activeTab === 'capsule' && <TimeCapsuleTab T={T} s={s} settings={settings} addXP={addXP} />}
           {activeTab === 'learn' && <LearnTab T={T} s={s} settings={settings} addXP={addXP} />}
           {activeTab === 'career' && <CareerTab T={T} s={s} settings={settings} careerProfile={careerProfile} setCareerProfile={setCareerProfile} careerApps={careerApps} setCareerApps={setCareerApps} careerRex={careerRex} setCareerRex={setCareerRex} addXP={addXP} incomes={incomes} setIncomes={setIncomes} goals={goals} setGoals={setGoals} />}
           {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} careerApps={careerApps} setCareerApps={setCareerApps} />}
@@ -1834,6 +1845,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
               { id:'character',  icon:'⚔️', label:'Character' },
               { id:'notes',      icon:'📝', label:'Notes' },
               { id:'learn',      icon:'📚', label:'Learn' },
+              { id:'capsule',    icon:'⏳', label:'Time Capsule' },
             ]
           },
           {
@@ -2065,8 +2077,14 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       {/* FOCUS MODE OVERLAY */}
       {showFocusMode && <FocusModeOverlay T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} goals={goals} addXP={addXP} onClose={()=>setShowFocusMode(false)} />}
 
-      {/* OFFLINE INDICATOR */}
-      <div style={{position:'fixed',bottom:'8px',left:'50%',transform:'translateX(-50%)',fontSize:'10px',color:T.textDim,zIndex:10}}>💾 Data stored locally — private &amp; offline</div>
+      {/* OFFLINE INDICATOR — live navigator.onLine */}
+      {!isOnline ? (
+        <div style={{position:'fixed',bottom:'8px',left:'50%',transform:'translateX(-50%)',zIndex:999,background:T.danger,color:'#fff',padding:'6px 18px',borderRadius:'20px',fontSize:'12px',fontWeight:'700',boxShadow:'0 2px 12px #00000055',display:'flex',gap:'8px',alignItems:'center'}}>
+          📵 You are offline — data saved locally
+        </div>
+      ) : (
+        <div style={{position:'fixed',bottom:'8px',left:'50%',transform:'translateX(-50%)',fontSize:'10px',color:T.textDim,zIndex:10}}>💾 Data stored locally — private &amp; offline-ready</div>
+      )}
     </div>
   );
 }
@@ -2509,7 +2527,7 @@ function OnboardingWizard({ T, s, settings, setSettings, onComplete, step, setSt
 // ─────────────────────────────────────────────
 // DASHBOARD TAB
 // ─────────────────────────────────────────────
-function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes }) {
+function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes, weeklyBriefHistory, setWeeklyBriefHistory }) {
   const [quickAmount, setQuickAmount] = useState('');
   const [quickCat, setQuickCat] = useState('🍽️ Food');
   const [quickNote, setQuickNote] = useState('');
@@ -2562,12 +2580,21 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
     });
   }
 
-  const widgets = [
-    { label:t('hoard_net_worth'), value: `${settings.currency}${fmtN(netWorth)}`, icon:'💰', color:T.success, tab:'hoard', sub: netWorth > 0 ? '↑ Growing' : '↓ Negative' },
-    { label:t('savings'), value:`${savingsRate.toFixed(1)}%`, icon:'💾', color: savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger, tab:'spending', sub: savingsRate>=20?`✅ ${t('on_track')||'On target'}`:savingsRate>=10?`⚠️ ${t('low')}`:`❌ ${t('needs_work')}` },
-    { label:t('debts_total'), value: `${settings.currency}${fmtN(totalDebt)}`, icon:'💳', color:T.danger, tab:'debts', sub: `${debts.length} ${debts.length!==1?t('debts_title').split(' ')[1]||'accounts':'account'}` },
-    { label:t('finance_health_score'), value:`${financialHealthScore}/100`, icon:'💡', color: financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger, tab:'finance', sub: financialHealthScore>=70?t('excellent'):financialHealthScore>=40?t('good'):t('needs_work') },
-  ];
+  // I25 — Configurable widgets
+  const [dashWidgetOrder, setDashWidgetOrder] = useLocalStorage('los_dash_widgets', ['networth','savings','debts','health','xp','goals','habits']);
+  const [showWidgetConfig, setShowWidgetConfig] = useState(false);
+
+  const ALL_WIDGETS = {
+    networth:  { label:t('hoard_net_worth'),       icon:'💰', color:()=>T.success, value:()=>`${settings.currency}${fmtN(netWorth)}`,               tab:'hoard',    sub:()=>netWorth>0?'↑ Growing':'↓ Negative' },
+    savings:   { label:t('savings'),                icon:'💾', color:()=>savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger, value:()=>`${savingsRate.toFixed(1)}%`, tab:'spending', sub:()=>savingsRate>=20?`✅ On target`:savingsRate>=10?`⚠️ Low`:`❌ Needs work` },
+    debts:     { label:t('debts_total'),            icon:'💳', color:()=>T.danger,  value:()=>`${settings.currency}${fmtN(totalDebt)}`,               tab:'debts',    sub:()=>`${debts.length} account${debts.length!==1?'s':''}` },
+    health:    { label:t('finance_health_score'),   icon:'💡', color:()=>financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger, value:()=>`${financialHealthScore}/100`, tab:'finance', sub:()=>financialHealthScore>=70?t('excellent'):financialHealthScore>=40?t('good'):t('needs_work') },
+    xp:        { label:'Total XP',                  icon:'⚡', color:()=>T.accent,  value:()=>`${fmtN(totalXP)}xp`,                                   tab:'character',sub:()=>`Level ${level}` },
+    goals:     { label:'Active Goals',              icon:'🏆', color:()=>T.accent,  value:()=>`${goals.filter(g=>g.progress<g.target).length}`,        tab:'goals',    sub:()=>topGoal?`Top: ${topGoal.name.slice(0,18)}`:'' },
+    habits:    { label:"Today's Habits",            icon:'🔥', color:()=>todayDoneCount===todayHabits.length&&todayHabits.length>0?T.success:T.warning, value:()=>`${todayDoneCount}/${todayHabits.length}`, tab:'character', sub:()=>`${todayHabits.length>0?Math.round(todayDoneCount/todayHabits.length*100):0}% done` },
+    spend:     { label:'This Month',                icon:'💸', color:()=>T.danger,  value:()=>`${settings.currency}${fmtN(thisMonthSpend)}`,           tab:'spending', sub:()=>`of ${settings.currency}${fmtN(thisMonthIncome)} income` },
+  };
+  const activeWidgets = dashWidgetOrder.filter(k=>ALL_WIDGETS[k]).map(k=>({id:k,...ALL_WIDGETS[k]}));
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
@@ -2593,16 +2620,49 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
         </div>
       )}
 
-      {/* KPI WIDGETS */}
-      <div style={s.grid4}>
-        {widgets.map(w => (
-          <div key={w.label} style={{...s.card, cursor:'pointer', borderColor:w.color+'33'}} onClick={() => setActiveTab(w.tab)}>
-            <div style={{fontSize:'20px', marginBottom:'8px'}}>{w.icon}</div>
-            <div style={{fontSize:'20px', fontWeight:'800', color:w.color}}>{w.value}</div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginTop:'4px'}}>{w.label}</div>
-            {w.sub && <div style={{fontSize:'10px', color:w.color, marginTop:'2px'}}>{w.sub}</div>}
+      {/* I1 — AI DAILY BRIEFING */}
+      <AIDailyBriefing T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} habits={habits} habitLogs={habitLogsFull} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} debts={debts} goals={goals} todayDoneCount={todayDoneCount} todayHabits={todayHabits} weeklyBriefHistory={weeklyBriefHistory||[]} setWeeklyBriefHistory={setWeeklyBriefHistory||(() => {})} />
+
+      {/* KPI WIDGETS — I25 configurable */}
+      <div>
+        <div style={{display:'flex',justifyContent:'flex-end',marginBottom:'6px'}}>
+          <button style={{...s.btnGhost,fontSize:'11px',color:T.textMuted}} onClick={()=>setShowWidgetConfig(v=>!v)}>
+            {showWidgetConfig ? '✅ Done' : '⚙️ Customise widgets'}
+          </button>
+        </div>
+        {showWidgetConfig && (
+          <div style={{...s.card,marginBottom:'12px',padding:'12px'}}>
+            <div style={{fontSize:'12px',fontWeight:'700',color:T.text,marginBottom:'8px'}}>Drag to reorder · Click to toggle</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:'6px'}}>
+              {Object.entries(ALL_WIDGETS).map(([k,w])=>{
+                const active = dashWidgetOrder.includes(k);
+                return (
+                  <button key={k} style={{...s.tag(active?T.accent:T.border),cursor:'pointer',border:`1px solid ${active?T.accent:T.border}`,padding:'4px 10px',fontSize:'12px',background:active?T.accent+'22':'transparent',color:active?T.accent:T.textMuted}}
+                    onClick={()=>setDashWidgetOrder(o=>active?o.filter(x=>x!==k):[...o,k])}>
+                    {w.icon} {w.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        ))}
+        )}
+        <div style={s.grid4}>
+          {activeWidgets.map((w,idx) => (
+            <div key={w.id}
+              draggable
+              onDragStart={e=>{e.dataTransfer.setData('widgetIdx',idx);e.currentTarget.style.opacity='0.4';}}
+              onDragEnd={e=>{e.currentTarget.style.opacity='1';}}
+              onDragOver={e=>{e.preventDefault();e.currentTarget.style.outline=`2px dashed ${T.accent}`;}}
+              onDragLeave={e=>{e.currentTarget.style.outline='none';}}
+              onDrop={e=>{e.currentTarget.style.outline='none';const from=parseInt(e.dataTransfer.getData('widgetIdx'));if(from===idx)return;setDashWidgetOrder(o=>{const ids=o.filter(k=>ALL_WIDGETS[k]);const[item]=ids.splice(from,1);ids.splice(idx,0,item);return ids;});}}
+              style={{...s.card, cursor:'pointer', borderColor:w.color()+'33', userSelect:'none'}} onClick={() => setActiveTab(w.tab)}>
+              <div style={{fontSize:'20px', marginBottom:'8px'}}>{w.icon}</div>
+              <div style={{fontSize:'20px', fontWeight:'800', color:w.color()}}>{w.value()}</div>
+              <div style={{fontSize:'11px', color:T.textMuted, marginTop:'4px'}}>{w.label}</div>
+              {w.sub() && <div style={{fontSize:'10px', color:w.color(), marginTop:'2px'}}>{w.sub()}</div>}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr 1fr', gap:'16px'}}>
@@ -2661,29 +2721,65 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
           </div>
         </div>
 
-        {/* WEEKLY FOCUS */}
-        <div style={s.card}>
+        {/* WEEKLY PLANNER — I24 */}
+        <div style={{...s.card, gridColumn: s.isMobile ? 'span 1' : 'span 1'}}>
           <div style={{...s.cardTitle, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <span>{t('dash_weeklyfocus')}</span>
-            <button style={s.btnGhost} onClick={() => setShowWF(!showWF)}>+</button>
+            <span>📅 Week Planner</span>
+            <button style={s.btnGhost} onClick={() => setShowWF(!showWF)}>{showWF ? '▲' : '▼'}</button>
           </div>
-          {showWF && (
-            <div style={{display:'flex', gap:'8px', marginBottom:'12px'}}>
-              <input style={{...s.input, flex:1}} placeholder={t('dash_weeklyfocus') + '...'} value={wfInput} onChange={e=>setWfInput(e.target.value)} onKeyDown={e=>{
-                if(e.key==='Enter' && wfInput.trim()) {
-                  setWeeklyFocus(wf=>({...wf,[thisWeek]:[...wfItems,wfInput.trim()].slice(0,3)}));
-                  setWfInput(''); setShowWF(false);
-                }
-              }}/>
-            </div>
-          )}
-          {wfItems.map((item, i) => (
-            <div key={i} style={{display:'flex', gap:'10px', padding:'8px 0', borderBottom:`1px solid ${T.border}`, fontSize:'13px', alignItems:'center'}}>
-              <span style={{color:T.accent}}>◆</span> {item}
-            </div>
-          ))}
-          {wfItems.length === 0 && <div style={{color:T.textMuted, fontSize:'12px'}}>{t('dash_no_focus')}</div>}
-          {longestStreak > 0 && <div style={{marginTop:'12px', padding:'8px', background:T.accentSoft, borderRadius:'6px', fontSize:'12px', color:T.accent}}>{t('dash_best_streak')}: {longestStreak} days</div>}
+          {/* Week strip — 7 days */}
+          {(() => {
+            const now = new Date();
+            const sun = new Date(now); sun.setDate(now.getDate() - now.getDay());
+            const days = Array.from({length:7}, (_,i) => {
+              const d = new Date(sun); d.setDate(sun.getDate()+i);
+              return { date: d.toISOString().slice(0,10), label: d.toLocaleDateString('en-US',{weekday:'short'}), num: d.getDate() };
+            });
+            const todayStr = today();
+            return (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'4px',marginBottom:'12px'}}>
+                {days.map(({date,label,num}) => {
+                  const items = weeklyFocus[date] || [];
+                  const isToday = date === todayStr;
+                  return (
+                    <div key={date} style={{textAlign:'center',borderRadius:'8px',padding:'6px 2px',background:isToday?T.accent+'22':T.surface,border:`1px solid ${isToday?T.accent:T.border}`,cursor:'pointer'}}
+                      onClick={()=>setWeeklyFocus(wf=>({...wf,_selectedDay:date}))}>
+                      <div style={{fontSize:'10px',color:isToday?T.accent:T.textMuted,fontWeight:'700'}}>{label}</div>
+                      <div style={{fontSize:'16px',fontWeight:'900',color:isToday?T.accent:T.text}}>{num}</div>
+                      {items.length>0 && <div style={{fontSize:'9px',color:T.accent,marginTop:'2px'}}>{items.length}✓</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          {/* Selected day tasks */}
+          {(() => {
+            const selDay = weeklyFocus._selectedDay || today();
+            const items = (weeklyFocus[selDay] || []).filter(x => typeof x === 'string');
+            const selLabel = new Date(selDay+'T00:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+            return (
+              <div>
+                <div style={{fontSize:'12px',fontWeight:'700',color:T.accent,marginBottom:'8px'}}>{selLabel}</div>
+                {items.map((item,i) => (
+                  <div key={i} style={{display:'flex',gap:'8px',alignItems:'center',padding:'5px 0',borderBottom:`1px solid ${T.border}`,fontSize:'12px'}}>
+                    <span style={{color:T.accent}}>◆</span>
+                    <span style={{flex:1}}>{item}</span>
+                    <button style={{...s.btnGhost,padding:'1px 6px',fontSize:'10px',color:T.danger}} onClick={()=>setWeeklyFocus(wf=>{const a=[...(wf[selDay]||[])].filter(x=>typeof x==='string');a.splice(i,1);return {...wf,[selDay]:a};})}>✕</button>
+                  </div>
+                ))}
+                {items.length === 0 && <div style={{color:T.textMuted,fontSize:'11px',marginBottom:'8px'}}>No tasks yet for this day</div>}
+                {showWF && (
+                  <div style={{display:'flex',gap:'6px',marginTop:'8px'}}>
+                    <input style={{...s.input,flex:1,fontSize:'12px',padding:'5px 8px'}} placeholder="Add task..." value={wfInput} onChange={e=>setWfInput(e.target.value)}
+                      onKeyDown={e=>{if(e.key==='Enter'&&wfInput.trim()){setWeeklyFocus(wf=>{const a=[...(wf[selDay]||[]).filter(x=>typeof x==='string'),wfInput.trim()];return {...wf,[selDay]:a};});setWfInput('');}}}/>
+                    <button style={{...s.btn(),fontSize:'11px',padding:'5px 10px'}} onClick={()=>{if(wfInput.trim()){setWeeklyFocus(wf=>{const a=[...(wf[selDay]||[]).filter(x=>typeof x==='string'),wfInput.trim()];return {...wf,[selDay]:a};});setWfInput('');}}}>+</button>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          {longestStreak > 0 && <div style={{marginTop:'10px', padding:'6px 8px', background:T.accentSoft, borderRadius:'6px', fontSize:'11px', color:T.accent}}>🔥 {t('dash_best_streak')}: {longestStreak} days</div>}
         </div>
       </div>
 
@@ -2872,6 +2968,9 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
       {checkins !== undefined && (
         <DailyCheckinWidget T={T} s={s} settings={settings} expenses={expenses} incomes={incomes||[]} checkins={checkins||[]} setCheckins={setCheckins||(() => {})} addXP={addXP} />
       )}
+
+      {/* U17 — AI SMART SPENDING SUGGESTIONS */}
+      <AiSpendingSuggestions T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} budgetTargets={budgetTargets} savingsRate={savingsRate} />
     </div>
   );
 }
@@ -2883,8 +2982,134 @@ function getGreeting() {
   return t('greeting_evening');
 }
 
+// U17 — AI Smart Spending Suggestions
+function AiSpendingSuggestions({ T, s, settings, expenses, incomes, budgetTargets, savingsRate }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [lastRun, setLastRun] = useLocalStorage('los_spend_suggest_date', '');
+  const today_str = today();
+
+  async function generateSuggestions() {
+    setLoading(true);
+    const m = today_str.slice(0,7);
+    const monthExp = expenses.filter(e=>e.date?.startsWith(m));
+    const byCat = {};
+    monthExp.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+Number(e.amount);});
+    const top5 = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const totalSpend = monthExp.reduce((s,e)=>s+Number(e.amount),0);
+    const totalIncome = incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount),0);
+    const budgetCtx = Object.entries(budgetTargets||{}).filter(([,v])=>Number(v)>0).map(([c,v])=>`${c}: budget ${settings.currency}${v}, spent ${settings.currency}${(byCat[c]||0).toFixed(0)}`).join('; ');
+    const prompt = `You are a personal finance coach. Analyse this month's spending and give 4 specific, actionable money-saving suggestions.
+
+Month: ${m}
+Total income: ${settings.currency}${totalIncome.toFixed(0)}
+Total spend: ${settings.currency}${totalSpend.toFixed(0)}
+Savings rate: ${savingsRate.toFixed(1)}%
+Top categories: ${top5.map(([c,v])=>`${c} ${settings.currency}${v.toFixed(0)}`).join(', ')}
+Budgets: ${budgetCtx||'none set'}
+
+Respond ONLY as a JSON array of exactly 4 objects, no markdown:
+[{"icon":"💡","title":"Short title","action":"One concrete action sentence","saving":"Estimated monthly saving","impact":"high|medium|low"}]`;
+    try {
+      const raw = await callAI(prompt, settings, 600);
+      const match = raw.match(/\[[\s\S]*\]/);
+      if (match) setSuggestions(JSON.parse(match[0]));
+      else setSuggestions([{ icon:'💡', title:'Tip', action: raw.slice(0,200), saving:'—', impact:'medium' }]);
+      setLastRun(today_str);
+    } catch { setSuggestions([{ icon:'⚠️', title:'Error', action:'AI unavailable — check Settings → AI Provider', saving:'—', impact:'low' }]); }
+    setLoading(false);
+  }
+
+  const impactColor = (i) => i==='high'?T.danger:i==='medium'?T.warning:T.success;
+  const already_ran_today = lastRun === today_str;
+
+  return (
+    <div style={s.card}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:suggestions.length?12:0}}>
+        <div style={s.cardTitle}>💡 AI Spending Suggestions</div>
+        <button style={{...s.btn(),fontSize:'12px'}} onClick={generateSuggestions} disabled={loading}>
+          {loading ? '⏳ Analysing...' : already_ran_today && suggestions.length ? '🔄 Refresh' : '✨ Generate'}
+        </button>
+      </div>
+      {suggestions.length === 0 && !loading && (
+        <div style={{fontSize:'12px',color:T.textMuted}}>Click Generate to get personalised AI spending recommendations based on your data.</div>
+      )}
+      {loading && <div style={{fontSize:'12px',color:T.textMuted,padding:'12px 0'}}>⏳ Analysing your spending patterns...</div>}
+      <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+        {suggestions.map((sg,i)=>(
+          <div key={i} style={{display:'flex',gap:'12px',padding:'12px',borderRadius:'10px',background:T.surface,border:`1px solid ${impactColor(sg.impact)}33`}}>
+            <span style={{fontSize:'22px',flexShrink:0}}>{sg.icon}</span>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:'700',fontSize:'13px',color:T.text,marginBottom:'2px'}}>{sg.title}</div>
+              <div style={{fontSize:'12px',color:T.textMuted,lineHeight:1.5}}>{sg.action}</div>
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:'11px',color:T.success,fontWeight:'700'}}>{sg.saving}</div>
+              <div style={{...s.tag(impactColor(sg.impact)),fontSize:'9px',marginTop:'4px'}}>{sg.impact}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// I1 — AI Daily Briefing (runs every day, not just Mondays)
+function AIDailyBriefing({ T, s, settings, expenses, incomes, habits, habitLogs, vitals, savingsRate, netWorth, debts, goals, todayDoneCount, todayHabits, weeklyBriefHistory, setWeeklyBriefHistory }) {
+  const [loading, setLoading] = useState(false);
+  const today_str = today();
+  const lastBrief = weeklyBriefHistory[weeklyBriefHistory.length - 1];
+  const alreadyDoneToday = lastBrief?.date === today_str;
+
+  async function generate() {
+    setLoading(true);
+    const m = today_str.slice(0,7);
+    const monthSpend = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount),0);
+    const todayVitals = vitals.find(v=>v.date===today_str);
+    const topGoal = [...goals].sort((a,b)=>(b.progress||0)/b.target-(a.progress||0)/a.target)[0];
+    const prompt = `You are LifeOS AI. Generate a brief, energetic, personalised daily briefing (max 5 bullet points) for this user.
+
+Date: ${today_str} (${new Date().toLocaleDateString('en-US',{weekday:'long'})})
+Name: ${settings.name||'User'}
+Today: ${todayDoneCount}/${todayHabits.length} habits done
+This month's spend: ${settings.currency}${monthSpend.toFixed(0)} | Savings rate: ${savingsRate.toFixed(1)}%
+Net worth: ${settings.currency}${netWorth.toFixed(0)}
+Active debts: ${debts.length}
+Top goal: ${topGoal ? `${topGoal.name} — ${Math.round((topGoal.progress||0)/topGoal.target*100)}%` : 'none'}
+${todayVitals ? `Today vitals: sleep ${todayVitals.sleep}h, mood ${todayVitals.mood}/10` : 'Vitals not logged yet today'}
+
+Write 4-5 short bullet points (each ≤ 20 words). Be specific, motivating, and data-driven. Start with the most important insight.`;
+    try {
+      const result = await callAI(prompt, settings, 400);
+      setWeeklyBriefHistory(prev => [...prev.slice(-29), { date: today_str, brief: result }]);
+    } catch { setWeeklyBriefHistory(prev => [...prev.slice(-29), { date: today_str, brief: '⚠️ AI unavailable — check Settings.' }]); }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{...s.card, border:`1px solid ${T.accent}33`, background:`${T.accent}08`}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom: alreadyDoneToday && lastBrief?.brief ? 10 : 0}}>
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          <span style={{fontSize:'18px'}}>🌅</span>
+          <div style={s.cardTitle}>Daily AI Briefing</div>
+          {alreadyDoneToday && <span style={{...s.tag(T.success),fontSize:'10px'}}>Today</span>}
+        </div>
+        <button style={{...s.btn(),fontSize:'12px'}} onClick={generate} disabled={loading}>
+          {loading ? '⏳' : alreadyDoneToday ? '🔄 Refresh' : '✨ Brief me'}
+        </button>
+      </div>
+      {loading && <div style={{fontSize:'12px',color:T.textMuted,padding:'8px 0'}}>⏳ Generating your daily briefing...</div>}
+      {alreadyDoneToday && lastBrief?.brief && !loading && (
+        <div style={{fontSize:'13px',color:T.text,lineHeight:1.7,whiteSpace:'pre-wrap',padding:'4px 0'}}>{lastBrief.brief}</div>
+      )}
+      {!alreadyDoneToday && !loading && (
+        <div style={{fontSize:'12px',color:T.textMuted}}>Get your personalised AI summary for the day — habits, finances, goals, and priorities.</div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────
-// HERO TAB
 // ─────────────────────────────────────────────
 
 // ─────────────────────────────────────────────
@@ -3193,14 +3418,22 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
             );
           })()}
 
-          {/* Habit cards */}
-          {habits.map(h=>{
+          {/* Habit cards — drag-and-drop reorder */}
+          {habits.map((h, idx)=>{
             const done=(habitLogs[h.id]||[]).includes(today());
             const streak=getFreqAwareStreak(h);
             const hmap=getHeatmap(h.id);
             return (
-              <div key={h.id} style={{...s.card,border:done?`1px solid ${T.accent}44`:`1px solid ${T.border}`}}>
+              <div key={h.id}
+                draggable
+                onDragStart={e=>{e.dataTransfer.setData('habitIdx',idx);e.currentTarget.style.opacity='0.4';}}
+                onDragEnd={e=>{e.currentTarget.style.opacity='1';}}
+                onDragOver={e=>{e.preventDefault();e.currentTarget.style.outline=`2px dashed ${T.accent}`;}}
+                onDragLeave={e=>{e.currentTarget.style.outline='none';}}
+                onDrop={e=>{e.currentTarget.style.outline='none';const from=parseInt(e.dataTransfer.getData('habitIdx'));if(from===idx)return;setHabits(hb=>{const a=[...hb];const[item]=a.splice(from,1);a.splice(idx,0,item);return a;});}}
+                style={{...s.card,border:done?`1px solid ${T.accent}44`:`1px solid ${T.border}`,cursor:'grab'}}>
                 <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'10px'}}>
+                  <span style={{color:T.textDim,fontSize:'14px',cursor:'grab',userSelect:'none'}} title="Drag to reorder">⠿</span>
                   <div onClick={()=>toggleLog(h)} style={{width:'24px',height:'24px',border:`2px solid ${done?T.accent:T.border}`,borderRadius:'6px',background:done?T.accent:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all 0.2s'}}>
                     {done&&<span style={{color:'#fff',fontSize:'14px'}}>✓</span>}
                   </div>
@@ -3210,8 +3443,10 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
                       <span style={s.tag(T.textMuted)}>{h.frequency}</span>
                       <span style={s.tag(T.accent)}>+{h.xp}xp</span>
                       {streak>0&&<span style={s.tag(T.warning)}>🔥 {streak}d streak</span>}
+                      {h.pinned&&<span style={s.tag(T.warning)}>📌</span>}
                     </div>
                   </div>
+                  <button style={{...s.btnGhost,fontSize:'12px',color:h.pinned?T.warning:T.textMuted}} title="Pin habit" onClick={()=>setHabits(hb=>hb.map(x=>x.id===h.id?{...x,pinned:!x.pinned}:x))}>📌</button>
                   <button style={{...s.btnGhost,fontSize:'12px',color:T.textMuted}} onClick={()=>setEditingHabit({...h})}>✏️</button>
                   <button style={{...s.btnGhost,fontSize:'12px',color:T.danger}} onClick={()=>{const rem=h;setHabits(hb=>hb.filter(x=>x.id!==h.id));pushUndo?.(`Deleted "${h.name}"`,()=>setHabits(hb=>[...hb,rem]));}}> ✕</button>
                 </div>
@@ -5346,7 +5581,8 @@ function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
       return (amtMatch || nameMatch) && nameL.length > 1;
     });
     if (matchedSub) {
-      setTimeout(() => alert(`ℹ️ This expense looks like your "${matchedSub.name}" subscription (${settings.currency}${fmtN(matchedSub.amount)}/mo). Consider if it's already tracked to avoid double-counting.`), 100);
+      // C7 — push into smartAlerts instead of window.alert
+      window._pendingSubAlert = { type:'info', msg:`🔄 New expense looks like your "${matchedSub.name}" subscription (${settings.currency}${fmtN(matchedSub.amount)}/mo). Already tracked? Avoid double-counting.` };
     }
     // C1 — Savings expense → prompt to apply to a goal
     if (form.category === '💰 Savings' && goals && goals.length > 0) {
@@ -6936,13 +7172,14 @@ Max 280 words.`
         const savTotal   = savExp.reduce((s,e)=>s+Number(e.amount),0);
         function ExpRow({e}) {
           return (
-            <div style={{display:'flex',gap:'10px',padding:'8px 0',borderBottom:`1px solid ${T.border}22`,alignItems:'center'}}>
+            <div style={{display:'flex',gap:'10px',padding:'8px 0',borderBottom:`1px solid ${T.border}22`,alignItems:'center',background:e.pinned?T.warning+'08':'transparent'}}>
               <span style={{fontSize:'11px',color:T.textMuted,minWidth:'72px'}}>{e.date}</span>
-              <span style={{flex:1,fontSize:'12px',color:T.text}}>{e.category?.split(' ')[0]} <span style={{color:T.textMuted}}>{e.subcategory||e.note||e.category?.split(' ').slice(1).join(' ')||''}</span></span>
+              <span style={{flex:1,fontSize:'12px',color:T.text}}>{e.pinned&&<span style={{color:T.warning,marginRight:'4px'}}>📌</span>}{e.category?.split(' ')[0]} <span style={{color:T.textMuted}}>{e.subcategory||e.note||e.category?.split(' ').slice(1).join(' ')||''}</span></span>
               <span style={{color:T.danger,fontWeight:'700',fontSize:'13px'}}>-{settings.currency}{fmtN(e.amount)}</span>
               {expenseRegrets !== undefined && (
                 <RegretButton T={T} expenseId={e.id} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
               )}
+              <button style={{...s.btnGhost,padding:'2px 6px',color:e.pinned?T.warning:T.textMuted,fontSize:'10px'}} title="Pin expense" onClick={()=>setExpenses(ex=>ex.map(x=>x.id===e.id?{...x,pinned:!x.pinned}:x))}>📌</button>
               <button style={{...s.btnGhost,padding:'2px 6px',color:T.textMuted,fontSize:'10px'}} onClick={()=>setEditingExpense({...e})}>✏️</button>
               <button style={{...s.btnGhost,padding:'2px 6px',color:T.danger,fontSize:'10px'}} onClick={()=>{ const removed=e; setExpenses(ex=>ex.filter(x=>x.id!==e.id)); pushUndo?.(`Deleted ${settings.currency}${fmtN(e.amount)} expense`, ()=>setExpenses(ex=>[...ex,removed])); }}>✕</button>
             </div>
@@ -9065,6 +9302,147 @@ Be concise, specific, and actionable. Educational purposes only — not official
   );
 }
 
+
+// ─────────────────────────────────────────────
+// TIME CAPSULE TAB — I4
+// ─────────────────────────────────────────────
+function TimeCapsuleTab({ T, s, settings, addXP }) {
+  const [capsules, setCapsules] = useLocalStorage('los_capsules', []);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title:'', letter:'', unlockDate:'' });
+  const [revealed, setRevealed] = useState({});
+
+  const todayStr = today();
+  const canReveal = (c) => c.unlockDate <= todayStr;
+
+  function save() {
+    if (!form.title.trim() || !form.letter.trim() || !form.unlockDate) return;
+    if (form.unlockDate <= todayStr) { alert('Unlock date must be in the future!'); return; }
+    setCapsules(cs => [...cs, { id: Date.now(), ...form, createdAt: todayStr }]);
+    addXP(30, 'Time capsule created');
+    setForm({ title:'', letter:'', unlockDate:'' });
+    setShowForm(false);
+  }
+
+  function deleteCapsule(id) {
+    if (!window.confirm('Delete this time capsule? This cannot be undone.')) return;
+    setCapsules(cs => cs.filter(c => c.id !== id));
+  }
+
+  const locked = capsules.filter(c => !canReveal(c)).sort((a,b)=>a.unlockDate.localeCompare(b.unlockDate));
+  const unlocked = capsules.filter(c => canReveal(c)).sort((a,b)=>b.unlockDate.localeCompare(a.unlockDate));
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
+      {/* Header */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>⏳ Time Capsule</div>
+          <div style={{color:T.textMuted,fontSize:'13px',marginTop:'4px'}}>Letters to your future self — sealed until a date you choose</div>
+        </div>
+        <button style={s.btn()} onClick={()=>setShowForm(v=>!v)}>{showForm?'✕ Cancel':'✍️ Write Letter'}</button>
+      </div>
+
+      {/* Write form */}
+      {showForm && (
+        <div style={{...s.card,border:`1px solid ${T.accent}44`}}>
+          <div style={{...s.cardTitle,marginBottom:'16px'}}>✍️ New Time Capsule Letter</div>
+          <div style={{marginBottom:'12px'}}>
+            <div style={{fontSize:'12px',color:T.textMuted,marginBottom:'4px'}}>Title / Subject</div>
+            <input style={{...s.input,width:'100%'}} placeholder="e.g. Letter to myself in 1 year" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} />
+          </div>
+          <div style={{marginBottom:'12px'}}>
+            <div style={{fontSize:'12px',color:T.textMuted,marginBottom:'4px'}}>Your letter</div>
+            <textarea style={{...s.input,width:'100%',minHeight:'160px',resize:'vertical',fontFamily:'inherit'}}
+              placeholder="Dear future me, today I am thinking about..." value={form.letter} onChange={e=>setForm(f=>({...f,letter:e.target.value}))} />
+          </div>
+          <div style={{marginBottom:'16px'}}>
+            <div style={{fontSize:'12px',color:T.textMuted,marginBottom:'4px'}}>Unlock date (must be in the future)</div>
+            <input type="date" style={{...s.input,width:'auto'}} min={todayStr} value={form.unlockDate} onChange={e=>setForm(f=>({...f,unlockDate:e.target.value}))} />
+          </div>
+          <div style={{display:'flex',gap:'10px'}}>
+            <button style={{...s.btn(),flex:1}} onClick={save}>🔒 Seal Capsule (+30xp)</button>
+            <button style={{...s.btnGhost}} onClick={()=>setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {capsules.length === 0 && !showForm && (
+        <div style={{...s.card,textAlign:'center',padding:'48px 0',color:T.textMuted}}>
+          <div style={{fontSize:'48px',marginBottom:'16px'}}>⏳</div>
+          <div style={{fontSize:'16px',fontWeight:'700',marginBottom:'8px'}}>No time capsules yet</div>
+          <div style={{fontSize:'13px',marginBottom:'20px'}}>Write a letter to your future self — sealed until a date you pick. Reflect on goals, fears, and hopes.</div>
+          <button style={s.btn()} onClick={()=>setShowForm(true)}>✍️ Write your first letter</button>
+        </div>
+      )}
+
+      {/* Unlocked capsules */}
+      {unlocked.length > 0 && (
+        <div>
+          <div style={{fontSize:'13px',fontWeight:'700',color:T.success,marginBottom:'10px'}}>🔓 Ready to open ({unlocked.length})</div>
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            {unlocked.map(c=>{
+              const isRevealed = revealed[c.id];
+              const daysAgo = Math.round((new Date(todayStr)-new Date(c.unlockDate+'T00:00:00'))/86400000);
+              return (
+                <div key={c.id} style={{...s.card,border:`1px solid ${T.success}44`,background:`${T.success}06`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}}>
+                    <div>
+                      <div style={{fontWeight:'700',fontSize:'15px',color:T.text}}>{c.title}</div>
+                      <div style={{fontSize:'11px',color:T.textMuted,marginTop:'2px'}}>
+                        Written {c.createdAt} · Unlocked {c.unlockDate} {daysAgo>0?`(${daysAgo}d ago)`:'today'}
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:'6px'}}>
+                      <button style={{...s.btn(T.success),fontSize:'12px',padding:'4px 12px'}} onClick={()=>setRevealed(r=>({...r,[c.id]:!r[c.id]}))}>
+                        {isRevealed?'🔼 Hide':'📖 Read'}
+                      </button>
+                      <button style={{...s.btnGhost,fontSize:'12px',color:T.danger}} onClick={()=>deleteCapsule(c.id)}>✕</button>
+                    </div>
+                  </div>
+                  {isRevealed && (
+                    <div style={{marginTop:'12px',padding:'16px',background:T.surface,borderRadius:'10px',borderLeft:`4px solid ${T.success}`,fontSize:'14px',color:T.text,lineHeight:1.8,whiteSpace:'pre-wrap',fontStyle:'italic'}}>
+                      {c.letter}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Locked capsules */}
+      {locked.length > 0 && (
+        <div>
+          <div style={{fontSize:'13px',fontWeight:'700',color:T.textMuted,marginBottom:'10px'}}>🔒 Sealed ({locked.length})</div>
+          <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+            {locked.map(c=>{
+              const daysLeft = Math.round((new Date(c.unlockDate+'T00:00:00')-new Date(todayStr))/86400000);
+              const pct = Math.max(0, Math.min(100, ((new Date(todayStr)-new Date(c.createdAt+'T00:00:00')) / (new Date(c.unlockDate+'T00:00:00')-new Date(c.createdAt+'T00:00:00')))*100));
+              return (
+                <div key={c.id} style={{...s.card,border:`1px solid ${T.border}`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:'700',fontSize:'14px',color:T.text}}>🔒 {c.title}</div>
+                      <div style={{fontSize:'11px',color:T.textMuted,marginTop:'2px'}}>Written {c.createdAt} · Unlocks {c.unlockDate}</div>
+                      <div style={{marginTop:'8px',background:T.border,height:'4px',borderRadius:'2px'}}>
+                        <div style={{background:T.accent,height:'100%',width:`${pct}%`,borderRadius:'2px',transition:'width 0.5s'}}/>
+                      </div>
+                      <div style={{fontSize:'11px',color:T.accent,marginTop:'4px'}}>⏳ {daysLeft} day{daysLeft!==1?'s':''} to go</div>
+                    </div>
+                    <button style={{...s.btnGhost,fontSize:'12px',color:T.danger,marginLeft:'12px'}} onClick={()=>deleteCapsule(c.id)}>✕</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────
 // LEARN TAB
@@ -12462,6 +12840,7 @@ function NotesTab({ T, s, notes, setNotes, settings, addXP }) {
   const [aiLoading, setAiLoading] = useState({});
   const [aiResults, setAiResults] = useState({});
   const [expandedNote, setExpandedNote] = useState(null);
+  const [notePage, setNotePage] = useState(0);
   const [sortBy, setSortBy] = useState('dueDate'); // dueDate | created | priority
 
   function addNote() {
@@ -12544,6 +12923,9 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
     .filter(n => filterPriority === 'All' || n.priority === filterPriority)
     .filter(n => !search || n.title?.toLowerCase().includes(search.toLowerCase()) || n.details?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
+      // Pinned notes always float to top
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
       if (sortBy === 'dueDate') {
         if (!a.dueDate && !b.dueDate) return 0;
         if (!a.dueDate) return 1;
@@ -12730,16 +13112,21 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
       {/* ── SEARCH ── */}
       <input style={s.input} placeholder="🔍 Search notes by title or details..." value={search} onChange={e => setSearch(e.target.value)} />
 
-      {/* ── NOTES LIST ── */}
+      {/* ── NOTES LIST — paginated ── */}
       {filtered.length === 0 && (
         <div style={{ ...s.card, textAlign: 'center', color: T.textMuted, padding: '48px 0' }}>
           <div style={{ fontSize: '40px', marginBottom: 12 }}>📝</div>
           <div>{notes.length === 0 ? 'No notes yet. Create your first one!' : 'No notes match the current filters.'}</div>
         </div>
       )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.map(note => {
+      {(() => {
+        const PAGE = 20;
+        const totalPages = Math.ceil(filtered.length / PAGE);
+        const pageNotes = filtered.slice((notePage||0)*PAGE, ((notePage||0)+1)*PAGE);
+        return (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pageNotes.map(note => {
           const isOverdue = !note.done && note.dueDate && note.dueDate < todayStr;
           const isDueToday = !note.done && note.dueDate === todayStr;
           const daysUntil = note.dueDate ? Math.round((new Date(note.dueDate+'T00:00:00') - new Date(todayStr+'T00:00:00')) / 86400000) : null;
@@ -12771,7 +13158,7 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
                     <div style={{ fontWeight: '700', fontSize: '14px', color: note.done ? T.textMuted : T.text, textDecoration: note.done ? 'line-through' : 'none' }}>
-                      {note.title}
+                      {note.pinned && <span style={{color:T.warning,marginRight:'4px'}}>📌</span>}{note.title}
                     </div>
                     <span style={{ ...s.tag(pColor), fontSize: '10px' }}>{note.priority}</span>
                     <span style={{ ...s.tag(T.textMuted), fontSize: '10px' }}>{note.domain}</span>
@@ -12802,8 +13189,7 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
                   )}
                 </div>
 
-                {/* Action buttons */}
-                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button style={{ ...s.btnGhost, padding: '3px 8px', fontSize: '11px', color: note.pinned ? T.warning : T.textMuted }} title="Pin note" onClick={() => setNotes(all=>all.map(x=>x.id===note.id?{...x,pinned:!x.pinned}:x))}>📌</button>
                   {note.details && (
                     <button style={{ ...s.btnGhost, padding: '3px 8px', fontSize: '11px' }} onClick={() => setExpandedNote(isExpanded ? null : note.id)}>
                       {isExpanded ? '▲' : '▼'}
@@ -12819,12 +13205,22 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
                   </button>
                   <button style={{ ...s.btnGhost, padding: '3px 8px', fontSize: '11px' }} onClick={() => setEditingNote({ ...note })}>✏️</button>
                   <button style={{ ...s.btnGhost, padding: '3px 8px', fontSize: '11px', color: T.danger }} onClick={() => deleteNote(note.id)}>✕</button>
-                </div>
               </div>
             </div>
           );
         })}
-      </div>
+            </div>
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+              <div style={{display:'flex',gap:'8px',justifyContent:'center',alignItems:'center',marginTop:'8px'}}>
+                <button style={{...s.btnGhost,padding:'4px 12px',fontSize:'12px'}} disabled={(notePage||0)===0} onClick={()=>setNotePage(p=>(p||0)-1)}>← Prev</button>
+                <span style={{fontSize:'12px',color:T.textMuted}}>Page {(notePage||0)+1} / {totalPages} · {filtered.length} notes</span>
+                <button style={{...s.btnGhost,padding:'4px 12px',fontSize:'12px'}} disabled={(notePage||0)>=totalPages-1} onClick={()=>setNotePage(p=>(p||0)+1)}>Next →</button>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── DOMAIN BREAKDOWN ── */}
       {notes.length > 0 && (
