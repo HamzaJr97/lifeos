@@ -1099,6 +1099,18 @@ export default function LifeOS() {
   const [gmailToken, setGmailToken] = useLocalStorage('los_gmail_token', null);
   const [tradeJournal, setTradeJournal] = useLocalStorage('los_trades', []); // C15-C19
   const [priceAlerts, setPriceAlerts] = useLocalStorage('los_price_alerts', []); // C18
+  // ── Category 6 — New Features ───────────────────────────────────────
+  const [recurringIncomes, setRecurringIncomes] = useLocalStorage('los_rec_incomes', []); // I17
+  const [splitExpenses, setSplitExpenses] = useLocalStorage('los_splits', []); // I8
+  const [customChallenges, setCustomChallenges] = useLocalStorage('los_challenges', []); // I9
+  const [expenseRegrets, setExpenseRegrets] = useLocalStorage('los_regrets', {}); // I16
+  const [focusBillingSettings, setFocusBillingSettings] = useLocalStorage('los_focus_billing', { enabled: false, hourlyRate: 50 }); // I22
+  const [thesisDates, setThesisDates] = useLocalStorage('los_thesis_dates', {}); // I25
+  const [weeklyBriefHistory, setWeeklyBriefHistory] = useLocalStorage('los_weekly_brief', []); // I18
+  const [freelanceData, setFreelanceData] = useLocalStorage('los_freelance', { enabled: false, hourlyRate: 0, taxRate: 22, projects: [] }); // I20
+  const [checkins, setCheckins] = useLocalStorage('los_checkins', []); // I15
+  const [assetDepreciation, setAssetDepreciation] = useLocalStorage('los_depr', {}); // I19
+  const [bondTracker, setBondTracker] = useLocalStorage('los_bonds', []); // I14
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [openHub, setOpenHub] = useState(null); // which hub is expanded: 'money'|'life'|'mind'|'career'|null
@@ -1764,11 +1776,11 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         <div className="los-main" style={s.main}>
           <ErrorBoundary>
 
-          {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} />}
-          {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} />}
+          {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} checkins={checkins} setCheckins={setCheckins} incomes={incomes} />}
+          {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} customChallenges={customChallenges} setCustomChallenges={setCustomChallenges} thisMonthIncome={thisMonthIncome} />}
           {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} investments={investments} debts={debts} />}
           {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
-          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} />}
+          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} bondTracker={bondTracker} setBondTracker={setBondTracker} checkins={checkins} setCheckins={setCheckins} expenseRegrets={expenseRegrets} setExpenseRegrets={setExpenseRegrets} assetDepreciation={assetDepreciation} setAssetDepreciation={setAssetDepreciation} freelanceData={freelanceData} setFreelanceData={setFreelanceData} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} />}
           {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} tradeJournal={tradeJournal} setTradeJournal={setTradeJournal} priceAlerts={priceAlerts} setPriceAlerts={setPriceAlerts} goals={goals} setGoals={setGoals} />}
           {activeTab === 'notes' && <NotesTab T={T} s={s} notes={notes} setNotes={setNotes} settings={settings} addXP={addXP} />}
           {activeTab === 'learn' && <LearnTab T={T} s={s} settings={settings} addXP={addXP} />}
@@ -1777,7 +1789,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
           {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} />}
-          {activeTab === 'mindbody' && <MindBodyTab T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} />}
+          {activeTab === 'mindbody' && <MindBodyTab T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} focusBillingSettings={focusBillingSettings} setFocusBillingSettings={setFocusBillingSettings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
         </div>
@@ -2497,7 +2509,7 @@ function OnboardingWizard({ T, s, settings, setSettings, onComplete, step, setSt
 // ─────────────────────────────────────────────
 // DASHBOARD TAB
 // ─────────────────────────────────────────────
-function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets }) {
+function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes }) {
   const [quickAmount, setQuickAmount] = useState('');
   const [quickCat, setQuickCat] = useState('🍽️ Food');
   const [quickNote, setQuickNote] = useState('');
@@ -2856,11 +2868,13 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
           );
         })()}
       </div>
+      {/* I15 — DAILY FINANCIAL CHECK-IN */}
+      {checkins !== undefined && (
+        <DailyCheckinWidget T={T} s={s} settings={settings} expenses={expenses} incomes={incomes||[]} checkins={checkins||[]} setCheckins={setCheckins||(() => {})} addXP={addXP} />
+      )}
     </div>
   );
 }
-
-function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return t('greeting_morning');
   if (h < 18) return t('greeting_afternoon');
@@ -2874,7 +2888,7 @@ function getGreeting() {
 // ─────────────────────────────────────────────
 // CHARACTER TAB (Hero + Quests merged)
 // ─────────────────────────────────────────────
-function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForNext, xpForCurrent, habits, setHabits, habitLogs, setHabitLogs, vitals, savingsRate, netWorth, expenses, achievements, setAchievements, chronicles, setChronicles, getStreak, addXP, setTotalXP, setXpHistory, pushUndo, goals, setGoals, debts, thisMonthSpend }) {
+function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForNext, xpForCurrent, habits, setHabits, habitLogs, setHabitLogs, vitals, savingsRate, netWorth, expenses, achievements, setAchievements, chronicles, setChronicles, getStreak, addXP, setTotalXP, setXpHistory, pushUndo, goals, setGoals, debts, thisMonthSpend, customChallenges, setCustomChallenges, thisMonthIncome }) {
   const [subTab, setSubTab] = useState('profile');
 
   // ── Profile (Hero) data ──
@@ -3236,6 +3250,12 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
               </div>
             </div>
           )}
+          {/* I7 — HABIT ROI */}
+          {habits.length > 0 && (
+            <HabitROIPanel T={T} s={s} habits={habits} habitLogs={habitLogs} settings={settings} thisMonthIncome={thisMonthIncome||0} />
+          )}
+          {/* I9 — CUSTOM CHALLENGES */}
+          <CustomChallengesPanel T={T} s={s} customChallenges={customChallenges||[]} setCustomChallenges={setCustomChallenges||(() => {})} addXP={addXP} />
         </div>
       )}
 
@@ -3488,7 +3508,7 @@ function HeroTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForN
 // ─────────────────────────────────────────────
 // QUESTS TAB
 // ─────────────────────────────────────────────
-function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, getStreak, pushUndo }) {
+function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, getStreak, pushUndo, settings, thisMonthIncome, customChallenges, setCustomChallenges }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name:'', frequency:'daily', category:'Health', xp:15, days:[0,1,2,3,4,5,6] });
   const [editingHabit, setEditingHabit] = useState(null);
@@ -3694,6 +3714,12 @@ function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, ge
           <div>{t('quests_no_quests_long')}</div>
         </div>
       )}
+      {/* I7 — HABIT ROI SCORE */}
+      {habits.length > 0 && settings && (
+        <HabitROIPanel T={T} s={s} habits={habits} habitLogs={habitLogs} settings={settings} thisMonthIncome={thisMonthIncome||0} />
+      )}
+      {/* I9 — CUSTOM XP CHALLENGES */}
+      <CustomChallengesPanel T={T} s={s} customChallenges={customChallenges||[]} setCustomChallenges={setCustomChallenges||(() => {})} addXP={addXP} />
     </div>
   );
 }
@@ -3701,7 +3727,7 @@ function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, ge
 // ─────────────────────────────────────────────
 // HOARD TAB
 // ─────────────────────────────────────────────
-function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pushUndo }) {
+function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pushUndo, assetDepreciation, setAssetDepreciation }) {
   const [form, setForm] = useState({ name:'', type:'Stocks', value:'', currency: settings.currency });
   const [showAdd, setShowAdd] = useState(false);
 
@@ -3830,6 +3856,8 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
           )}
         </div>
       </div>
+      {/* I19 — ASSET DEPRECIATION TRACKER */}
+      <AssetDepreciationTracker T={T} s={s} assets={assets} setAssets={setAssets} assetDepreciation={assetDepreciation||{}} setAssetDepreciation={setAssetDepreciation||(() => {})} settings={settings} />
     </div>
   );
 }
@@ -4691,7 +4719,7 @@ function CatManagerItem({ cat, isBuiltin, isCustom, subcats, newSub, role, displ
 // ─────────────────────────────────────────────
 // MONEY HUB TAB (Spending + Finance + Discipline + CashFlow)
 // ─────────────────────────────────────────────
-function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals }) {
+function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals }) {
   const [subTab, setSubTab] = useState('hoard');
 
   return (
@@ -4704,25 +4732,47 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
           {id:'discipline',  label:'⚡ Discipline'},
           {id:'cashflow',    label:'📅 Cash Flow'},
           {id:'intelligence',label:'💡 Intelligence'},
+          {id:'tools',       label:'🛠️ Tools'},
+          {id:'freelance',   label:'🧾 Freelance'},
         ].map(st=>(
           <button key={st.id} onClick={()=>setSubTab(st.id)} style={{...s.btnGhost,fontSize:13,padding:'8px 18px',background:subTab===st.id?T.accentSoft:'transparent',color:subTab===st.id?T.accent:T.textMuted,borderColor:subTab===st.id?T.accent+'55':T.border,fontWeight:subTab===st.id?'700':'400'}}>{st.label}</button>
         ))}
       </div>
 
       {subTab==='hoard' && (
-        <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} />
+        <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} assetDepreciation={assetDepreciation||{}} setAssetDepreciation={setAssetDepreciation||(() => {})} />
       )}
       {subTab==='expenses' && (
-        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} />
+        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
       )}
       {subTab==='intelligence' && (
-        <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} />
+        <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} />
       )}
       {subTab==='discipline' && (
         <DisciplineView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} savingsRate={savingsRate} budgetTargets={budgetTargets} />
       )}
       {subTab==='cashflow' && (
-        <CashFlowView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} recurringExpenses={recurringExpenses} subscriptions={subscriptions} bills={bills} assets={assets} thisMonthSpend={thisMonthSpend} />
+        <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
+          <CashFlowView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} recurringExpenses={recurringExpenses} subscriptions={subscriptions} bills={bills} assets={assets} thisMonthSpend={thisMonthSpend} recurringIncomes={recurringIncomes} />
+          {/* I5 — FINANCIAL CALENDAR */}
+          <FinancialCalendar T={T} s={s} settings={settings} bills={bills||[]} subscriptions={subscriptions||[]} recurringExpenses={recurringExpenses||[]} recurringIncomes={recurringIncomes||[]} expenses={expenses} incomes={incomes||[]} />
+        </div>
+      )}
+      {subTab==='tools' && (
+        <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
+          <NLExpenseSearch T={T} s={s} expenses={expenses} settings={settings} incomes={incomes} />
+          <PaycheckPlannerPanel T={T} s={s} settings={settings} thisMonthIncome={thisMonthIncome} expenses={expenses} budgetTargets={budgetTargets} />
+          <SplitTrackerPanel T={T} s={s} settings={settings} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} />
+          <SubscriptionAuditPanel T={T} s={s} settings={settings} subscriptions={subscriptions} setSubscriptions={setSubscriptions} expenses={expenses} />
+          <BondCDTracker T={T} s={s} settings={settings} bondTracker={bondTracker} setBondTracker={setBondTracker} />
+          <InterestSavedTracker T={T} s={s} settings={settings} debts={debts} />
+        </div>
+      )}
+      {subTab==='freelance' && (
+        <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
+          <FreelanceModePanel T={T} s={s} settings={settings} freelanceData={freelanceData} setFreelanceData={setFreelanceData} incomes={incomes} thisMonthIncome={thisMonthIncome} />
+          <TaxEstimationPanel T={T} s={s} settings={settings} thisMonthIncome={thisMonthIncome} expenses={expenses} incomes={incomes} />
+        </div>
       )}
     </div>
   );
@@ -5138,7 +5188,7 @@ function CashFlowView({ T, s, settings, expenses, incomes, recurringExpenses, su
 }
 
 
-function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals, bills }) {
+function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals, bills, expenseRegrets, setExpenseRegrets }) {
   const [form, setForm] = useState({ amount:'', category:'🍽️ Food', subcategory:'Groceries', note:'', date:today() });
   const [incomeForm, setIncomeForm] = useState({ amount:'', note:'', date:today() });
   const [showBudgets, setShowBudgets] = useState(false);
@@ -6888,6 +6938,9 @@ Max 280 words.`
               <span style={{fontSize:'11px',color:T.textMuted,minWidth:'72px'}}>{e.date}</span>
               <span style={{flex:1,fontSize:'12px',color:T.text}}>{e.category?.split(' ')[0]} <span style={{color:T.textMuted}}>{e.subcategory||e.note||e.category?.split(' ').slice(1).join(' ')||''}</span></span>
               <span style={{color:T.danger,fontWeight:'700',fontSize:'13px'}}>-{settings.currency}{fmtN(e.amount)}</span>
+              {expenseRegrets !== undefined && (
+                <RegretButton T={T} expenseId={e.id} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
+              )}
               <button style={{...s.btnGhost,padding:'2px 6px',color:T.textMuted,fontSize:'10px'}} onClick={()=>setEditingExpense({...e})}>✏️</button>
               <button style={{...s.btnGhost,padding:'2px 6px',color:T.danger,fontSize:'10px'}} onClick={()=>{ const removed=e; setExpenses(ex=>ex.filter(x=>x.id!==e.id)); pushUndo?.(`Deleted ${settings.currency}${fmtN(e.amount)} expense`, ()=>setExpenses(ex=>[...ex,removed])); }}>✕</button>
             </div>
@@ -7243,7 +7296,7 @@ TIME HORIZON: ${horizon}`;
       </div>
 
       {subTab==='portfolio' && (
-        <InvestmentsTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} />
+        <InvestmentsTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} thesisDates={thesisDates||{}} setThesisDates={setThesisDates||(() => {})} />
       )}
       {subTab==='markets' && (
         <MarketsTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} setInvestments={setInvestments} settings={settings} />
@@ -8460,7 +8513,7 @@ riskScore: 1 (low risk) to 10 (extreme risk)`;
 // ─────────────────────────────────────────────
 // INVESTMENTS TAB
 // ─────────────────────────────────────────────
-function InvestmentsTab({ T, s, investments, setInvestments, settings, expenses, addXP }) {
+function InvestmentsTab({ T, s, investments, setInvestments, settings, expenses, addXP, thesisDates, setThesisDates }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -9002,6 +9055,10 @@ Be concise, specific, and actionable. Educational purposes only — not official
           Powered by Ollama · {model} · Full portfolio context sent with every message
         </div>
       </div>
+      {/* I25 — THESIS DECAY CHECKER */}
+      {investments.length > 0 && (
+        <ThesisDecayChecker T={T} s={s} investments={investments} thesisBySymbol={thesisBySymbol||{}} setThesisBySymbol={setThesisBySymbol||(() => {})} thesisDates={thesisDates||{}} setThesisDates={setThesisDates||(() => {})} />
+      )}
     </div>
   );
 }
@@ -10497,6 +10554,48 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
           </div>
         );
       })()}
+      {/* I4 — MOOD TO SPENDING HEATMAP */}
+      {vitals.length >= 3 && expenses.length >= 3 && (() => {
+        const moodSpend = vitals.slice(-60).map(v => {
+          const dayExpenses = expenses.filter(e => e.date === v.date);
+          const dayTotal = dayExpenses.reduce((s,e)=>s+Number(e.amount),0);
+          return { date: v.date, mood: v.mood, spend: dayTotal };
+        }).filter(d => d.spend > 0);
+        if (moodSpend.length < 3) return null;
+        const avgByMood = {};
+        moodSpend.forEach(d => {
+          const bucket = Math.round(d.mood);
+          if (!avgByMood[bucket]) avgByMood[bucket] = { total: 0, count: 0 };
+          avgByMood[bucket].total += d.spend;
+          avgByMood[bucket].count += 1;
+        });
+        const buckets = Object.entries(avgByMood).sort((a,b)=>Number(a[0])-Number(b[0])).map(([m,v])=>({mood:Number(m),avg:Math.round(v.total/v.count)}));
+        const maxAvg = Math.max(...buckets.map(b=>b.avg));
+        return (
+          <div style={{...s.card,border:`1px solid ${T.accent}33`}}>
+            <div style={s.cardTitle}>🎭 Mood → Spending Heatmap</div>
+            <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'12px'}}>Average daily spend by mood level (last 60 days with both data)</div>
+            <div style={{display:'flex',gap:'6px',alignItems:'flex-end',height:'80px'}}>
+              {buckets.map(b=>{
+                const h = maxAvg > 0 ? Math.round((b.avg/maxAvg)*60)+10 : 10;
+                const col = b.mood>=8?T.success:b.mood>=5?T.warning:T.danger;
+                return (
+                  <div key={b.mood} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:'3px'}}>
+                    <div style={{fontSize:'9px',color:T.textMuted}}>{settings.currency}{b.avg}</div>
+                    <div style={{width:'100%',height:`${h}px`,background:col,borderRadius:'4px 4px 0 0',opacity:0.85}}/>
+                    <div style={{fontSize:'10px',color:T.textMuted}}>{b.mood}/10</div>
+                  </div>
+                );
+              })}
+            </div>
+            {(() => {
+              const worst = buckets.reduce((a,b)=>a.avg>b.avg?a:b,buckets[0]);
+              const best = buckets.reduce((a,b)=>a.avg<b.avg?a:b,buckets[0]);
+              return <div style={{fontSize:'11px',color:T.textMuted,marginTop:'10px'}}>💡 You spend most when mood is {worst.mood}/10, least when {best.mood}/10</div>;
+            })()}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -10508,7 +10607,7 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
 // ─────────────────────────────────────────────
 // MIND & BODY TAB (Vitals + Focus merged)
 // ─────────────────────────────────────────────
-function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMetrics, metricLogs, setMetricLogs, focusSessions, setFocusSessions, habits, setHabitLogs, goals, settings }) {
+function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMetrics, metricLogs, setMetricLogs, focusSessions, setFocusSessions, habits, setHabitLogs, goals, settings, focusBillingSettings, setFocusBillingSettings }) {
   const [subTab, setSubTab] = useState('vitals');
   // Vitals state
   const [form, setForm] = useState({ sleep:7, quality:3, mood:7, note:'', date:today() });
@@ -10778,6 +10877,8 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
               </div>
             )}
           </div>
+          {/* I22 — FOCUS BILLING MODE */}
+          <FocusBillingMode T={T} s={s} focusBillingSettings={focusBillingSettings||{enabled:false,hourlyRate:50}} setFocusBillingSettings={setFocusBillingSettings||(() => {})} focusSessions={focusSessions} settings={settings||{currency:'$'}} />
         </div>
       )}
 
@@ -11069,6 +11170,8 @@ function VitalsTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMet
           {vitals.length===0 && <div style={{color:T.textMuted,padding:'20px',textAlign:'center'}}>No vitals logged yet.</div>}
         </div>
       </div>
+      {/* I21 — SLEEP DEBT TRACKER */}
+      <SleepDebtTracker T={T} s={s} vitals={vitals} />
     </div>
   );
 }
@@ -11076,7 +11179,7 @@ function VitalsTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMet
 // ─────────────────────────────────────────────
 // FOCUS TAB
 // ─────────────────────────────────────────────
-function FocusTab({ T, s, focusSessions, setFocusSessions, habits, goals, addXP }) {
+function FocusTab({ T, s, focusSessions, setFocusSessions, habits, goals, addXP, focusBillingSettings, setFocusBillingSettings, settings }) {
   const [isRunning, setIsRunning] = useState(false);
   const [timeLeft, setTimeLeft] = useState(25*60);
   const [mode, setMode] = useState('focus'); // 'focus','break'
@@ -11220,6 +11323,8 @@ function FocusTab({ T, s, focusSessions, setFocusSessions, habits, goals, addXP 
           )}
         </div>
       </div>
+      {/* I22 — FOCUS BILLING MODE */}
+      <FocusBillingMode T={T} s={s} focusBillingSettings={focusBillingSettings||{enabled:false,hourlyRate:50}} setFocusBillingSettings={setFocusBillingSettings||(() => {})} focusSessions={focusSessions} settings={settings||{currency:'$'}} />
     </div>
   );
 }
@@ -11565,6 +11670,22 @@ function SettingsTab({ T, s, settings, setSettings, themeName, setThemeName, cus
             <button style={{...s.btn(T.textMuted),width:'100%'}} onClick={()=>{ const all={}; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('los_'))try{all[k]=JSON.parse(localStorage.getItem(k));}catch{}} navigator.clipboard?.writeText(JSON.stringify(all,null,2)); }}>{t('settings_copy')}</button>
           </div>
         </div>
+        {/* I24 — PUSH NOTIFICATION PERMISSION */}
+        {'Notification' in window && (
+          <div style={s.card}>
+            <div style={s.cardTitle}>🔔 Push Notifications</div>
+            <div style={{fontSize:'12px',color:T.textMuted,marginBottom:'10px'}}>Enable browser notifications for budget alerts, bill reminders, and price targets.</div>
+            <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+              <div style={{fontSize:'12px',color:T.textMuted}}>Status: <strong style={{color:Notification.permission==='granted'?T.success:Notification.permission==='denied'?T.danger:T.warning}}>{Notification.permission}</strong></div>
+              {Notification.permission !== 'granted' && Notification.permission !== 'denied' && (
+                <button style={s.btn()} onClick={() => requestPushPermission()}>🔔 Enable Notifications</button>
+              )}
+              {Notification.permission === 'granted' && (
+                <button style={{...s.btn(T.success)}} onClick={() => sendPushAlert('LifeOS', 'Notifications are working! ✅')}>Test Notification</button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* PIN LOCK */}
@@ -11955,7 +12076,7 @@ function FocusModeOverlay({ T, s, settings, habits, habitLogs, setHabitLogs, thi
 // ─────────────────────────────────────────────
 // FINANCE TAB — Financial Intelligence
 // ─────────────────────────────────────────────
-function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsRate, thisMonthIncome, thisMonthSpend, netWorth, financialHealthScore, bills, setBills, budgetTargets, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, addXP, emergencyFund, setEmergencyFund }) {
+function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsRate, thisMonthIncome, thisMonthSpend, netWorth, financialHealthScore, bills, setBills, budgetTargets, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, addXP, emergencyFund, setEmergencyFund, recurringIncomes, setRecurringIncomes, weeklyBriefHistory, setWeeklyBriefHistory, vitals, habits, habitLogs }) {
   const [whatIfCut, setWhatIfCut] = useState({ category: '🍽️ Food', amount: 100 });
   const [billForm, setBillForm] = useState({ name:'', amount:'', day:1 });
   const [showBills, setShowBills] = useState(true);
@@ -12305,6 +12426,18 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
           </>
         )}
       </div>
+
+      {/* I6 — SAVINGS BENCHMARKS */}
+      <SavingsBenchmarks T={T} s={s} settings={settings} netWorth={netWorth} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} age={settings.age} />
+
+      {/* I11 — FINANCIAL PERSONA EVOLUTION */}
+      <FinancialPersonaEvolution T={T} s={s} savingsRate={savingsRate} netWorth={netWorth} debts={debts} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} expenses={expenses} />
+
+      {/* I17 — RECURRING INCOME */}
+      <RecurringIncomePanel T={T} s={s} settings={settings} recurringIncomes={recurringIncomes||[]} setRecurringIncomes={setRecurringIncomes||(() => {})} incomes={incomes} thisMonthIncome={thisMonthIncome} />
+
+      {/* I18 — AI WEEKLY BRIEF */}
+      <AIWeeklyBrief T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} habits={habits||[]} habitLogs={habitLogs||{}} vitals={vitals||[]} savingsRate={savingsRate} netWorth={netWorth} debts={debts} weeklyBriefHistory={weeklyBriefHistory||[]} setWeeklyBriefHistory={setWeeklyBriefHistory||(() => {})} />
     </div>
   );
 }
@@ -13677,6 +13810,1390 @@ function GmailTab({ T, s, settings, gmailToken, setGmailToken, careerApps, setCa
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I2 — PAYCHECK PLANNER / ENVELOPE BUDGETING
+// ─────────────────────────────────────────────
+function PaycheckPlannerPanel({ T, s, settings, thisMonthIncome, expenses, budgetTargets }) {
+  const [envelopes, setEnvelopes] = useLocalStorage('los_envelopes', []);
+  const [form, setForm] = useState({ name: '', budget: '', emoji: '💰', color: '#7c6fff' });
+  const totalAllocated = envelopes.reduce((s, e) => s + Number(e.budget || 0), 0);
+  const unallocated = thisMonthIncome - totalAllocated;
+  function addEnvelope() {
+    if (!form.name || !form.budget) return;
+    setEnvelopes(prev => [...prev, { id: Date.now(), ...form, budget: Number(form.budget), spent: 0 }]);
+    setForm({ name: '', budget: '', emoji: '💰', color: '#7c6fff' });
+  }
+  function logSpend(id, amt) {
+    setEnvelopes(prev => prev.map(e => e.id === id ? { ...e, spent: (e.spent || 0) + Number(amt) } : e));
+  }
+  const EMOJIS = ['💰','🍽️','🏠','🚗','🎮','👕','✈️','❤️','📚','🔧','💳','🎁'];
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={s.cardTitle}>✉️ Envelope Budgeting</div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ background: T.success + '22', border: `1px solid ${T.success}44`, borderRadius: '10px', padding: '10px 16px', textAlign: 'center', minWidth: '120px' }}>
+          <div style={{ fontSize: '18px', fontWeight: '900', color: T.success }}>{settings.currency}{fmtN(thisMonthIncome)}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>Paycheck</div>
+        </div>
+        <div style={{ background: T.accent + '22', border: `1px solid ${T.accent}44`, borderRadius: '10px', padding: '10px 16px', textAlign: 'center', minWidth: '120px' }}>
+          <div style={{ fontSize: '18px', fontWeight: '900', color: T.accent }}>{settings.currency}{fmtN(totalAllocated)}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>Allocated</div>
+        </div>
+        <div style={{ background: (unallocated >= 0 ? T.success : T.danger) + '22', border: `1px solid ${(unallocated >= 0 ? T.success : T.danger)}44`, borderRadius: '10px', padding: '10px 16px', textAlign: 'center', minWidth: '120px' }}>
+          <div style={{ fontSize: '18px', fontWeight: '900', color: unallocated >= 0 ? T.success : T.danger }}>{settings.currency}{fmtN(Math.abs(unallocated))}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>{unallocated >= 0 ? 'Free to assign' : 'Over-allocated'}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'end' }}>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {EMOJIS.map(e => (
+            <button key={e} onClick={() => setForm(f => ({ ...f, emoji: e }))} style={{ fontSize: '16px', padding: '4px', background: form.emoji === e ? T.accentSoft : 'transparent', border: `1px solid ${form.emoji === e ? T.accent : T.border}`, borderRadius: '6px', cursor: 'pointer' }}>{e}</button>
+          ))}
+        </div>
+        <input style={{ ...s.input, flex: 1, minWidth: '120px' }} placeholder="Envelope name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        <input type="number" style={{ ...s.input, width: '100px' }} placeholder="Budget" value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))} />
+        <button style={s.btn()} onClick={addEnvelope}>Add</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+        {envelopes.map(env => {
+          const pct = env.budget > 0 ? Math.min(100, ((env.spent || 0) / env.budget) * 100) : 0;
+          const remaining = env.budget - (env.spent || 0);
+          const color = pct >= 100 ? T.danger : pct >= 80 ? T.warning : T.success;
+          const [spendInput, setSpendInput] = useState('');
+          return (
+            <div key={env.id} style={{ background: T.surface, borderRadius: '10px', padding: '14px', border: `1px solid ${color}44` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '20px' }}>{env.emoji}</span>
+                  <span style={{ fontWeight: '700', fontSize: '13px' }}>{env.name}</span>
+                </div>
+                <button style={{ background: 'none', border: 'none', color: T.danger, cursor: 'pointer', fontSize: '12px' }} onClick={() => setEnvelopes(prev => prev.filter(x => x.id !== env.id))}>✕</button>
+              </div>
+              <div style={{ height: '6px', background: T.border, borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '3px', transition: 'width 0.4s' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px' }}>
+                <span style={{ color: T.textMuted }}>{settings.currency}{fmtN(env.spent || 0)} spent</span>
+                <span style={{ color: remaining >= 0 ? T.success : T.danger, fontWeight: '700' }}>{remaining >= 0 ? `${settings.currency}${fmtN(remaining)} left` : `${settings.currency}${fmtN(Math.abs(remaining))} over`}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <input type="number" style={{ ...s.input, flex: 1, fontSize: '11px', padding: '4px 8px' }} placeholder="Log spend" value={spendInput} onChange={e => setSpendInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && spendInput) { logSpend(env.id, spendInput); setSpendInput(''); } }} />
+                <button style={{ ...s.btn(), fontSize: '11px', padding: '4px 10px' }} onClick={() => { if (spendInput) { logSpend(env.id, spendInput); setSpendInput(''); } }}>−</button>
+              </div>
+            </div>
+          );
+        })}
+        {envelopes.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px', padding: '16px 0' }}>Add envelopes to allocate your paycheck — housing, groceries, entertainment, etc.</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I3 — NATURAL LANGUAGE EXPENSE SEARCH
+// ─────────────────────────────────────────────
+function NLExpenseSearch({ T, s, expenses, settings, incomes }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState('');
+
+  function search() {
+    if (!query.trim()) return;
+    setLoading(true);
+    // Parse natural language locally — NL rules without AI
+    const q = query.toLowerCase();
+    let filtered = [...expenses];
+    // Category keywords
+    const catMap = { food: '🍽️ Food', 'fast food': '🍔 Fast Food', transport: '🚗 Transport', health: '❤️ Health', home: '🏠 Home', leisure: '🎮 Leisure', shopping: '👕 Shopping', travel: '✈️ Travel', debt: '💳 Debts', savings: '💰 Savings' };
+    for (const [kw, cat] of Object.entries(catMap)) {
+      if (q.includes(kw)) filtered = filtered.filter(e => e.category === cat);
+    }
+    // Amount filters
+    const aboveMatch = q.match(/above\s+(\d+)/); const belowMatch = q.match(/below\s+(\d+)/); const overMatch = q.match(/over\s+(\d+)/); const underMatch = q.match(/under\s+(\d+)/);
+    if (aboveMatch || overMatch) { const v = Number((aboveMatch || overMatch)[1]); filtered = filtered.filter(e => Number(e.amount) > v); }
+    if (belowMatch || underMatch) { const v = Number((belowMatch || underMatch)[1]); filtered = filtered.filter(e => Number(e.amount) < v); }
+    // Date filters
+    const thisMonth = today().slice(0, 7);
+    if (q.includes('this month')) filtered = filtered.filter(e => e.date?.startsWith(thisMonth));
+    if (q.includes('last month')) { const d = new Date(); d.setMonth(d.getMonth() - 1); filtered = filtered.filter(e => e.date?.startsWith(d.toISOString().slice(0, 7))); }
+    if (q.includes('today')) filtered = filtered.filter(e => e.date === today());
+    if (q.includes('this week')) { const d = new Date(); const ws = new Date(d); ws.setDate(d.getDate() - d.getDay()); filtered = filtered.filter(e => e.date >= ws.toISOString().slice(0, 10)); }
+    // Note/description search
+    const noteMatch = q.match(/for\s+"([^"]+)"/);
+    if (noteMatch) { const kw2 = noteMatch[1].toLowerCase(); filtered = filtered.filter(e => (e.note || '').toLowerCase().includes(kw2) || (e.subcategory || '').toLowerCase().includes(kw2)); }
+    // Largest
+    if (q.includes('largest') || q.includes('biggest') || q.includes('top')) filtered = [...filtered].sort((a, b) => Number(b.amount) - Number(a.amount)).slice(0, 10);
+    // Most recent
+    if (q.includes('recent') || q.includes('latest') || q.includes('last')) filtered = [...filtered].sort((a, b) => b.date?.localeCompare(a.date)).slice(0, 10);
+    const total = filtered.reduce((s, e) => s + Number(e.amount || 0), 0);
+    setSummary(`Found ${filtered.length} expense${filtered.length !== 1 ? 's' : ''} totalling ${settings.currency}${fmtN(total)}`);
+    setResults(filtered.slice(0, 20));
+    setLoading(false);
+  }
+
+  const EXAMPLES = ['food this month', 'above 50 this month', 'latest 10 expenses', 'travel last month', 'biggest expenses'];
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={s.cardTitle}>🔍 Natural Language Expense Search</div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+        <input style={{ ...s.input, flex: 1 }} placeholder='Try: "food above 30 this month" or "biggest expenses"' value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} />
+        <button style={s.btn()} onClick={search} disabled={loading}>{loading ? '...' : '🔍 Search'}</button>
+      </div>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        {EXAMPLES.map(ex => (
+          <button key={ex} style={{ ...s.btnGhost, fontSize: '11px', padding: '3px 10px' }} onClick={() => { setQuery(ex); }}>{ex}</button>
+        ))}
+      </div>
+      {summary && <div style={{ fontSize: '12px', color: T.accent, fontWeight: '700', marginBottom: '8px' }}>{summary}</div>}
+      {results !== null && results.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>No matching expenses found.</div>}
+      {results && results.length > 0 && (
+        <div style={{ maxHeight: '240px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {results.map(e => (
+            <div key={e.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '6px 8px', background: T.surface, borderRadius: '6px', fontSize: '12px' }}>
+              <span style={{ color: T.textMuted, minWidth: '68px' }}>{e.date}</span>
+              <span style={{ flex: 1 }}>{e.category?.split(' ')[0]} {e.subcategory || e.note || e.category?.split(' ').slice(1).join(' ')}</span>
+              {e.note && <span style={{ color: T.textMuted, fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.note}</span>}
+              <span style={{ color: T.danger, fontWeight: '700' }}>−{settings.currency}{fmtN(e.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I5 — FINANCIAL CALENDAR
+// ─────────────────────────────────────────────
+function FinancialCalendar({ T, s, settings, bills, subscriptions, recurringExpenses, recurringIncomes, expenses, incomes }) {
+  const [viewMonth, setViewMonth] = useState(() => today().slice(0, 7));
+  const [year, month] = viewMonth.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstDow = new Date(year, month - 1, 1).getDay();
+  const todayStr = today();
+
+  function getEventsForDay(day) {
+    const dateStr = `${viewMonth}-${String(day).padStart(2, '0')}`;
+    const events = [];
+    bills?.forEach(b => { if (Number(b.day) === day) events.push({ type: 'bill', label: b.name, amount: -Number(b.amount || 0), color: T.warning }); });
+    subscriptions?.forEach(sub => { if (Number(sub.day) === day) events.push({ type: 'sub', label: sub.name, amount: -Number(sub.amount || 0), color: T.accent }); });
+    recurringExpenses?.forEach(r => { if (Number(r.day) === day) events.push({ type: 'recurring', label: r.name, amount: -Number(r.amount || 0), color: T.danger }); });
+    recurringIncomes?.forEach(ri => { if (Number(ri.day) === day) events.push({ type: 'income', label: ri.name, amount: Number(ri.amount || 0), color: T.success }); });
+    expenses?.filter(e => e.date === dateStr).forEach(e => events.push({ type: 'expense', label: e.subcategory || e.note || e.category?.split(' ').slice(1).join(' ') || '', amount: -Number(e.amount || 0), color: T.danger }));
+    incomes?.filter(i => i.date === dateStr).forEach(i => events.push({ type: 'actual_income', label: i.note || 'Income', amount: Number(i.amount || 0), color: T.success }));
+    return events;
+  }
+
+  const prevMonth = () => { const d = new Date(year, month - 2, 1); setViewMonth(d.toISOString().slice(0, 7)); };
+  const nextMonth = () => { const d = new Date(year, month, 1); setViewMonth(d.toISOString().slice(0, 7)); };
+
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const totalFixed = (bills?.reduce((s, b) => s + Number(b.amount || 0), 0) || 0) + (subscriptions?.reduce((s, x) => s + Number(x.amount || 0), 0) || 0) + (recurringExpenses?.reduce((s, r) => s + Number(r.amount || 0), 0) || 0);
+  const totalExpected = recurringIncomes?.reduce((s, r) => s + Number(r.amount || 0), 0) || 0;
+
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>📅 Financial Calendar</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button style={{ ...s.btnGhost, padding: '4px 10px' }} onClick={prevMonth}>←</button>
+          <span style={{ fontWeight: '700', fontSize: '13px', color: T.text }}>{monthLabel}</span>
+          <button style={{ ...s.btnGhost, padding: '4px 10px' }} onClick={nextMonth}>→</button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <span style={{ ...s.tag(T.warning), fontSize: '11px' }}>📋 Bills: {settings.currency}{fmtN(bills?.reduce((s, b) => s + Number(b.amount || 0), 0) || 0)}</span>
+        <span style={{ ...s.tag(T.accent), fontSize: '11px' }}>📦 Subs: {settings.currency}{fmtN(subscriptions?.reduce((s, x) => s + Number(x.amount || 0), 0) || 0)}</span>
+        <span style={{ ...s.tag(T.success), fontSize: '11px' }}>💰 Expected income: {settings.currency}{fmtN(totalExpected)}</span>
+        <span style={{ ...s.tag(T.danger), fontSize: '11px' }}>💸 Fixed outflow: {settings.currency}{fmtN(totalFixed)}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px', marginBottom: '4px' }}>
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+          <div key={d} style={{ textAlign: 'center', fontSize: '10px', color: T.textMuted, fontWeight: '700', padding: '3px' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: '2px' }}>
+        {Array.from({ length: firstDow }, (_, i) => <div key={'e' + i} />)}
+        {Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const dateStr = `${viewMonth}-${String(day).padStart(2, '0')}`;
+          const events = getEventsForDay(day);
+          const isToday = dateStr === todayStr;
+          const hasPositive = events.some(e => e.amount > 0);
+          const hasNegative = events.some(e => e.amount < 0);
+          return (
+            <div key={day} title={events.map(e => `${e.label}: ${e.amount > 0 ? '+' : ''}${settings.currency}${fmtN(Math.abs(e.amount))}`).join('\n')} style={{ minHeight: '52px', background: isToday ? T.accentSoft : T.surface, border: `1px solid ${isToday ? T.accent : events.length > 0 ? T.border : 'transparent'}`, borderRadius: '6px', padding: '4px', cursor: events.length > 0 ? 'pointer' : 'default', position: 'relative' }}>
+              <div style={{ fontSize: '10px', fontWeight: isToday ? '900' : '600', color: isToday ? T.accent : T.textMuted, marginBottom: '2px' }}>{day}</div>
+              {events.slice(0, 2).map((ev, ei) => (
+                <div key={ei} style={{ fontSize: '9px', color: ev.color, fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: '1.3' }}>
+                  {ev.amount > 0 ? '+' : '−'}{settings.currency}{fmtN(Math.abs(ev.amount))}
+                </div>
+              ))}
+              {events.length > 2 && <div style={{ fontSize: '9px', color: T.textMuted }}>+{events.length - 2} more</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I6 — COMPARATIVE SAVINGS BENCHMARKS
+// ─────────────────────────────────────────────
+function SavingsBenchmarks({ T, s, settings, netWorth, savingsRate, thisMonthIncome, age }) {
+  const userAge = age || 30;
+  // Rule of thumb benchmarks by age (Fidelity / financial planner data)
+  const BENCHMARKS = [
+    { age: 25, nwMult: 0.25, savingsRateTarget: 10, label: 'Starting Out' },
+    { age: 30, nwMult: 1, savingsRateTarget: 15, label: 'Building Base' },
+    { age: 35, nwMult: 2, savingsRateTarget: 20, label: 'Momentum Phase' },
+    { age: 40, nwMult: 3, savingsRateTarget: 20, label: 'Growth Phase' },
+    { age: 45, nwMult: 4, savingsRateTarget: 20, label: 'Acceleration' },
+    { age: 50, nwMult: 6, savingsRateTarget: 25, label: 'Peak Earning' },
+    { age: 55, nwMult: 7, savingsRateTarget: 25, label: 'Pre-Retirement' },
+    { age: 60, nwMult: 8, savingsRateTarget: 25, label: 'Final Stretch' },
+  ];
+  const annualIncome = thisMonthIncome * 12;
+  const bench = BENCHMARKS.reduce((prev, curr) => Math.abs(curr.age - userAge) < Math.abs(prev.age - userAge) ? curr : prev, BENCHMARKS[0]);
+  const targetNW = annualIncome * bench.nwMult;
+  const nwRatio = targetNW > 0 ? (netWorth / targetNW) * 100 : 0;
+  const rateScore = bench.savingsRateTarget > 0 ? Math.min(100, (savingsRate / bench.savingsRateTarget) * 100) : 0;
+  const PEER_PERCENTILES = { p25: annualIncome * (bench.nwMult * 0.4), p50: annualIncome * bench.nwMult, p75: annualIncome * (bench.nwMult * 1.8), p90: annualIncome * (bench.nwMult * 3) };
+  let peerLabel = 'Below median'; let peerColor = T.danger;
+  if (netWorth >= PEER_PERCENTILES.p90) { peerLabel = 'Top 10%'; peerColor = T.success; }
+  else if (netWorth >= PEER_PERCENTILES.p75) { peerLabel = 'Top 25%'; peerColor = T.success; }
+  else if (netWorth >= PEER_PERCENTILES.p50) { peerLabel = 'Above median'; peerColor = T.warning; }
+  else if (netWorth >= PEER_PERCENTILES.p25) { peerLabel = 'Bottom 50%'; peerColor = T.warning; }
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={s.cardTitle}>📊 Savings Benchmarks (Age {userAge})</div>
+      <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '14px' }}>Based on Fidelity's wealth targets by age vs income. Update your age in Settings.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ background: T.surface, borderRadius: '10px', padding: '12px' }}>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '4px' }}>Net Worth vs Target</div>
+          <div style={{ fontSize: '22px', fontWeight: '900', color: nwRatio >= 100 ? T.success : nwRatio >= 60 ? T.warning : T.danger }}>{nwRatio.toFixed(0)}%</div>
+          <div style={{ fontSize: '11px', color: T.textMuted }}>Target: {settings.currency}{fmtN(Math.round(targetNW))} ({bench.nwMult}× annual income)</div>
+          <div style={{ height: '6px', background: T.border, borderRadius: '3px', overflow: 'hidden', marginTop: '6px' }}>
+            <div style={{ height: '100%', width: `${Math.min(100, nwRatio)}%`, background: nwRatio >= 100 ? T.success : nwRatio >= 60 ? T.warning : T.danger, borderRadius: '3px' }} />
+          </div>
+        </div>
+        <div style={{ background: T.surface, borderRadius: '10px', padding: '12px' }}>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '4px' }}>Savings Rate vs Target</div>
+          <div style={{ fontSize: '22px', fontWeight: '900', color: rateScore >= 100 ? T.success : rateScore >= 70 ? T.warning : T.danger }}>{savingsRate.toFixed(1)}%</div>
+          <div style={{ fontSize: '11px', color: T.textMuted }}>Target: {bench.savingsRateTarget}% for your age group</div>
+          <div style={{ height: '6px', background: T.border, borderRadius: '3px', overflow: 'hidden', marginTop: '6px' }}>
+            <div style={{ height: '100%', width: `${Math.min(100, rateScore)}%`, background: rateScore >= 100 ? T.success : rateScore >= 70 ? T.warning : T.danger, borderRadius: '3px' }} />
+          </div>
+        </div>
+      </div>
+      <div style={{ background: peerColor + '22', border: `1px solid ${peerColor}44`, borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontWeight: '700', fontSize: '13px', color: peerColor }}>🏆 Peer Ranking: {peerLabel}</div>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '2px' }}>vs peers aged {userAge} with similar income ({bench.label} stage)</div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: '11px', color: T.textMuted }}>
+          <div>p25: {settings.currency}{fmtN(Math.round(PEER_PERCENTILES.p25 / 1000))}k</div>
+          <div>p75: {settings.currency}{fmtN(Math.round(PEER_PERCENTILES.p75 / 1000))}k</div>
+          <div>p90: {settings.currency}{fmtN(Math.round(PEER_PERCENTILES.p90 / 1000))}k</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I7 — HABIT ROI SCORE
+// ─────────────────────────────────────────────
+function HabitROIPanel({ T, s, habits, habitLogs, settings, thisMonthIncome }) {
+  const [habitValues, setHabitValues] = useLocalStorage('los_habit_roi', {});
+  const hourlyRate = thisMonthIncome > 0 ? (thisMonthIncome / (22 * 8)) : 25;
+  const roiData = habits.map(h => {
+    const logs = habitLogs[h.id] || [];
+    const last30 = logs.filter(d => d >= new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
+    const completionRate = (last30.length / 30) * 100;
+    const timeMin = habitValues[h.id]?.timeMin || 15;
+    const valuePerSession = habitValues[h.id]?.value || 0;
+    const timeValuePerMonth = (last30.length * timeMin / 60) * hourlyRate;
+    const directValuePerMonth = last30.length * valuePerSession;
+    const totalROI = directValuePerMonth + timeValuePerMonth;
+    return { ...h, completionRate, last30Count: last30.length, timeMin, valuePerSession, totalROI, timeValuePerMonth };
+  }).sort((a, b) => b.totalROI - a.totalROI);
+
+  return (
+    <div style={{ ...s.card }}>
+      <div style={s.cardTitle}>💹 Habit ROI Score</div>
+      <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '12px' }}>ROI = (direct value + time invested × hourly rate). Hourly rate auto-calculated from your income: {settings.currency}{fmtN(Math.round(hourlyRate))}/hr.</div>
+      {roiData.map(h => (
+        <div key={h.id} style={{ background: T.surface, borderRadius: '10px', padding: '12px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+            <div>
+              <div style={{ fontWeight: '700', fontSize: '13px', color: T.text }}>{h.name}</div>
+              <div style={{ fontSize: '11px', color: T.textMuted }}>{h.last30Count}/30 days · {h.completionRate.toFixed(0)}% completion</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: '900', color: h.totalROI > 0 ? T.success : T.textMuted, fontSize: '15px' }}>{settings.currency}{fmtN(Math.round(h.totalROI))}/mo</div>
+              <div style={{ fontSize: '10px', color: T.textMuted }}>estimated ROI</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '11px', color: T.textMuted }}>⏱️</span>
+              <input type="number" style={{ ...s.input, width: '60px', fontSize: '11px', padding: '3px 6px' }} value={h.timeMin} placeholder="Min" title="Minutes per session" onChange={e => setHabitValues(v => ({ ...v, [h.id]: { ...v[h.id], timeMin: Number(e.target.value) } }))} />
+              <span style={{ fontSize: '10px', color: T.textMuted }}>min/session</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '11px', color: T.textMuted }}>💰</span>
+              <input type="number" style={{ ...s.input, width: '70px', fontSize: '11px', padding: '3px 6px' }} value={h.valuePerSession} placeholder="Value" title="Direct financial value per session (e.g. saved by not buying)" onChange={e => setHabitValues(v => ({ ...v, [h.id]: { ...v[h.id], value: Number(e.target.value) } }))} />
+              <span style={{ fontSize: '10px', color: T.textMuted }}>{settings.currency}/session</span>
+            </div>
+          </div>
+        </div>
+      ))}
+      {habits.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px', textAlign: 'center', padding: '20px' }}>Add habits in Quests to see their ROI.</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I8 — SPLIT TRACKER
+// ─────────────────────────────────────────────
+function SplitTrackerPanel({ T, s, settings, splitExpenses, setSplitExpenses }) {
+  const [form, setForm] = useState({ description: '', totalAmount: '', splitWith: '', yourShare: 50, date: today() });
+  function add() {
+    if (!form.description || !form.totalAmount || !form.splitWith) return;
+    const total = Number(form.totalAmount);
+    const yourAmt = total * (form.yourShare / 100);
+    const theirAmt = total - yourAmt;
+    setSplitExpenses(prev => [...prev, { id: Date.now(), ...form, totalAmount: total, yourAmount: yourAmt, theirAmount: theirAmt, settled: false }]);
+    setForm({ description: '', totalAmount: '', splitWith: '', yourShare: 50, date: today() });
+  }
+  const pending = splitExpenses.filter(x => !x.settled);
+  const youOwe = pending.filter(x => x.direction === 'owe').reduce((s, x) => s + x.yourAmount, 0);
+  const owedToYou = pending.filter(x => x.direction !== 'owe').reduce((s, x) => s + x.theirAmount, 0);
+  const people = [...new Set(splitExpenses.map(x => x.splitWith))];
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={s.cardTitle}>🤝 Expense Split Tracker</div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <div style={{ background: T.danger + '22', border: `1px solid ${T.danger}44`, borderRadius: '10px', padding: '10px 16px', flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', fontWeight: '900', color: T.danger }}>{settings.currency}{fmtN(youOwe)}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>You owe</div>
+        </div>
+        <div style={{ background: T.success + '22', border: `1px solid ${T.success}44`, borderRadius: '10px', padding: '10px 16px', flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', fontWeight: '900', color: T.success }}>{settings.currency}{fmtN(owedToYou)}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>Owed to you</div>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '8px', marginBottom: '10px', alignItems: 'end' }}>
+        <input style={s.input} placeholder="Description (e.g. Dinner at Luigi's)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+        <input type="number" style={s.input} placeholder="Total amount" value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} />
+        <input style={s.input} placeholder="Split with (name)" value={form.splitWith} onChange={e => setForm(f => ({ ...f, splitWith: e.target.value }))} />
+        <input type="date" style={s.input} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+      </div>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+        <span style={{ fontSize: '12px', color: T.textMuted }}>Your share: {form.yourShare}%</span>
+        <input type="range" min="0" max="100" step="5" value={form.yourShare} onChange={e => setForm(f => ({ ...f, yourShare: Number(e.target.value) }))} style={{ flex: 1, accentColor: T.accent }} />
+        <select style={{ ...s.select, width: '100px' }} value={form.direction || 'split'} onChange={e => setForm(f => ({ ...f, direction: e.target.value }))}>
+          <option value="split">I paid</option>
+          <option value="owe">They paid</option>
+        </select>
+        <button style={s.btn()} onClick={add}>Add Split</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '260px', overflowY: 'auto' }}>
+        {splitExpenses.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px', textAlign: 'center', padding: '20px' }}>No splits tracked yet. Add your first shared expense.</div>}
+        {[...splitExpenses].reverse().map(sp => (
+          <div key={sp.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 10px', background: sp.settled ? T.surface : T.card, borderRadius: '8px', border: `1px solid ${sp.settled ? T.border : T.accent + '33'}`, opacity: sp.settled ? 0.5 : 1, fontSize: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: '700', color: T.text }}>{sp.description}</div>
+              <div style={{ color: T.textMuted, fontSize: '11px' }}>{sp.splitWith} · {sp.date}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: '700', color: sp.direction === 'owe' ? T.danger : T.success }}>
+                {sp.direction === 'owe' ? `You owe ${settings.currency}${fmtN(sp.yourAmount)}` : `They owe ${settings.currency}${fmtN(sp.theirAmount)}`}
+              </div>
+              <div style={{ color: T.textMuted, fontSize: '10px' }}>Total: {settings.currency}{fmtN(sp.totalAmount)}</div>
+            </div>
+            <button style={{ ...s.btnGhost, fontSize: '11px', padding: '3px 8px', color: sp.settled ? T.textMuted : T.success }} onClick={() => setSplitExpenses(prev => prev.map(x => x.id === sp.id ? { ...x, settled: !x.settled } : x))}>{sp.settled ? '↩ Reopen' : '✓ Settle'}</button>
+            <button style={{ ...s.btnGhost, fontSize: '11px', padding: '3px 6px', color: T.danger }} onClick={() => setSplitExpenses(prev => prev.filter(x => x.id !== sp.id))}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I9 — CUSTOM XP CHALLENGES
+// ─────────────────────────────────────────────
+function CustomChallengesPanel({ T, s, customChallenges, setCustomChallenges, addXP }) {
+  const [form, setForm] = useState({ title: '', description: '', xpReward: 100, deadline: '', category: 'Finance', condition: '' });
+  const [showAdd, setShowAdd] = useState(false);
+  const CATS = ['Finance', 'Health', 'Career', 'Learning', 'Fitness', 'Social', 'Custom'];
+  function add() {
+    if (!form.title) return;
+    setCustomChallenges(prev => [...prev, { id: Date.now(), ...form, completed: false, createdAt: today() }]);
+    setForm({ title: '', description: '', xpReward: 100, deadline: '', category: 'Finance', condition: '' });
+    setShowAdd(false);
+  }
+  function complete(id) {
+    const ch = customChallenges.find(c => c.id === id);
+    if (!ch || ch.completed) return;
+    setCustomChallenges(prev => prev.map(c => c.id === id ? { ...c, completed: true, completedAt: today() } : c));
+    addXP(ch.xpReward, `Challenge complete: ${ch.title} 🏆`);
+  }
+  const active = customChallenges.filter(c => !c.completed);
+  const done = customChallenges.filter(c => c.completed);
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>🏆 Custom XP Challenges</div>
+        <button style={{ ...s.btn(), fontSize: '12px', padding: '6px 14px' }} onClick={() => setShowAdd(!showAdd)}>+ New Challenge</button>
+      </div>
+      {showAdd && (
+        <div style={{ background: T.surface, borderRadius: '10px', padding: '14px', marginBottom: '14px', border: `1px solid ${T.accent}33` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <input style={s.input} placeholder="Challenge title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            <select style={s.select} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+              {CATS.map(c => <option key={c}>{c}</option>)}
+            </select>
+            <input style={s.input} placeholder="Description / win condition" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input type="number" style={{ ...s.input, flex: 1 }} placeholder="XP reward" value={form.xpReward} onChange={e => setForm(f => ({ ...f, xpReward: Number(e.target.value) }))} />
+              <input type="date" style={{ ...s.input, flex: 1 }} value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
+            </div>
+          </div>
+          <button style={s.btn()} onClick={add}>Create Challenge</button>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {active.map(ch => {
+          const daysLeft = ch.deadline ? Math.ceil((new Date(ch.deadline) - new Date()) / 86400000) : null;
+          const expired = daysLeft !== null && daysLeft < 0;
+          return (
+            <div key={ch.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '12px 14px', background: T.surface, borderRadius: '10px', border: `1px solid ${expired ? T.danger + '44' : T.accent + '33'}` }}>
+              <div style={{ fontSize: '24px' }}>🎯</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: '700', fontSize: '13px', color: T.text }}>{ch.title}</div>
+                <div style={{ fontSize: '11px', color: T.textMuted }}>{ch.description}</div>
+                {daysLeft !== null && <div style={{ fontSize: '10px', color: expired ? T.danger : daysLeft <= 3 ? T.warning : T.textMuted, marginTop: '2px' }}>{expired ? `⚠️ Expired ${Math.abs(daysLeft)}d ago` : `⏰ ${daysLeft} days left`}</div>}
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontWeight: '900', color: T.accent, fontSize: '16px' }}>+{ch.xpReward}</div>
+                <div style={{ fontSize: '10px', color: T.textMuted }}>XP</div>
+              </div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button style={{ ...s.btn(T.success), fontSize: '11px', padding: '5px 12px' }} onClick={() => complete(ch.id)}>✓ Complete</button>
+                <button style={{ ...s.btnGhost, fontSize: '11px', padding: '5px 8px', color: T.danger }} onClick={() => setCustomChallenges(prev => prev.filter(x => x.id !== ch.id))}>✕</button>
+              </div>
+            </div>
+          );
+        })}
+        {active.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px', textAlign: 'center', padding: '16px' }}>No active challenges. Create one to earn bonus XP!</div>}
+        {done.length > 0 && (
+          <div style={{ marginTop: '8px', borderTop: `1px solid ${T.border}`, paddingTop: '8px' }}>
+            <div style={{ fontSize: '11px', color: T.textMuted, fontWeight: '700', marginBottom: '6px' }}>✅ COMPLETED ({done.length})</div>
+            {done.map(ch => (
+              <div key={ch.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '6px 10px', opacity: 0.6, fontSize: '12px' }}>
+                <span style={{ color: T.success }}>✓</span>
+                <span style={{ flex: 1, textDecoration: 'line-through', color: T.textMuted }}>{ch.title}</span>
+                <span style={{ color: T.accent, fontWeight: '700' }}>+{ch.xpReward} XP</span>
+                <span style={{ color: T.textMuted, fontSize: '10px' }}>{ch.completedAt}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I12 — TAX ESTIMATION PANEL
+// ─────────────────────────────────────────────
+function TaxEstimationPanel({ T, s, settings, thisMonthIncome, expenses, incomes }) {
+  const [taxData, setTaxData] = useLocalStorage('los_tax', { country: 'FR', filingStatus: 'single', deductions: 0 });
+  const annualIncome = thisMonthIncome * 12;
+  // Tax brackets (simplified: FR, US, UK, DE)
+  const BRACKETS = {
+    FR: { name: 'France', brackets: [[0,11294,0],[11294,28797,0.11],[28797,82341,0.30],[82341,177106,0.41],[177106,Infinity,0.45]], social: 0.22 },
+    US: { name: 'United States', brackets: [[0,11600,0.10],[11600,47150,0.12],[47150,100525,0.22],[100525,191950,0.24],[191950,243725,0.32],[243725,609350,0.35],[609350,Infinity,0.37]], social: 0.0765 },
+    UK: { name: 'United Kingdom', brackets: [[0,12570,0],[12570,50270,0.20],[50270,125140,0.40],[125140,Infinity,0.45]], social: 0.12 },
+    DE: { name: 'Germany', brackets: [[0,10908,0],[10908,15999,0.14],[15999,62809,0.24],[62809,277825,0.42],[277825,Infinity,0.45]], social: 0.195 },
+  };
+  const regime = BRACKETS[taxData.country] || BRACKETS['FR'];
+  const taxableIncome = Math.max(0, annualIncome - Number(taxData.deductions || 0));
+  let incomeTax = 0;
+  for (const [low, high, rate] of regime.brackets) {
+    if (taxableIncome > low) incomeTax += Math.min(taxableIncome - low, high - low) * rate;
+  }
+  const socialContribs = taxableIncome * regime.social;
+  const totalTax = incomeTax + socialContribs;
+  const effectiveRate = annualIncome > 0 ? (totalTax / annualIncome) * 100 : 0;
+  const monthlyTax = totalTax / 12;
+  const netMonthly = thisMonthIncome - monthlyTax;
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.warning}44` }}>
+      <div style={s.cardTitle}>📑 Tax Estimation Panel</div>
+      <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '14px' }}>Simplified estimate — consult a tax professional for accurate filings.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+        <div>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '4px' }}>Country</div>
+          <select style={s.select} value={taxData.country} onChange={e => setTaxData(d => ({ ...d, country: e.target.value }))}>
+            {Object.entries(BRACKETS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '4px' }}>Annual deductions ({settings.currency})</div>
+          <input type="number" style={s.input} value={taxData.deductions} onChange={e => setTaxData(d => ({ ...d, deductions: e.target.value }))} placeholder="0" />
+        </div>
+        <div>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '4px' }}>Annual income ({settings.currency})</div>
+          <input type="number" style={s.input} value={taxData.annualOverride || ''} onChange={e => setTaxData(d => ({ ...d, annualOverride: e.target.value }))} placeholder={`Auto: ${fmtN(annualIncome)}`} />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px', marginBottom: '14px' }}>
+        {[
+          { label: 'Income Tax/yr', value: settings.currency + fmtN(Math.round(incomeTax)), color: T.danger },
+          { label: 'Social Contributions/yr', value: settings.currency + fmtN(Math.round(socialContribs)), color: T.warning },
+          { label: 'Effective Rate', value: effectiveRate.toFixed(1) + '%', color: T.accent },
+          { label: 'Net Monthly', value: settings.currency + fmtN(Math.round(netMonthly)), color: T.success },
+        ].map(item => (
+          <div key={item.label} style={{ background: T.surface, borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+            <div style={{ fontWeight: '900', fontSize: '16px', color: item.color }}>{item.value}</div>
+            <div style={{ fontSize: '10px', color: T.textMuted, marginTop: '3px' }}>{item.label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: '12px', color: T.textMuted, borderTop: `1px solid ${T.border}`, paddingTop: '10px' }}>
+        🔢 Brackets used ({regime.name}): {regime.brackets.filter(([, , r]) => r > 0).map(([l, , r]) => `${settings.currency}${fmtN(l)}+: ${(r * 100).toFixed(0)}%`).join(' · ')}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I13 — INTEREST SAVED TRACKER
+// ─────────────────────────────────────────────
+function InterestSavedTracker({ T, s, settings, debts }) {
+  const totalOriginal = debts.reduce((s, d) => s + Number(d.originalBalance || d.balance || 0), 0);
+  const totalRemaining = debts.reduce((s, d) => s + Number(d.balance || 0), 0);
+  const totalPaid = totalOriginal - totalRemaining;
+  const interestSavedData = debts.map(d => {
+    const orig = Number(d.originalBalance || d.balance || 0);
+    const remaining = Number(d.balance || 0);
+    const paid = orig - remaining;
+    const rate = Number(d.rate || 0) / 100 / 12;
+    const minPay = Number(d.minPayment || 0);
+    // Interest that would have accrued on paid portion
+    const monthsPaid = minPay > 0 ? Math.ceil(paid / minPay) : 0;
+    const interestAvoided = paid * rate * monthsPaid;
+    return { ...d, paid, interestAvoided: Math.max(0, interestAvoided) };
+  });
+  const totalInterestAvoided = interestSavedData.reduce((s, d) => s + d.interestAvoided, 0);
+  if (debts.length === 0) return null;
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.success}44` }}>
+      <div style={s.cardTitle}>💡 Interest Saved Tracker</div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <div style={{ background: T.success + '22', border: `1px solid ${T.success}44`, borderRadius: '10px', padding: '12px 16px', textAlign: 'center', flex: 1 }}>
+          <div style={{ fontSize: '24px', fontWeight: '900', color: T.success }}>{settings.currency}{fmtN(Math.round(totalPaid))}</div>
+          <div style={{ fontSize: '11px', color: T.textMuted }}>Principal repaid</div>
+        </div>
+        <div style={{ background: T.accent + '22', border: `1px solid ${T.accent}44`, borderRadius: '10px', padding: '12px 16px', textAlign: 'center', flex: 1 }}>
+          <div style={{ fontSize: '24px', fontWeight: '900', color: T.accent }}>{settings.currency}{fmtN(Math.round(totalInterestAvoided))}</div>
+          <div style={{ fontSize: '11px', color: T.textMuted }}>Est. interest avoided</div>
+        </div>
+        <div style={{ background: T.danger + '22', border: `1px solid ${T.danger}44`, borderRadius: '10px', padding: '12px 16px', textAlign: 'center', flex: 1 }}>
+          <div style={{ fontSize: '24px', fontWeight: '900', color: T.danger }}>{settings.currency}{fmtN(Math.round(totalRemaining))}</div>
+          <div style={{ fontSize: '11px', color: T.textMuted }}>Still owed</div>
+        </div>
+      </div>
+      {interestSavedData.filter(d => d.paid > 0).map(d => (
+        <div key={d.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.border}`, fontSize: '12px' }}>
+          <span style={{ flex: 1, fontWeight: '600' }}>{d.name}</span>
+          <span style={{ color: T.success }}>Paid: {settings.currency}{fmtN(Math.round(d.paid))}</span>
+          <span style={{ color: T.accent }}>~{settings.currency}{fmtN(Math.round(d.interestAvoided))} saved</span>
+          <span style={{ color: d.balance > 0 ? T.danger : T.success }}>{d.balance > 0 ? `${settings.currency}${fmtN(d.balance)} left` : '✓ Paid off'}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I15 — DAILY FINANCIAL CHECK-IN
+// ─────────────────────────────────────────────
+function DailyCheckinWidget({ T, s, settings, expenses, incomes, checkins, setCheckins, addXP }) {
+  const todayStr = today();
+  const todayCheckin = checkins.find(c => c.date === todayStr);
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState({ mood: null, spent: null, savedSomething: null, biggestSpend: '' });
+  const [done, setDone] = useState(!!todayCheckin);
+  const todaySpend = expenses.filter(e => e.date === todayStr).reduce((s, e) => s + Number(e.amount || 0), 0);
+  const todayIncome = incomes.filter(i => i.date === todayStr).reduce((s, i) => s + Number(i.amount || 0), 0);
+  function finish() {
+    setCheckins(prev => [...prev.filter(c => c.date !== todayStr), { date: todayStr, ...answers, todaySpend, todayIncome }]);
+    addXP(10, '💰 Daily check-in completed');
+    setDone(true);
+  }
+  const QUESTIONS = [
+    { key: 'mood', question: '😊 How are you feeling about your finances today?', options: [{ val: 1, label: '😰 Stressed' }, { val: 2, label: '😐 Neutral' }, { val: 3, label: '🙂 Good' }, { val: 4, label: '😄 Great' }] },
+    { key: 'spent', question: `💸 You spent ${settings.currency}${fmtN(todaySpend)} today. Was it planned?`, options: [{ val: 'yes', label: '✅ Planned' }, { val: 'mostly', label: '🟡 Mostly' }, { val: 'no', label: '❌ Impulsive' }, { val: 'nothing', label: '🚫 Spent nothing' }] },
+    { key: 'savedSomething', question: '💰 Did you save or invest anything today?', options: [{ val: true, label: '✓ Yes' }, { val: false, label: '✗ No' }, { val: 'planned', label: '📅 This week' }] },
+  ];
+  if (done || todayCheckin) return (
+    <div style={{ ...s.card, border: `1px solid ${T.success}44`, padding: '12px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ fontWeight: '700', fontSize: '13px', color: T.success }}>✓ Daily Check-in Complete!</div>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '2px' }}>Today: {settings.currency}{fmtN(todaySpend)} spent · {settings.currency}{fmtN(todayIncome)} income · +10 XP</div>
+        </div>
+        <button style={{ ...s.btnGhost, fontSize: '11px', padding: '3px 8px' }} onClick={() => { setDone(false); setStep(0); setAnswers({ mood: null, spent: null, savedSomething: null }); }}>Redo</button>
+      </div>
+    </div>
+  );
+  const q = QUESTIONS[step];
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>⚡ 30-sec Daily Check-in</div>
+        <div style={{ fontSize: '11px', color: T.textMuted }}>Step {step + 1}/{QUESTIONS.length}</div>
+      </div>
+      <div style={{ height: '3px', background: T.border, borderRadius: '2px', marginBottom: '16px' }}>
+        <div style={{ height: '100%', width: `${((step + 1) / QUESTIONS.length) * 100}%`, background: T.accent, borderRadius: '2px', transition: 'width 0.3s' }} />
+      </div>
+      <div style={{ fontSize: '14px', fontWeight: '700', color: T.text, marginBottom: '16px' }}>{q.question}</div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {q.options.map(opt => (
+          <button key={String(opt.val)} onClick={() => {
+            setAnswers(prev => ({ ...prev, [q.key]: opt.val }));
+            if (step < QUESTIONS.length - 1) setStep(step + 1);
+            else finish();
+          }} style={{ ...s.btnGhost, padding: '10px 16px', fontSize: '13px', flex: '1 1 auto', minWidth: '80px', textAlign: 'center', background: answers[q.key] === opt.val ? T.accentSoft : 'transparent', color: answers[q.key] === opt.val ? T.accent : T.textMuted, borderColor: answers[q.key] === opt.val ? T.accent + '55' : T.border }}>{opt.label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I17 — RECURRING INCOME
+// ─────────────────────────────────────────────
+function RecurringIncomePanel({ T, s, settings, recurringIncomes, setRecurringIncomes, incomes, thisMonthIncome }) {
+  const [form, setForm] = useState({ name: '', amount: '', day: 1, category: 'Salary', frequency: 'monthly' });
+  const [show, setShow] = useState(false);
+  const CATS = ['Salary', 'Freelance', 'Dividend', 'Rental', 'Side Business', 'Pension', 'Other'];
+  function add() {
+    if (!form.name || !form.amount) return;
+    setRecurringIncomes(prev => [...prev, { id: Date.now(), ...form, amount: Number(form.amount) }]);
+    setForm({ name: '', amount: '', day: 1, category: 'Salary', frequency: 'monthly' });
+  }
+  const expectedMonthly = recurringIncomes.reduce((s, r) => s + (r.frequency === 'weekly' ? Number(r.amount) * 4.33 : r.frequency === 'annual' ? Number(r.amount) / 12 : Number(r.amount)), 0);
+  const variance = thisMonthIncome - expectedMonthly;
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.success}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>🔁 Recurring Income</div>
+        <button style={{ ...s.btnGhost, fontSize: '12px' }} onClick={() => setShow(!show)}>+ Add Source</button>
+      </div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <div style={{ background: T.success + '22', border: `1px solid ${T.success}44`, borderRadius: '10px', padding: '10px 14px', flex: 1, textAlign: 'center' }}>
+          <div style={{ fontWeight: '900', fontSize: '18px', color: T.success }}>{settings.currency}{fmtN(Math.round(expectedMonthly))}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>Expected/month</div>
+        </div>
+        <div style={{ background: (variance >= 0 ? T.accent : T.danger) + '22', border: `1px solid ${(variance >= 0 ? T.accent : T.danger)}44`, borderRadius: '10px', padding: '10px 14px', flex: 1, textAlign: 'center' }}>
+          <div style={{ fontWeight: '900', fontSize: '18px', color: variance >= 0 ? T.accent : T.danger }}>{variance >= 0 ? '+' : ''}{settings.currency}{fmtN(Math.round(variance))}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>vs this month actual</div>
+        </div>
+      </div>
+      {show && (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px', alignItems: 'end' }}>
+          <input style={s.input} placeholder="Source name (e.g. Salary)" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input type="number" style={s.input} placeholder="Amount" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          <select style={s.select} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+            {CATS.map(c => <option key={c}>{c}</option>)}
+          </select>
+          <select style={s.select} value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}>
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="annual">Annual</option>
+          </select>
+          <input type="number" style={{ ...s.input, gridColumn: '1/-2' }} placeholder="Day of month (1-31)" min="1" max="31" value={form.day} onChange={e => setForm(f => ({ ...f, day: Number(e.target.value) }))} />
+          <button style={s.btn()} onClick={add}>Add</button>
+        </div>
+      )}
+      {recurringIncomes.map(ri => (
+        <div key={ri.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.border}`, fontSize: '12px' }}>
+          <span style={{ flex: 1, fontWeight: '600' }}>{ri.name}</span>
+          <span style={{ ...s.tag(T.textMuted), fontSize: '10px' }}>{ri.category}</span>
+          <span style={{ ...s.tag(T.textMuted), fontSize: '10px' }}>{ri.frequency}</span>
+          <span style={{ color: T.success, fontWeight: '700' }}>+{settings.currency}{fmtN(ri.amount)}</span>
+          {ri.frequency !== 'monthly' && <span style={{ color: T.textMuted, fontSize: '10px' }}>({settings.currency}{fmtN(Math.round(ri.frequency === 'weekly' ? ri.amount * 4.33 : ri.amount / 12))}/mo)</span>}
+          <span style={{ color: T.textMuted, fontSize: '10px' }}>day {ri.day}</span>
+          <button style={{ ...s.btnGhost, color: T.danger, padding: '2px 6px', fontSize: '10px' }} onClick={() => setRecurringIncomes(prev => prev.filter(x => x.id !== ri.id))}>✕</button>
+        </div>
+      ))}
+      {recurringIncomes.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Add income sources (salary, freelance, dividends) to project your cash flow.</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I18 — AI WEEKLY BRIEF
+// ─────────────────────────────────────────────
+function AIWeeklyBrief({ T, s, settings, expenses, incomes, habits, habitLogs, vitals, savingsRate, netWorth, debts, weeklyBriefHistory, setWeeklyBriefHistory }) {
+  const [loading, setLoading] = useState(false);
+  const [brief, setBrief] = useState('');
+  const lastBrief = weeklyBriefHistory[weeklyBriefHistory.length - 1];
+  const daysSinceLastBrief = lastBrief ? Math.floor((Date.now() - new Date(lastBrief.date)) / 86400000) : 99;
+  async function generate() {
+    setLoading(true);
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay());
+    const wsStr = weekStart.toISOString().slice(0, 10);
+    const weekExpenses = expenses.filter(e => e.date >= wsStr);
+    const weekSpend = weekExpenses.reduce((s, e) => s + Number(e.amount), 0);
+    const weekIncome = incomes.filter(i => i.date >= wsStr).reduce((s, i) => s + Number(i.amount), 0);
+    const weekHabits = habits.map(h => { const done = (habitLogs[h.id] || []).filter(d => d >= wsStr).length; return `${h.name}: ${done}/${Math.min(7, habits.length)} days`; }).join(', ');
+    const recentSleep = vitals.slice(-7).map(v => v.sleep).filter(Boolean);
+    const avgSleep = recentSleep.length ? (recentSleep.reduce((s, v) => s + v, 0) / recentSleep.length).toFixed(1) : 'N/A';
+    const prompt = `You are LifeOS, a personal finance and productivity AI. Generate a brief, energetic Monday morning weekly summary (max 5 bullet points) for this user based on their real data:
+
+This week's spending: ${settings.currency}${weekSpend.toFixed(2)} | Income: ${settings.currency}${weekIncome.toFixed(2)}
+Savings rate: ${savingsRate.toFixed(1)}% | Net worth: ${settings.currency}${netWorth.toFixed(0)}
+Habit performance this week: ${weekHabits || 'No habit data'}
+Avg sleep: ${avgSleep}h | Debts: ${debts.length} accounts
+Top categories: ${Object.entries(weekExpenses.reduce((m, e) => { m[e.category] = (m[e.category] || 0) + Number(e.amount); return m; }, {})).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>`${k}: ${settings.currency}${v.toFixed(0)}`).join(', ')}
+
+Write a concise Monday brief: celebrate wins, flag concerns, and give 1 specific action for this week. Be encouraging but honest. Use bullet points.`;
+    try {
+      const result = await callAI(prompt, settings, 500);
+      setBrief(result);
+      setWeeklyBriefHistory(prev => [...prev, { date: today(), brief: result }]);
+    } catch (e) { setBrief('⚠️ ' + e.message); }
+    setLoading(false);
+  }
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44`, background: `linear-gradient(135deg, ${T.accent}08, ${T.surface})` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+        <div>
+          <div style={s.cardTitle}>📰 AI Weekly Brief</div>
+          <div style={{ fontSize: '11px', color: T.textMuted }}>
+            {lastBrief ? `Last generated: ${lastBrief.date} (${daysSinceLastBrief}d ago)` : 'Generate your first Monday summary'}
+          </div>
+        </div>
+        <button style={{ ...s.btn(T.accent), padding: '8px 16px', fontSize: '12px' }} onClick={generate} disabled={loading}>
+          {loading ? '⏳ Analyzing...' : '📰 Generate Brief'}
+        </button>
+      </div>
+      {(brief || lastBrief?.brief) && (
+        <div style={{ background: T.surface, borderRadius: '10px', padding: '14px 16px', fontSize: '13px', lineHeight: '1.8', color: T.text, whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: T.accent, marginBottom: '8px', letterSpacing: '1px' }}>🤖 WEEKLY BRIEF — {brief ? today() : lastBrief?.date}</div>
+          {brief || lastBrief?.brief}
+        </div>
+      )}
+      {weeklyBriefHistory.length > 1 && (
+        <div style={{ marginTop: '10px' }}>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '6px' }}>Previous briefs ({weeklyBriefHistory.length - 1})</div>
+          {weeklyBriefHistory.slice(-3, -1).reverse().map((b, i) => (
+            <div key={i} style={{ fontSize: '11px', color: T.textMuted, padding: '6px 0', borderTop: `1px solid ${T.border}`, cursor: 'pointer' }} onClick={() => setBrief(b.brief)}>
+              📄 {b.date} — click to view
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I19 — ASSET DEPRECIATION TRACKER
+// ─────────────────────────────────────────────
+function AssetDepreciationTracker({ T, s, settings, assets, setAssets, assetDepreciation, setAssetDepreciation }) {
+  const [deprForm, setDeprForm] = useState({});
+  const depreciatingTypes = ['Other', 'Real Estate']; // focus on vehicles, electronics
+  const deprAssets = assets.filter(a => assetDepreciation[a.id] !== undefined || ['Car', 'Vehicle', 'Electronics', 'Equipment', 'Furniture'].some(kw => (a.name || '').toLowerCase().includes(kw.toLowerCase()) || (a.type || '') === kw));
+  function setRate(assetId, ratePercent, originalVal) {
+    setAssetDepreciation(prev => ({ ...prev, [assetId]: { rate: Number(ratePercent), purchaseValue: Number(originalVal), startDate: prev[assetId]?.startDate || today() } }));
+  }
+  function getCurrentValue(asset) {
+    const d = assetDepreciation[asset.id];
+    if (!d) return Number(asset.value || 0);
+    const months = Math.floor((Date.now() - new Date(d.startDate)) / (1000 * 60 * 60 * 24 * 30.5));
+    const originalVal = d.purchaseValue || Number(asset.value || 0);
+    const monthlyRate = d.rate / 100 / 12;
+    return Math.max(0, originalVal * Math.pow(1 - monthlyRate, months));
+  }
+  return (
+    <div style={{ ...s.card }}>
+      <div style={s.cardTitle}>📉 Asset Depreciation Tracker</div>
+      <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '12px' }}>Track how depreciating assets (cars, electronics) lose value over time.</div>
+      {assets.map(asset => {
+        const d = assetDepreciation[asset.id] || {};
+        const currentVal = getCurrentValue(asset);
+        const originalVal = d.purchaseValue || Number(asset.value || 0);
+        const lost = originalVal - currentVal;
+        const pctLost = originalVal > 0 ? (lost / originalVal) * 100 : 0;
+        const isSetup = !!assetDepreciation[asset.id];
+        const form = deprForm[asset.id] || { rate: d.rate || 15, purchaseValue: d.purchaseValue || asset.value || '' };
+        return (
+          <div key={asset.id} style={{ background: T.surface, borderRadius: '10px', padding: '12px', marginBottom: '8px', border: `1px solid ${isSetup ? T.warning + '44' : T.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isSetup ? '10px' : '8px' }}>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '13px' }}>{asset.name}</div>
+                <div style={{ fontSize: '11px', color: T.textMuted }}>{asset.type}</div>
+              </div>
+              {isSetup ? (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: '900', fontSize: '16px', color: T.warning }}>{settings.currency}{fmtN(Math.round(currentVal))}</div>
+                  <div style={{ fontSize: '10px', color: T.danger }}>−{settings.currency}{fmtN(Math.round(lost))} ({pctLost.toFixed(1)}% lost)</div>
+                </div>
+              ) : (
+                <span style={{ fontSize: '11px', color: T.textMuted }}>Not tracking</span>
+              )}
+            </div>
+            {isSetup && (
+              <div style={{ height: '4px', background: T.border, borderRadius: '2px', marginBottom: '8px' }}>
+                <div style={{ height: '100%', width: `${100 - pctLost}%`, background: T.warning, borderRadius: '2px' }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'end' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '10px', color: T.textMuted, marginBottom: '3px' }}>Purchase value ({settings.currency})</div>
+                <input type="number" style={{ ...s.input, fontSize: '11px', padding: '4px 8px' }} value={form.purchaseValue} onChange={e => setDeprForm(prev => ({ ...prev, [asset.id]: { ...form, purchaseValue: e.target.value } }))} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '10px', color: T.textMuted, marginBottom: '3px' }}>Annual depr. rate (%)</div>
+                <input type="number" style={{ ...s.input, fontSize: '11px', padding: '4px 8px' }} value={form.rate} onChange={e => setDeprForm(prev => ({ ...prev, [asset.id]: { ...form, rate: e.target.value } }))} placeholder="e.g. 15 = 15%/yr" />
+              </div>
+              <button style={{ ...s.btn(), fontSize: '11px', padding: '5px 12px', alignSelf: 'end' }} onClick={() => setRate(asset.id, form.rate, form.purchaseValue)}>Track</button>
+              {isSetup && <button style={{ ...s.btnGhost, fontSize: '11px', padding: '5px 8px', alignSelf: 'end', color: T.danger }} onClick={() => setAssetDepreciation(prev => { const n = { ...prev }; delete n[asset.id]; return n; })}>✕</button>}
+            </div>
+          </div>
+        );
+      })}
+      {assets.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Add assets in the Hoard tab first.</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I20 — FREELANCE / SELF-EMPLOYED MODE
+// ─────────────────────────────────────────────
+function FreelanceModePanel({ T, s, settings, freelanceData, setFreelanceData, incomes, thisMonthIncome }) {
+  const [invoiceForm, setInvoiceForm] = useState({ client: '', amount: '', description: '', date: today(), status: 'pending' });
+  function addInvoice() {
+    if (!invoiceForm.client || !invoiceForm.amount) return;
+    setFreelanceData(prev => ({ ...prev, projects: [...(prev.projects || []), { id: Date.now(), ...invoiceForm, amount: Number(invoiceForm.amount) }] }));
+    setInvoiceForm({ client: '', amount: '', description: '', date: today(), status: 'pending' });
+  }
+  const projects = freelanceData.projects || [];
+  const totalBilled = projects.reduce((s, p) => s + p.amount, 0);
+  const totalPaid = projects.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
+  const totalPending = projects.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  const quarterlyTax = totalPaid * (Number(freelanceData.taxRate || 22) / 100) / 4;
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>🧾 Freelance / Self-Employed Mode</div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', color: T.textMuted }}>Active</span>
+          <div onClick={() => setFreelanceData(prev => ({ ...prev, enabled: !prev.enabled }))} style={{ width: '36px', height: '20px', background: freelanceData.enabled ? T.accent : T.border, borderRadius: '10px', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+            <div style={{ position: 'absolute', top: '2px', left: freelanceData.enabled ? '18px' : '2px', width: '16px', height: '16px', background: '#fff', borderRadius: '50%', transition: 'left 0.2s' }} />
+          </div>
+        </div>
+      </div>
+      {!freelanceData.enabled && <div style={{ color: T.textMuted, fontSize: '12px', padding: '8px 0' }}>Toggle on to activate freelance tracking with invoice management, VAT, and quarterly tax estimates.</div>}
+      {freelanceData.enabled && (<>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '14px' }}>
+          {[
+            { label: 'Total Billed', value: settings.currency + fmtN(totalBilled), color: T.accent },
+            { label: 'Collected', value: settings.currency + fmtN(totalPaid), color: T.success },
+            { label: 'Pending', value: settings.currency + fmtN(totalPending), color: T.warning },
+          ].map(item => (
+            <div key={item.label} style={{ background: item.color + '22', border: `1px solid ${item.color}44`, borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+              <div style={{ fontWeight: '900', fontSize: '16px', color: item.color }}>{item.value}</div>
+              <div style={{ fontSize: '10px', color: T.textMuted }}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: T.danger + '22', border: `1px solid ${T.danger}44`, borderRadius: '10px', padding: '10px 14px', flex: 1 }}>
+            <div>
+              <div style={{ fontWeight: '900', fontSize: '14px', color: T.danger }}>{settings.currency}{fmtN(Math.round(quarterlyTax))}</div>
+              <div style={{ fontSize: '10px', color: T.textMuted }}>Q. tax set aside</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'right' }}>
+              <span style={{ fontSize: '10px', color: T.textMuted }}>Rate: </span>
+              <input type="number" style={{ ...s.input, width: '50px', fontSize: '11px', display: 'inline-block', padding: '3px 6px' }} value={freelanceData.taxRate || 22} onChange={e => setFreelanceData(prev => ({ ...prev, taxRate: e.target.value }))} />
+              <span style={{ fontSize: '10px', color: T.textMuted }}>%</span>
+            </div>
+          </div>
+          <div style={{ background: T.accent + '22', border: `1px solid ${T.accent}44`, borderRadius: '10px', padding: '10px 14px', flex: 1, textAlign: 'center' }}>
+            <div style={{ fontWeight: '900', fontSize: '14px', color: T.accent }}>{settings.currency}{fmtN(freelanceData.hourlyRate || 0)}/hr</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center', marginTop: '4px' }}>
+              <input type="number" style={{ ...s.input, width: '60px', fontSize: '11px', padding: '2px 6px' }} value={freelanceData.hourlyRate || 0} onChange={e => setFreelanceData(prev => ({ ...prev, hourlyRate: Number(e.target.value) }))} />
+              <span style={{ fontSize: '10px', color: T.textMuted }}>hr rate</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px', alignItems: 'end' }}>
+          <input style={s.input} placeholder="Client name" value={invoiceForm.client} onChange={e => setInvoiceForm(f => ({ ...f, client: e.target.value }))} />
+          <input type="number" style={s.input} placeholder="Amount" value={invoiceForm.amount} onChange={e => setInvoiceForm(f => ({ ...f, amount: e.target.value }))} />
+          <input style={s.input} placeholder="Description" value={invoiceForm.description} onChange={e => setInvoiceForm(f => ({ ...f, description: e.target.value }))} />
+          <select style={s.select} value={invoiceForm.status} onChange={e => setInvoiceForm(f => ({ ...f, status: e.target.value }))}>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+          </select>
+          <button style={{ ...s.btn(), gridColumn: '1/-1' }} onClick={addInvoice}>+ Add Invoice</button>
+        </div>
+        <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {projects.map(p => (
+            <div key={p.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '7px 10px', background: T.surface, borderRadius: '7px', fontSize: '12px' }}>
+              <span style={{ flex: 1, fontWeight: '600' }}>{p.client}</span>
+              <span style={{ color: T.textMuted, flex: 1 }}>{p.description}</span>
+              <span style={{ color: T.textMuted, fontSize: '10px' }}>{p.date}</span>
+              <span style={{ fontWeight: '700', color: p.status === 'paid' ? T.success : p.status === 'overdue' ? T.danger : T.warning }}>{settings.currency}{fmtN(p.amount)}</span>
+              <select style={{ ...s.select, fontSize: '10px', padding: '2px 6px', width: '80px' }} value={p.status} onChange={e => setFreelanceData(prev => ({ ...prev, projects: prev.projects.map(x => x.id === p.id ? { ...x, status: e.target.value } : x) }))}>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+              <button style={{ ...s.btnGhost, color: T.danger, padding: '2px 6px', fontSize: '10px' }} onClick={() => setFreelanceData(prev => ({ ...prev, projects: prev.projects.filter(x => x.id !== p.id) }))}>✕</button>
+            </div>
+          ))}
+          {projects.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px', padding: '8px 0' }}>No invoices yet. Add your first client invoice.</div>}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I21 — SLEEP DEBT TRACKER
+// ─────────────────────────────────────────────
+function SleepDebtTracker({ T, s, vitals }) {
+  const IDEAL_SLEEP = 8;
+  const last14 = vitals.filter(v => v.sleep != null).slice(-14);
+  const debtData = last14.map(v => ({
+    date: v.date, sleep: v.sleep,
+    deficit: Math.max(0, IDEAL_SLEEP - Number(v.sleep)),
+    surplus: Math.max(0, Number(v.sleep) - IDEAL_SLEEP),
+  }));
+  const cumulativeDebt = debtData.reduce((s, d) => s + d.deficit - d.surplus * 0.5, 0);
+  const avgSleep = last14.length ? last14.reduce((s, v) => s + Number(v.sleep), 0) / last14.length : 0;
+  const debtColor = cumulativeDebt <= 0 ? T.success : cumulativeDebt <= 5 ? T.warning : T.danger;
+  const debtLabel = cumulativeDebt <= 0 ? '✅ Sleep surplus — fully rested' : cumulativeDebt <= 3 ? '🟡 Mild sleep debt — catch up this weekend' : cumulativeDebt <= 7 ? '🟠 Moderate debt — performance impaired' : '🔴 Severe debt — cognitive & health impacts';
+  const daysToRepay = cumulativeDebt > 0 ? Math.ceil(cumulativeDebt / 1.5) : 0;
+  return (
+    <div style={{ ...s.card }}>
+      <div style={s.cardTitle}>😴 Sleep Debt Tracker</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+        <div style={{ background: debtColor + '22', border: `1px solid ${debtColor}44`, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '28px', fontWeight: '900', color: debtColor }}>{cumulativeDebt > 0 ? `−${cumulativeDebt.toFixed(1)}h` : '+' + Math.abs(cumulativeDebt).toFixed(1) + 'h'}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>Sleep {cumulativeDebt > 0 ? 'debt' : 'surplus'}</div>
+        </div>
+        <div style={{ background: T.surface, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '28px', fontWeight: '900', color: avgSleep >= 7 ? T.success : avgSleep >= 6 ? T.warning : T.danger }}>{avgSleep.toFixed(1)}h</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>14-day avg</div>
+        </div>
+        <div style={{ background: T.surface, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '28px', fontWeight: '900', color: daysToRepay === 0 ? T.success : T.warning }}>{daysToRepay === 0 ? '✓' : daysToRepay + 'd'}</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>Days to repay</div>
+        </div>
+      </div>
+      <div style={{ background: debtColor + '22', border: `1px solid ${debtColor}44`, borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', fontSize: '12px', color: T.text }}>{debtLabel}</div>
+      {last14.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Log sleep in Vitals to see your sleep debt.</div>}
+      {last14.length > 0 && (
+        <div style={{ display: 'flex', gap: '3px', alignItems: 'flex-end', height: '60px' }}>
+          {last14.map(v => {
+            const h = Number(v.sleep || 0);
+            const color = h >= 7.5 ? T.success : h >= 6 ? T.warning : T.danger;
+            const heightPct = Math.min(100, (h / 10) * 100);
+            return (
+              <div key={v.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }} title={`${v.date}: ${h}h`}>
+                <div style={{ width: '100%', height: `${heightPct}%`, background: color, borderRadius: '3px 3px 0 0', position: 'relative' }}>
+                  {h < IDEAL_SLEEP && <div style={{ position: 'absolute', top: '-1px', left: 0, right: 0, height: '2px', background: T.danger + '88' }} />}
+                </div>
+                <div style={{ fontSize: '8px', color: T.textMuted, marginTop: '2px', whiteSpace: 'nowrap' }}>{new Date(v.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div style={{ fontSize: '10px', color: T.textMuted, marginTop: '8px' }}>Sleep debt accumulates at 1h deficit/night. Repays at ~1.5h surplus/night. Data from last 14 logged nights.</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I22 — FOCUS SESSION BILLING MODE
+// ─────────────────────────────────────────────
+function FocusBillingMode({ T, s, settings, focusBillingSettings, setFocusBillingSettings, focusSessions }) {
+  const todaySessions = focusSessions.filter(s => s.date === today());
+  const thisWeekSessions = focusSessions.filter(s => s.date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+  const thisMonthSessions = focusSessions.filter(s => s.date?.startsWith(today().slice(0, 7)));
+  function calcEarnings(sessions) {
+    return sessions.reduce((s, sess) => s + (sess.duration / 60) * Number(focusBillingSettings.hourlyRate || 0), 0);
+  }
+  const dailyEarnings = calcEarnings(todaySessions);
+  const weeklyEarnings = calcEarnings(thisWeekSessions);
+  const monthlyEarnings = calcEarnings(thisMonthSessions);
+  const totalMinutes = focusSessions.reduce((s, x) => s + x.duration, 0);
+  const totalEarnings = calcEarnings(focusSessions);
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.accent}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>💼 Focus Billing Mode</div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', color: T.textMuted }}>Billing</span>
+          <div onClick={() => setFocusBillingSettings(prev => ({ ...prev, enabled: !prev.enabled }))} style={{ width: '36px', height: '20px', background: focusBillingSettings.enabled ? T.accent : T.border, borderRadius: '10px', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+            <div style={{ position: 'absolute', top: '2px', left: focusBillingSettings.enabled ? '18px' : '2px', width: '16px', height: '16px', background: '#fff', borderRadius: '50%', transition: 'left 0.2s' }} />
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
+        <span style={{ fontSize: '12px', color: T.textMuted }}>Hourly rate:</span>
+        <input type="number" style={{ ...s.input, width: '80px', fontSize: '13px' }} value={focusBillingSettings.hourlyRate || 50} onChange={e => setFocusBillingSettings(prev => ({ ...prev, hourlyRate: Number(e.target.value) }))} />
+        <span style={{ fontSize: '12px', color: T.textMuted }}>{settings.currency}/hr</span>
+      </div>
+      {focusBillingSettings.enabled && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '12px' }}>
+            {[
+              { label: 'Today', mins: todaySessions.reduce((s, x) => s + x.duration, 0), earned: dailyEarnings },
+              { label: 'This Week', mins: thisWeekSessions.reduce((s, x) => s + x.duration, 0), earned: weeklyEarnings },
+              { label: 'This Month', mins: thisMonthSessions.reduce((s, x) => s + x.duration, 0), earned: monthlyEarnings },
+            ].map(item => (
+              <div key={item.label} style={{ background: T.surface, borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+                <div style={{ fontWeight: '900', fontSize: '16px', color: T.accent }}>{settings.currency}{fmtN(item.earned.toFixed(2))}</div>
+                <div style={{ fontSize: '11px', color: T.textMuted }}>{item.label}</div>
+                <div style={{ fontSize: '10px', color: T.textMuted }}>{item.mins}min focused</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: T.accentSoft, borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: '700', color: T.accent }}>All-time productivity value</div>
+              <div style={{ fontSize: '11px', color: T.textMuted }}>{focusSessions.length} sessions · {(totalMinutes / 60).toFixed(1)}h total</div>
+            </div>
+            <div style={{ fontWeight: '900', fontSize: '20px', color: T.accent }}>{settings.currency}{fmtN(totalEarnings.toFixed(0))}</div>
+          </div>
+        </>
+      )}
+      {!focusBillingSettings.enabled && <div style={{ color: T.textMuted, fontSize: '12px' }}>Toggle billing mode on to see how much your focus sessions are worth at your hourly rate.</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I10 — SUBSCRIPTION AUDIT (enhanced)
+// ─────────────────────────────────────────────
+function SubscriptionAuditPanel({ T, s, settings, subscriptions, setSubscriptions, expenses }) {
+  const [unusedThresholdDays, setUnusedThresholdDays] = useState(45);
+  function checkLastUsed(sub) {
+    const subNameL = (sub.name || '').toLowerCase();
+    const lastExpense = expenses.filter(e =>
+      (e.note || '').toLowerCase().includes(subNameL) ||
+      (e.subcategory || '').toLowerCase().includes(subNameL) ||
+      (subNameL.length > 2 && (e.note || e.subcategory || '').toLowerCase().includes(subNameL.slice(0, 5)))
+    ).sort((a, b) => b.date?.localeCompare(a.date))[0];
+    return lastExpense?.date || null;
+  }
+  const auditData = subscriptions.map(sub => {
+    const lastUsed = checkLastUsed(sub);
+    const daysSince = lastUsed ? Math.floor((Date.now() - new Date(lastUsed)) / 86400000) : null;
+    const isUnused = daysSince === null || daysSince > unusedThresholdDays;
+    return { ...sub, lastUsed, daysSince, isUnused };
+  });
+  const yearlyTotal = subscriptions.reduce((s, x) => s + Number(x.amount || 0) * 12, 0);
+  const unusedSubs = auditData.filter(s => s.isUnused);
+  const unusedCost = unusedSubs.reduce((s, x) => s + Number(x.amount || 0) * 12, 0);
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.warning}44` }}>
+      <div style={s.cardTitle}>🔍 Subscription Audit</div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        <div style={{ background: T.accent + '22', border: `1px solid ${T.accent}44`, borderRadius: '10px', padding: '10px 16px', flex: 1, textAlign: 'center' }}>
+          <div style={{ fontWeight: '900', fontSize: '18px', color: T.accent }}>{settings.currency}{fmtN(yearlyTotal.toFixed(0))}/yr</div>
+          <div style={{ fontSize: '10px', color: T.textMuted }}>{subscriptions.length} subscriptions total</div>
+        </div>
+        {unusedSubs.length > 0 && (
+          <div style={{ background: T.danger + '22', border: `1px solid ${T.danger}44`, borderRadius: '10px', padding: '10px 16px', flex: 1, textAlign: 'center' }}>
+            <div style={{ fontWeight: '900', fontSize: '18px', color: T.danger }}>{settings.currency}{fmtN(unusedCost.toFixed(0))}/yr</div>
+            <div style={{ fontSize: '10px', color: T.textMuted }}>{unusedSubs.length} potentially unused</div>
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+        <span style={{ fontSize: '11px', color: T.textMuted }}>Flag unused if no expense logged in:</span>
+        <input type="number" style={{ ...s.input, width: '60px', fontSize: '11px', padding: '3px 8px' }} value={unusedThresholdDays} onChange={e => setUnusedThresholdDays(Number(e.target.value))} />
+        <span style={{ fontSize: '11px', color: T.textMuted }}>days</span>
+      </div>
+      {auditData.map(sub => (
+        <div key={sub.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px 10px', background: sub.isUnused ? T.danger + '15' : T.surface, borderRadius: '8px', marginBottom: '5px', border: `1px solid ${sub.isUnused ? T.danger + '44' : T.border}` }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: '700', fontSize: '12px', color: T.text }}>{sub.name}</div>
+            <div style={{ fontSize: '10px', color: T.textMuted }}>
+              {sub.lastUsed ? `Last seen in expenses: ${sub.lastUsed} (${sub.daysSince}d ago)` : 'No matching expense found'}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontWeight: '700', color: T.warning }}>{settings.currency}{fmtN(sub.amount)}/mo</div>
+            <div style={{ fontSize: '10px', color: T.textMuted }}>{settings.currency}{fmtN((Number(sub.amount) * 12).toFixed(0))}/yr</div>
+          </div>
+          {sub.isUnused && (
+            <div style={{ ...s.tag(T.danger), fontSize: '10px', whiteSpace: 'nowrap' }}>⚠️ Unused?</div>
+          )}
+        </div>
+      ))}
+      {subscriptions.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Add subscriptions in the Spending tab to audit them.</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I16 — REGRET SCORE on expenses (widget helper)
+// ─────────────────────────────────────────────
+function RegretButton({ expenseId, expenseRegrets, setExpenseRegrets, T }) {
+  const score = expenseRegrets[expenseId];
+  const OPTIONS = [{ v: 1, label: '😄 No regret' }, { v: 2, label: '🤔 Meh' }, { v: 3, label: '😬 Regret it' }];
+  return (
+    <div style={{ display: 'flex', gap: '3px' }}>
+      {OPTIONS.map(opt => (
+        <button key={opt.v} title={opt.label} onClick={() => setExpenseRegrets(prev => ({ ...prev, [expenseId]: score === opt.v ? undefined : opt.v }))}
+          style={{ fontSize: '12px', background: score === opt.v ? T.accentSoft : 'transparent', border: `1px solid ${score === opt.v ? T.accent + '55' : T.border}`, borderRadius: '4px', cursor: 'pointer', padding: '1px 4px', lineHeight: 1 }}>
+          {opt.label.split(' ')[0]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I11 — FINANCIAL PERSONA EVOLUTION
+// ─────────────────────────────────────────────
+function FinancialPersonaEvolution({ T, s, savingsRate, netWorth, debts, financialHealthScore, thisMonthIncome, expenses }) {
+  const TIERS = [
+    { id: 'survivor', name: 'Survivor', emoji: '🌱', desc: 'Finding your financial footing', minScore: 0, color: '#aaa' },
+    { id: 'builder', name: 'Builder', emoji: '🏗️', desc: 'Building savings habits', minScore: 25, color: '#f97316' },
+    { id: 'optimizer', name: 'Optimizer', emoji: '⚙️', desc: 'Cutting waste, boosting savings', minScore: 45, color: '#eab308' },
+    { id: 'investor', name: 'Investor', emoji: '📈', desc: 'Making money work for you', minScore: 60, color: '#22c55e' },
+    { id: 'accumulator', name: 'Wealth Accumulator', emoji: '🏦', desc: 'Building serious wealth', minScore: 75, color: '#3b82f6' },
+    { id: 'sovereign', name: 'Financial Sovereign', emoji: '👑', desc: 'Financially free & intentional', minScore: 90, color: '#a855f7' },
+  ];
+  const currentTierIdx = TIERS.reduce((best, t, i) => financialHealthScore >= t.minScore ? i : best, 0);
+  const currentTier = TIERS[currentTierIdx];
+  const nextTier = TIERS[currentTierIdx + 1];
+  const progressToNext = nextTier ? ((financialHealthScore - currentTier.minScore) / (nextTier.minScore - currentTier.minScore)) * 100 : 100;
+  const [personaHistory] = useLocalStorage('los_persona_hist', []);
+  return (
+    <div style={{ ...s.card, border: `1px solid ${currentTier.color}44` }}>
+      <div style={s.cardTitle}>🎭 Financial Persona</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+        <div style={{ fontSize: '48px', background: currentTier.color + '22', borderRadius: '50%', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${currentTier.color}44` }}>{currentTier.emoji}</div>
+        <div>
+          <div style={{ fontFamily: "'Exo 2',sans-serif", fontSize: '20px', fontWeight: '900', color: currentTier.color }}>{currentTier.name}</div>
+          <div style={{ fontSize: '12px', color: T.textMuted, marginTop: '3px' }}>{currentTier.desc}</div>
+          <div style={{ fontSize: '11px', color: T.textMuted, marginTop: '4px' }}>Health Score: <strong style={{ color: currentTier.color }}>{financialHealthScore}/100</strong></div>
+        </div>
+      </div>
+      {nextTier && (
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: T.textMuted, marginBottom: '4px' }}>
+            <span>Progress to {nextTier.emoji} {nextTier.name}</span>
+            <span>{progressToNext.toFixed(0)}% — need score {nextTier.minScore}</span>
+          </div>
+          <div style={{ height: '8px', background: T.border, borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${progressToNext}%`, background: `linear-gradient(90deg, ${currentTier.color}, ${nextTier.color})`, borderRadius: '4px', transition: 'width 0.5s' }} />
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {TIERS.map((tier, i) => (
+          <div key={tier.id} style={{ flex: '1 1 60px', textAlign: 'center', padding: '6px 4px', background: i <= currentTierIdx ? tier.color + '22' : T.surface, borderRadius: '8px', border: `1px solid ${i <= currentTierIdx ? tier.color + '55' : T.border}`, opacity: i <= currentTierIdx ? 1 : 0.4 }}>
+            <div style={{ fontSize: '16px' }}>{tier.emoji}</div>
+            <div style={{ fontSize: '9px', color: i <= currentTierIdx ? tier.color : T.textMuted, fontWeight: i === currentTierIdx ? '900' : '400' }}>{tier.name.split(' ')[0]}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I14 — SAVINGS BOND / CD / LIVRET TRACKER
+// ─────────────────────────────────────────────
+function BondCDTracker({ T, s, settings, bondTracker, setBondTracker }) {
+  const [form, setForm] = useState({ name: '', type: 'Livret A', principal: '', rate: '', startDate: today(), maturityDate: '', frequency: 'annual' });
+  const [show, setShow] = useState(false);
+  const TYPES = ['Livret A', 'LEP', 'LDDS', 'CD', 'Savings Bond', 'Term Deposit', 'Other'];
+  function add() {
+    if (!form.name || !form.principal || !form.rate) return;
+    setBondTracker(prev => [...prev, { id: Date.now(), ...form, principal: Number(form.principal), rate: Number(form.rate) }]);
+    setForm({ name: '', type: 'Livret A', principal: '', rate: '', startDate: today(), maturityDate: '', frequency: 'annual' });
+    setShow(false);
+  }
+  function calcCurrentValue(bond) {
+    const months = Math.floor((Date.now() - new Date(bond.startDate)) / (1000 * 60 * 60 * 24 * 30.5));
+    const r = Number(bond.rate) / 100;
+    return bond.principal * Math.pow(1 + (bond.frequency === 'monthly' ? r / 12 : r), bond.frequency === 'monthly' ? months : months / 12);
+  }
+  const totalPrincipal = bondTracker.reduce((s, b) => s + b.principal, 0);
+  const totalCurrentValue = bondTracker.reduce((s, b) => s + calcCurrentValue(b), 0);
+  const totalInterestEarned = totalCurrentValue - totalPrincipal;
+  return (
+    <div style={{ ...s.card, border: `1px solid ${T.success}44` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>📜 Savings Bonds & CDs</div>
+        <button style={{ ...s.btnGhost, fontSize: '12px' }} onClick={() => setShow(!show)}>+ Add Instrument</button>
+      </div>
+      {bondTracker.length > 0 && (
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Principal', value: settings.currency + fmtN(totalPrincipal), color: T.accent },
+            { label: 'Current Value', value: settings.currency + fmtN(totalCurrentValue.toFixed(2)), color: T.success },
+            { label: 'Interest Earned', value: '+' + settings.currency + fmtN(totalInterestEarned.toFixed(2)), color: T.success },
+          ].map(item => (
+            <div key={item.label} style={{ flex: 1, background: item.color + '22', border: `1px solid ${item.color}44`, borderRadius: '10px', padding: '10px', textAlign: 'center' }}>
+              <div style={{ fontWeight: '900', fontSize: '16px', color: item.color }}>{item.value}</div>
+              <div style={{ fontSize: '10px', color: T.textMuted }}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {show && (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+          <input style={s.input} placeholder="Name (e.g. Livret A - BNP)" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <select style={s.select} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+            {TYPES.map(t => <option key={t}>{t}</option>)}
+          </select>
+          <input type="number" style={s.input} placeholder="Principal (€)" value={form.principal} onChange={e => setForm(f => ({ ...f, principal: e.target.value }))} />
+          <input type="number" style={s.input} placeholder="Annual rate (%)" value={form.rate} onChange={e => setForm(f => ({ ...f, rate: e.target.value }))} />
+          <input type="date" style={s.input} value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+          <input type="date" style={s.input} placeholder="Maturity date" value={form.maturityDate} onChange={e => setForm(f => ({ ...f, maturityDate: e.target.value }))} />
+          <select style={{ ...s.select, gridColumn: '1/3' }} value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}>
+            <option value="annual">Annual compounding</option>
+            <option value="monthly">Monthly compounding</option>
+          </select>
+          <button style={{ ...s.btn(), alignSelf: 'end' }} onClick={add}>Add</button>
+        </div>
+      )}
+      {bondTracker.map(bond => {
+        const currentVal = calcCurrentValue(bond);
+        const earned = currentVal - bond.principal;
+        const daysToMaturity = bond.maturityDate ? Math.ceil((new Date(bond.maturityDate) - new Date()) / 86400000) : null;
+        const isMatured = daysToMaturity !== null && daysToMaturity <= 0;
+        return (
+          <div key={bond.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 12px', background: isMatured ? T.success + '22' : T.surface, borderRadius: '10px', marginBottom: '6px', border: `1px solid ${isMatured ? T.success : T.border}` }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: '700', fontSize: '12px' }}>{bond.name}</div>
+              <div style={{ fontSize: '10px', color: T.textMuted }}>{bond.type} · {bond.rate}% p.a. · Started {bond.startDate}</div>
+              {daysToMaturity !== null && <div style={{ fontSize: '10px', color: isMatured ? T.success : daysToMaturity < 30 ? T.warning : T.textMuted }}>{isMatured ? '🎉 Matured!' : `⏰ ${daysToMaturity}d to maturity`}</div>}
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: '700', color: T.success }}>{settings.currency}{fmtN(currentVal.toFixed(2))}</div>
+              <div style={{ fontSize: '10px', color: T.success }}>+{settings.currency}{fmtN(earned.toFixed(2))} earned</div>
+            </div>
+            <button style={{ ...s.btnGhost, color: T.danger, padding: '3px 6px', fontSize: '10px' }} onClick={() => setBondTracker(prev => prev.filter(x => x.id !== bond.id))}>✕</button>
+          </div>
+        );
+      })}
+      {bondTracker.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Track your Livret A, LEP, CDs, savings bonds, and term deposits here.</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// I24 — PUSH NOTIFICATION HELPER for price alerts
+// ─────────────────────────────────────────────
+function requestPushPermission(setNotification) {
+  if (!('Notification' in window)) { setNotification && setNotification('⚠️ Push notifications not supported in this browser'); return; }
+  if (Notification.permission === 'granted') { setNotification && setNotification('✅ Push notifications already enabled'); return; }
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') { setNotification && setNotification('✅ Push notifications enabled! Price alerts will now appear as OS notifications.'); }
+    else { setNotification && setNotification('❌ Push notifications blocked. Enable them in browser settings.'); }
+  });
+}
+function sendPushAlert(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body, icon: '📈' }); } catch (e) {}
+  }
+}
+
+// ─────────────────────────────────────────────
+// I25 — THESIS DECAY CHECKER (enhanced component)
+// ─────────────────────────────────────────────
+function ThesisDecayChecker({ T, s, investments, thesisBySymbol, setThesisBySymbol, thesisDates, setThesisDates }) {
+  const STALE_DAYS = 90;
+  const today_ = today();
+  const entries = investments.map(inv => {
+    const sym = inv.symbol || inv.name;
+    const thesis = thesisBySymbol[sym];
+    const dateSet = thesisDates[sym];
+    const daysSince = dateSet ? Math.floor((Date.now() - new Date(dateSet)) / 86400000) : null;
+    const isStale = !thesis || (daysSince !== null && daysSince > STALE_DAYS);
+    const stalePct = daysSince !== null ? Math.min(100, (daysSince / STALE_DAYS) * 100) : 0;
+    return { sym, thesis, dateSet, daysSince, isStale, stalePct, inv };
+  });
+  const staleCount = entries.filter(e => e.isStale).length;
+  return (
+    <div style={{ ...s.card }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={s.cardTitle}>🧪 Investment Thesis Decay</div>
+        {staleCount > 0 && <span style={{ ...s.tag(T.danger), fontSize: '11px' }}>⚠️ {staleCount} stale</span>}
+      </div>
+      <div style={{ fontSize: '11px', color: T.textMuted, marginBottom: '12px' }}>
+        Theses older than {STALE_DAYS} days are flagged for review. Markets change — your thesis should too.
+      </div>
+      {entries.map(({ sym, thesis, dateSet, daysSince, isStale, stalePct, inv }) => {
+        const [editing, setEditing] = useState(false);
+        const [draft, setDraft] = useState(thesis || '');
+        return (
+          <div key={sym} style={{ background: isStale ? T.danger + '12' : T.surface, borderRadius: '10px', padding: '12px', marginBottom: '8px', border: `1px solid ${isStale ? T.danger + '44' : T.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+              <div>
+                <div style={{ fontWeight: '700', fontSize: '13px', color: T.text }}>{sym}</div>
+                <div style={{ fontSize: '11px', color: T.textMuted }}>
+                  {dateSet ? `Updated ${dateSet} (${daysSince}d ago)` : 'No thesis set'}
+                  {isStale && <span style={{ color: T.danger, marginLeft: '6px' }}>⚠️ Stale</span>}
+                </div>
+              </div>
+              <button style={{ ...s.btnGhost, fontSize: '11px', padding: '3px 8px' }} onClick={() => { setEditing(!editing); setDraft(thesis || ''); }}>
+                {editing ? '↺ Cancel' : thesis ? '✏️ Edit' : '+ Add Thesis'}
+              </button>
+            </div>
+            {thesis && !editing && (
+              <>
+                <div style={{ fontSize: '12px', color: T.textMuted, lineHeight: '1.6', marginBottom: '6px', fontStyle: 'italic' }}>"{thesis}"</div>
+                <div style={{ height: '4px', background: T.border, borderRadius: '2px' }}>
+                  <div style={{ height: '100%', width: `${stalePct}%`, background: stalePct >= 100 ? T.danger : stalePct >= 60 ? T.warning : T.success, borderRadius: '2px', transition: 'width 0.3s' }} />
+                </div>
+              </>
+            )}
+            {editing && (
+              <div style={{ marginTop: '6px' }}>
+                <textarea style={{ ...s.input, width: '100%', minHeight: '60px', resize: 'vertical', fontSize: '12px' }} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Why are you holding this asset? What's your exit condition?" />
+                <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                  <button style={{ ...s.btn(T.success), fontSize: '11px', padding: '5px 12px' }} onClick={() => {
+                    setThesisBySymbol(prev => ({ ...prev, [sym]: draft }));
+                    setThesisDates(prev => ({ ...prev, [sym]: today_ }));
+                    setEditing(false);
+                  }}>Save</button>
+                  {thesis && <button style={{ ...s.btnGhost, fontSize: '11px', padding: '5px 10px', color: T.danger }} onClick={() => { setThesisBySymbol(prev => { const n = { ...prev }; delete n[sym]; return n; }); setThesisDates(prev => { const n = { ...prev }; delete n[sym]; return n; }); setEditing(false); }}>Delete</button>}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {investments.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Add investments in Portfolio to track their thesis.</div>}
     </div>
   );
 }
