@@ -2875,6 +2875,8 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
     </div>
   );
 }
+
+function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return t('greeting_morning');
   if (h < 18) return t('greeting_afternoon');
