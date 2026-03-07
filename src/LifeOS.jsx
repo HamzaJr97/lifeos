@@ -1904,19 +1904,6 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         // Is any sub-tab of this hub the active page?
         const hubIsActive = (hub) => hub.tabs.some(t => t.id === activeTab);
 
-        function openHubOrGo(hub) {
-          if (hub.isSingle) {
-            setActiveTab('dashboard');
-            setOpenHub(null);
-            return;
-          }
-          if (openHub === hub.id) {
-            setOpenHub(null); // toggle closed
-          } else {
-            setOpenHub(hub.id);
-          }
-        }
-
         function goToTab(hubId, tabId) {
           setActiveTab(tabId);
           setLastHubTab(prev => ({...prev, [hubId]: tabId}));
@@ -1925,67 +1912,141 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
 
         const expandedHub = HUBS.find(h => h.id === openHub);
 
+        // Track each hub button DOM ref to measure position for arc popup
+        const hubRefs = useRef({});
+        const [hubAnchor, setHubAnchor] = useState(null); // {x, y, hub}
+
+        function openHubOrGoWithPos(hub, e) {
+          if (hub.isSingle) { setActiveTab('dashboard'); setOpenHub(null); setHubAnchor(null); return; }
+          if (openHub === hub.id) { setOpenHub(null); setHubAnchor(null); return; }
+          // Measure button position for arc origin
+          const btn = hubRefs.current[hub.id];
+          if (btn) {
+            const rect = btn.getBoundingClientRect();
+            setHubAnchor({ x: rect.left + rect.width / 2, y: rect.top, hub });
+          }
+          setOpenHub(hub.id);
+        }
+
         return (
           <>
-            {/* ── SUB-PAGE DRAWER (slides up above dock) ── */}
+            {/* ── BACKDROP ── */}
             {expandedHub && (
-              <>
-                {/* Backdrop */}
-                <div onClick={()=>setOpenHub(null)} style={{position:'fixed',inset:0,zIndex:190,background:'#00000055'}} />
-                {/* Drawer — N9: swipe left/right to cycle sub-pages within hub */}
-                {(() => {
-                  const tabs = expandedHub.tabs;
-                  const currentIdx = tabs.findIndex(t => t.id === activeTab);
-                  function swipeToTab(dir) {
-                    const next = currentIdx + dir;
-                    if (next >= 0 && next < tabs.length) goToTab(expandedHub.id, tabs[next].id);
-                  }
-                  return (
-                    <div
-                      onTouchStart={e=>{ e._swipeX = e.touches[0].clientX; }}
-                      onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - (e._swipeX||e.changedTouches[0].clientX); if(Math.abs(dx)>50) swipeToTab(dx<0?1:-1); }}
-                      style={{
-                        position:'fixed', bottom:'calc(76px + env(safe-area-inset-bottom, 0px))', left:'50%',
-                        transform:'translateX(-50%)',
-                        zIndex:195, width:'min(420px, 95vw)',
-                        background:`${T.surface}f5`, backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
-                        borderRadius:'20px', border:`1px solid ${T.accent}33`,
-                        boxShadow:`0 -4px 40px #00000055`,
-                        padding:'12px 12px 8px',
-                        animation:'slideUpDrawer 0.22s cubic-bezier(.25,1,.5,1)',
-                      }}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
-                        <button onClick={()=>swipeToTab(-1)} disabled={currentIdx<=0} style={{background:'none',border:'none',color:currentIdx>0?T.accent:T.textDim,cursor:currentIdx>0?'pointer':'default',fontSize:'18px',padding:'0 4px'}}>‹</button>
-                        <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'800',letterSpacing:'2px',textAlign:'center',textTransform:'uppercase'}}>
-                          {expandedHub.icon} {expandedHub.label}
-                        </div>
-                        <button onClick={()=>swipeToTab(1)} disabled={currentIdx>=tabs.length-1} style={{background:'none',border:'none',color:currentIdx<tabs.length-1?T.accent:T.textDim,cursor:currentIdx<tabs.length-1?'pointer':'default',fontSize:'18px',padding:'0 4px'}}>›</button>
-                      </div>
-                      <div style={{display:'grid', gridTemplateColumns:`repeat(${Math.min(expandedHub.tabs.length, 4)},1fr)`, gap:'8px'}}>
-                        {expandedHub.tabs.map(tab => {
-                          const isActive = activeTab === tab.id;
-                          const badge = getBadge(tab.id);
-                          return (
-                            <button key={tab.id} onClick={()=>goToTab(expandedHub.id, tab.id)} style={{
-                              display:'flex', flexDirection:'column', alignItems:'center', gap:'5px',
-                              padding:'12px 6px', borderRadius:'14px', border:'none', cursor:'pointer',
-                              background: isActive ? T.accentSoft : `${T.card}cc`,
-                              border: `1px solid ${isActive ? T.accent+'66' : T.border}`,
-                              position:'relative', transition:'all 0.15s',
-                            }}>
-                              <span style={{fontSize:'24px',lineHeight:1,filter:isActive?`drop-shadow(0 0 6px ${T.accentGlow})`:'none'}}>{tab.icon}</span>
-                              <span style={{fontSize:'10px',fontWeight:isActive?'700':'500',color:isActive?T.accent:T.textMuted,whiteSpace:'nowrap'}}>{tab.label}</span>
-                              {isActive && <div style={{position:'absolute',bottom:'4px',left:'50%',transform:'translateX(-50%)',width:'4px',height:'4px',borderRadius:'50%',background:T.accent}}/>}
-                              {badge && <div style={{position:'absolute',top:'4px',right:'4px',background:T.accent,color:'#fff',fontSize:'8px',fontWeight:'800',padding:'1px 4px',borderRadius:'99px',lineHeight:1.4}}>{badge}</div>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
+              <div onClick={()=>{ setOpenHub(null); setHubAnchor(null); }}
+                style={{position:'fixed',inset:0,zIndex:190,background:'#00000044'}} />
             )}
+
+            {/* ── CIRCULAR ARC POPUP above the tapped hub icon ── */}
+            {expandedHub && hubAnchor && (() => {
+              const tabs = expandedHub.tabs;
+              const n = tabs.length;
+              // Arc: spread bubbles in a semicircle above the anchor point
+              // Angle range: from 210° to 330° (opening upward, centred on 270°)
+              const R = Math.min(110, 80 + n * 8); // arc radius px
+              const spread = Math.min(140, 40 + n * 22); // total arc angle in degrees
+              const startAngle = 270 - spread / 2;
+              const step = n > 1 ? spread / (n - 1) : 0;
+              const BUBBLE = 58; // px per bubble
+              // Clamp anchor so arc never goes off-screen
+              const safeX = Math.max(BUBBLE, Math.min(window.innerWidth - BUBBLE, hubAnchor.x));
+
+              return (
+                <div style={{position:'fixed',inset:0,zIndex:195,pointerEvents:'none'}}>
+                  {/* Hub label pill */}
+                  <div style={{
+                    position:'fixed',
+                    left: safeX,
+                    top: hubAnchor.y - R - 60,
+                    transform:'translateX(-50%)',
+                    pointerEvents:'none',
+                    background:`${T.surface}ee`,
+                    backdropFilter:'blur(12px)',
+                    border:`1px solid ${T.accent}44`,
+                    borderRadius:'20px',
+                    padding:'4px 14px',
+                    fontSize:'11px', fontWeight:'800', color:T.accent,
+                    letterSpacing:'1.5px', textTransform:'uppercase',
+                    whiteSpace:'nowrap',
+                    boxShadow:`0 4px 20px #00000044`,
+                    animation:'arcFadeIn 0.18s ease',
+                  }}>
+                    {expandedHub.icon} {expandedHub.label}
+                  </div>
+
+                  {/* Arc bubbles */}
+                  {tabs.map((tab, i) => {
+                    const angleDeg = startAngle + i * step;
+                    const angleRad = (angleDeg * Math.PI) / 180;
+                    const bx = safeX + R * Math.cos(angleRad);
+                    const by = hubAnchor.y + R * Math.sin(angleRad); // sin is negative upward
+                    const isActive = activeTab === tab.id;
+                    const badge = getBadge(tab.id);
+                    const delay = `${i * 0.04}s`;
+                    return (
+                      <div key={tab.id}
+                        onClick={()=>{ goToTab(expandedHub.id, tab.id); setHubAnchor(null); }}
+                        style={{
+                          position:'fixed',
+                          left: bx, top: by,
+                          transform:'translate(-50%,-50%)',
+                          pointerEvents:'auto', cursor:'pointer',
+                          display:'flex', flexDirection:'column', alignItems:'center', gap:'4px',
+                          animation:`arcPop 0.28s cubic-bezier(.34,1.56,.64,1) ${delay} both`,
+                        }}>
+                        {/* Bubble circle */}
+                        <div style={{
+                          width:'52px', height:'52px', borderRadius:'50%',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          background: isActive ? T.accentGrad : `${T.surface}f0`,
+                          backdropFilter:'blur(16px)',
+                          border:`2px solid ${isActive ? T.accent : T.accent+'44'}`,
+                          boxShadow: isActive
+                            ? `0 0 0 4px ${T.accent}33, 0 8px 24px #00000055`
+                            : `0 4px 16px #00000044`,
+                          transition:'all 0.15s',
+                          position:'relative',
+                        }}>
+                          <span style={{
+                            fontSize:'22px', lineHeight:1,
+                            filter: isActive ? `drop-shadow(0 0 8px ${T.accentGlow})` : 'none',
+                          }}>{tab.icon}</span>
+                          {/* Badge */}
+                          {badge && (
+                            <div style={{
+                              position:'absolute', top:'-4px', right:'-4px',
+                              background:T.accent, color:'#fff',
+                              fontSize:'8px', fontWeight:'800',
+                              padding:'1px 4px', borderRadius:'99px',
+                              border:`1.5px solid ${T.surface}`,
+                            }}>{badge}</div>
+                          )}
+                          {/* Active ring pulse */}
+                          {isActive && (
+                            <div style={{
+                              position:'absolute', inset:'-5px', borderRadius:'50%',
+                              border:`2px solid ${T.accent}55`,
+                              animation:'arcPulse 1.5s ease-in-out infinite',
+                            }}/>
+                          )}
+                        </div>
+                        {/* Label pill below bubble */}
+                        <div style={{
+                          background:`${T.surface}f0`,
+                          backdropFilter:'blur(8px)',
+                          border:`1px solid ${isActive ? T.accent+'66' : T.border}`,
+                          borderRadius:'10px',
+                          padding:'2px 8px',
+                          fontSize:'9px', fontWeight: isActive ? '800' : '600',
+                          color: isActive ? T.accent : T.textMuted,
+                          whiteSpace:'nowrap',
+                          boxShadow:'0 2px 8px #00000033',
+                        }}>{tab.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* ── 6-ICON HUB DOCK ── */}
             <div style={{
@@ -2010,11 +2071,14 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                   const iconSize = isCenter ? (isMobile ? '28px' : '32px') : (isMobile ? '22px' : '26px');
                   const btnSize = isCenter ? (isMobile ? '50px' : '58px') : (isMobile ? '40px' : '48px');
                   return (
-                    <button key={hub.id} onClick={()=>openHubOrGo(hub)} style={{
-                      display:'flex', flexDirection:'column', alignItems:'center', gap:'3px',
-                      background:'transparent', border:'none', cursor:'pointer', padding:'0',
-                      position:'relative',
-                    }}>
+                    <button key={hub.id}
+                      ref={el => hubRefs.current[hub.id] = el}
+                      onClick={(e)=>openHubOrGoWithPos(hub, e)}
+                      style={{
+                        display:'flex', flexDirection:'column', alignItems:'center', gap:'3px',
+                        background:'transparent', border:'none', cursor:'pointer', padding:'0',
+                        position:'relative',
+                      }}>
                       <div style={{
                         width:btnSize, height:btnSize, borderRadius: isCenter ? '18px' : '16px',
                         display:'flex', alignItems:'center', justifyContent:'center',
@@ -2027,10 +2091,11 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                           : isActive || isOpen ? `0 0 10px ${T.accentGlow}44` : `0 1px 4px #00000022`,
                         transition:'all 0.18s',
                         position:'relative',
+                        transform: isOpen ? 'scale(1.12)' : 'scale(1)',
                       }}>
                         <span style={{
                           fontSize:iconSize, lineHeight:1,
-                          filter: isActive ? `drop-shadow(0 0 ${isCenter?'10':'6'}px ${T.accentGlow})` : 'none',
+                          filter: isActive || isOpen ? `drop-shadow(0 0 ${isCenter?'10':'6'}px ${T.accentGlow})` : 'none',
                           transition:'filter 0.2s',
                         }}>{hub.icon}</span>
                         {/* Hub badge */}
@@ -2044,9 +2109,13 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                             border:`1.5px solid ${T.surface}`,
                           }}>{hubBadge !== '●' ? hubBadge : ''}</div>
                         )}
-                        {/* Open chevron indicator */}
+                        {/* Glow ring when open */}
                         {isOpen && !isCenter && (
-                          <div style={{position:'absolute',bottom:'-8px',left:'50%',transform:'translateX(-50%)',width:0,height:0,borderLeft:'5px solid transparent',borderRight:'5px solid transparent',borderBottom:`5px solid ${T.accent}`}}/>
+                          <div style={{
+                            position:'absolute', inset:'-4px', borderRadius:'20px',
+                            border:`2px solid ${T.accent}88`,
+                            animation:'arcPulse 1.2s ease-in-out infinite',
+                          }}/>
                         )}
                       </div>
                       <div style={{
@@ -2054,13 +2123,28 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                         fontWeight: isActive || isOpen ? '700' : '400',
                         color: isActive || isOpen ? T.accent : T.textMuted,
                         lineHeight:1, marginBottom:'4px', whiteSpace:'nowrap',
+                        transition:'color 0.18s',
                       }}>{hub.label}</div>
                     </button>
                   );
                 })}
               </div>
             </div>
-            <style>{`@keyframes slideUpDrawer { from{opacity:0;transform:translateX(-50%) translateY(20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }`}</style>
+
+            <style>{`
+              @keyframes arcPop {
+                from { opacity:0; transform:translate(-50%,-50%) scale(0.3); }
+                to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+              }
+              @keyframes arcFadeIn {
+                from { opacity:0; transform:translateX(-50%) translateY(8px); }
+                to   { opacity:1; transform:translateX(-50%) translateY(0); }
+              }
+              @keyframes arcPulse {
+                0%,100% { opacity:0.6; transform:scale(1); }
+                50%     { opacity:0.2; transform:scale(1.12); }
+              }
+            `}</style>
           </>
         );
       })()}
