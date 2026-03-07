@@ -1097,6 +1097,8 @@ export default function LifeOS() {
   const [careerApps, setCareerApps] = useLocalStorage('los_career_apps', []);
   const [careerRex, setCareerRex] = useLocalStorage('los_career_rex', []);
   const [gmailToken, setGmailToken] = useLocalStorage('los_gmail_token', null);
+  const [tradeJournal, setTradeJournal] = useLocalStorage('los_trades', []); // C15-C19
+  const [priceAlerts, setPriceAlerts] = useLocalStorage('los_price_alerts', []); // C18
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [openHub, setOpenHub] = useState(null); // which hub is expanded: 'money'|'life'|'mind'|'career'|null
@@ -1268,8 +1270,20 @@ export default function LifeOS() {
     if (avgMonthlySpend3m > 0 && projectedMonthSpend > avgMonthlySpend3m * 1.5) {
       alerts.push({type:'danger', msg:`🚨 Spending anomaly: on track for ${settings.currency}${fmtN(projectedMonthSpend)}/mo — ${Math.round((projectedMonthSpend/avgMonthlySpend3m-1)*100)}% above your 3-month average.`});
     }
-    return alerts.slice(0,6);
-  }, [budgetTargets, expenses, incomes, savingsRate, bills, settings.currency, thisMonthSpend, financialHealthScore, habits]);
+    // C18 — Price alerts: check user-set price targets against latest investment prices
+    priceAlerts.forEach(pa => {
+      const inv = investments.find(i => (i.symbol||'').toUpperCase() === (pa.symbol||'').toUpperCase());
+      if (!inv) return;
+      const price = inv.currentPrice ?? inv.buyPrice;
+      if (!price) return;
+      if (pa.direction === 'above' && price >= pa.target) {
+        alerts.push({type:'warning', msg:`🎯 Price alert: ${pa.symbol} hit ${settings.currency}${fmtN(price)} — above your target of ${settings.currency}${fmtN(pa.target)}`});
+      } else if (pa.direction === 'below' && price <= pa.target) {
+        alerts.push({type:'danger', msg:`📉 Price alert: ${pa.symbol} dropped to ${settings.currency}${fmtN(price)} — below your stop of ${settings.currency}${fmtN(pa.target)}`});
+      }
+    });
+    return alerts.slice(0,8);
+  }, [budgetTargets, expenses, incomes, savingsRate, bills, settings.currency, thisMonthSpend, financialHealthScore, habits, priceAlerts, investments]);
 
   const todayHabits = useMemo(() => {
     const d = today();
@@ -1751,18 +1765,18 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           <ErrorBoundary>
 
           {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} />}
-          {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} />}
-          {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} />}
+          {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} />}
+          {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} investments={investments} debts={debts} />}
           {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
           {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} />}
-          {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} />}
+          {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} tradeJournal={tradeJournal} setTradeJournal={setTradeJournal} priceAlerts={priceAlerts} setPriceAlerts={setPriceAlerts} goals={goals} setGoals={setGoals} />}
           {activeTab === 'notes' && <NotesTab T={T} s={s} notes={notes} setNotes={setNotes} settings={settings} addXP={addXP} />}
           {activeTab === 'learn' && <LearnTab T={T} s={s} settings={settings} addXP={addXP} />}
-          {activeTab === 'career' && <CareerTab T={T} s={s} settings={settings} careerProfile={careerProfile} setCareerProfile={setCareerProfile} careerApps={careerApps} setCareerApps={setCareerApps} careerRex={careerRex} setCareerRex={setCareerRex} addXP={addXP} incomes={incomes} setIncomes={setIncomes} />}
-          {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} />}
+          {activeTab === 'career' && <CareerTab T={T} s={s} settings={settings} careerProfile={careerProfile} setCareerProfile={setCareerProfile} careerApps={careerApps} setCareerApps={setCareerApps} careerRex={careerRex} setCareerRex={setCareerRex} addXP={addXP} incomes={incomes} setIncomes={setIncomes} goals={goals} setGoals={setGoals} />}
+          {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} careerApps={careerApps} setCareerApps={setCareerApps} />}
           {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
-          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} />}
+          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} />}
           {activeTab === 'mindbody' && <MindBodyTab T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
@@ -1806,7 +1820,8 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
             id: 'life', icon: '⚔️', label: 'Life',
             tabs: [
               { id:'character',  icon:'⚔️', label:'Character' },
-              { id:'mindbody',   icon:'🧘', label:'Mind & Body' },
+              { id:'notes',      icon:'📝', label:'Notes' },
+              { id:'learn',      icon:'📚', label:'Learn' },
             ]
           },
           {
@@ -1814,20 +1829,24 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
             tabs: [{ id:'dashboard', icon:'🏠', label:'Dashboard' }]
           },
           {
-            id: 'mind', icon: '🧠', label: 'Mind',
+            id: 'health', icon: '🧘', label: 'Health',
             tabs: [
-              { id:'notes',      icon:'📝', label:'Notes' },
-              { id:'learn',      icon:'📚', label:'Learn' },
-              { id:'calendar',   icon:'📅', label:'Calendar' },
-              { id:'history',    icon:'🗂️',  label:'History' },
+              { id:'mindbody',   icon:'🧘', label:'Mind & Body' },
               { id:'insights',   icon:'🧠', label:'Insights' },
+              { id:'history',    icon:'🗂️',  label:'History' },
             ]
           },
           {
-            id: 'career', icon: '💼', label: 'Career',
+            id: 'mind', icon: '🧠', label: 'Explore',
             tabs: [
+              { id:'calendar',   icon:'📅', label:'Calendar' },
               { id:'career',     icon:'💼', label:'Career' },
               { id:'gmail',      icon:'📬', label:'Gmail' },
+            ]
+          },
+          {
+            id: 'career', icon: '⚙️', label: 'System',
+            tabs: [
               { id:'settings',   icon:'⚙️', label:'Settings' },
             ]
           },
@@ -1889,41 +1908,58 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
               <>
                 {/* Backdrop */}
                 <div onClick={()=>setOpenHub(null)} style={{position:'fixed',inset:0,zIndex:190,background:'#00000055'}} />
-                {/* Drawer */}
-                <div style={{
-                  position:'fixed', bottom:'calc(76px + env(safe-area-inset-bottom, 0px))', left:'50%',
-                  transform:'translateX(-50%)',
-                  zIndex:195, width:'min(420px, 95vw)',
-                  background:`${T.surface}f5`, backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
-                  borderRadius:'20px', border:`1px solid ${T.accent}33`,
-                  boxShadow:`0 -4px 40px #00000055`,
-                  padding:'12px 12px 8px',
-                  animation:'slideUpDrawer 0.22s cubic-bezier(.25,1,.5,1)',
-                }}>
-                  <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'800',letterSpacing:'2px',textAlign:'center',marginBottom:'10px',textTransform:'uppercase'}}>
-                    {expandedHub.icon} {expandedHub.label}
-                  </div>
-                  <div style={{display:'grid', gridTemplateColumns:`repeat(${Math.min(expandedHub.tabs.length, 4)},1fr)`, gap:'8px'}}>
-                    {expandedHub.tabs.map(tab => {
-                      const isActive = activeTab === tab.id;
-                      const badge = getBadge(tab.id);
-                      return (
-                        <button key={tab.id} onClick={()=>goToTab(expandedHub.id, tab.id)} style={{
-                          display:'flex', flexDirection:'column', alignItems:'center', gap:'5px',
-                          padding:'12px 6px', borderRadius:'14px', border:'none', cursor:'pointer',
-                          background: isActive ? T.accentSoft : `${T.card}cc`,
-                          border: `1px solid ${isActive ? T.accent+'66' : T.border}`,
-                          position:'relative', transition:'all 0.15s',
-                        }}>
-                          <span style={{fontSize:'24px',lineHeight:1,filter:isActive?`drop-shadow(0 0 6px ${T.accentGlow})`:'none'}}>{tab.icon}</span>
-                          <span style={{fontSize:'10px',fontWeight:isActive?'700':'500',color:isActive?T.accent:T.textMuted,whiteSpace:'nowrap'}}>{tab.label}</span>
-                          {isActive && <div style={{position:'absolute',bottom:'4px',left:'50%',transform:'translateX(-50%)',width:'4px',height:'4px',borderRadius:'50%',background:T.accent}}/>}
-                          {badge && <div style={{position:'absolute',top:'4px',right:'4px',background:T.accent,color:'#fff',fontSize:'8px',fontWeight:'800',padding:'1px 4px',borderRadius:'99px',lineHeight:1.4}}>{badge}</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Drawer — N9: swipe left/right to cycle sub-pages within hub */}
+                {(() => {
+                  const tabs = expandedHub.tabs;
+                  const currentIdx = tabs.findIndex(t => t.id === activeTab);
+                  function swipeToTab(dir) {
+                    const next = currentIdx + dir;
+                    if (next >= 0 && next < tabs.length) goToTab(expandedHub.id, tabs[next].id);
+                  }
+                  return (
+                    <div
+                      onTouchStart={e=>{ e._swipeX = e.touches[0].clientX; }}
+                      onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - (e._swipeX||e.changedTouches[0].clientX); if(Math.abs(dx)>50) swipeToTab(dx<0?1:-1); }}
+                      style={{
+                        position:'fixed', bottom:'calc(76px + env(safe-area-inset-bottom, 0px))', left:'50%',
+                        transform:'translateX(-50%)',
+                        zIndex:195, width:'min(420px, 95vw)',
+                        background:`${T.surface}f5`, backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+                        borderRadius:'20px', border:`1px solid ${T.accent}33`,
+                        boxShadow:`0 -4px 40px #00000055`,
+                        padding:'12px 12px 8px',
+                        animation:'slideUpDrawer 0.22s cubic-bezier(.25,1,.5,1)',
+                      }}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+                        <button onClick={()=>swipeToTab(-1)} disabled={currentIdx<=0} style={{background:'none',border:'none',color:currentIdx>0?T.accent:T.textDim,cursor:currentIdx>0?'pointer':'default',fontSize:'18px',padding:'0 4px'}}>‹</button>
+                        <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'800',letterSpacing:'2px',textAlign:'center',textTransform:'uppercase'}}>
+                          {expandedHub.icon} {expandedHub.label}
+                        </div>
+                        <button onClick={()=>swipeToTab(1)} disabled={currentIdx>=tabs.length-1} style={{background:'none',border:'none',color:currentIdx<tabs.length-1?T.accent:T.textDim,cursor:currentIdx<tabs.length-1?'pointer':'default',fontSize:'18px',padding:'0 4px'}}>›</button>
+                      </div>
+                      <div style={{display:'grid', gridTemplateColumns:`repeat(${Math.min(expandedHub.tabs.length, 4)},1fr)`, gap:'8px'}}>
+                        {expandedHub.tabs.map(tab => {
+                          const isActive = activeTab === tab.id;
+                          const badge = getBadge(tab.id);
+                          return (
+                            <button key={tab.id} onClick={()=>goToTab(expandedHub.id, tab.id)} style={{
+                              display:'flex', flexDirection:'column', alignItems:'center', gap:'5px',
+                              padding:'12px 6px', borderRadius:'14px', border:'none', cursor:'pointer',
+                              background: isActive ? T.accentSoft : `${T.card}cc`,
+                              border: `1px solid ${isActive ? T.accent+'66' : T.border}`,
+                              position:'relative', transition:'all 0.15s',
+                            }}>
+                              <span style={{fontSize:'24px',lineHeight:1,filter:isActive?`drop-shadow(0 0 6px ${T.accentGlow})`:'none'}}>{tab.icon}</span>
+                              <span style={{fontSize:'10px',fontWeight:isActive?'700':'500',color:isActive?T.accent:T.textMuted,whiteSpace:'nowrap'}}>{tab.label}</span>
+                              {isActive && <div style={{position:'absolute',bottom:'4px',left:'50%',transform:'translateX(-50%)',width:'4px',height:'4px',borderRadius:'50%',background:T.accent}}/>}
+                              {badge && <div style={{position:'absolute',top:'4px',right:'4px',background:T.accent,color:'#fff',fontSize:'8px',fontWeight:'800',padding:'1px 4px',borderRadius:'99px',lineHeight:1.4}}>{badge}</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
 
@@ -2838,7 +2874,7 @@ function getGreeting() {
 // ─────────────────────────────────────────────
 // CHARACTER TAB (Hero + Quests merged)
 // ─────────────────────────────────────────────
-function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForNext, xpForCurrent, habits, setHabits, habitLogs, setHabitLogs, vitals, savingsRate, netWorth, expenses, achievements, setAchievements, chronicles, setChronicles, getStreak, addXP, setTotalXP, setXpHistory, pushUndo }) {
+function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForNext, xpForCurrent, habits, setHabits, habitLogs, setHabitLogs, vitals, savingsRate, netWorth, expenses, achievements, setAchievements, chronicles, setChronicles, getStreak, addXP, setTotalXP, setXpHistory, pushUndo, goals, setGoals, debts, thisMonthSpend }) {
   const [subTab, setSubTab] = useState('profile');
 
   // ── Profile (Hero) data ──
@@ -3031,6 +3067,45 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
       {/* ── QUESTS ── */}
       {subTab==='quests' && (
         <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+          {/* C20 — XP milestone financial challenges */}
+          {(() => {
+            const ALL_CHALLENGES = [
+              { id:'c1', unlockLevel:2,  icon:'💾', title:'Save 1 Month',       desc:'Log savings equal to 1 month of expenses', check:()=> (goals||[]).some(g=>g.category==='💰 Financial'&&(g.progress||0)>=thisMonthSpend) },
+              { id:'c2', unlockLevel:3,  icon:'🚫', title:'Zero Impulse Week',   desc:'No spending in Leisure/Fast Food for 7 days', check:()=>{ const days7=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().slice(0,10);});return days7.every(d=>!expenses.some(e=>e.date===d&&['🍔 Fast Food','🎮 Leisure'].includes(e.category)));} },
+              { id:'c3', unlockLevel:4,  icon:'💳', title:'Debt Crusher',        desc:'Pay down any debt by 10%', check:()=>(debts||[]).some(d=>d.originalBalance&&Number(d.balance)<Number(d.originalBalance)*0.9) },
+              { id:'c4', unlockLevel:5,  icon:'📈', title:'Investor Initiate',   desc:'Log your first investment', check:()=>(typeof investments!=='undefined'&&investments?.length>0)||false },
+              { id:'c5', unlockLevel:7,  icon:'🏆', title:'20% Savings Rate',    desc:'Achieve 20% savings rate this month', check:()=>savingsRate>=20 },
+              { id:'c6', unlockLevel:10, icon:'🧘', title:'Balanced Life',       desc:'Maintain all 4 Life Scores above 50', check:()=>netWorth>0&&savingsRate>0 },
+            ];
+            const unlocked = ALL_CHALLENGES.filter(c=>level>=c.unlockLevel);
+            const locked   = ALL_CHALLENGES.filter(c=>level<c.unlockLevel);
+            if (unlocked.length === 0) return null;
+            return (
+              <div style={{...s.card,border:`1px solid ${T.accent}33`}}>
+                <div style={{...s.cardTitle,marginBottom:'12px'}}>⚡ Financial Challenges — Level {level} Unlocked</div>
+                <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                  {unlocked.map(c=>{
+                    const done = c.check();
+                    return (
+                      <div key={c.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px',borderRadius:'8px',background:done?T.success+'15':T.surface,border:`1px solid ${done?T.success+'44':T.border}`}}>
+                        <span style={{fontSize:'20px'}}>{c.icon}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:'700',fontSize:'13px',color:done?T.success:T.text}}>{c.title} {done&&'✓'}</div>
+                          <div style={{fontSize:'11px',color:T.textMuted}}>{c.desc}</div>
+                        </div>
+                        {done && <span style={s.tag(T.success)}>Complete</span>}
+                      </div>
+                    );
+                  })}
+                  {locked.length > 0 && (
+                    <div style={{fontSize:'11px',color:T.textDim,padding:'6px',borderTop:`1px solid ${T.border}`,marginTop:'4px'}}>
+                      🔒 {locked.length} more challenge{locked.length>1?'s':''} unlock at higher levels…
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {/* Add quest form */}
           <div style={s.card}>
             <div style={s.cardTitle}>Add New Quest</div>
@@ -3762,7 +3837,7 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
 // ─────────────────────────────────────────────
 // GOALS TAB
 // ─────────────────────────────────────────────
-const GOAL_CATS = ['💰 Financial','❤️ Health','🧠 Personal Growth','✈️ Travel','💼 Career','🎯 Other'];
+const GOAL_CATS = ['💰 Financial','❤️ Health','🧠 Personal Growth','✈️ Travel','💼 Career','💳 Debt Payoff','🎯 Other'];
 
 // Returns unit label and whether it's financial (uses currency)
 function goalMeta(category) {
@@ -3776,9 +3851,9 @@ function goalMeta(category) {
   }
 }
 
-function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncome, addXP, goalMilestones, setGoalMilestones, visionBoard, setVisionBoard, pushUndo }) {
+function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncome, addXP, goalMilestones, setGoalMilestones, visionBoard, setVisionBoard, pushUndo, investments, debts }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name:'', target:'', deadline:'', progress:0, note:'', category:'💰 Financial' });
+  const [form, setForm] = useState({ name:'', target:'', deadline:'', progress:0, note:'', category:'💰 Financial', linkedInvestmentId:'', linkedDebtId:'' });
   const [showContrib, setShowContrib] = useState(null);
   const [contribAmt, setContribAmt] = useState('');
   const [activeGoalCat, setActiveGoalCat] = useState('All');
@@ -3787,10 +3862,37 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
   const [showMilestones, setShowMilestones] = useState(null);
   const [milestoneInput, setMilestoneInput] = useState('');
 
+  // C2 — Sync investment-linked goals: update progress from current investment value
+  const goalsWithSync = useMemo(() => {
+    return goals.map(g => {
+      if (g.linkedInvestmentId) {
+        const inv = (investments||[]).find(i => i.id === g.linkedInvestmentId);
+        if (inv) {
+          const currentVal = (inv.currentPrice ?? inv.buyPrice) * inv.quantity;
+          return {...g, progress: currentVal, syncedFromInvestment: true};
+        }
+      }
+      if (g.linkedDebtId) {
+        // C3 — Debt payoff goal: progress = original target minus current balance
+        const debt = (debts||[]).find(d => d.id === g.linkedDebtId);
+        if (debt && g.target > 0) {
+          const paid = Math.max(0, g.target - Number(debt.balance));
+          return {...g, progress: paid, syncedFromDebt: true};
+        }
+      }
+      return g;
+    });
+  }, [goals, investments, debts]);
+
   function add() {
     if (!form.name || !form.target) return;
-    setGoals(g=>[...g,{id:Date.now(),...form,target:Number(form.target),progress:Number(form.progress)||0}]);
-    setForm({name:'',target:'',deadline:'',progress:0,note:'',category:'💰 Financial'}); setShowAdd(false); addXP(10,'Goal created');
+    const newGoal = {id:Date.now(),...form,target:Number(form.target),progress:Number(form.progress)||0};
+    if (form.category === '💳 Debt Payoff' && form.linkedDebtId) {
+      const debt = (debts||[]).find(d => String(d.id) === String(form.linkedDebtId));
+      if (debt) newGoal.target = Number(debt.balance) || Number(form.target);
+    }
+    setGoals(g=>[...g, newGoal]);
+    setForm({name:'',target:'',deadline:'',progress:0,note:'',category:'💰 Financial',linkedInvestmentId:'',linkedDebtId:''}); setShowAdd(false); addXP(10,'Goal created');
   }
 
   function contribute(gid) {
@@ -3805,7 +3907,7 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
     setContribAmt(''); setShowContrib(null);
   }
 
-  const filteredGoals = activeGoalCat === 'All' ? goals : goals.filter(g=>g.category===activeGoalCat);
+  const filteredGoals = activeGoalCat === 'All' ? goalsWithSync : goalsWithSync.filter(g=>g.category===activeGoalCat);
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
@@ -3872,6 +3974,26 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
                   </div>
                 </div>
                 <button style={s.btn()} onClick={add}>{t('goals_create')}</button>
+                {/* C2 — Link to investment */}
+                {form.category === '💰 Financial' && (investments||[]).length > 0 && (
+                  <div style={{marginTop:'8px',display:'flex',alignItems:'center',gap:'8px'}}>
+                    <span style={{fontSize:'11px',color:T.textMuted}}>🔗 Sync progress from investment:</span>
+                    <select style={{...s.select,fontSize:'11px',flex:1}} value={form.linkedInvestmentId} onChange={e=>setForm(f=>({...f,linkedInvestmentId:e.target.value}))}>
+                      <option value="">None</option>
+                      {(investments||[]).map(inv=><option key={inv.id} value={inv.id}>{inv.symbol} — {settings.currency}{fmtN((inv.currentPrice??inv.buyPrice)*inv.quantity)}</option>)}
+                    </select>
+                  </div>
+                )}
+                {/* C3 — Link to debt */}
+                {form.category === '💳 Debt Payoff' && (debts||[]).length > 0 && (
+                  <div style={{marginTop:'8px',display:'flex',alignItems:'center',gap:'8px'}}>
+                    <span style={{fontSize:'11px',color:T.textMuted}}>🔗 Link to debt:</span>
+                    <select style={{...s.select,fontSize:'11px',flex:1}} value={form.linkedDebtId} onChange={e=>setForm(f=>({...f,linkedDebtId:e.target.value}))}>
+                      <option value="">None</option>
+                      {(debts||[]).map(d=><option key={d.id} value={d.id}>{d.name} — {settings.currency}{fmtN(d.balance)}</option>)}
+                    </select>
+                  </div>
+                )}
               </>
             );
           })()}
@@ -3891,6 +4013,7 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
           reached: pct >= pctMark,
           label: `${pctMark}%`
         }));
+        const syncLabel = g.syncedFromInvestment ? '📈 Synced from investment' : g.syncedFromDebt ? '💳 Synced from debt' : null;
 
         // Format the progress value label
         const fmtProgress = (v) => meta.isMoney
@@ -3905,8 +4028,9 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
               <span style={{fontSize:'24px'}}>{done?'🏆':g.category?.split(' ')[0]||'🎯'}</span>
               <div style={{flex:1}}>
                 <div style={{fontWeight:'700',fontSize:'15px'}}>{g.name}</div>
-                <div style={{display:'flex',gap:'6px',marginTop:'4px'}}>
+                <div style={{display:'flex',gap:'6px',marginTop:'4px',flexWrap:'wrap'}}>
                   {g.category && <span style={s.tag(T.accent)}>{g.category}</span>}
+                  {syncLabel && <span style={{...s.tag(T.success),fontSize:'10px'}}>{syncLabel}</span>}
                   {g.note && <span style={{fontSize:'11px',color:T.textMuted}}>{g.note}</span>}
                 </div>
               </div>
@@ -4589,13 +4713,13 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
         <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} />
       )}
       {subTab==='expenses' && (
-        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />
+        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} />
       )}
       {subTab==='intelligence' && (
         <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} />
       )}
       {subTab==='discipline' && (
-        <DisciplineView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} savingsRate={savingsRate} />
+        <DisciplineView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} savingsRate={savingsRate} budgetTargets={budgetTargets} />
       )}
       {subTab==='cashflow' && (
         <CashFlowView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} recurringExpenses={recurringExpenses} subscriptions={subscriptions} bills={bills} assets={assets} thisMonthSpend={thisMonthSpend} />
@@ -4607,7 +4731,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
 // ─────────────────────────────────────────────
 // DISCIPLINE VIEW — NEW FEATURE
 // ─────────────────────────────────────────────
-function DisciplineView({ T, s, settings, expenses, incomes, thisMonthSpend, thisMonthIncome, savingsRate }) {
+function DisciplineView({ T, s, settings, expenses, incomes, thisMonthSpend, thisMonthIncome, savingsRate, budgetTargets }) {
   const [disciplineSettings, setDisciplineSettings] = useLocalStorage('los_discipline', {
     dailyBudget: 50, impulseCats: ['🍔 Fast Food','🎮 Leisure','👕 Shopping','🚬 Tabac'], savingsGoalPct: 20
   });
@@ -5014,7 +5138,7 @@ function CashFlowView({ T, s, settings, expenses, incomes, recurringExpenses, su
 }
 
 
-function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals }) {
+function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals, bills }) {
   const [form, setForm] = useState({ amount:'', category:'🍽️ Food', subcategory:'Groceries', note:'', date:today() });
   const [incomeForm, setIncomeForm] = useState({ amount:'', note:'', date:today() });
   const [showBudgets, setShowBudgets] = useState(false);
@@ -6990,13 +7114,61 @@ async function sharedSearchAsset(query, geckoIds = SHARED_COINGECKO_IDS, assetMe
 // ─────────────────────────────────────────────
 // PORTFOLIO HUB (Investments + Markets merged + AI picks)
 // ─────────────────────────────────────────────
-function PortfolioHubTab({ T, s, investments, setInvestments, settings, expenses, addXP, assets, setAssets, thisMonthIncome, thisMonthSpend, savingsRate, debts, selectedMonthRemaining }) {
+function PortfolioHubTab({ T, s, investments, setInvestments, settings, expenses, addXP, assets, setAssets, thisMonthIncome, thisMonthSpend, savingsRate, debts, selectedMonthRemaining, tradeJournal, setTradeJournal, priceAlerts, setPriceAlerts, goals, setGoals }) {
   const [subTab, setSubTab] = useState('portfolio');
   const [aiChat, setAiChat] = useState([]);
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [riskProfile, setRiskProfile] = useState('moderate');
   const [horizon, setHorizon] = useState('medium');
+  // C15-C17: Trade journal state
+  const [tradeForm, setTradeForm] = useState({ symbol:'', type:'buy', qty:'', price:'', date:today(), linkedGoalId:'' });
+  const [showTradeForm, setShowTradeForm] = useState(false);
+  // C18: Price alert state
+  const [alertForm, setAlertForm] = useState({ symbol:'', direction:'above', target:'' });
+  const [showAlertForm, setShowAlertForm] = useState(false);
+
+  function addTrade() {
+    if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.price) return;
+    const qty = Number(tradeForm.qty);
+    const price = Number(tradeForm.price);
+    const total = qty * price;
+    const trade = { id: Date.now(), ...tradeForm, qty, price, total };
+    setTradeJournal(j => [...(j||[]), trade]);
+    // C15 — update matching investment P&L
+    if (tradeForm.type === 'sell') {
+      const inv = investments.find(i => (i.symbol||'').toUpperCase() === tradeForm.symbol.toUpperCase());
+      if (inv) {
+        const pnl = (price - inv.buyPrice) * Math.min(qty, inv.quantity);
+        // C16 — offer to apply profit to a goal
+        if (pnl > 0 && goals && goals.length > 0) {
+          const openGoals = goals.filter(g => (g.progress||0) < g.target);
+          if (openGoals.length > 0 && tradeForm.linkedGoalId) {
+            const g = openGoals.find(x => String(x.id) === String(tradeForm.linkedGoalId));
+            if (g) setGoals(gs => gs.map(x => x.id===g.id ? {...x, progress: Math.min(x.target, (x.progress||0)+pnl)} : x));
+          }
+        }
+      }
+    }
+    addXP(5, `Trade logged: ${tradeForm.type.toUpperCase()} ${tradeForm.symbol}`);
+    setTradeForm({ symbol:'', type:'buy', qty:'', price:'', date:today(), linkedGoalId:'' });
+    setShowTradeForm(false);
+  }
+
+  function addPriceAlert() {
+    if (!alertForm.symbol || !alertForm.target) return;
+    setPriceAlerts(a => [...(a||[]), { id: Date.now(), ...alertForm, target: Number(alertForm.target) }]);
+    setAlertForm({ symbol:'', direction:'above', target:'' });
+    setShowAlertForm(false);
+  }
+
+  // C17 — Total capital allocated in trades (buy side not yet sold)
+  const allocatedCapital = useMemo(() => {
+    if (!tradeJournal) return 0;
+    const buys = tradeJournal.filter(t=>t.type==='buy').reduce((s,t)=>s+t.total,0);
+    const sells = tradeJournal.filter(t=>t.type==='sell').reduce((s,t)=>s+t.total,0);
+    return Math.max(0, buys - sells);
+  }, [tradeJournal]);
 
   // Portfolio calculations
   const totalInvested = investments.reduce((s,i)=>s+i.buyPrice*i.quantity,0);
@@ -7065,7 +7237,7 @@ TIME HORIZON: ${horizon}`;
     <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
       <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>💹 Portfolio Hub</div>
       <div className="los-tab-strip">
-        {[{id:'portfolio',label:'💹 Portfolio'},{id:'markets',label:'📈 Markets'},{id:'advisor',label:'🤖 AI Advisor'}].map(st=>(
+        {[{id:'portfolio',label:'💹 Portfolio'},{id:'markets',label:'📈 Markets'},{id:'trades',label:'📒 Trades'},{id:'alerts',label:'🔔 Alerts'},{id:'advisor',label:'🤖 AI Advisor'}].map(st=>(
           <button key={st.id} onClick={()=>setSubTab(st.id)} style={{...s.btnGhost,fontSize:13,padding:'8px 18px',background:subTab===st.id?T.accentSoft:'transparent',color:subTab===st.id?T.accent:T.textMuted,borderColor:subTab===st.id?T.accent+'55':T.border,fontWeight:subTab===st.id?'700':'400'}}>{st.label}</button>
         ))}
       </div>
@@ -7075,6 +7247,111 @@ TIME HORIZON: ${horizon}`;
       )}
       {subTab==='markets' && (
         <MarketsTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} setInvestments={setInvestments} settings={settings} />
+      )}
+
+      {/* C15-C17: Trade Journal */}
+      {subTab==='trades' && (
+        <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={s.cardTitle}>📒 Trade Journal</div>
+            <button style={s.btn()} onClick={()=>setShowTradeForm(!showTradeForm)}>+ Log Trade</button>
+          </div>
+          {/* C17 — Allocated capital banner */}
+          {allocatedCapital > 0 && (
+            <div style={{...s.card,background:`${T.warning}11`,border:`1px solid ${T.warning}44`}}>
+              <span style={{fontSize:'12px',color:T.warning}}>💼 Allocated trading capital: <strong>{settings.currency}{fmtN(allocatedCapital)}</strong> — deducted from investable surplus</span>
+            </div>
+          )}
+          {showTradeForm && (
+            <div style={{...s.card,border:`1px solid ${T.accent}44`}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+                <input style={s.input} placeholder="Symbol (e.g. AAPL)" value={tradeForm.symbol} onChange={e=>setTradeForm(f=>({...f,symbol:e.target.value.toUpperCase()}))} />
+                <select style={s.select} value={tradeForm.type} onChange={e=>setTradeForm(f=>({...f,type:e.target.value}))}>
+                  <option value="buy">Buy</option>
+                  <option value="sell">Sell</option>
+                </select>
+                <input type="date" style={s.input} value={tradeForm.date} onChange={e=>setTradeForm(f=>({...f,date:e.target.value}))} />
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+                <input type="number" style={s.input} placeholder="Quantity" value={tradeForm.qty} onChange={e=>setTradeForm(f=>({...f,qty:e.target.value}))} />
+                <input type="number" style={s.input} placeholder={`Price (${settings.currency})`} value={tradeForm.price} onChange={e=>setTradeForm(f=>({...f,price:e.target.value}))} />
+              </div>
+              {/* C16 — Link sell profit to a goal */}
+              {tradeForm.type === 'sell' && (goals||[]).length > 0 && (
+                <select style={{...s.select,marginBottom:'8px',width:'100%'}} value={tradeForm.linkedGoalId} onChange={e=>setTradeForm(f=>({...f,linkedGoalId:e.target.value}))}>
+                  <option value="">Apply profit to goal (optional)…</option>
+                  {(goals||[]).filter(g=>(g.progress||0)<g.target).map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              )}
+              <div style={{display:'flex',gap:'8px'}}>
+                <button style={s.btn()} onClick={addTrade}>Save Trade</button>
+                <button style={s.btnGhost} onClick={()=>setShowTradeForm(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {(tradeJournal||[]).length === 0 && <div style={{...s.card,textAlign:'center',color:T.textMuted,padding:'32px'}}>No trades logged yet.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+            {[...(tradeJournal||[])].reverse().map(t=>{
+              const isBuy = t.type==='buy';
+              return (
+                <div key={t.id} style={{...s.card,display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px'}}>
+                  <span style={{...s.tag(isBuy?T.success:T.danger),fontSize:'11px',fontWeight:'800'}}>{t.type.toUpperCase()}</span>
+                  <span style={{fontWeight:'700',fontSize:'14px'}}>{t.symbol}</span>
+                  <span style={{fontSize:'12px',color:T.textMuted}}>{t.qty} × {settings.currency}{fmtN(t.price)}</span>
+                  <span style={{fontWeight:'700',color:isBuy?T.text:T.success}}>{isBuy?'-':'+?'}{settings.currency}{fmtN(t.total)}</span>
+                  <span style={{fontSize:'11px',color:T.textMuted}}>{t.date}</span>
+                  <button style={{...s.btnGhost,color:T.danger,padding:'2px 6px',fontSize:'12px'}} onClick={()=>setTradeJournal(j=>j.filter(x=>x.id!==t.id))}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* C18: Price Alerts */}
+      {subTab==='alerts' && (
+        <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={s.cardTitle}>🔔 Price Alerts</div>
+            <button style={s.btn()} onClick={()=>setShowAlertForm(!showAlertForm)}>+ Add Alert</button>
+          </div>
+          <div style={{...s.card,background:`${T.accent}0a`,fontSize:'12px',color:T.textMuted}}>
+            Alerts trigger in Dashboard Smart Alerts when an investment's current price crosses your target.
+          </div>
+          {showAlertForm && (
+            <div style={{...s.card,border:`1px solid ${T.accent}44`}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+                <input style={s.input} placeholder="Symbol (e.g. AAPL)" value={alertForm.symbol} onChange={e=>setAlertForm(f=>({...f,symbol:e.target.value.toUpperCase()}))} />
+                <select style={s.select} value={alertForm.direction} onChange={e=>setAlertForm(f=>({...f,direction:e.target.value}))}>
+                  <option value="above">📈 Price above</option>
+                  <option value="below">📉 Price below</option>
+                </select>
+                <input type="number" style={s.input} placeholder={`Target (${settings.currency})`} value={alertForm.target} onChange={e=>setAlertForm(f=>({...f,target:e.target.value}))} />
+              </div>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button style={s.btn()} onClick={addPriceAlert}>Set Alert</button>
+                <button style={s.btnGhost} onClick={()=>setShowAlertForm(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {(priceAlerts||[]).length === 0 && <div style={{...s.card,textAlign:'center',color:T.textMuted,padding:'32px'}}>No price alerts set.</div>}
+          <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+            {(priceAlerts||[]).map(a=>{
+              const inv = investments.find(i=>(i.symbol||'').toUpperCase()===a.symbol);
+              const current = inv ? (inv.currentPrice??inv.buyPrice) : null;
+              const triggered = current && ((a.direction==='above' && current>=a.target)||(a.direction==='below' && current<=a.target));
+              return (
+                <div key={a.id} style={{...s.card,display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',border:`1px solid ${triggered?T.warning+'66':T.border}`}}>
+                  <span style={{fontWeight:'700'}}>{a.symbol}</span>
+                  <span style={{fontSize:'12px',color:T.textMuted}}>{a.direction==='above'?'📈 above':'📉 below'} {settings.currency}{fmtN(a.target)}</span>
+                  {current && <span style={{fontSize:'12px',color:triggered?T.warning:T.success}}>Now: {settings.currency}{fmtN(current)}</span>}
+                  {triggered && <span style={{...s.tag(T.warning),fontSize:'10px'}}>🔔 Triggered!</span>}
+                  <button style={{...s.btnGhost,color:T.danger,padding:'2px 6px',fontSize:'12px'}} onClick={()=>setPriceAlerts(a2=>a2.filter(x=>x.id!==a.id))}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* ── AI ADVISOR ── */}
@@ -7185,6 +7462,7 @@ TIME HORIZON: ${horizon}`;
 
 
 function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, settings }) {
+  const [mktTab, setMktTab] = useState('quote');
   const [search1, setSearch1] = useState('');
   const [search2, setSearch2] = useState('');
   const [result1, setResult1] = useState(null);
@@ -7193,128 +7471,118 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
   const [loading2, setLoading2] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState('');
+  const [aiSignal, setAiSignal] = useState(null);
   const [hotData, setHotData] = useState({});
   const [hotLoading, setHotLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [apiStatus, setApiStatus] = useState('loading'); // loading | live | offline
-
-  // Historical chart state
+  const [apiStatus, setApiStatus] = useState('loading');
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartRange, setChartRange] = useState('1Y');
   const [chartSymbol, setChartSymbol] = useState('');
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [sectorData, setSectorData] = useState({});
+  const [sectorLoading, setSectorLoading] = useState(false);
+  const [screenerData, setScreenerData] = useState({});
+  const [screenerLoading, setScreenerLoading] = useState(false);
+  const [screenerLoaded, setScreenerLoaded] = useState(false);
+  const [screenerType, setScreenerType] = useState('All');
+  const [fearGreed, setFearGreed] = useState(null);
+  const [psAccount, setPsAccount] = useState('10000');
+  const [psRiskPct, setPsRiskPct] = useState('1');
+  const [psEntry, setPsEntry] = useState('');
+  const [psStop, setPsStop] = useState('');
+  const [optSpot, setOptSpot] = useState('');
+  const [optStrike, setOptStrike] = useState('');
+  const [optExpiry, setOptExpiry] = useState('30');
+  const [optVol, setOptVol] = useState('30');
+  const [optResult, setOptResult] = useState(null);
+  const [btFast, setBtFast] = useState('10');
+  const [btSlow, setBtSlow] = useState('30');
+  const [btResult, setBtResult] = useState(null);
 
-  // CoinGecko IDs for crypto (CORS-friendly, free API)
   const COINGECKO_IDS = {
     'BTC':'bitcoin','ETH':'ethereum','SOL':'solana','BNB':'binancecoin','XRP':'ripple',
     'ADA':'cardano','DOGE':'dogecoin','AVAX':'avalanche-2','LINK':'chainlink','DOT':'polkadot',
     'MATIC':'matic-network','UNI':'uniswap','SHIB':'shiba-inu','LTC':'litecoin','TRX':'tron',
     'TON':'the-open-network','SUI':'sui','PEPE':'pepe',
   };
-  // Crypto and commodity symbol mapping for Yahoo Finance (fallback for stocks)
-  const CRYPTO_SYMBOLS = {
-    'BTC':'BTC-USD','ETH':'ETH-USD','SOL':'SOL-USD','BNB':'BNB-USD','XRP':'XRP-USD',
-    'ADA':'ADA-USD','DOGE':'DOGE-USD','AVAX':'AVAX-USD','LINK':'LINK-USD','DOT':'DOT-USD',
-    'MATIC':'MATIC-USD','UNI':'UNI-USD','SHIB':'SHIB-USD','LTC':'LTC-USD','TRX':'TRX-USD',
-    'TON':'TON11419-USD','SUI':'SUI20947-USD','PEPE':'PEPE24478-USD',
-  };
   const COMMODITY_SYMBOLS = { 'GOLD':'GC=F', 'SILVER':'SI=F', 'OIL':'CL=F', 'GAS':'NG=F', 'WHEAT':'ZW=F' };
-
-  // Static name/type/market lookup (no prices — those come from API)
   const ASSET_META = {
-    'AAPL':{ name:'Apple Inc', type:'Stocks', market:'NASDAQ' },
-    'MSFT':{ name:'Microsoft Corp', type:'Stocks', market:'NASDAQ' },
-    'GOOGL':{ name:'Alphabet Inc', type:'Stocks', market:'NASDAQ' },
-    'META':{ name:'Meta Platforms', type:'Stocks', market:'NASDAQ' },
-    'AMZN':{ name:'Amazon.com Inc', type:'Stocks', market:'NASDAQ' },
-    'NVDA':{ name:'NVIDIA Corp', type:'Stocks', market:'NASDAQ' },
-    'TSLA':{ name:'Tesla Inc', type:'Stocks', market:'NASDAQ' },
-    'NFLX':{ name:'Netflix Inc', type:'Stocks', market:'NASDAQ' },
-    'AMD':{ name:'Advanced Micro Devices', type:'Stocks', market:'NASDAQ' },
-    'INTC':{ name:'Intel Corp', type:'Stocks', market:'NASDAQ' },
-    'ORCL':{ name:'Oracle Corp', type:'Stocks', market:'NYSE' },
-    'CRM':{ name:'Salesforce Inc', type:'Stocks', market:'NYSE' },
-    'IBM':{ name:'IBM Corp', type:'Stocks', market:'NYSE' },
-    'ADBE':{ name:'Adobe Inc', type:'Stocks', market:'NASDAQ' },
-    'QCOM':{ name:'Qualcomm Inc', type:'Stocks', market:'NASDAQ' },
-    'PYPL':{ name:'PayPal Holdings', type:'Stocks', market:'NASDAQ' },
-    'HOOD':{ name:'Robinhood Markets', type:'Stocks', market:'NASDAQ' },
-    'COIN':{ name:'Coinbase Global', type:'Stocks', market:'NASDAQ' },
-    'MSTR':{ name:'MicroStrategy Inc', type:'Stocks', market:'NASDAQ' },
-    'MARA':{ name:'MARA Holdings', type:'Stocks', market:'NASDAQ' },
-    'RIOT':{ name:'Riot Platforms', type:'Stocks', market:'NASDAQ' },
-    'V':{ name:'Visa Inc', type:'Stocks', market:'NYSE' },
-    'MA':{ name:'Mastercard Inc', type:'Stocks', market:'NYSE' },
-    'JPM':{ name:'JPMorgan Chase', type:'Stocks', market:'NYSE' },
-    'GS':{ name:'Goldman Sachs', type:'Stocks', market:'NYSE' },
-    'BAC':{ name:'Bank of America', type:'Stocks', market:'NYSE' },
-    'WFC':{ name:'Wells Fargo', type:'Stocks', market:'NYSE' },
-    'SQ':{ name:'Block Inc', type:'Stocks', market:'NYSE' },
-    'AFRM':{ name:'Affirm Holdings', type:'Stocks', market:'NASDAQ' },
-    'SOFI':{ name:'SoFi Technologies', type:'Stocks', market:'NASDAQ' },
-    'UBER':{ name:'Uber Technologies', type:'Stocks', market:'NYSE' },
-    'LYFT':{ name:'Lyft Inc', type:'Stocks', market:'NASDAQ' },
-    'DASH':{ name:'DoorDash Inc', type:'Stocks', market:'NYSE' },
-    'ABNB':{ name:'Airbnb Inc', type:'Stocks', market:'NASDAQ' },
-    'SHOP':{ name:'Shopify Inc', type:'Stocks', market:'NYSE' },
-    'WMT':{ name:'Walmart Inc', type:'Stocks', market:'NYSE' },
-    'COST':{ name:'Costco Wholesale', type:'Stocks', market:'NASDAQ' },
-    'NKE':{ name:'Nike Inc', type:'Stocks', market:'NYSE' },
-    'DIS':{ name:'Walt Disney Co', type:'Stocks', market:'NYSE' },
-    'SBUX':{ name:'Starbucks Corp', type:'Stocks', market:'NASDAQ' },
-    'MCD':{ name:"McDonald's Corp", type:'Stocks', market:'NYSE' },
-    'LLY':{ name:'Eli Lilly & Co', type:'Stocks', market:'NYSE' },
-    'JNJ':{ name:'Johnson & Johnson', type:'Stocks', market:'NYSE' },
-    'PFE':{ name:'Pfizer Inc', type:'Stocks', market:'NYSE' },
-    'UNH':{ name:'UnitedHealth Group', type:'Stocks', market:'NYSE' },
-    'MRNA':{ name:'Moderna Inc', type:'Stocks', market:'NASDAQ' },
-    'ABBV':{ name:'AbbVie Inc', type:'Stocks', market:'NYSE' },
-    'XOM':{ name:'ExxonMobil Corp', type:'Stocks', market:'NYSE' },
-    'CVX':{ name:'Chevron Corp', type:'Stocks', market:'NYSE' },
-    'NEE':{ name:'NextEra Energy', type:'Stocks', market:'NYSE' },
-    'SNAP':{ name:'Snap Inc', type:'Stocks', market:'NYSE' },
-    'PINS':{ name:'Pinterest Inc', type:'Stocks', market:'NYSE' },
-    'RDDT':{ name:'Reddit Inc', type:'Stocks', market:'NYSE' },
-    'SPOT':{ name:'Spotify Technology', type:'Stocks', market:'NYSE' },
-    'RBLX':{ name:'Roblox Corp', type:'Stocks', market:'NYSE' },
-    'RIVN':{ name:'Rivian Automotive', type:'Stocks', market:'NASDAQ' },
-    'LCID':{ name:'Lucid Group', type:'Stocks', market:'NASDAQ' },
-    'NIO':{ name:'NIO Inc', type:'Stocks', market:'NYSE' },
-    'DAL':{ name:'Delta Air Lines', type:'Stocks', market:'NYSE' },
-    'UAL':{ name:'United Airlines', type:'Stocks', market:'NASDAQ' },
-    'AAL':{ name:'American Airlines', type:'Stocks', market:'NASDAQ' },
-    'SPY':{ name:'S&P 500 ETF', type:'ETF', market:'NYSE' },
-    'QQQ':{ name:'Nasdaq 100 ETF', type:'ETF', market:'NASDAQ' },
-    'VOO':{ name:'Vanguard S&P 500', type:'ETF', market:'NYSE' },
-    'VTI':{ name:'Vanguard Total Market', type:'ETF', market:'NYSE' },
-    'ARKK':{ name:'ARK Innovation ETF', type:'ETF', market:'NYSE' },
-    'GLD':{ name:'Gold ETF (SPDR)', type:'ETF', market:'NYSE' },
-    'BND':{ name:'Vanguard Total Bond', type:'ETF', market:'NYSE' },
-    'IWM':{ name:'Russell 2000 ETF', type:'ETF', market:'NYSE' },
+    'AAPL':{ name:'Apple Inc', type:'Stocks', market:'NASDAQ' },'MSFT':{ name:'Microsoft Corp', type:'Stocks', market:'NASDAQ' },
+    'GOOGL':{ name:'Alphabet Inc', type:'Stocks', market:'NASDAQ' },'META':{ name:'Meta Platforms', type:'Stocks', market:'NASDAQ' },
+    'AMZN':{ name:'Amazon.com Inc', type:'Stocks', market:'NASDAQ' },'NVDA':{ name:'NVIDIA Corp', type:'Stocks', market:'NASDAQ' },
+    'TSLA':{ name:'Tesla Inc', type:'Stocks', market:'NASDAQ' },'NFLX':{ name:'Netflix Inc', type:'Stocks', market:'NASDAQ' },
+    'AMD':{ name:'Advanced Micro Devices', type:'Stocks', market:'NASDAQ' },'INTC':{ name:'Intel Corp', type:'Stocks', market:'NASDAQ' },
+    'ORCL':{ name:'Oracle Corp', type:'Stocks', market:'NYSE' },'CRM':{ name:'Salesforce Inc', type:'Stocks', market:'NYSE' },
+    'IBM':{ name:'IBM Corp', type:'Stocks', market:'NYSE' },'ADBE':{ name:'Adobe Inc', type:'Stocks', market:'NASDAQ' },
+    'QCOM':{ name:'Qualcomm Inc', type:'Stocks', market:'NASDAQ' },'PYPL':{ name:'PayPal Holdings', type:'Stocks', market:'NASDAQ' },
+    'HOOD':{ name:'Robinhood Markets', type:'Stocks', market:'NASDAQ' },'COIN':{ name:'Coinbase Global', type:'Stocks', market:'NASDAQ' },
+    'MSTR':{ name:'MicroStrategy Inc', type:'Stocks', market:'NASDAQ' },'MARA':{ name:'MARA Holdings', type:'Stocks', market:'NASDAQ' },
+    'RIOT':{ name:'Riot Platforms', type:'Stocks', market:'NASDAQ' },'V':{ name:'Visa Inc', type:'Stocks', market:'NYSE' },
+    'MA':{ name:'Mastercard Inc', type:'Stocks', market:'NYSE' },'JPM':{ name:'JPMorgan Chase', type:'Stocks', market:'NYSE' },
+    'GS':{ name:'Goldman Sachs', type:'Stocks', market:'NYSE' },'BAC':{ name:'Bank of America', type:'Stocks', market:'NYSE' },
+    'WFC':{ name:'Wells Fargo', type:'Stocks', market:'NYSE' },'SQ':{ name:'Block Inc', type:'Stocks', market:'NYSE' },
+    'AFRM':{ name:'Affirm Holdings', type:'Stocks', market:'NASDAQ' },'SOFI':{ name:'SoFi Technologies', type:'Stocks', market:'NASDAQ' },
+    'UBER':{ name:'Uber Technologies', type:'Stocks', market:'NYSE' },'LYFT':{ name:'Lyft Inc', type:'Stocks', market:'NASDAQ' },
+    'DASH':{ name:'DoorDash Inc', type:'Stocks', market:'NYSE' },'ABNB':{ name:'Airbnb Inc', type:'Stocks', market:'NASDAQ' },
+    'SHOP':{ name:'Shopify Inc', type:'Stocks', market:'NYSE' },'WMT':{ name:'Walmart Inc', type:'Stocks', market:'NYSE' },
+    'COST':{ name:'Costco Wholesale', type:'Stocks', market:'NASDAQ' },'NKE':{ name:'Nike Inc', type:'Stocks', market:'NYSE' },
+    'DIS':{ name:'Walt Disney Co', type:'Stocks', market:'NYSE' },'SBUX':{ name:'Starbucks Corp', type:'Stocks', market:'NASDAQ' },
+    'MCD':{ name:"McDonald's Corp", type:'Stocks', market:'NYSE' },'LLY':{ name:'Eli Lilly & Co', type:'Stocks', market:'NYSE' },
+    'JNJ':{ name:'Johnson & Johnson', type:'Stocks', market:'NYSE' },'PFE':{ name:'Pfizer Inc', type:'Stocks', market:'NYSE' },
+    'UNH':{ name:'UnitedHealth Group', type:'Stocks', market:'NYSE' },'MRNA':{ name:'Moderna Inc', type:'Stocks', market:'NASDAQ' },
+    'ABBV':{ name:'AbbVie Inc', type:'Stocks', market:'NYSE' },'XOM':{ name:'ExxonMobil Corp', type:'Stocks', market:'NYSE' },
+    'CVX':{ name:'Chevron Corp', type:'Stocks', market:'NYSE' },'NEE':{ name:'NextEra Energy', type:'Stocks', market:'NYSE' },
+    'SNAP':{ name:'Snap Inc', type:'Stocks', market:'NYSE' },'PINS':{ name:'Pinterest Inc', type:'Stocks', market:'NYSE' },
+    'RDDT':{ name:'Reddit Inc', type:'Stocks', market:'NYSE' },'SPOT':{ name:'Spotify Technology', type:'Stocks', market:'NYSE' },
+    'RBLX':{ name:'Roblox Corp', type:'Stocks', market:'NYSE' },'RIVN':{ name:'Rivian Automotive', type:'Stocks', market:'NASDAQ' },
+    'NIO':{ name:'NIO Inc', type:'Stocks', market:'NYSE' },'DAL':{ name:'Delta Air Lines', type:'Stocks', market:'NYSE' },
+    'UAL':{ name:'United Airlines', type:'Stocks', market:'NASDAQ' },'AAL':{ name:'American Airlines', type:'Stocks', market:'NASDAQ' },
+    'SPY':{ name:'S&P 500 ETF', type:'ETF', market:'NYSE' },'QQQ':{ name:'Nasdaq 100 ETF', type:'ETF', market:'NASDAQ' },
+    'VOO':{ name:'Vanguard S&P 500', type:'ETF', market:'NYSE' },'VTI':{ name:'Vanguard Total Market', type:'ETF', market:'NYSE' },
+    'ARKK':{ name:'ARK Innovation ETF', type:'ETF', market:'NYSE' },'GLD':{ name:'Gold ETF (SPDR)', type:'ETF', market:'NYSE' },
+    'BND':{ name:'Vanguard Total Bond', type:'ETF', market:'NYSE' },'IWM':{ name:'Russell 2000 ETF', type:'ETF', market:'NYSE' },
     'SOXL':{ name:'Semiconductor Bull 3x', type:'ETF', market:'NYSE' },
-    'BTC':{ name:'Bitcoin', type:'Crypto', market:'Crypto' },
-    'ETH':{ name:'Ethereum', type:'Crypto', market:'Crypto' },
-    'SOL':{ name:'Solana', type:'Crypto', market:'Crypto' },
-    'BNB':{ name:'BNB (Binance)', type:'Crypto', market:'Crypto' },
-    'XRP':{ name:'XRP (Ripple)', type:'Crypto', market:'Crypto' },
-    'ADA':{ name:'Cardano', type:'Crypto', market:'Crypto' },
-    'DOGE':{ name:'Dogecoin', type:'Crypto', market:'Crypto' },
-    'AVAX':{ name:'Avalanche', type:'Crypto', market:'Crypto' },
-    'LINK':{ name:'Chainlink', type:'Crypto', market:'Crypto' },
-    'DOT':{ name:'Polkadot', type:'Crypto', market:'Crypto' },
-    'MATIC':{ name:'Polygon', type:'Crypto', market:'Crypto' },
-    'SHIB':{ name:'Shiba Inu', type:'Crypto', market:'Crypto' },
-    'LTC':{ name:'Litecoin', type:'Crypto', market:'Crypto' },
-    'UNI':{ name:'Uniswap', type:'Crypto', market:'Crypto' },
-    'GOLD':{ name:'Gold Spot', type:'Commodity', market:'Futures' },
-    'SILVER':{ name:'Silver Spot', type:'Commodity', market:'Futures' },
+    'BTC':{ name:'Bitcoin', type:'Crypto', market:'Crypto' },'ETH':{ name:'Ethereum', type:'Crypto', market:'Crypto' },
+    'SOL':{ name:'Solana', type:'Crypto', market:'Crypto' },'BNB':{ name:'BNB (Binance)', type:'Crypto', market:'Crypto' },
+    'XRP':{ name:'XRP (Ripple)', type:'Crypto', market:'Crypto' },'ADA':{ name:'Cardano', type:'Crypto', market:'Crypto' },
+    'DOGE':{ name:'Dogecoin', type:'Crypto', market:'Crypto' },'AVAX':{ name:'Avalanche', type:'Crypto', market:'Crypto' },
+    'LINK':{ name:'Chainlink', type:'Crypto', market:'Crypto' },'DOT':{ name:'Polkadot', type:'Crypto', market:'Crypto' },
+    'MATIC':{ name:'Polygon', type:'Crypto', market:'Crypto' },'SHIB':{ name:'Shiba Inu', type:'Crypto', market:'Crypto' },
+    'LTC':{ name:'Litecoin', type:'Crypto', market:'Crypto' },'UNI':{ name:'Uniswap', type:'Crypto', market:'Crypto' },
+    'GOLD':{ name:'Gold Spot', type:'Commodity', market:'Futures' },'SILVER':{ name:'Silver Spot', type:'Commodity', market:'Futures' },
     'OIL':{ name:'Crude Oil WTI', type:'Commodity', market:'Futures' },
   };
-
   const HOT_SYMBOLS = ['NVDA','AAPL','TSLA','BTC','ETH','XRP','META','SOL','SPY','QQQ','MSTR','COIN'];
+  const SECTOR_ETFS = [
+    { sym:'XLK', label:'Technology' }, { sym:'XLF', label:'Financials' }, { sym:'XLV', label:'Healthcare' },
+    { sym:'XLE', label:'Energy' }, { sym:'XLI', label:'Industrials' }, { sym:'XLY', label:'Cons. Disc.' },
+    { sym:'XLP', label:'Cons. Staples' }, { sym:'XLU', label:'Utilities' }, { sym:'XLRE', label:'Real Estate' },
+    { sym:'XLB', label:'Materials' }, { sym:'XLC', label:'Comm. Svcs' }, { sym:'GLD', label:'Gold' },
+  ];
+  const SCREENER_SYMBOLS = ['NVDA','AAPL','MSFT','META','AMZN','GOOGL','TSLA','AMD','COIN','MSTR','BTC','ETH','SOL','XRP','SPY','QQQ','ARKK','GLD'];
+  const ECON_EVENTS = [
+    { date:'2025-07-30', event:'FOMC Meeting Decision', impact:'high', desc:'Federal Reserve interest rate decision' },
+    { date:'2025-08-01', event:'US Jobs Report (NFP)', impact:'high', desc:'Non-farm payrolls, unemployment rate' },
+    { date:'2025-08-13', event:'US CPI Inflation', impact:'high', desc:'Consumer Price Index year-over-year' },
+    { date:'2025-08-15', event:'US Retail Sales', impact:'medium', desc:'Monthly retail sales data' },
+    { date:'2025-09-17', event:'FOMC Meeting Decision', impact:'high', desc:'Federal Reserve next policy meeting' },
+    { date:'2025-09-05', event:'US Jobs Report (NFP)', impact:'high', desc:'Monthly employment situation' },
+    { date:'2025-08-28', event:'Jackson Hole Symposium', impact:'high', desc:'Fed Chair Powell speech on monetary policy' },
+  ];
+  const EARNINGS_CAL = [
+    { sym:'NVDA', date:'2025-08-27', est:'$0.64 EPS', quarter:'Q2 FY26' },
+    { sym:'AAPL', date:'2025-07-31', est:'$1.35 EPS', quarter:'Q3 FY25' },
+    { sym:'META', date:'2025-07-30', est:'$5.26 EPS', quarter:'Q2 2025' },
+    { sym:'MSFT', date:'2025-07-30', est:'$3.10 EPS', quarter:'Q4 FY25' },
+    { sym:'AMZN', date:'2025-08-01', est:'$1.29 EPS', quarter:'Q2 2025' },
+    { sym:'GOOGL', date:'2025-07-29', est:'$2.04 EPS', quarter:'Q2 2025' },
+    { sym:'TSLA', date:'2025-07-23', est:'$0.41 EPS', quarter:'Q2 2025' },
+    { sym:'COIN', date:'2025-08-06', est:'$1.86 EPS', quarter:'Q2 2025' },
+  ];
 
-  // Format price smartly
   function fmtPrice(p) {
     if (!p) return '$0';
     if (p < 0.0001) return `$${p.toFixed(8)}`;
@@ -7324,120 +7592,59 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
     return `$${fmtN(p)}`;
   }
 
-  // Core fetch — CoinGecko for crypto (CORS-safe), Yahoo via proxy for stocks
   async function fetchQuote(inputSym) {
     const userSym = inputSym.toUpperCase();
     const meta = ASSET_META[userSym] || {};
-
-    // ── Crypto via CoinGecko ────────────────────────────────────────
     const geckoId = COINGECKO_IDS[userSym];
     if (geckoId) {
       try {
-        const res = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`,
-          { signal: AbortSignal.timeout(7000) }
-        );
+        const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true&include_market_cap=true`, { signal: AbortSignal.timeout(7000) });
         if (res.ok) {
           const data = await res.json();
           const coin = data[geckoId];
           if (coin && coin.usd) {
-            const price = coin.usd;
-            const pct = coin.usd_24h_change || 0;
-            const prev = price / (1 + pct / 100);
-            return {
-              symbol: userSym, name: meta.name || userSym,
-              price, change: +pct.toFixed(2),
-              prevClose: prev, open: prev, high: Math.max(price, prev), low: Math.min(price, prev),
-              volume: coin.usd_24h_vol || 0, marketCap: coin.usd_market_cap || 0,
-              type: 'Crypto', market: 'Crypto', currency: 'USD',
-              sparkline: [], live: true,
-            };
+            const price = coin.usd; const pct = coin.usd_24h_change || 0; const prev = price / (1 + pct / 100);
+            return { symbol: userSym, name: meta.name || userSym, price, change: +pct.toFixed(2), prevClose: prev, open: prev, high: Math.max(price, prev), low: Math.min(price, prev), volume: coin.usd_24h_vol || 0, marketCap: coin.usd_market_cap || 0, type: 'Crypto', market: 'Crypto', currency: 'USD', sparkline: [], live: true };
           }
         }
       } catch {}
-      return null; // crypto symbol but fetch failed
+      return null;
     }
-
-    // ── Stocks/ETFs/Commodities via corsproxy.io → Yahoo Finance ────
     const yahooSym = COMMODITY_SYMBOLS[userSym] || userSym;
     const urls = [
       `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=5d`)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=5d`)}`,
       `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=5d`,
-      `https://query2.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=1d&range=5d`,
     ];
-
     for (const url of urls) {
       try {
-        const res = await fetch(url, {
-          headers: { 'Accept': 'application/json' },
-          signal: AbortSignal.timeout(7000),
-        });
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(7000) });
         if (!res.ok) continue;
         const data = await res.json();
         const m = data?.chart?.result?.[0]?.meta;
         if (!m) continue;
-
         const price = m.regularMarketPrice ?? m.previousClose ?? 0;
         const prev = m.previousClose ?? m.chartPreviousClose ?? price;
         const change = prev > 0 ? ((price - prev) / prev) * 100 : 0;
         const closes = data.chart.result[0].indicators?.quote?.[0]?.close?.filter(Boolean) ?? [];
-
-        return {
-          symbol: userSym, name: m.shortName || m.longName || meta.name || userSym,
-          price, change: +change.toFixed(2), prevClose: prev,
-          open: m.regularMarketOpen ?? price, high: m.regularMarketDayHigh ?? price,
-          low: m.regularMarketDayLow ?? price, volume: m.regularMarketVolume ?? 0,
-          marketCap: m.marketCap ?? 0,
-          type: meta.type || 'Stocks', market: meta.market || m.exchangeName || 'N/A',
-          currency: m.currency || 'USD', sparkline: closes.slice(-5), live: true,
-        };
+        return { symbol: userSym, name: m.shortName || m.longName || meta.name || userSym, price, change: +change.toFixed(2), prevClose: prev, open: m.regularMarketOpen ?? price, high: m.regularMarketDayHigh ?? price, low: m.regularMarketDayLow ?? price, volume: m.regularMarketVolume ?? 0, marketCap: m.marketCap ?? 0, type: meta.type || 'Stocks', market: meta.market || m.exchangeName || 'N/A', currency: m.currency || 'USD', sparkline: closes.slice(-5), live: true };
       } catch { continue; }
     }
     return null;
   }
 
-  // Full name → symbol map (for search by name)
   const NAME_TO_SYMBOL = {
-    // Crypto full names
-    'bitcoin':'BTC','btc':'BTC','ethereum':'ETH','eth':'ETH','solana':'SOL','sol':'SOL',
-    'binance':'BNB','bnb':'BNB','ripple':'XRP','xrp':'XRP','cardano':'ADA','ada':'ADA',
-    'dogecoin':'DOGE','doge':'DOGE','avalanche':'AVAX','avax':'AVAX','chainlink':'LINK',
-    'polkadot':'DOT','polygon':'MATIC','matic':'MATIC','uniswap':'UNI','litecoin':'LTC',
-    'shiba':'SHIB','shib':'SHIB','tron':'TRX','trx':'TRX','pepe':'PEPE','sui':'SUI',
-    // Stock full names
-    'apple':'AAPL','microsoft':'MSFT','google':'GOOGL','alphabet':'GOOGL','meta':'META',
-    'facebook':'META','amazon':'AMZN','nvidia':'NVDA','tesla':'TSLA','netflix':'NFLX',
-    'amd':'AMD','intel':'INTC','oracle':'ORCL','salesforce':'CRM','ibm':'IBM',
-    'adobe':'ADBE','qualcomm':'QCOM','paypal':'PYPL','robinhood':'HOOD','coinbase':'COIN',
-    'microstrategy':'MSTR','visa':'V','mastercard':'MA','jpmorgan':'JPM','jp morgan':'JPM',
-    'goldman':'GS','goldman sachs':'GS','bank of america':'BAC','wells fargo':'WFC',
-    'block':'SQ','square':'SQ','uber':'UBER','lyft':'LYFT','doordash':'DASH',
-    'airbnb':'ABNB','shopify':'SHOP','walmart':'WMT','costco':'COST','nike':'NKE',
-    'disney':'DIS','starbucks':'SBUX','mcdonalds':'MCD','eli lilly':'LLY','lilly':'LLY',
-    'johnson':'JNJ','pfizer':'PFE','moderna':'MRNA','abbvie':'ABBV','unitedhealth':'UNH',
-    'exxon':'XOM','exxonmobil':'XOM','chevron':'CVX','nextera':'NEE','snap':'SNAP',
-    'pinterest':'PINS','reddit':'RDDT','spotify':'SPOT','roblox':'RBLX','rivian':'RIVN',
-    'lucid':'LCID','nio':'NIO','delta':'DAL','united airlines':'UAL','american airlines':'AAL',
-    // ETFs
-    'sp500':'SPY','s&p':'SPY','s&p500':'SPY','spy':'SPY','nasdaq':'QQQ','qqq':'QQQ',
-    'vanguard':'VOO','voo':'VOO','ark':'ARKK','arkk':'ARKK','gold etf':'GLD',
-    // Commodities
+    'bitcoin':'BTC','btc':'BTC','ethereum':'ETH','eth':'ETH','solana':'SOL','sol':'SOL','binance':'BNB','bnb':'BNB','ripple':'XRP','xrp':'XRP','cardano':'ADA','ada':'ADA','dogecoin':'DOGE','doge':'DOGE','avalanche':'AVAX','avax':'AVAX','chainlink':'LINK','polkadot':'DOT','polygon':'MATIC','matic':'MATIC','uniswap':'UNI','litecoin':'LTC','shiba':'SHIB','shib':'SHIB','tron':'TRX','trx':'TRX','pepe':'PEPE','sui':'SUI',
+    'apple':'AAPL','microsoft':'MSFT','google':'GOOGL','alphabet':'GOOGL','meta':'META','facebook':'META','amazon':'AMZN','nvidia':'NVDA','tesla':'TSLA','netflix':'NFLX','amd':'AMD','intel':'INTC','oracle':'ORCL','salesforce':'CRM','ibm':'IBM','adobe':'ADBE','qualcomm':'QCOM','paypal':'PYPL','robinhood':'HOOD','coinbase':'COIN','microstrategy':'MSTR','visa':'V','mastercard':'MA','jpmorgan':'JPM','goldman':'GS','bank of america':'BAC','wells fargo':'WFC','block':'SQ','square':'SQ','uber':'UBER','lyft':'LYFT','doordash':'DASH','airbnb':'ABNB','shopify':'SHOP','walmart':'WMT','costco':'COST','nike':'NKE','disney':'DIS','starbucks':'SBUX','mcdonalds':'MCD','eli lilly':'LLY','lilly':'LLY','johnson':'JNJ','pfizer':'PFE','moderna':'MRNA','abbvie':'ABBV','unitedhealth':'UNH','exxon':'XOM','chevron':'CVX','nextera':'NEE','snap':'SNAP','pinterest':'PINS','reddit':'RDDT','spotify':'SPOT','roblox':'RBLX','rivian':'RIVN','lucid':'LCID','nio':'NIO','delta':'DAL','united airlines':'UAL','american airlines':'AAL',
+    'sp500':'SPY','s&p':'SPY','s&p500':'SPY','spy':'SPY','nasdaq':'QQQ','qqq':'QQQ','vanguard':'VOO','voo':'VOO','ark':'ARKK','arkk':'ARKK',
     'gold':'GOLD','silver':'SILVER','oil':'OIL','crude oil':'OIL','gas':'GAS','wheat':'WHEAT',
   };
 
-  // Search handler — resolves full names to symbols, then fetches
   async function searchAsset(query, setResult, setLoading) {
-    const q = query.trim();
-    if (!q) return;
-    setLoading(true);
-    setResult(null);
-
-    // Try to resolve full name to symbol
+    const q = query.trim(); if (!q) return;
+    setLoading(true); setResult(null);
     const lower = q.toLowerCase();
     const resolved = NAME_TO_SYMBOL[lower] || q;
-
-    // If it's an unknown name (not in map and not a known short symbol), try CoinGecko search
     let finalSym = resolved;
     if (resolved === q && q.length > 5 && !ASSET_META[q.toUpperCase()]) {
       try {
@@ -7445,31 +7652,19 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
         if (cgSearch.ok) {
           const cgData = await cgSearch.json();
           const topCoin = cgData.coins?.[0];
-          if (topCoin) {
-            // Add to COINGECKO_IDS dynamically
-            COINGECKO_IDS[topCoin.symbol.toUpperCase()] = topCoin.id;
-            ASSET_META[topCoin.symbol.toUpperCase()] = { name: topCoin.name, type: 'Crypto', market: 'Crypto' };
-            finalSym = topCoin.symbol.toUpperCase();
-          }
+          if (topCoin) { COINGECKO_IDS[topCoin.symbol.toUpperCase()] = topCoin.id; ASSET_META[topCoin.symbol.toUpperCase()] = { name: topCoin.name, type: 'Crypto', market: 'Crypto' }; finalSym = topCoin.symbol.toUpperCase(); }
         }
       } catch {}
     }
-
     const live = await fetchQuote(finalSym);
-    if (live) {
-      setResult(live);
-      setApiStatus('live');
-      setLastUpdated(new Date());
-    } else {
-      setApiStatus('offline');
-      setResult({ symbol: finalSym.toUpperCase(), name: q, error: true,
-        errorMsg: `Impossible de trouver "${q}" — vérifie le symbole (ex: AAPL, BTC, ETH) ou le nom complet.` });
-    }
+    if (live) { setResult(live); setApiStatus('live'); setLastUpdated(new Date()); fetchNews(finalSym); }
+    else { setApiStatus('offline'); setResult({ symbol: finalSym.toUpperCase(), name: q, error: true, errorMsg: `Could not find "${q}" — check the symbol (e.g. AAPL, BTC, ETH) or full name.` }); }
     setLoading(false);
   }
 
-  // ── Historical chart fetch ──────────────────────────────────────
+  // M2: Intraday + historical ranges
   const RANGE_CONFIG = {
+    '1D':  { days: 1,    interval: '5m',  geckoInterval: null, intraday: true },
     '1W':  { days: 7,    interval: '1d',  geckoInterval: 'daily'  },
     '1M':  { days: 30,   interval: '1d',  geckoInterval: 'daily'  },
     '3M':  { days: 90,   interval: '1d',  geckoInterval: 'daily'  },
@@ -7480,142 +7675,274 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
   };
 
   async function fetchHistory(sym, range) {
-    const cfg = RANGE_CONFIG[range];
-    if (!cfg) return;
-    setChartLoading(true);
-    setChartData([]);
-    setChartSymbol(sym.toUpperCase());
-
+    const cfg = RANGE_CONFIG[range]; if (!cfg) return;
+    setChartLoading(true); setChartData([]); setChartSymbol(sym.toUpperCase());
     const userSym = sym.toUpperCase();
     const geckoId = COINGECKO_IDS[userSym];
-
-    // ── Crypto via CoinGecko market_chart ──
-    if (geckoId) {
+    // Crypto via CoinGecko (no intraday support)
+    if (geckoId && !cfg.intraday) {
       try {
         const url = `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${cfg.days}&interval=${cfg.geckoInterval}`;
         const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
         if (res.ok) {
           const data = await res.json();
           const prices = data.prices || [];
-          // Downsample for large ranges
           const step = Math.max(1, Math.floor(prices.length / 120));
           const pts = prices.filter((_,i) => i % step === 0 || i === prices.length-1).map(([ts, price]) => {
             const d = new Date(ts);
-            const label = cfg.days <= 30
-              ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'})
-              : cfg.days <= 365
-              ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'})
-              : d.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+            const label = cfg.days <= 30 ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : cfg.days <= 365 ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : d.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
             return { date: label, price: +price.toFixed(price < 1 ? 6 : 2) };
           });
-          setChartData(pts);
-          setChartLoading(false);
-          return;
+          setChartData(pts); setChartLoading(false); return;
         }
       } catch {}
     }
-
-    // ── Stocks/ETFs via corsproxy.io → Yahoo Finance ──
-    const yahooSym = COMMODITY_SYMBOLS[userSym] || userSym;
+    // Stocks/ETFs/Crypto intraday via Yahoo
+    const yahooSym = COMMODITY_SYMBOLS[userSym] || (COINGECKO_IDS[userSym] ? userSym + '-USD' : userSym);
     const endTs = Math.floor(Date.now() / 1000);
     const startTs = endTs - cfg.days * 86400;
+    const yahooInterval = cfg.intraday ? '5m' : cfg.interval;
     const urls = [
-      `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${cfg.interval}&period1=${startTs}&period2=${endTs}`)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${cfg.interval}&period1=${startTs}&period2=${endTs}`)}`,
-      `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${cfg.interval}&period1=${startTs}&period2=${endTs}`,
+      `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${yahooInterval}&period1=${startTs}&period2=${endTs}`)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${yahooInterval}&period1=${startTs}&period2=${endTs}`)}`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${yahooInterval}&period1=${startTs}&period2=${endTs}`,
     ];
     for (const url of urls) {
       try {
         const res = await fetch(url, { headers:{'Accept':'application/json'}, signal: AbortSignal.timeout(10000) });
         if (!res.ok) continue;
         const data = await res.json();
-        const result = data?.chart?.result?.[0];
-        if (!result) continue;
+        const result = data?.chart?.result?.[0]; if (!result) continue;
         const timestamps = result.timestamp || [];
         const closes = result.indicators?.quote?.[0]?.close || [];
         const pts = timestamps.map((ts, i) => {
           const d = new Date(ts * 1000);
-          const label = cfg.days <= 30
-            ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'})
-            : cfg.days <= 365
-            ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'})
-            : d.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+          const label = cfg.intraday ? d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : cfg.days <= 30 ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : cfg.days <= 365 ? d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : d.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
           return closes[i] != null ? { date: label, price: +closes[i].toFixed(2) } : null;
         }).filter(Boolean);
-        setChartData(pts);
-        setChartLoading(false);
-        return;
+        setChartData(pts); setChartLoading(false); return;
       } catch { continue; }
     }
     setChartLoading(false);
   }
 
-  // Auto-fetch chart when result1 changes or range changes
-  useEffect(() => {
-    if (result1 && !result1.error) {
-      fetchHistory(result1.symbol, chartRange);
-    }
-  }, [result1?.symbol, chartRange]);
-
-  // Fetch hot list on mount in parallel
+  useEffect(() => { if (result1 && !result1.error) fetchHistory(result1.symbol, chartRange); }, [result1?.symbol, chartRange]);
   useEffect(() => {
     let cancelled = false;
     setHotLoading(true);
     Promise.allSettled(HOT_SYMBOLS.map(sym => fetchQuote(sym))).then(results => {
       if (cancelled) return;
       const map = {};
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled' && r.value) map[HOT_SYMBOLS[i]] = r.value;
-      });
-      if (Object.keys(map).length > 0) {
-        setHotData(map);
-        setApiStatus('live');
-        setLastUpdated(new Date());
-      } else {
-        setApiStatus('offline');
-      }
+      results.forEach((r, i) => { if (r.status === 'fulfilled' && r.value) map[HOT_SYMBOLS[i]] = r.value; });
+      if (Object.keys(map).length > 0) { setHotData(map); setApiStatus('live'); setLastUpdated(new Date()); } else setApiStatus('offline');
       setHotLoading(false);
     });
     return () => { cancelled = true; };
   }, []);
 
-  async function analyzeWithOllama() {
-    if (!result1) return;
-    setAiLoading(true); setAiResult('');
-    const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
-    const model = settings.aiModel || 'llama3.2';
-    const extra = result1.live
-      ? `Open: $${fmtN(result1.open)}, High: $${fmtN(result1.high)}, Low: $${fmtN(result1.low)}, Prev close: $${fmtN(result1.prevClose)}, Volume: ${fmtN(result1.volume)}`
-      : '';
+  // M15: Crypto Fear & Greed
+  useEffect(() => {
+    fetch('https://api.alternative.me/fng/?limit=1', { signal: AbortSignal.timeout(5000) })
+      .then(r => r.json()).then(d => { if (d?.data?.[0]) setFearGreed(d.data[0]); }).catch(() => {});
+  }, []);
+
+  // M5: News via RSS proxy
+  async function fetchNews(sym) {
+    setNewsLoading(true); setNewsItems([]);
     try {
-      const prompt_mkt = `Analyze ${result1.name} (${result1.symbol}). Live price: $${fmtN(result1.price)}, day change: ${result1.change}%. ${extra} Give a 3-sentence analysis covering momentum, risk, and a short-term outlook. Be specific and concise.`;
-      const reply_mkt = await callAI(prompt_mkt, settings, 300);
-      setAiResult(reply_mkt);
-    } catch {
-      setAiResult('⚠️ AI error: ' + (typeof arguments !== 'undefined' && arguments[0] ? arguments[0].message : 'Unknown'));
+      const rssUrl = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${sym}&region=US&lang=en-US`;
+      const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}&count=6`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items?.length) { setNewsItems(data.items.slice(0,6)); setNewsLoading(false); return; }
+      }
+    } catch {}
+    // Fallback: try allorigins proxy
+    try {
+      const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(result1?.name || sym)}+stock&hl=en-US&gl=US&ceid=US:en`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const text = await res.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/xml');
+        const items = [...doc.querySelectorAll('item')].slice(0, 6).map(item => ({
+          title: item.querySelector('title')?.textContent || '',
+          link: item.querySelector('link')?.textContent || '',
+          pubDate: item.querySelector('pubDate')?.textContent || '',
+          description: item.querySelector('description')?.textContent?.replace(/<[^>]+>/g,'').slice(0,120) || '',
+        }));
+        setNewsItems(items);
+      }
+    } catch {}
+    setNewsLoading(false);
+  }
+
+  // M8/M9: Structured AI signal
+  async function analyzeWithAI() {
+    if (!result1) return;
+    setAiSignal(null);
+    const extra = result1.live ? `Open:$${fmtN(result1.open)} High:$${fmtN(result1.high)} Low:$${fmtN(result1.low)} PrevClose:$${fmtN(result1.prevClose)} Vol:${fmtN(result1.volume)} MCap:$${fmtN(result1.marketCap)}` : '';
+    const chartCtx = chartData.length >= 2 ? `Price range ${chartRange}: $${chartData[0]?.price} → $${chartData[chartData.length-1]?.price} (${((chartData[chartData.length-1]?.price - chartData[0]?.price)/chartData[0]?.price*100).toFixed(1)}%)` : '';
+    try {
+      const prompt = `You are a senior technical analyst. Analyze ${result1.name} (${result1.symbol}).
+Live: $${fmtN(result1.price)}, change: ${result1.change}%. ${extra}. ${chartCtx}
+
+Respond ONLY in this exact JSON format (no markdown, no extra text):
+{"signal":"BUY","strength":"STRONG","riskScore":4,"thesis":"One sentence thesis","entry":${result1.price},"target":${(result1.price * 1.15).toFixed(2)},"stop":${(result1.price * 0.93).toFixed(2)},"timeframe":"2-4 weeks","catalysts":["catalyst1","catalyst2"],"risks":["risk1","risk2"]}
+
+signal must be one of: STRONG_BUY, BUY, NEUTRAL, SELL, STRONG_SELL
+strength: STRONG, MODERATE, WEAK
+riskScore: 1 (low risk) to 10 (extreme risk)`;
+      const raw = await callAI(prompt, settings, 400);
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try { setAiSignal(JSON.parse(jsonMatch[0])); return; } catch {}
+      }
+      // Fallback: parse manually
+      setAiSignal({ signal: 'NEUTRAL', strength: 'WEAK', riskScore: 5, thesis: raw.slice(0, 200), entry: result1.price, target: result1.price * 1.1, stop: result1.price * 0.95, timeframe: '—', catalysts: [], risks: [] });
+    } catch (e) {
+      setAiSignal({ error: true, msg: '⚠️ AI error: ' + e.message });
     }
-    setAiLoading(false);
   }
 
-  function addToHoard(asset) {
-    setAssets(a=>[...a,{id:Date.now(),name:asset.name,type:asset.type,value:asset.price,symbol:asset.symbol,date:today()}]);
-  }
-  function addToInvestments(asset) {
-    setInvestments(inv=>[...inv,{id:Date.now(),name:asset.name,type:asset.type,symbol:asset.symbol,buyPrice:asset.price,currentPrice:asset.price,quantity:1,date:today()}]);
+  function addToHoard(asset) { setAssets(a=>[...a,{id:Date.now(),name:asset.name,type:asset.type,value:asset.price,symbol:asset.symbol,date:today()}]); }
+  function addToInvestments(asset) { setInvestments(inv=>[...inv,{id:Date.now(),name:asset.name,type:asset.type,symbol:asset.symbol,buyPrice:asset.price,currentPrice:asset.price,quantity:1,date:today()}]); }
+
+  // M10: Technical indicators from chartData
+  const techIndicators = useMemo(() => {
+    if (chartData.length < 14) return null;
+    const prices = chartData.map(d => d.price);
+    // SMA
+    const sma = (n) => { if (prices.length < n) return null; return prices.slice(-n).reduce((s,v)=>s+v,0) / n; };
+    const sma20 = sma(20), sma50 = sma(50), sma200 = sma(200);
+    // RSI (14)
+    const changes = prices.slice(1).map((p,i) => p - prices[i]);
+    const gains = changes.map(c => c > 0 ? c : 0);
+    const losses = changes.map(c => c < 0 ? Math.abs(c) : 0);
+    const n = 14;
+    const rsiGains = gains.slice(-n);
+    const rsiLosses = losses.slice(-n);
+    const avgGain = rsiGains.reduce((s,v)=>s+v,0) / n;
+    const avgLoss = rsiLosses.reduce((s,v)=>s+v,0) / n;
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    const rsi = 100 - (100 / (1 + rs));
+    // MACD (12,26,9)
+    const ema = (data, period) => {
+      const k = 2 / (period + 1);
+      let e = data[0];
+      for (let i = 1; i < data.length; i++) e = data[i] * k + e * (1 - k);
+      return e;
+    };
+    const ema12 = ema(prices, 12), ema26 = ema(prices, 26);
+    const macd = ema12 - ema26;
+    // Bollinger Bands (20)
+    const bb20 = prices.slice(-20);
+    const bbMid = bb20.reduce((s,v)=>s+v,0) / 20;
+    const bbStd = Math.sqrt(bb20.reduce((s,v)=>s+(v-bbMid)**2,0) / 20);
+    const bbUpper = bbMid + 2 * bbStd;
+    const bbLower = bbMid - 2 * bbStd;
+    const lastPrice = prices[prices.length - 1];
+    // Trend signal
+    const trendSignal = sma20 && sma50 ? (sma20 > sma50 ? '🟢 Bullish' : '🔴 Bearish') : '—';
+    const bbPos = bbUpper > bbLower ? ((lastPrice - bbLower) / (bbUpper - bbLower) * 100).toFixed(0) : 50;
+    return { rsi: rsi.toFixed(1), macd: macd.toFixed(2), sma20: sma20?.toFixed(2), sma50: sma50?.toFixed(2), sma200: sma200?.toFixed(2), bbUpper: bbUpper.toFixed(2), bbLower: bbLower.toFixed(2), bbMid: bbMid.toFixed(2), bbPos, trendSignal, lastPrice };
+  }, [chartData]);
+
+  // M16: SMA crossover backtest
+  function runBacktest() {
+    if (chartData.length < 50) { setBtResult({ error: 'Need more data — try 1Y or 3M range' }); return; }
+    const prices = chartData.map(d => d.price);
+    const fast = parseInt(btFast), slow = parseInt(btSlow);
+    if (fast >= slow) { setBtResult({ error: 'Fast period must be less than slow period' }); return; }
+    const sma = (arr, n, i) => i < n ? null : arr.slice(i-n+1, i+1).reduce((s,v)=>s+v,0) / n;
+    let inTrade = false, entryPrice = 0, trades = [], equity = 1000;
+    for (let i = slow; i < prices.length; i++) {
+      const f = sma(prices, fast, i), s2 = sma(prices, slow, i);
+      const fp = sma(prices, fast, i-1), sp = sma(prices, slow, i-1);
+      if (!f || !s2 || !fp || !sp) continue;
+      if (!inTrade && f > s2 && fp <= sp) { inTrade = true; entryPrice = prices[i]; }
+      else if (inTrade && f < s2 && fp >= sp) {
+        const pnl = (prices[i] - entryPrice) / entryPrice;
+        equity *= (1 + pnl);
+        trades.push({ entry: entryPrice.toFixed(2), exit: prices[i].toFixed(2), pnl: (pnl*100).toFixed(1) + '%', win: pnl > 0 });
+        inTrade = false;
+      }
+    }
+    const wins = trades.filter(t=>t.win).length;
+    setBtResult({ trades: trades.slice(-8), totalTrades: trades.length, winRate: trades.length ? (wins/trades.length*100).toFixed(0) : 0, totalReturn: ((equity - 1000) / 10).toFixed(1), finalEquity: equity.toFixed(0) });
   }
 
-  // Mini SVG sparkline
+  // M13: Black-Scholes options calculator
+  function calcOptions() {
+    const S = parseFloat(optSpot), K = parseFloat(optStrike), T2 = parseFloat(optExpiry)/365, v = parseFloat(optVol)/100, r = 0.05;
+    if (!S || !K || !T2 || !v) return;
+    const d1 = (Math.log(S/K) + (r + v*v/2)*T2) / (v * Math.sqrt(T2));
+    const d2 = d1 - v * Math.sqrt(T2);
+    const N = x => { const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911; const sign=x<0?-1:1; const xabs=Math.abs(x); const t=1/(1+p*xabs); const y=1-(((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t)*Math.exp(-xabs*xabs); return 0.5*(1+sign*y); };
+    const call = S*N(d1) - K*Math.exp(-r*T2)*N(d2);
+    const put = K*Math.exp(-r*T2)*N(-d2) - S*N(-d1);
+    const deltaC = N(d1), deltaP = N(d1)-1;
+    const gamma = Math.exp(-d1*d1/2) / (S*v*Math.sqrt(T2)*Math.sqrt(2*Math.PI));
+    const theta = (-(S*v*Math.exp(-d1*d1/2))/(2*Math.sqrt(T2)*Math.sqrt(2*Math.PI)) - r*K*Math.exp(-r*T2)*N(d2))/365;
+    setOptResult({ call: call.toFixed(2), put: put.toFixed(2), deltaC: deltaC.toFixed(3), deltaP: deltaP.toFixed(3), gamma: gamma.toFixed(4), theta: theta.toFixed(4), d1: d1.toFixed(3), d2: d2.toFixed(3) });
+  }
+
+  // M12: Portfolio overlap checker (vs S&P 500 top 10)
+  const SP500_TOP = ['AAPL','MSFT','NVDA','AMZN','META','GOOGL','TSLA','BRK','AVGO','LLY'];
+  const userSymbols = investments.map(i => (i.symbol||'').toUpperCase());
+  const overlap = SP500_TOP.filter(s2 => userSymbols.includes(s2));
+  const concentration = userSymbols.length > 0 ? [...new Set(userSymbols)].reduce((acc, sym) => {
+    const val = investments.filter(i=>(i.symbol||'').toUpperCase()===sym).reduce((s,i)=>{const p=(i.currentPrice??i.buyPrice)*i.quantity; return s+p;},0);
+    return [...acc, { sym, val }];
+  }, []).sort((a,b)=>b.val-a.val) : [];
+  const totalVal = concentration.reduce((s,c)=>s+c.val, 0);
+
+  // M11: Screener
+  async function loadScreener() {
+    if (screenerLoaded) return;
+    setScreenerLoading(true);
+    const results = await Promise.allSettled(SCREENER_SYMBOLS.map(sym => fetchQuote(sym)));
+    const map = {};
+    results.forEach((r,i) => { if (r.status==='fulfilled' && r.value) map[SCREENER_SYMBOLS[i]] = r.value; });
+    setScreenerData(map); setScreenerLoading(false); setScreenerLoaded(true);
+  }
+
+  // M6: Sector heatmap
+  async function loadSectors() {
+    if (Object.keys(sectorData).length > 0) return;
+    setSectorLoading(true);
+    const results = await Promise.allSettled(SECTOR_ETFS.map(x => fetchQuote(x.sym)));
+    const map = {};
+    SECTOR_ETFS.forEach((x,i) => { if (results[i].status==='fulfilled' && results[i].value) map[x.sym] = { ...results[i].value, label: x.label }; });
+    setSectorData(map); setSectorLoading(false);
+  }
+
+  useEffect(() => {
+    if (mktTab === 'market') { loadSectors(); }
+    if (mktTab === 'technical' && result1 && chartData.length < 2) fetchHistory(result1.symbol, chartRange);
+  }, [mktTab]);
+
+  // Position sizer calc (M17)
+  const psCalc = useMemo(() => {
+    const account = parseFloat(psAccount), riskPct = parseFloat(psRiskPct), entry = parseFloat(psEntry), stop = parseFloat(psStop);
+    if (!account || !riskPct || !entry || !stop || entry <= stop) return null;
+    const riskPerShare = entry - stop;
+    const riskAmount = account * (riskPct / 100);
+    const shares = Math.floor(riskAmount / riskPerShare);
+    const positionValue = shares * entry;
+    const maxLoss = shares * riskPerShare;
+    return { shares, positionValue: positionValue.toFixed(0), maxLoss: maxLoss.toFixed(0), riskAmount: riskAmount.toFixed(0), rPerR: entry > 0 ? ((result1?.price || entry) / entry).toFixed(2) : '—' };
+  }, [psAccount, psRiskPct, psEntry, psStop]);
+
   const Sparkline = ({ data, color }) => {
     if (!data || data.length < 2) return null;
     const min = Math.min(...data), max = Math.max(...data);
     const range = max - min || 1;
     const w = 80, h = 32;
     const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h - ((v-min)/range)*h}`).join(' ');
-    return (
-      <svg width={w} height={h} style={{display:'block'}}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    );
+    return <svg width={w} height={h} style={{display:'block'}}><polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
   };
 
   const AssetCard = ({ asset, onAddHoard, onAddInv }) => {
@@ -7623,7 +7950,6 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
     const color = up ? T.success : T.danger;
     return (
       <div style={{...s.card, border:`1px solid ${up ? T.success+'33' : T.danger+'33'}`}}>
-        {/* Header */}
         <div style={{display:'flex', justifyContent:'space-between', marginBottom:12}}>
           <div>
             <div style={{display:'flex', alignItems:'center', gap:8}}>
@@ -7631,10 +7957,7 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
               {asset.live && <span style={{...s.tag(T.success), fontSize:'10px'}}>● LIVE</span>}
             </div>
             <div style={{color:T.textMuted, fontSize:'12px', marginTop:2}}>{asset.name}</div>
-            <div style={{display:'flex', gap:6, marginTop:6}}>
-              <span style={s.tag(T.textMuted)}>{asset.type}</span>
-              <span style={s.tag(T.textMuted)}>{asset.market}</span>
-            </div>
+            <div style={{display:'flex', gap:6, marginTop:6}}><span style={s.tag(T.textMuted)}>{asset.type}</span><span style={s.tag(T.textMuted)}>{asset.market}</span></div>
           </div>
           <div style={{textAlign:'right'}}>
             <div style={{fontWeight:'800', fontSize:'26px', color:T.text}}>{fmtPrice(asset.price)}</div>
@@ -7642,24 +7965,13 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
             {asset.live && <Sparkline data={asset.sparkline} color={color} />}
           </div>
         </div>
-
-        {/* Stats row (only for live data) */}
         {asset.live && (
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8, marginBottom:14, padding:'10px', background:T.surface, borderRadius:8}}>
-            {[
-              ['Open', fmtPrice(asset.open)],
-              ['High', fmtPrice(asset.high)],
-              ['Low', fmtPrice(asset.low)],
-              ['Prev', fmtPrice(asset.prevClose)],
-            ].map(([label, val]) => (
-              <div key={label} style={{textAlign:'center'}}>
-                <div style={{fontSize:'10px', color:T.textMuted}}>{label}</div>
-                <div style={{fontSize:'12px', fontWeight:'700', color:T.text}}>{val}</div>
-              </div>
+            {[['Open',fmtPrice(asset.open)],['High',fmtPrice(asset.high)],['Low',fmtPrice(asset.low)],['Prev',fmtPrice(asset.prevClose)]].map(([label,val]) => (
+              <div key={label} style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>{label}</div><div style={{fontSize:'12px',fontWeight:'700',color:T.text}}>{val}</div></div>
             ))}
           </div>
         )}
-
         <div style={{display:'flex', gap:8}}>
           <button style={{...s.btnGhost, fontSize:'12px'}} onClick={onAddHoard}>+ Hoard</button>
           <button style={{...s.btnGhost, fontSize:'12px'}} onClick={onAddInv}>+ Portfolio</button>
@@ -7668,204 +7980,479 @@ function MarketsTab({ T, s, assets, setAssets, investments, setInvestments, sett
     );
   };
 
+  const SIGNAL_COLORS = { STRONG_BUY: '#00e676', BUY: '#69f0ae', NEUTRAL: '#ffab40', SELL: '#ff6d6d', STRONG_SELL: '#f44336' };
+
   return (
     <div style={{display:'flex', flexDirection:'column', gap:20}}>
-      {/* Header */}
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <div>
-          <div style={{fontFamily:"'Exo 2',sans-serif", fontSize:'22px', fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>📈 Markets <InfoButton tab="markets" T={T} s={s} /></span></div>
-          <div style={{fontSize:'11px', marginTop:2, color: apiStatus==='live' ? T.success : apiStatus==='loading' ? T.textMuted : T.warning}}>
-            {apiStatus === 'live'
-              ? `🟢 Live · Yahoo Finance / CoinGecko · ${lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : ''}`
-              : apiStatus === 'loading'
-              ? '⏳ Fetching prices...'
-              : '🟡 Offline — live prices unavailable'}
-          </div>
-        </div>
-        <div style={{display:'flex', gap:8}}>
-          <button style={{...s.btnGhost, background:!compareMode?T.accentSoft:'transparent', color:!compareMode?T.accent:T.textMuted}} onClick={()=>setCompareMode(false)}>Single</button>
-          <button style={{...s.btnGhost, background:compareMode?T.accentSoft:'transparent', color:compareMode?T.accent:T.textMuted}} onClick={()=>setCompareMode(true)}>⚖️ Compare</button>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div style={{display:'flex', gap:10}}>
-        <input style={{...s.input, flex:1}} placeholder="Any symbol — AAPL, BTC, ETH, SPY, NVDA, XRP, GC=F..." value={search1} onChange={e=>setSearch1(e.target.value)} onKeyDown={e=>e.key==='Enter'&&searchAsset(search1,setResult1,setLoading1)} />
-        <button style={s.btn()} onClick={()=>searchAsset(search1,setResult1,setLoading1)} disabled={loading1}>
-          {loading1 ? '⏳' : 'Search'}
-        </button>
-        {compareMode && <>
-          <input style={{...s.input, flex:1}} placeholder="Second symbol..." value={search2} onChange={e=>setSearch2(e.target.value)} onKeyDown={e=>e.key==='Enter'&&searchAsset(search2,setResult2,setLoading2)} />
-          <button style={s.btn(T.warning)} onClick={()=>searchAsset(search2,setResult2,setLoading2)} disabled={loading2}>
-            {loading2 ? '⏳' : 'Search'}
-          </button>
-        </>}
-      </div>
-
-      {/* Results */}
-      <div style={compareMode && result1 && result2 ? s.grid2 : {}}>
-        {loading1 && <div style={{...s.card, color:T.textMuted, textAlign:'center', padding:40}}>⏳ Fetching live price...</div>}
-        {!loading1 && result1 && !result1.error && <AssetCard asset={result1} onAddHoard={()=>addToHoard(result1)} onAddInv={()=>addToInvestments(result1)} />}
-        {!loading1 && result1?.error && (
-          <div style={{...s.card, border:`1px solid ${T.danger}44`}}>
-            <div style={{color:T.danger, fontWeight:700, marginBottom:6}}>⚠️ Not found</div>
-            <div style={{color:T.textMuted, fontSize:'13px'}}>{result1.errorMsg}</div>
-          </div>
-        )}
-        {compareMode && loading2 && <div style={{...s.card, color:T.textMuted, textAlign:'center', padding:40}}>⏳ Fetching...</div>}
-        {compareMode && !loading2 && result2 && !result2.error && <AssetCard asset={result2} onAddHoard={()=>addToHoard(result2)} onAddInv={()=>addToInvestments(result2)} />}
-        {compareMode && !loading2 && result2?.error && <div style={{...s.card, color:T.danger}}>⚠️ {result2.errorMsg}</div>}
-      </div>
-
-      {/* AI Analysis */}
-      {result1 && !result1.error && (
-        <div style={s.card}>
-          <div style={s.cardTitle}>🧠 AI Analysis (Ollama)</div>
-          <button style={{...s.btn(), marginBottom:12}} onClick={analyzeWithOllama} disabled={aiLoading}>
-            {aiLoading ? '⏳ Analyzing...' : '🧠 Analyze with AI'}
-          </button>
-          {aiResult && <div style={{color:T.text, fontSize:'13px', lineHeight:1.7, padding:12, background:T.surface, borderRadius:8, whiteSpace:'pre-wrap'}}>{aiResult}</div>}
-        </div>
-      )}
-
-      {/* ── HISTORICAL CHART ─────────────────────────────────────── */}
-      {result1 && !result1.error && (
-        <div style={{...s.card, border:`1px solid ${T.accent}22`}}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
-            <div>
-              <div style={s.cardTitle}>📊 Historical Chart — {chartSymbol}</div>
-              {chartData.length > 0 && (() => {
-                const first = chartData[0]?.price;
-                const last = chartData[chartData.length-1]?.price;
-                const pct = first > 0 ? ((last-first)/first)*100 : 0;
-                const up = pct >= 0;
-                return (
-                  <div style={{fontSize:'12px', color: up?T.success:T.danger, fontWeight:'700', marginTop:'-10px', marginBottom:'4px'}}>
-                    {up?'▲':'▼'} {Math.abs(pct).toFixed(2)}% over {chartRange}
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="los-tab-strip" style={{display:"flex",flexWrap:"nowrap",overflowX:"auto",WebkitOverflowScrolling:"touch",gap:8,paddingBottom:4,scrollbarWidth:"none"}}>
-              {['1W','1M','3M','6M','1Y','2Y','5Y'].map(r => (
-                <button key={r}
-                  onClick={() => setChartRange(r)}
-                  style={{...s.btnGhost, padding:'4px 10px', fontSize:'11px',
-                    background: chartRange===r ? T.accentSoft : 'transparent',
-                    color: chartRange===r ? T.accent : T.textMuted,
-                    border: chartRange===r ? `1px solid ${T.accent}55` : `1px solid ${T.border}`,
-                    fontWeight: chartRange===r ? '700' : '400'
-                  }}>
-                  {r}
-                </button>
-              ))}
+      {/* Header + sub-tabs */}
+      <div>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+          <div>
+            <div style={{fontFamily:"'Exo 2',sans-serif", fontSize:'22px', fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>📈 Markets <InfoButton tab="markets" T={T} s={s} /></span></div>
+            <div style={{fontSize:'11px', marginTop:2, color: apiStatus==='live' ? T.success : apiStatus==='loading' ? T.textMuted : T.warning}}>
+              {apiStatus === 'live' ? `🟢 Live · ${lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : ''}` : apiStatus === 'loading' ? '⏳ Fetching prices...' : '🟡 Offline — live prices unavailable'}
             </div>
           </div>
-
-          {chartLoading && (
-            <div style={{height:260, display:'flex', alignItems:'center', justifyContent:'center', color:T.textMuted, fontSize:'13px'}}>
-              ⏳ Loading chart data...
-            </div>
-          )}
-
-          {!chartLoading && chartData.length < 2 && (
-            <div style={{height:260, display:'flex', alignItems:'center', justifyContent:'center', color:T.textMuted, fontSize:'13px'}}>
-              No historical data available for this symbol / range.
-            </div>
-          )}
-
-          {!chartLoading && chartData.length >= 2 && (() => {
-            const first = chartData[0]?.price;
-            const last = chartData[chartData.length-1]?.price;
-            const up = last >= first;
-            const chartColor = up ? T.success : T.danger;
-            const minP = Math.min(...chartData.map(d=>d.price));
-            const maxP = Math.max(...chartData.map(d=>d.price));
-            const midP = (minP+maxP)/2;
-            // Downsample labels for readability
-            const labelEvery = Math.max(1, Math.floor(chartData.length / 8));
+          {fearGreed && (() => {
+            const val = parseInt(fearGreed.value);
+            const fg_color = val <= 25 ? T.danger : val <= 45 ? T.warning : val <= 55 ? T.textMuted : val <= 75 ? T.success : '#00e676';
             return (
-              <>
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={chartData} margin={{top:10,right:10,left:10,bottom:0}}>
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={T.border} opacity={0.5}/>
-                    <XAxis dataKey="date" tick={{fill:T.textMuted,fontSize:9}} interval={labelEvery} />
-                    <YAxis
-                      tick={{fill:T.textMuted,fontSize:9}}
-                      width={72}
-                      domain={['auto','auto']}
-                      tickFormatter={v => v>=1 ? `$${fmtN(v)}` : `$${v.toFixed(4)}`}
-                    />
-                    <Tooltip
-                      contentStyle={{background:T.card, border:`1px solid ${T.border}`, color:T.text, fontSize:'12px'}}
-                      formatter={v => [`$${v >= 1 ? fmtN(v) : v.toFixed(v<0.01?6:4)}`, chartSymbol]}
-                      labelStyle={{color:T.textMuted}}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="price"
-                      stroke={chartColor}
-                      strokeWidth={2}
-                      fill="url(#chartGrad)"
-                      dot={false}
-                      activeDot={{r:4, fill:chartColor}}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-                {/* Stats row */}
-                <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginTop:12, padding:'10px', background:T.surface, borderRadius:8}}>
-                  {[
-                    ['Period Low', `$${minP >= 1 ? fmtN(minP) : minP.toFixed(minP<0.01?6:4)}`],
-                    ['Period High', `$${maxP >= 1 ? fmtN(maxP) : maxP.toFixed(maxP<0.01?6:4)}`],
-                    ['Mid Range', `$${midP >= 1 ? fmtN(midP) : midP.toFixed(midP<0.01?6:4)}`],
-                    ['Data Points', chartData.length],
-                  ].map(([label, val]) => (
-                    <div key={label} style={{textAlign:'center'}}>
-                      <div style={{fontSize:'10px', color:T.textMuted}}>{label}</div>
-                      <div style={{fontSize:'12px', fontWeight:'700', color:T.text}}>{val}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
+              <div style={{textAlign:'center', padding:'8px 14px', borderRadius:'12px', border:`1px solid ${fg_color}44`, background:`${fg_color}11`}}>
+                <div style={{fontSize:'10px', color:T.textMuted}}>😱 Fear & Greed</div>
+                <div style={{fontSize:'22px', fontWeight:'900', color:fg_color}}>{fearGreed.value}</div>
+                <div style={{fontSize:'10px', color:fg_color, fontWeight:'700'}}>{fearGreed.value_classification}</div>
+              </div>
             );
           })()}
         </div>
-      )}
-
-      {/* Hot list */}
-      <div style={s.card}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
-          <div style={s.cardTitle}>🔥 Watchlist</div>
-          {hotLoading && <span style={{fontSize:'11px', color:T.textMuted}}>⏳ Loading live prices...</span>}
-        </div>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8}}>
-          {HOT_SYMBOLS.map(sym => {
-            const a = hotData[sym];
-            const up = a ? a.change >= 0 : true;
-            return (
-              <div key={sym}
-                onClick={() => { setSearch1(sym); if (a) { setResult1(a); } else { searchAsset(sym, setResult1, setLoading1); } }}
-                style={{background:T.surface, borderRadius:8, padding:10, cursor:'pointer', textAlign:'center', border:`1px solid ${a ? (up?T.success+'22':T.danger+'22') : T.border}`, transition:'all 0.15s'}}>
-                <div style={{fontWeight:'800', fontSize:'12px', color:T.text}}>{sym}</div>
-                {a ? <>
-                  <div style={{fontSize:'11px', color:T.textMuted, margin:'2px 0'}}>{fmtPrice(a.price)}</div>
-                  <div style={{fontSize:'11px', fontWeight:'700', color:up?T.success:T.danger}}>{up?'+':''}{a.change}%</div>
-                  <Sparkline data={a.sparkline} color={up?T.success:T.danger} />
-                </> : <div style={{fontSize:'10px', color:T.textDim, marginTop:4}}>{hotLoading ? '…' : '—'}</div>}
-              </div>
-            );
-          })}
-        </div>
-        <div style={{marginTop:10, fontSize:'11px', color:T.textMuted}}>
-          Live via Yahoo Finance · Search any symbol: stocks, ETFs, crypto (BTC, ETH, XRP...), futures (GC=F for gold, CL=F for oil)
+        <div className="los-tab-strip" style={{display:'flex',gap:8,overflowX:'auto'}}>
+          {[{id:'quote',label:'🔍 Quote'},{id:'technical',label:'📊 Technical'},{id:'market',label:'🌡️ Market'},{id:'tools',label:'🧮 Tools'}].map(t2 => (
+            <button key={t2.id} onClick={()=>setMktTab(t2.id)} style={{...s.btnGhost, fontSize:13, padding:'8px 16px', background:mktTab===t2.id?T.accentSoft:'transparent', color:mktTab===t2.id?T.accent:T.textMuted, borderColor:mktTab===t2.id?T.accent+'55':T.border, fontWeight:mktTab===t2.id?'700':'400', whiteSpace:'nowrap'}}>{t2.label}</button>
+          ))}
         </div>
       </div>
+
+      {/* ══ QUOTE TAB ══ */}
+      {mktTab === 'quote' && (
+        <div style={{display:'flex', flexDirection:'column', gap:16}}>
+          {/* Search */}
+          <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+            <input style={{...s.input, flex:1, minWidth:180}} placeholder="AAPL, BTC, ETH, SPY, NVDA..." value={search1} onChange={e=>setSearch1(e.target.value)} onKeyDown={e=>e.key==='Enter'&&searchAsset(search1,setResult1,setLoading1)} />
+            <button style={s.btn()} onClick={()=>searchAsset(search1,setResult1,setLoading1)} disabled={loading1}>{loading1 ? '⏳' : 'Search'}</button>
+            <button style={{...s.btnGhost, background:!compareMode?T.accentSoft:'transparent', color:!compareMode?T.accent:T.textMuted}} onClick={()=>setCompareMode(false)}>Single</button>
+            <button style={{...s.btnGhost, background:compareMode?T.accentSoft:'transparent', color:compareMode?T.accent:T.textMuted}} onClick={()=>setCompareMode(true)}>⚖️ Compare</button>
+            {compareMode && <>
+              <input style={{...s.input, flex:1, minWidth:140}} placeholder="Second symbol..." value={search2} onChange={e=>setSearch2(e.target.value)} onKeyDown={e=>e.key==='Enter'&&searchAsset(search2,setResult2,setLoading2)} />
+              <button style={s.btn(T.warning)} onClick={()=>searchAsset(search2,setResult2,setLoading2)} disabled={loading2}>{loading2 ? '⏳' : 'Search'}</button>
+            </>}
+          </div>
+          {/* Results */}
+          <div style={compareMode && result1 && result2 ? s.grid2 : {}}>
+            {loading1 && <div style={{...s.card, color:T.textMuted, textAlign:'center', padding:40}}>⏳ Fetching live price...</div>}
+            {!loading1 && result1 && !result1.error && <AssetCard asset={result1} onAddHoard={()=>addToHoard(result1)} onAddInv={()=>addToInvestments(result1)} />}
+            {!loading1 && result1?.error && <div style={{...s.card,border:`1px solid ${T.danger}44`}}><div style={{color:T.danger,fontWeight:700,marginBottom:6}}>⚠️ Not found</div><div style={{color:T.textMuted,fontSize:'13px'}}>{result1.errorMsg}</div></div>}
+            {compareMode && loading2 && <div style={{...s.card,color:T.textMuted,textAlign:'center',padding:40}}>⏳ Fetching...</div>}
+            {compareMode && !loading2 && result2 && !result2.error && <AssetCard asset={result2} onAddHoard={()=>addToHoard(result2)} onAddInv={()=>addToInvestments(result2)} />}
+            {compareMode && !loading2 && result2?.error && <div style={{...s.card,color:T.danger}}>⚠️ {result2.errorMsg}</div>}
+          </div>
+
+          {/* M8/M9: Structured AI Signal */}
+          {result1 && !result1.error && (
+            <div style={{...s.card, border:`1px solid ${T.accent}33`}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
+                <div style={s.cardTitle}>🤖 AI Signal & Risk Score</div>
+                <button style={s.btn()} onClick={analyzeWithAI} disabled={aiLoading}>{aiLoading ? '⏳ Analyzing...' : '🤖 Analyze'}</button>
+              </div>
+              {aiSignal && !aiSignal.error && (
+                <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                  <div style={{display:'flex', gap:12, alignItems:'center', flexWrap:'wrap'}}>
+                    <div style={{padding:'8px 20px', borderRadius:'10px', background: (SIGNAL_COLORS[aiSignal.signal] || T.accent)+'22', border:`2px solid ${SIGNAL_COLORS[aiSignal.signal] || T.accent}`, fontWeight:'900', fontSize:'18px', color: SIGNAL_COLORS[aiSignal.signal] || T.accent}}>{aiSignal.signal?.replace('_',' ')}</div>
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontSize:'10px', color:T.textMuted}}>RISK SCORE</div>
+                      <div style={{fontSize:'24px', fontWeight:'900', color: aiSignal.riskScore <= 3 ? T.success : aiSignal.riskScore <= 6 ? T.warning : T.danger}}>{aiSignal.riskScore}/10</div>
+                    </div>
+                    <div style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>STRENGTH</div><div style={{fontSize:'14px',fontWeight:'700',color:T.text}}>{aiSignal.strength}</div></div>
+                    <div style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>TIMEFRAME</div><div style={{fontSize:'14px',fontWeight:'700',color:T.text}}>{aiSignal.timeframe}</div></div>
+                  </div>
+                  <div style={{padding:'10px',background:T.surface,borderRadius:'8px',fontSize:'13px',color:T.text,lineHeight:1.6}}>{aiSignal.thesis}</div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px'}}>
+                    {[['Entry','$' + fmtN(aiSignal.entry), T.accent],['Target','$' + fmtN(aiSignal.target), T.success],['Stop','$' + fmtN(aiSignal.stop), T.danger]].map(([l,v,c])=>(
+                      <div key={l} style={{textAlign:'center',padding:'8px',borderRadius:'8px',background:T.surface,border:`1px solid ${c}33`}}><div style={{fontSize:'10px',color:T.textMuted}}>{l}</div><div style={{fontSize:'14px',fontWeight:'800',color:c}}>{v}</div></div>
+                    ))}
+                  </div>
+                  {(aiSignal.catalysts?.length > 0 || aiSignal.risks?.length > 0) && (
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}}>
+                      {aiSignal.catalysts?.length > 0 && <div style={{padding:'8px',background:T.success+'11',borderRadius:'8px'}}><div style={{fontSize:'10px',fontWeight:'700',color:T.success,marginBottom:'4px'}}>🚀 CATALYSTS</div>{aiSignal.catalysts.map((c,i)=><div key={i} style={{fontSize:'11px',color:T.text}}>• {c}</div>)}</div>}
+                      {aiSignal.risks?.length > 0 && <div style={{padding:'8px',background:T.danger+'11',borderRadius:'8px'}}><div style={{fontSize:'10px',fontWeight:'700',color:T.danger,marginBottom:'4px'}}>⚠️ RISKS</div>{aiSignal.risks.map((r,i)=><div key={i} style={{fontSize:'11px',color:T.text}}>• {r}</div>)}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+              {aiSignal?.error && <div style={{color:T.danger,fontSize:'13px'}}>{aiSignal.msg}</div>}
+            </div>
+          )}
+
+          {/* Historical chart (M2: includes 1D intraday) */}
+          {result1 && !result1.error && (
+            <div style={{...s.card, border:`1px solid ${T.accent}22`}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8}}>
+                <div>
+                  <div style={s.cardTitle}>📊 Chart — {chartSymbol}</div>
+                  {chartData.length > 0 && (() => { const first=chartData[0]?.price,last=chartData[chartData.length-1]?.price,pct=first>0?((last-first)/first)*100:0,up=pct>=0; return <div style={{fontSize:'12px',color:up?T.success:T.danger,fontWeight:'700'}}>{up?'▲':'▼'} {Math.abs(pct).toFixed(2)}% · {chartRange}</div>; })()}
+                </div>
+                <div style={{display:'flex', flexWrap:'wrap', gap:4}}>
+                  {['1D','1W','1M','3M','6M','1Y','2Y','5Y'].map(r => (
+                    <button key={r} onClick={()=>setChartRange(r)} style={{...s.btnGhost, padding:'4px 10px', fontSize:'11px', background:chartRange===r?T.accentSoft:'transparent', color:chartRange===r?T.accent:T.textMuted, border:chartRange===r?`1px solid ${T.accent}55`:`1px solid ${T.border}`, fontWeight:chartRange===r?'700':'400'}}>{r}</button>
+                  ))}
+                </div>
+              </div>
+              {chartLoading && <div style={{height:240,display:'flex',alignItems:'center',justifyContent:'center',color:T.textMuted}}>⏳ Loading chart...</div>}
+              {!chartLoading && chartData.length < 2 && <div style={{height:240,display:'flex',alignItems:'center',justifyContent:'center',color:T.textMuted}}>No data for this range.</div>}
+              {!chartLoading && chartData.length >= 2 && (() => {
+                const first=chartData[0]?.price,last=chartData[chartData.length-1]?.price,up=last>=first,chartColor=up?T.success:T.danger;
+                const minP=Math.min(...chartData.map(d=>d.price)),maxP=Math.max(...chartData.map(d=>d.price)),midP=(minP+maxP)/2;
+                const labelEvery=Math.max(1,Math.floor(chartData.length/8));
+                return <>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={chartData} margin={{top:10,right:10,left:10,bottom:0}}>
+                      <defs><linearGradient id="chartGradMkt" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/><stop offset="95%" stopColor={chartColor} stopOpacity={0}/></linearGradient></defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} opacity={0.5}/>
+                      <XAxis dataKey="date" tick={{fill:T.textMuted,fontSize:9}} interval={labelEvery}/>
+                      <YAxis tick={{fill:T.textMuted,fontSize:9}} width={72} domain={['auto','auto']} tickFormatter={v=>v>=1?`$${fmtN(v)}`:`$${v.toFixed(4)}`}/>
+                      <Tooltip contentStyle={{background:T.card,border:`1px solid ${T.border}`,color:T.text,fontSize:'12px'}} formatter={v=>[`$${v>=1?fmtN(v):v.toFixed(v<0.01?6:4)}`,chartSymbol]} labelStyle={{color:T.textMuted}}/>
+                      <Area type="monotone" dataKey="price" stroke={chartColor} strokeWidth={2} fill="url(#chartGradMkt)" dot={false} activeDot={{r:4,fill:chartColor}}/>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginTop:12,padding:'10px',background:T.surface,borderRadius:8}}>
+                    {[['Period Low',`$${minP>=1?fmtN(minP):minP.toFixed(4)}`],['Period High',`$${maxP>=1?fmtN(maxP):maxP.toFixed(4)}`],['Mid Range',`$${midP>=1?fmtN(midP):midP.toFixed(4)}`],['Candles',chartData.length]].map(([l,v])=>(
+                      <div key={l} style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>{l}</div><div style={{fontSize:'12px',fontWeight:'700',color:T.text}}>{v}</div></div>
+                    ))}
+                  </div>
+                </>;
+              })()}
+            </div>
+          )}
+
+          {/* M5: News */}
+          {result1 && !result1.error && (
+            <div style={s.card}>
+              <div style={s.cardTitle}>📰 Latest News — {result1.symbol}</div>
+              {newsLoading && <div style={{color:T.textMuted,fontSize:'12px',padding:'12px 0'}}>⏳ Loading news...</div>}
+              {!newsLoading && newsItems.length === 0 && <div style={{color:T.textMuted,fontSize:'12px',padding:'12px 0'}}>No news found. <a href={`https://finance.yahoo.com/quote/${result1.symbol}/news/`} target="_blank" rel="noopener noreferrer" style={{color:T.accent}}>View on Yahoo Finance ↗</a></div>}
+              <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                {newsItems.map((item,i) => (
+                  <a key={i} href={item.link} target="_blank" rel="noopener noreferrer" style={{display:'block',padding:'10px 12px',borderRadius:'8px',background:T.surface,border:`1px solid ${T.border}`,textDecoration:'none',transition:'border 0.15s'}}>
+                    <div style={{fontWeight:'600',fontSize:'13px',color:T.text,marginBottom:'4px',lineHeight:1.4}}>{item.title}</div>
+                    {item.description && <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>{item.description}</div>}
+                    <div style={{fontSize:'10px',color:T.textDim}}>{item.pubDate ? new Date(item.pubDate).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hot list */}
+          <div style={s.card}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <div style={s.cardTitle}>🔥 Hot Assets</div>
+              {hotLoading && <span style={{fontSize:'11px',color:T.textMuted}}>⏳ Loading...</span>}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8}}>
+              {HOT_SYMBOLS.map(sym => {
+                const a = hotData[sym]; const up = a ? a.change >= 0 : true;
+                return (
+                  <div key={sym} onClick={()=>{setSearch1(sym);if(a){setResult1(a);}else{searchAsset(sym,setResult1,setLoading1);}}} style={{background:T.surface,borderRadius:8,padding:10,cursor:'pointer',textAlign:'center',border:`1px solid ${a?(up?T.success+'22':T.danger+'22'):T.border}`,transition:'all 0.15s'}}>
+                    <div style={{fontWeight:'800',fontSize:'12px',color:T.text}}>{sym}</div>
+                    {a ? <><div style={{fontSize:'11px',color:T.textMuted,margin:'2px 0'}}>{fmtPrice(a.price)}</div><div style={{fontSize:'11px',fontWeight:'700',color:up?T.success:T.danger}}>{up?'+':''}{a.change}%</div><Sparkline data={a.sparkline} color={up?T.success:T.danger}/></> : <div style={{fontSize:'10px',color:T.textDim,marginTop:4}}>{hotLoading ? '…' : '—'}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ TECHNICAL TAB (M10, M16) ══ */}
+      {mktTab === 'technical' && (
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {!result1 && <div style={{...s.card,textAlign:'center',color:T.textMuted,padding:'40px 0'}}>🔍 Search a symbol in the Quote tab first to see technical indicators.</div>}
+
+          {/* M10: Technical indicators */}
+          {result1 && !result1.error && (
+            <div style={s.card}>
+              <div style={s.cardTitle}>📐 Technical Indicators — {chartSymbol || result1.symbol}</div>
+              {chartData.length < 14 && <div style={{color:T.textMuted,fontSize:'12px',marginBottom:'8px'}}>Load more data (try 1Y range in Quote tab) for full indicators.</div>}
+              {techIndicators ? (
+                <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'10px'}}>
+                    {/* RSI */}
+                    {(() => { const rsi=parseFloat(techIndicators.rsi); const rsiColor=rsi>=70?T.danger:rsi<=30?T.success:T.warning; return (
+                      <div style={{padding:'12px',borderRadius:'10px',background:T.surface,border:`1px solid ${rsiColor}44`,textAlign:'center'}}>
+                        <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700',marginBottom:'4px'}}>RSI (14)</div>
+                        <div style={{fontSize:'26px',fontWeight:'900',color:rsiColor}}>{techIndicators.rsi}</div>
+                        <div style={{fontSize:'10px',color:rsiColor}}>{rsi>=70?'Overbought':rsi<=30?'Oversold':'Neutral'}</div>
+                        <div style={{marginTop:'6px',background:T.border,borderRadius:'4px',height:'4px'}}><div style={{width:`${rsi}%`,height:'100%',background:rsiColor,borderRadius:'4px'}}/></div>
+                      </div>
+                    ); })()}
+                    {/* MACD */}
+                    {(() => { const macd=parseFloat(techIndicators.macd); const macdColor=macd>0?T.success:T.danger; return (
+                      <div style={{padding:'12px',borderRadius:'10px',background:T.surface,border:`1px solid ${macdColor}44`,textAlign:'center'}}>
+                        <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700',marginBottom:'4px'}}>MACD (12,26)</div>
+                        <div style={{fontSize:'26px',fontWeight:'900',color:macdColor}}>{macd>0?'+':''}{techIndicators.macd}</div>
+                        <div style={{fontSize:'10px',color:macdColor}}>{macd>0?'Bullish momentum':'Bearish momentum'}</div>
+                      </div>
+                    ); })()}
+                    {/* Trend */}
+                    <div style={{padding:'12px',borderRadius:'10px',background:T.surface,textAlign:'center'}}>
+                      <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700',marginBottom:'4px'}}>SMA Trend</div>
+                      <div style={{fontSize:'18px',fontWeight:'900'}}>{techIndicators.trendSignal}</div>
+                      <div style={{fontSize:'10px',color:T.textMuted,marginTop:'4px'}}>SMA20 vs SMA50</div>
+                    </div>
+                  </div>
+                  {/* Moving averages */}
+                  <div style={{...s.card,padding:'12px',background:T.surface}}>
+                    <div style={{fontSize:'11px',fontWeight:'700',color:T.textMuted,marginBottom:'8px'}}>MOVING AVERAGES</div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px'}}>
+                      {[['Current',`$${fmtN(techIndicators.lastPrice)}`,T.text],['SMA 20',techIndicators.sma20?`$${fmtN(techIndicators.sma20)}`:'—',techIndicators.sma20&&techIndicators.lastPrice>techIndicators.sma20?T.success:T.danger],['SMA 50',techIndicators.sma50?`$${fmtN(techIndicators.sma50)}`:'—',techIndicators.sma50&&techIndicators.lastPrice>techIndicators.sma50?T.success:T.danger],['SMA 200',techIndicators.sma200?`$${fmtN(techIndicators.sma200)}`:'—',techIndicators.sma200&&techIndicators.lastPrice>techIndicators.sma200?T.success:T.danger]].map(([l,v,c])=>(
+                        <div key={l} style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>{l}</div><div style={{fontSize:'13px',fontWeight:'700',color:c}}>{v}</div></div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Bollinger bands */}
+                  <div style={{...s.card,padding:'12px',background:T.surface}}>
+                    <div style={{fontSize:'11px',fontWeight:'700',color:T.textMuted,marginBottom:'8px'}}>BOLLINGER BANDS (20, 2σ)</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'8px'}}>
+                      {[['Upper',`$${fmtN(techIndicators.bbUpper)}`,T.danger],['Mid',`$${fmtN(techIndicators.bbMid)}`,T.accent],['Lower',`$${fmtN(techIndicators.bbLower)}`,T.success]].map(([l,v,c])=>(
+                        <div key={l} style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>{l}</div><div style={{fontSize:'13px',fontWeight:'700',color:c}}>{v}</div></div>
+                      ))}
+                    </div>
+                    <div style={{position:'relative',height:'8px',borderRadius:'4px',background:`linear-gradient(to right,${T.success},${T.warning},${T.danger})`}}>
+                      <div style={{position:'absolute',top:'-3px',left:`${Math.min(98,Math.max(2,techIndicators.bbPos))}%`,width:'14px',height:'14px',borderRadius:'50%',background:'white',border:`3px solid ${T.accent}`,transform:'translateX(-50%)',boxShadow:'0 0 6px rgba(0,0,0,0.5)'}}/>
+                    </div>
+                    <div style={{fontSize:'10px',color:T.textMuted,marginTop:'6px',textAlign:'center'}}>Price at {techIndicators.bbPos}% of band width — {parseInt(techIndicators.bbPos)>=80?'Near upper band (overbought)':parseInt(techIndicators.bbPos)<=20?'Near lower band (oversold)':'Mid range'}</div>
+                  </div>
+                </div>
+              ) : <div style={{color:T.textMuted,fontSize:'12px'}}>Load 3M+ chart data to compute indicators.</div>}
+            </div>
+          )}
+
+          {/* M16: Backtest */}
+          {result1 && !result1.error && (
+            <div style={s.card}>
+              <div style={s.cardTitle}>⏱️ SMA Crossover Backtest</div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'12px'}}>Simulate a simple moving average crossover strategy on the current chart data (buy when fast SMA crosses above slow, sell when below).</div>
+              <div style={{display:'flex',gap:'10px',marginBottom:'12px',flexWrap:'wrap',alignItems:'center'}}>
+                <div><div style={{fontSize:'10px',color:T.textMuted}}>Fast SMA</div><input type="number" style={{...s.input,width:'80px'}} value={btFast} onChange={e=>setBtFast(e.target.value)} min="2" max="50"/></div>
+                <div><div style={{fontSize:'10px',color:T.textMuted}}>Slow SMA</div><input type="number" style={{...s.input,width:'80px'}} value={btSlow} onChange={e=>setBtSlow(e.target.value)} min="5" max="200"/></div>
+                <button style={{...s.btn(),marginTop:'14px'}} onClick={runBacktest}>▶ Run Backtest</button>
+              </div>
+              {btResult?.error && <div style={{color:T.danger,fontSize:'13px'}}>{btResult.error}</div>}
+              {btResult && !btResult.error && (
+                <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px'}}>
+                    {[['Total Trades',btResult.totalTrades,T.text],['Win Rate',btResult.winRate+'%',parseInt(btResult.winRate)>=50?T.success:T.danger],['Return',btResult.totalReturn+'%',parseFloat(btResult.totalReturn)>=0?T.success:T.danger],['$1000 →','$'+btResult.finalEquity,parseFloat(btResult.finalEquity)>=1000?T.success:T.danger]].map(([l,v,c])=>(
+                      <div key={l} style={{textAlign:'center',padding:'10px',borderRadius:'8px',background:T.surface}}><div style={{fontSize:'10px',color:T.textMuted}}>{l}</div><div style={{fontSize:'16px',fontWeight:'900',color:c}}>{v}</div></div>
+                    ))}
+                  </div>
+                  {btResult.trades.length > 0 && (
+                    <div style={{overflowX:'auto'}}>
+                      <table style={{width:'100%',borderCollapse:'collapse',fontSize:'11px'}}>
+                        <thead><tr>{['Entry','Exit','P&L','Result'].map(h=><th key={h} style={{textAlign:'left',padding:'6px',color:T.textMuted,borderBottom:`1px solid ${T.border}`}}>{h}</th>)}</tr></thead>
+                        <tbody>{btResult.trades.map((t,i)=><tr key={i}><td style={{padding:'5px 6px',color:T.text}}>${t.entry}</td><td style={{padding:'5px 6px',color:T.text}}>${t.exit}</td><td style={{padding:'5px 6px',color:parseFloat(t.pnl)>=0?T.success:T.danger,fontWeight:'700'}}>{t.pnl}</td><td style={{padding:'5px 6px'}}>{t.win?'✅':'❌'}</td></tr>)}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div style={{fontSize:'10px',color:T.textMuted}}>⚠️ Past performance ≠ future results. Educational only.</div>
+                </div>
+              )}
+            </div>
+          )}
+          {!result1 || result1.error ? null : null}
+        </div>
+      )}
+
+      {/* ══ MARKET TAB (M6, M11, M14, M18) ══ */}
+      {mktTab === 'market' && (
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {/* M6: Sector heatmap */}
+          <div style={s.card}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div style={s.cardTitle}>🌡️ Sector Heatmap (ETFs)</div>
+              {Object.keys(sectorData).length === 0 && !sectorLoading && <button style={{...s.btn(),fontSize:'12px'}} onClick={loadSectors}>Load Sectors</button>}
+              {sectorLoading && <span style={{fontSize:'11px',color:T.textMuted}}>⏳ Loading...</span>}
+            </div>
+            {Object.keys(sectorData).length > 0 && (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px'}}>
+                {Object.values(sectorData).sort((a,b)=>b.change-a.change).map(sec => {
+                  const up = sec.change >= 0;
+                  const intensity = Math.min(1, Math.abs(sec.change) / 3);
+                  const bg = up ? `rgba(0,230,118,${0.1 + intensity * 0.4})` : `rgba(244,67,54,${0.1 + intensity * 0.4})`;
+                  return (
+                    <div key={sec.symbol} style={{padding:'12px 8px',borderRadius:'10px',background:bg,border:`1px solid ${up?T.success+'33':T.danger+'33'}`,textAlign:'center',cursor:'pointer'}} onClick={()=>{setSearch1(sec.symbol);setResult1(sec);setMktTab('quote');}}>
+                      <div style={{fontSize:'11px',fontWeight:'700',color:T.text}}>{sec.label}</div>
+                      <div style={{fontSize:'10px',color:T.textMuted}}>{sec.symbol}</div>
+                      <div style={{fontSize:'16px',fontWeight:'900',color:up?T.success:T.danger,marginTop:'4px'}}>{up?'+':''}{sec.change}%</div>
+                      <div style={{fontSize:'10px',color:T.textMuted}}>${fmtN(sec.price)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {Object.keys(sectorData).length === 0 && !sectorLoading && <div style={{color:T.textMuted,fontSize:'12px',textAlign:'center',padding:'20px 0'}}>Click "Load Sectors" to fetch live sector performance.</div>}
+          </div>
+
+          {/* M11: Screener */}
+          <div style={s.card}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div style={s.cardTitle}>🔎 Stock Screener</div>
+              <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                {['All','Stocks','Crypto','ETF'].map(t2=><button key={t2} onClick={()=>setScreenerType(t2)} style={{...s.btnGhost,fontSize:'11px',padding:'4px 10px',background:screenerType===t2?T.accentSoft:'transparent',color:screenerType===t2?T.accent:T.textMuted}}>{t2}</button>)}
+                {!screenerLoaded && <button style={{...s.btn(),fontSize:'12px'}} onClick={loadScreener}>Load</button>}
+                {screenerLoading && <span style={{fontSize:'11px',color:T.textMuted}}>⏳</span>}
+              </div>
+            </div>
+            {screenerLoaded && (
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px',minWidth:'500px'}}>
+                  <thead><tr>{['Symbol','Name','Price','Change','Type','Action'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 6px',color:T.textMuted,borderBottom:`1px solid ${T.border}`,fontSize:'11px'}}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {Object.values(screenerData).filter(a=>screenerType==='All'||a.type===screenerType).sort((a,b)=>b.change-a.change).map(a=>{
+                      const up=a.change>=0;
+                      return (
+                        <tr key={a.symbol} style={{borderBottom:`1px solid ${T.border}33`}} onMouseEnter={e=>e.currentTarget.style.background=T.surface} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <td style={{padding:'8px 6px',fontWeight:'800',color:T.text}}>{a.symbol}</td>
+                          <td style={{padding:'8px 6px',color:T.textMuted,fontSize:'11px'}}>{a.name}</td>
+                          <td style={{padding:'8px 6px',fontWeight:'700',color:T.text}}>{fmtPrice(a.price)}</td>
+                          <td style={{padding:'8px 6px',fontWeight:'700',color:up?T.success:T.danger}}>{up?'+':''}{a.change}%</td>
+                          <td style={{padding:'8px 6px'}}><span style={{...s.tag(T.accent),fontSize:'10px'}}>{a.type}</span></td>
+                          <td style={{padding:'8px 6px'}}><button style={{...s.btnGhost,fontSize:'10px',padding:'2px 8px'}} onClick={()=>{setSearch1(a.symbol);setResult1(a);setMktTab('quote');}}>View</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!screenerLoaded && !screenerLoading && <div style={{color:T.textMuted,fontSize:'12px',textAlign:'center',padding:'20px 0'}}>Click "Load" to fetch screener data.</div>}
+          </div>
+
+          {/* M18: Earnings calendar */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>📅 Upcoming Earnings</div>
+            <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+              {EARNINGS_CAL.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(e => {
+                const daysAway = Math.ceil((new Date(e.date)-new Date())/86400000);
+                const soon = daysAway >= 0 && daysAway <= 7;
+                return (
+                  <div key={e.sym} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 12px',borderRadius:'8px',background:soon?T.warning+'11':T.surface,border:`1px solid ${soon?T.warning+'44':T.border}`}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                      <span style={{fontWeight:'800',fontSize:'13px',color:T.text,minWidth:'50px'}}>{e.sym}</span>
+                      <span style={{fontSize:'11px',color:T.textMuted}}>{e.quarter}</span>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                      <span style={{fontSize:'11px',color:T.textMuted}}>{e.est}</span>
+                      <span style={{fontSize:'11px',fontWeight:'700',color:soon?T.warning:T.textMuted}}>{new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+                      {soon && <span style={{...s.tag(T.warning),fontSize:'10px'}}>{daysAway===0?'Today':`${daysAway}d`}</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* M14: Economic calendar */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>🏛️ Economic Calendar</div>
+            <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+              {ECON_EVENTS.sort((a,b)=>new Date(a.date)-new Date(b.date)).map((ev,i) => {
+                const daysAway = Math.ceil((new Date(ev.date)-new Date())/86400000);
+                const impactColor = ev.impact==='high'?T.danger:ev.impact==='medium'?T.warning:T.textMuted;
+                return (
+                  <div key={i} style={{display:'flex',gap:'10px',alignItems:'center',padding:'8px 12px',borderRadius:'8px',background:T.surface,border:`1px solid ${T.border}`}}>
+                    <div style={{width:'8px',height:'8px',borderRadius:'50%',background:impactColor,flexShrink:0}}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:'700',fontSize:'13px',color:T.text}}>{ev.event}</div>
+                      <div style={{fontSize:'11px',color:T.textMuted}}>{ev.desc}</div>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:'11px',fontWeight:'700',color:T.text}}>{new Date(ev.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+                      <div style={{fontSize:'10px',color:daysAway>=0&&daysAway<=14?T.warning:T.textMuted}}>{daysAway>=0?`in ${daysAway}d`:'Past'}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{fontSize:'10px',color:T.textMuted,marginTop:'8px'}}>⚠️ Dates are approximate — verify with official sources before trading.</div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ TOOLS TAB (M17, M12, M13) ══ */}
+      {mktTab === 'tools' && (
+        <div style={{display:'flex',flexDirection:'column',gap:16}}>
+          {/* M17: Position size calculator */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>🧮 Position Size Calculator</div>
+            <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'12px'}}>Calculates how many shares/units to buy based on your account size and risk tolerance.</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'12px'}}>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Account Size ($)</div><input type="number" style={s.input} value={psAccount} onChange={e=>setPsAccount(e.target.value)} placeholder="10000"/></div>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Risk per Trade (%)</div><input type="number" style={s.input} value={psRiskPct} onChange={e=>setPsRiskPct(e.target.value)} placeholder="1" step="0.5"/></div>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Entry Price ($)</div><input type="number" style={s.input} value={psEntry} onChange={e=>setPsEntry(e.target.value)} placeholder={result1?.price || '150.00'}/></div>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Stop Loss ($)</div><input type="number" style={s.input} value={psStop} onChange={e=>setPsStop(e.target.value)} placeholder="145.00"/></div>
+            </div>
+            {psCalc ? (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',padding:'12px',background:T.surface,borderRadius:'10px',border:`1px solid ${T.accent}33`}}>
+                {[['Shares to Buy',psCalc.shares,T.accent],['Position Value','$'+fmtN(psCalc.positionValue),T.text],['Max Loss','$'+fmtN(psCalc.maxLoss),T.danger],['Risk Amount','$'+fmtN(psCalc.riskAmount),T.warning]].map(([l,v,c])=>(
+                  <div key={l} style={{textAlign:'center'}}><div style={{fontSize:'10px',color:T.textMuted}}>{l}</div><div style={{fontSize:'18px',fontWeight:'900',color:c}}>{v}</div></div>
+                ))}
+              </div>
+            ) : <div style={{fontSize:'12px',color:T.textMuted,padding:'8px 0'}}>Fill in all fields (entry must be above stop) to calculate.</div>}
+            <div style={{fontSize:'10px',color:T.textMuted,marginTop:'8px'}}>Formula: Position Size = (Account × Risk%) ÷ (Entry - Stop Loss)</div>
+          </div>
+
+          {/* M12: Portfolio overlap checker */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>🔍 Portfolio Overlap vs S&P 500 Top 10</div>
+            {userSymbols.length === 0 ? <div style={{color:T.textMuted,fontSize:'12px'}}>Add investments to your portfolio to check overlap.</div> : (
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+                  <span style={{fontSize:'13px',fontWeight:'700',color:overlap.length>0?T.warning:T.success}}>{overlap.length > 0 ? `⚠️ ${overlap.length} overlap${overlap.length>1?'s':''} with S&P 500 top 10` : '✅ No overlap with S&P 500 top 10'}</span>
+                </div>
+                <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                  {SP500_TOP.map(sym => {
+                    const inPortfolio = userSymbols.includes(sym);
+                    return <span key={sym} style={{...s.tag(inPortfolio?T.warning:T.border), fontSize:'11px', border:`1px solid ${inPortfolio?T.warning+'66':T.border}`}}>{inPortfolio?'✓ ':''}{sym}</span>;
+                  })}
+                </div>
+                {concentration.length > 0 && (
+                  <div>
+                    <div style={{fontSize:'11px',fontWeight:'700',color:T.textMuted,marginBottom:'6px'}}>YOUR CONCENTRATION</div>
+                    {concentration.slice(0,6).map(c => (
+                      <div key={c.sym} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+                        <span style={{fontSize:'12px',fontWeight:'700',color:T.text,minWidth:'60px'}}>{c.sym}</span>
+                        <div style={{flex:1,margin:'0 10px',height:'6px',borderRadius:'3px',background:T.surface}}>
+                          <div style={{width:`${totalVal>0?(c.val/totalVal*100).toFixed(0):0}%`,height:'100%',background:c.val/totalVal>0.2?T.warning:T.accent,borderRadius:'3px'}}/>
+                        </div>
+                        <span style={{fontSize:'11px',color:T.textMuted,minWidth:'40px',textAlign:'right'}}>{totalVal>0?(c.val/totalVal*100).toFixed(1):0}%</span>
+                      </div>
+                    ))}
+                    {concentration.some(c=>c.val/totalVal>0.3) && <div style={{fontSize:'11px',color:T.warning,padding:'8px',background:T.warning+'11',borderRadius:'6px'}}>⚠️ One position exceeds 30% of portfolio — consider diversifying.</div>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* M13: Options calculator (Black-Scholes) */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>⚙️ Options Pricer (Black-Scholes)</div>
+            <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'12px'}}>Educational pricing model. Assumes European options, no dividends.</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'12px'}}>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Spot Price ($)</div><input type="number" style={s.input} value={optSpot} onChange={e=>setOptSpot(e.target.value)} placeholder={result1?.price||'150'}/></div>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Strike Price ($)</div><input type="number" style={s.input} value={optStrike} onChange={e=>setOptStrike(e.target.value)} placeholder="150"/></div>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Days to Expiry</div><input type="number" style={s.input} value={optExpiry} onChange={e=>setOptExpiry(e.target.value)} placeholder="30"/></div>
+              <div><div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Implied Volatility (%)</div><input type="number" style={s.input} value={optVol} onChange={e=>setOptVol(e.target.value)} placeholder="30"/></div>
+            </div>
+            <button style={s.btn()} onClick={calcOptions}>Calculate</button>
+            {optResult && (
+              <div style={{marginTop:'12px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
+                <div style={{padding:'12px',borderRadius:'10px',background:T.success+'11',border:`1px solid ${T.success}44`}}>
+                  <div style={{fontSize:'12px',fontWeight:'700',color:T.success,marginBottom:'8px'}}>📈 CALL Option</div>
+                  {[['Premium','$'+optResult.call],['Delta',optResult.deltaC],['Gamma',optResult.gamma],['Theta',optResult.theta+'/day']].map(([l,v])=>(
+                    <div key={l} style={{display:'flex',justifyContent:'space-between',fontSize:'11px',marginBottom:'4px'}}><span style={{color:T.textMuted}}>{l}</span><span style={{fontWeight:'700',color:T.text}}>{v}</span></div>
+                  ))}
+                </div>
+                <div style={{padding:'12px',borderRadius:'10px',background:T.danger+'11',border:`1px solid ${T.danger}44`}}>
+                  <div style={{fontSize:'12px',fontWeight:'700',color:T.danger,marginBottom:'8px'}}>📉 PUT Option</div>
+                  {[['Premium','$'+optResult.put],['Delta',optResult.deltaP],['Gamma',optResult.gamma],['Theta',optResult.theta+'/day']].map(([l,v])=>(
+                    <div key={l} style={{display:'flex',justifyContent:'space-between',fontSize:'11px',marginBottom:'4px'}}><span style={{color:T.textMuted}}>{l}</span><span style={{fontWeight:'700',color:T.text}}>{v}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -9494,7 +10081,7 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 // ─────────────────────────────────────────────
 // INSIGHTS TAB
 // ─────────────────────────────────────────────
-function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome }) {
+function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal }) {
   // B10 — safe fallbacks for all arrays in case they're undefined on first install
   const safeExpenses = expenses || [];
   const safeVitals = vitals || [];
@@ -9557,6 +10144,25 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
   if (savingsRate >= 20) wins.push(`💾 ${savingsRate.toFixed(0)}% savings rate — excellent!`);
   if (safeDebts.length > 0) wins.push(`💪 Tracking ${safeDebts.length} debt${safeDebts.length>1?'s':''}`);
 
+  // C19 — Trade performance stats
+  const tradeStats = useMemo(() => {
+    const trades = tradeJournal || [];
+    const sells = trades.filter(t=>t.type==='sell');
+    if (!sells.length) return null;
+    const withPnl = sells.map(t => {
+      const inv = (investments||[]).find(i=>(i.symbol||'').toUpperCase()===(t.symbol||'').toUpperCase());
+      const buyPrice = inv?.buyPrice ?? t.price;
+      return { ...t, pnl: (t.price - buyPrice) * t.qty };
+    });
+    const wins2 = withPnl.filter(t=>t.pnl>0);
+    const losses = withPnl.filter(t=>t.pnl<=0);
+    const winRate = sells.length > 0 ? (wins2.length/sells.length*100) : 0;
+    const totalPnl = withPnl.reduce((s,t)=>s+t.pnl,0);
+    const avgWin = wins2.length ? wins2.reduce((s,t)=>s+t.pnl,0)/wins2.length : 0;
+    const avgLoss = losses.length ? losses.reduce((s,t)=>s+t.pnl,0)/losses.length : 0;
+    return { winRate, totalPnl, avgWin, avgLoss, count: sells.length };
+  }, [tradeJournal, investments]);;
+
   async function sendChat() {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = chatInput; setChatInput(''); setChatLoading(true);
@@ -9599,6 +10205,27 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
         <div style={{background:T.success+'22',border:`1px solid ${T.success}44`,borderRadius:'10px',padding:'12px 16px'}}>
           <div style={{color:T.success,fontWeight:'700',marginBottom:'4px'}}>✅ Wins</div>
           {wins.map((w,i)=><div key={i} style={{fontSize:'13px',color:T.text}}>{w}</div>)}
+        </div>
+      )}
+
+      {/* C19 — Trade Performance Stats */}
+      {tradeStats && (
+        <div style={{...s.card,border:`1px solid ${tradeStats.totalPnl>=0?T.success+'44':T.danger+'44'}`}}>
+          <div style={s.cardTitle}>📒 Trade Performance</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'12px'}}>
+            {[
+              {label:'Win Rate',value:`${tradeStats.winRate.toFixed(0)}%`,color:tradeStats.winRate>=50?T.success:T.danger},
+              {label:'Total P&L',value:`${tradeStats.totalPnl>=0?'+':''}${settings.currency}${fmtN(Math.abs(tradeStats.totalPnl))}`,color:tradeStats.totalPnl>=0?T.success:T.danger},
+              {label:'Avg Win',value:`+${settings.currency}${fmtN(tradeStats.avgWin)}`,color:T.success},
+              {label:'Avg Loss',value:`${settings.currency}${fmtN(Math.abs(tradeStats.avgLoss))}`,color:T.danger},
+            ].map(stat=>(
+              <div key={stat.label} style={{textAlign:'center'}}>
+                <div style={{fontSize:'18px',fontWeight:'800',color:stat.color}}>{stat.value}</div>
+                <div style={{fontSize:'10px',color:T.textMuted,marginTop:'2px'}}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:'11px',color:T.textMuted,marginTop:'8px',textAlign:'right'}}>{tradeStats.count} closed trades</div>
         </div>
       )}
 
@@ -12096,7 +12723,7 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
 // ─────────────────────────────────────────────
 // CAREER TAB — v2 France / Tours / Ingénieur Mécanique
 // ─────────────────────────────────────────────
-function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps, setCareerApps, careerRex, setCareerRex, addXP, incomes, setIncomes }) {
+function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps, setCareerApps, careerRex, setCareerRex, addXP, incomes, setIncomes, goals, setGoals }) {
   const [activeSection, setActiveSection] = useState('cv');
   const [cvInput, setCvInput] = useState(careerProfile.cv || '');
   const [aiResult, setAiResult] = useState('');
@@ -12361,6 +12988,19 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
       }, 300);
     }
     if (status==='interview') addXP(20, 'Entretien décroché !');
+    // C13 — Link career goal: update progress on Career goals when pipeline advances
+    if (setGoals && goals) {
+      const stageScore = {applied:1, interview:2, offer:3, hired:4};
+      const score = stageScore[status] || 0;
+      if (score > 0) {
+        const app = careerApps.find(a=>a.id===id);
+        const careerGoals = goals.filter(g => (g.category||'').includes('Career') && (g.progress||0) < g.target);
+        if (careerGoals.length > 0) {
+          const g = careerGoals[0];
+          setGoals(gs=>gs.map(x=>x.id===g.id ? {...x, progress: Math.min(x.target, (x.progress||0) + score), note: `Last update: ${app?.company||''} → ${status}`} : x));
+        }
+      }
+    }
   }
 
   function addRex() {
@@ -12739,7 +13379,7 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
 // ─────────────────────────────────────────────
 // GMAIL TAB
 // ─────────────────────────────────────────────
-function GmailTab({ T, s, settings, gmailToken, setGmailToken }) {
+function GmailTab({ T, s, settings, gmailToken, setGmailToken, careerApps, setCareerApps }) {
   const [mails, setMails] = useState([]);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState({});
@@ -12961,10 +13601,20 @@ function GmailTab({ T, s, settings, gmailToken, setGmailToken }) {
             {filtered.map(mail => {
               const isExpanded = expandedMail === mail.id;
               const analysis = analyses[mail.id];
+              // C14 — Detect recruiter emails
+              const subjectL = (mail.subject||'').toLowerCase();
+              const snippetL = (mail.snippet||'').toLowerCase();
+              const fromL = (mail.from||'').toLowerCase();
+              const isRecruiter = ['opportunity','hiring','position','recruiter','recrutement','candidature','offre d\'emploi','job offer','interview','entretien','we found your profile','your application','applying for'].some(kw=>subjectL.includes(kw)||snippetL.includes(kw));
+              const extractCompany = () => {
+                const match = mail.from?.match(/@([^.>]+)\./);
+                return match ? match[1].charAt(0).toUpperCase()+match[1].slice(1) : mail.from?.split('<')[0]?.trim() || 'Unknown';
+              };
+              const alreadyTracked = (careerApps||[]).some(a => (a.company||'').toLowerCase() === extractCompany().toLowerCase() || (a.jobTitle||'').toLowerCase().includes(subjectL.slice(0,20)));
               return (
                 <div key={mail.id} style={{
                   ...s.card, padding:'14px 16px',
-                  border:`1px solid ${mail.isImportant ? T.warning+'44' : mail.isUnread ? T.accent+'44' : T.border}`,
+                  border:`1px solid ${isRecruiter ? T.success+'55' : mail.isImportant ? T.warning+'44' : mail.isUnread ? T.accent+'44' : T.border}`,
                   background: mail.isUnread ? T.accentSoft + '66' : T.card,
                 }}>
                   <div style={{ display:'flex', alignItems:'flex-start', gap:10 }}>
@@ -12973,6 +13623,7 @@ function GmailTab({ T, s, settings, gmailToken, setGmailToken }) {
                         {mail.isUnread && <span style={{ ...s.tag(T.accent), fontSize:10 }}>NEW</span>}
                         {mail.isImportant && <span style={{ ...s.tag(T.warning), fontSize:10 }}>⚡ Important</span>}
                         {mail.isStarred && <span style={{ fontSize:12 }}>⭐</span>}
+                        {isRecruiter && <span style={{ ...s.tag(T.success), fontSize:10 }}>🎯 Recruiter</span>}
                         <div style={{ fontWeight: mail.isUnread ? 700 : 400, fontSize:13, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                           {mail.subject}
                         </div>
@@ -12983,6 +13634,17 @@ function GmailTab({ T, s, settings, gmailToken, setGmailToken }) {
                       <div style={{ fontSize:12, color:T.textMuted, overflow: isExpanded ? 'visible' : 'hidden', textOverflow:'ellipsis', whiteSpace: isExpanded ? 'normal' : 'nowrap' }}>
                         {mail.snippet}
                       </div>
+                      {/* C14 — Add to career pipeline CTA */}
+                      {isRecruiter && !alreadyTracked && setCareerApps && (
+                        <button style={{...s.btn(T.success), fontSize:'11px', padding:'4px 10px', marginTop:'8px'}} onClick={()=>{
+                          const company = extractCompany();
+                          setCareerApps(a=>[...a,{id:Date.now(),company,jobTitle:mail.subject.slice(0,60),status:'applied',date:today(),note:`From Gmail: ${mail.from}`,url:'',experience:'',qualification:''}]);
+                          alert(`✅ Added "${company}" to your career pipeline!`);
+                        }}>+ Add to pipeline</button>
+                      )}
+                      {isRecruiter && alreadyTracked && (
+                        <span style={{fontSize:'10px',color:T.success,marginTop:'6px',display:'block'}}>✓ Already in pipeline</span>
+                      )}
                       {analysis && (
                         <div style={{ marginTop:10, padding:'10px 12px', background:T.accentSoft, borderRadius:8, border:`1px solid ${T.accent}33`, fontSize:12, color:T.text, lineHeight:1.7 }}>
                           <div style={{ fontSize:10, color:T.accent, fontWeight:700, marginBottom:4 }}>🤖 AI ANALYSIS</div>
