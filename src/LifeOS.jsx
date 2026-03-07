@@ -1111,6 +1111,14 @@ export default function LifeOS() {
   const [checkins, setCheckins] = useLocalStorage('los_checkins', []); // I15
   const [assetDepreciation, setAssetDepreciation] = useLocalStorage('los_depr', {}); // I19
   const [bondTracker, setBondTracker] = useLocalStorage('los_bonds', []); // I14
+  // ── Category 7 — New Features (v47) ─────────────────────────────────
+  const [scannedReceipts, setScannedReceipts] = useLocalStorage('los_receipts', []); // F1 Receipt Scanner
+  const [reminderSettings, setReminderSettings] = useLocalStorage('los_reminders', { habitEvening: true, billAlert: true, weeklyReview: true, habitTime: '20:00' }); // F6 Smart Reminders
+  const [scenarios, setScenarios] = useLocalStorage('los_scenarios', []); // F7 Scenario Planner
+  const [coachHistory, setCoachHistory] = useLocalStorage('los_coach_hist', []); // F8 AI Financial Coach
+  const [detectedRecurring, setDetectedRecurring] = useLocalStorage('los_detected_rec', []); // F9 Auto-detect recurring
+  const [socialChallenges, setSocialChallenges] = useLocalStorage('los_soc_challenges', []); // F10 Social Challenges
+  const [showReceiptScanner, setShowReceiptScanner] = useState(false);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [openHub, setOpenHub] = useState(null); // which hub is expanded: 'money'|'life'|'mind'|'career'|null
@@ -1823,6 +1831,9 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         <button onClick={()=>setShowQuickCapture(true)} style={{position:'fixed',bottom:'calc(108px + env(safe-area-inset-bottom, 0px))',right:'20px',width:'52px',height:'52px',borderRadius:'50%',background:T.accentGrad,border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',boxShadow:`0 6px 28px ${T.accentGlow}, 0 2px 8px #00000044`,zIndex:199,display:'flex',alignItems:'center',justifyContent:'center',transition:'transform 0.2s, box-shadow 0.2s',fontWeight:'300'}} title="Quick Capture (E)">+</button>
       )}
       {showQuickCapture && <QuickCaptureModal T={T} s={s} expenses={expenses} setExpenses={setExpenses} habits={habits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} quickNotes={quickNotes} setQuickNotes={setQuickNotes} settings={settings} addXP={addXP} customCategories={customCategories} onClose={()=>setShowQuickCapture(false)} />}
+      {showReceiptScanner && <ReceiptScannerModal T={T} s={s} settings={settings} setExpenses={setExpenses} scannedReceipts={scannedReceipts} setScannedReceipts={setScannedReceipts} addXP={addXP} onClose={()=>setShowReceiptScanner(false)} />}
+      {/* Global bridge for receipt scanner from QuickCapture */}
+      {useEffect(()=>{ window.__openReceiptScanner = ()=>setShowReceiptScanner(true); return ()=>{ delete window.__openReceiptScanner; }; }, [])}
 
 
       {/* ═══════════════════════════════════════════════════════════ */}
@@ -1939,115 +1950,121 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
             {/* ── CIRCULAR ARC POPUP above the tapped hub icon ── */}
             {expandedHub && hubAnchor && (() => {
               const tabs = expandedHub.tabs;
-              const n = tabs.length;
-              // Arc: spread bubbles in a semicircle above the anchor point
-              // Tighter spread so labels never drop below the dock
-              const R = Math.min(100, 72 + n * 6); // arc radius px
-              const spread = Math.min(90, 28 + n * 14); // reduced spread to keep all bubbles well above dock
-              const startAngle = 270 - spread / 2;
-              const step = n > 1 ? spread / (n - 1) : 0;
-              const BUBBLE = 58; // px per bubble
-              // Clamp anchor so arc never goes off-screen
-              const safeX = Math.max(BUBBLE, Math.min(window.innerWidth - BUBBLE, hubAnchor.x));
-              // Ensure bubbles never go below this Y (above dock with clearance for label pill)
-              const dockClearance = hubAnchor.y - BUBBLE - 30; // at least 30px above the dock top
+              const cols = Math.min(tabs.length, 4);
+              // Beautiful bottom-sheet that rises above the dock
+              const sheetW = Math.min(cols * 88 + (cols-1)*8 + 32, window.innerWidth - 24);
+              // Center it on the tapped hub icon, clamped to viewport
+              const sheetLeft = Math.max(12, Math.min(window.innerWidth - sheetW - 12, hubAnchor.x - sheetW/2));
 
               return (
-                <div style={{position:'fixed',inset:0,zIndex:195,pointerEvents:'none'}}>
-                  {/* Hub label pill */}
+                <div style={{position:'fixed', left: sheetLeft, bottom: window.innerHeight - hubAnchor.y + 10, zIndex:195, width: sheetW, pointerEvents:'none'}}>
+                  {/* Arrow pointing down to the hub icon */}
                   <div style={{
-                    position:'fixed',
-                    left: safeX,
-                    top: hubAnchor.y - R - 60,
-                    transform:'translateX(-50%)',
-                    pointerEvents:'none',
-                    background:`${T.surface}ee`,
-                    backdropFilter:'blur(12px)',
-                    border:`1px solid ${T.accent}44`,
-                    borderRadius:'20px',
-                    padding:'4px 14px',
-                    fontSize:'11px', fontWeight:'800', color:T.accent,
-                    letterSpacing:'1.5px', textTransform:'uppercase',
-                    whiteSpace:'nowrap',
-                    boxShadow:`0 4px 20px #00000044`,
-                    animation:'arcFadeIn 0.18s ease',
+                    position:'absolute', bottom:'-7px',
+                    left: Math.max(16, Math.min(sheetW-28, hubAnchor.x - sheetLeft - 8)),
+                    width:0, height:0,
+                    borderLeft:'8px solid transparent', borderRight:'8px solid transparent',
+                    borderTop:`8px solid ${T.accent}55`,
+                    filter:'drop-shadow(0 2px 4px #00000044)',
+                    zIndex:2,
+                  }}/>
+                  {/* Glass card */}
+                  <div style={{
+                    background:`linear-gradient(145deg, ${T.surface}f8 0%, ${T.card}f5 100%)`,
+                    backdropFilter:'blur(40px)', WebkitBackdropFilter:'blur(40px)',
+                    borderRadius:'22px',
+                    border:`1.5px solid ${T.accent}44`,
+                    boxShadow:`0 -4px 40px #00000066, 0 0 0 1px ${T.accent}18, inset 0 1px 0 #ffffff14`,
+                    overflow:'hidden',
+                    animation:'hubSheetPop 0.28s cubic-bezier(.34,1.4,.64,1)',
+                    pointerEvents:'auto',
                   }}>
-                    {expandedHub.icon} {expandedHub.label}
+                    {/* Hub header strip */}
+                    <div style={{
+                      padding:'10px 16px 8px',
+                      background:`linear-gradient(90deg, ${T.accent}18 0%, transparent 100%)`,
+                      borderBottom:`1px solid ${T.accent}22`,
+                      display:'flex', alignItems:'center', gap:'8px',
+                    }}>
+                      <span style={{fontSize:'16px', filter:`drop-shadow(0 0 6px ${T.accentGlow})`}}>{expandedHub.icon}</span>
+                      <span style={{
+                        fontSize:'11px', fontWeight:'900', letterSpacing:'2px', textTransform:'uppercase',
+                        background: T.accentGrad, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text',
+                      }}>{expandedHub.label}</span>
+                      <div style={{flex:1}}/>
+                      <button onClick={()=>{setOpenHub(null);setHubAnchor(null);}} style={{background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:'14px',lineHeight:1,padding:'2px 4px'}}>✕</button>
+                    </div>
+                    {/* Tab grid */}
+                    <div style={{
+                      display:'grid',
+                      gridTemplateColumns:`repeat(${cols}, 1fr)`,
+                      gap:'6px',
+                      padding:'12px 10px 14px',
+                    }}>
+                      {tabs.map((tab, i) => {
+                        const isActive = activeTab === tab.id;
+                        const badge = getBadge(tab.id);
+                        return (
+                          <button key={tab.id}
+                            onClick={()=>{ goToTab(expandedHub.id, tab.id); setHubAnchor(null); }}
+                            style={{
+                              display:'flex', flexDirection:'column', alignItems:'center', gap:'6px',
+                              padding:'10px 4px 8px',
+                              borderRadius:'16px',
+                              border:`1.5px solid ${isActive ? T.accent+'88' : T.accent+'18'}`,
+                              background: isActive
+                                ? `linear-gradient(145deg, ${T.accent}28 0%, ${T.accent}10 100%)`
+                                : `linear-gradient(145deg, ${T.surface}cc 0%, ${T.card}99 100%)`,
+                              cursor:'pointer',
+                              position:'relative',
+                              transition:'all 0.16s',
+                              boxShadow: isActive ? `0 0 16px ${T.accentGlow}44, inset 0 1px 0 ${T.accent}22` : `0 2px 8px #00000033, inset 0 1px 0 #ffffff0a`,
+                              animation:`hubIconPop 0.3s cubic-bezier(.34,1.5,.64,1) ${i*0.04}s both`,
+                            }}>
+                            {/* Icon with glow ring if active */}
+                            <div style={{position:'relative', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                              {isActive && (
+                                <div style={{
+                                  position:'absolute', inset:'-6px', borderRadius:'50%',
+                                  background:`radial-gradient(circle, ${T.accentGlow}55 0%, transparent 70%)`,
+                                  animation:'hubGlowPulse 2s ease-in-out infinite',
+                                }}/>
+                              )}
+                              <span style={{
+                                fontSize:'26px', lineHeight:1, display:'block',
+                                filter: isActive ? `drop-shadow(0 0 10px ${T.accentGlow})` : `drop-shadow(0 2px 4px #00000044)`,
+                                transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                                transition:'transform 0.2s',
+                              }}>{tab.icon}</span>
+                            </div>
+                            {/* Label — always fully visible */}
+                            <span style={{
+                              fontSize:'10px',
+                              fontWeight: isActive ? '800' : '600',
+                              color: isActive ? T.accent : T.text,
+                              lineHeight:1.2,
+                              textAlign:'center',
+                              whiteSpace:'nowrap',
+                              letterSpacing: isActive ? '0.3px' : '0',
+                            }}>{tab.label.replace(/^[^\s]+\s/, '')}</span>
+                            {/* Active dot */}
+                            {isActive && <div style={{position:'absolute',bottom:'4px',left:'50%',transform:'translateX(-50%)',width:'4px',height:'4px',borderRadius:'50%',background:T.accent,boxShadow:`0 0 6px ${T.accentGlow}`}}/>}
+                            {/* Badge */}
+                            {badge && (
+                              <div style={{
+                                position:'absolute', top:'4px', right:'4px',
+                                background:T.accent, color:'#fff',
+                                fontSize:'8px', fontWeight:'800',
+                                padding:'1px 4px', borderRadius:'99px',
+                                border:`1.5px solid ${T.surface}`,
+                                lineHeight:1.4,
+                              }}>{badge}</div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-
-                  {/* Arc bubbles */}
-                  {tabs.map((tab, i) => {
-                    const angleDeg = startAngle + i * step;
-                    const angleRad = (angleDeg * Math.PI) / 180;
-                    const bx = safeX + R * Math.cos(angleRad);
-                    // Clamp so bubble + label never overlaps dock
-                    const rawBy = hubAnchor.y + R * Math.sin(angleRad);
-                    const by = Math.min(rawBy, dockClearance); // never below dock clearance
-                    const isActive = activeTab === tab.id;
-                    const badge = getBadge(tab.id);
-                    const delay = `${i * 0.04}s`;
-                    return (
-                      <div key={tab.id}
-                        onClick={()=>{ goToTab(expandedHub.id, tab.id); setHubAnchor(null); }}
-                        style={{
-                          position:'fixed',
-                          left: bx, top: by,
-                          transform:'translate(-50%,-50%)',
-                          pointerEvents:'auto', cursor:'pointer',
-                          display:'flex', flexDirection:'column', alignItems:'center', gap:'4px',
-                          animation:`arcPop 0.28s cubic-bezier(.34,1.56,.64,1) ${delay} both`,
-                        }}>
-                        {/* Bubble circle */}
-                        <div style={{
-                          width:'52px', height:'52px', borderRadius:'50%',
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          background: isActive ? T.accentGrad : `${T.surface}f0`,
-                          backdropFilter:'blur(16px)',
-                          border:`2px solid ${isActive ? T.accent : T.accent+'44'}`,
-                          boxShadow: isActive
-                            ? `0 0 0 4px ${T.accent}33, 0 8px 24px #00000055`
-                            : `0 4px 16px #00000044`,
-                          transition:'all 0.15s',
-                          position:'relative',
-                        }}>
-                          <span style={{
-                            fontSize:'22px', lineHeight:1,
-                            filter: isActive ? `drop-shadow(0 0 8px ${T.accentGlow})` : 'none',
-                          }}>{tab.icon}</span>
-                          {/* Badge */}
-                          {badge && (
-                            <div style={{
-                              position:'absolute', top:'-4px', right:'-4px',
-                              background:T.accent, color:'#fff',
-                              fontSize:'8px', fontWeight:'800',
-                              padding:'1px 4px', borderRadius:'99px',
-                              border:`1.5px solid ${T.surface}`,
-                            }}>{badge}</div>
-                          )}
-                          {/* Active ring pulse */}
-                          {isActive && (
-                            <div style={{
-                              position:'absolute', inset:'-5px', borderRadius:'50%',
-                              border:`2px solid ${T.accent}55`,
-                              animation:'arcPulse 1.5s ease-in-out infinite',
-                            }}/>
-                          )}
-                        </div>
-                        {/* Label pill below bubble */}
-                        <div style={{
-                          background:`${T.surface}f0`,
-                          backdropFilter:'blur(8px)',
-                          border:`1px solid ${isActive ? T.accent+'66' : T.border}`,
-                          borderRadius:'10px',
-                          padding:'2px 8px',
-                          fontSize:'9px', fontWeight: isActive ? '800' : '600',
-                          color: isActive ? T.accent : T.textMuted,
-                          whiteSpace:'nowrap',
-                          boxShadow:'0 2px 8px #00000033',
-                        }}>{tab.label}</div>
-                      </div>
-                    );
-                  })}
                 </div>
               );
             })()}
@@ -2136,9 +2153,17 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
             </div>
 
             <style>{`
-              @keyframes arcPop {
-                from { opacity:0; transform:translate(-50%,-50%) scale(0.3); }
-                to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+              @keyframes hubSheetPop {
+                from { opacity:0; transform:translateY(16px) scale(0.95); }
+                to   { opacity:1; transform:translateY(0) scale(1); }
+              }
+              @keyframes hubIconPop {
+                from { opacity:0; transform:scale(0.5) translateY(8px); }
+                to   { opacity:1; transform:scale(1) translateY(0); }
+              }
+              @keyframes hubGlowPulse {
+                0%,100% { opacity:0.7; transform:scale(1); }
+                50%     { opacity:0.3; transform:scale(1.3); }
               }
               @keyframes arcFadeIn {
                 from { opacity:0; transform:translateX(-50%) translateY(8px); }
@@ -2615,35 +2640,6 @@ function OnboardingWizard({ T, s, settings, setSettings, onComplete, step, setSt
 // ─────────────────────────────────────────────
 // DASHBOARD TAB
 // ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// PAGE HELP — collapsible guide shown on each tab
-// ─────────────────────────────────────────────
-function PageHelp({ T, s, title, tips }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{...s.card, border:`1px solid ${T.accent}22`, padding:'10px 14px'}}>
-      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:'8px',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0}}>
-        <span style={{fontSize:'14px'}}>💡</span>
-        <span style={{fontSize:'11px',fontWeight:'700',color:T.textMuted,flex:1,textAlign:'left',textTransform:'uppercase',letterSpacing:'1px'}}>{title}</span>
-        <span style={{fontSize:'12px',color:T.textMuted}}>{open ? '▲ Hide' : '▼ How to use'}</span>
-      </button>
-      {open && (
-        <div style={{marginTop:'10px',display:'flex',flexDirection:'column',gap:'6px'}}>
-          {tips.map((tip,i) => (
-            <div key={i} style={{display:'flex',gap:'10px',alignItems:'flex-start',padding:'6px 0',borderTop:i>0?`1px solid ${T.border}22`:'none'}}>
-              <span style={{fontSize:'14px',flexShrink:0}}>{tip.icon}</span>
-              <div>
-                <div style={{fontSize:'12px',fontWeight:'700',color:T.text}}>{tip.title}</div>
-                <div style={{fontSize:'11px',color:T.textMuted,lineHeight:1.5,marginTop:'2px'}}>{tip.desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes, weeklyBriefHistory, setWeeklyBriefHistory }) {
   const [quickAmount, setQuickAmount] = useState('');
   const [quickCat, setQuickCat] = useState('🍽️ Food');
@@ -2726,14 +2722,6 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
         </div>
       </div>
 
-      <PageHelp T={T} s={s} title="Dashboard Guide" tips={[
-        {icon:'📊', title:'Overview widgets', desc:'The 4 stat cards show your key numbers. Tap any card to navigate to that section.'},
-        {icon:'✅', title:'Today\'s Quests', desc:'Check off your daily habits here. Each completion earns XP toward your next level.'},
-        {icon:'💸', title:'Quick Log', desc:'Instantly record an expense (amount + category + note) or log your sleep/mood for the day. No navigation needed.'},
-        {icon:'📅', title:'Week Planner', desc:'Tap any day in the 7-day strip to add tasks or goals for that day. Track your week at a glance.'},
-        {icon:'🚨', title:'Smart Alerts', desc:'Red/yellow banners appear automatically when you\'re over budget, have a bill due, or data is missing.'},
-      ]} />
-
       {/* SMART ALERTS */}
       {smartAlerts.length > 0 && (
         <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
@@ -2790,7 +2778,7 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
         </div>
       </div>
 
-      <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr', gap:'16px', alignItems:'start'}}>
+      <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr 1fr', gap:'16px'}}>
         {/* TODAY'S QUESTS */}
         <div style={s.card}>
           <div style={s.cardTitle}>{t('dash_quests')}</div>
@@ -2809,8 +2797,45 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
           {todayHabits.length === 0 && <div style={{color:T.textMuted, fontSize:'13px'}}>{t('dash_no_habits')} <span style={{color:T.accent, cursor:'pointer'}} onClick={() => setActiveTab('quests')}>{t('create')} →</span></div>}
         </div>
 
-        {/* WEEKLY PLANNER */}
+        {/* QUICK LOG */}
         <div style={s.card}>
+          <div style={s.cardTitle}>{t('dash_quicklog')}</div>
+          {/* Amount */}
+          <div style={{marginBottom:'8px'}}>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('amount')} ({settings.currency})</div>
+            <input type="number" placeholder="0.00" style={{...s.input, width:'100%'}} value={quickAmount} onChange={e => setQuickAmount(e.target.value)} />
+          </div>
+          {/* Category */}
+          <div style={{marginBottom:'8px'}}>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('category')}</div>
+            <select style={{...s.select, width:'100%'}} value={quickCat} onChange={e=>setQuickCat(e.target.value)}>
+              {Object.keys(SPENDING_CATEGORIES).map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          {/* Note */}
+          <div style={{marginBottom:'10px'}}>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('note')} ({t('optional')})</div>
+            <input placeholder={t('note')} style={{...s.input, width:'100%'}} value={quickNote||''} onChange={e => setQuickNote(e.target.value)} />
+          </div>
+          <button style={{...s.btn(), width:'100%', marginBottom:'14px'}} onClick={quickLogExpense}>{t('dash_log_expense')}</button>
+          <div style={{borderTop:`1px solid ${T.border}`, paddingTop:'12px'}}>
+            <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'8px'}}>{t('dash_vitals_label')}</div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'10px'}}>
+              <div>
+                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_sleep')} {quickSleep}h</div>
+                <input type="range" min="4" max="10" step="0.5" value={quickSleep} onChange={e=>setQuickSleep(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
+              </div>
+              <div>
+                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_mood')} {quickMood}/10</div>
+                <input type="range" min="1" max="10" value={quickMood} onChange={e=>setQuickMood(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
+              </div>
+            </div>
+            <button style={{...s.btn(T.success), width:'100%'}} onClick={quickLogVitals}>{t('dash_log_vitals')} +5xp</button>
+          </div>
+        </div>
+
+        {/* WEEKLY PLANNER — I24 */}
+        <div style={{...s.card, gridColumn: s.isMobile ? 'span 1' : 'span 1'}}>
           <div style={{...s.cardTitle, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <span>📅 Week Planner</span>
             <button style={s.btnGhost} onClick={() => setShowWF(!showWF)}>{showWF ? '▲' : '▼'}</button>
@@ -2868,47 +2893,6 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
             );
           })()}
           {longestStreak > 0 && <div style={{marginTop:'10px', padding:'6px 8px', background:T.accentSoft, borderRadius:'6px', fontSize:'11px', color:T.accent}}>🔥 {t('dash_best_streak')}: {longestStreak} days</div>}
-        </div>
-      </div>
-
-      {/* QUICK LOG — full width for easy access */}
-      <div style={s.card}>
-        <div style={s.cardTitle}>{t('dash_quicklog')}</div>
-        <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr', gap:'16px'}}>
-          {/* Expense section */}
-          <div>
-            <div style={{fontSize:'12px', fontWeight:'700', color:T.text, marginBottom:'10px'}}>💸 {t('dash_log_expense')}</div>
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px'}}>
-              <div>
-                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('amount')} ({settings.currency})</div>
-                <input type="number" placeholder="0.00" style={{...s.input, width:'100%'}} value={quickAmount} onChange={e => setQuickAmount(e.target.value)} />
-              </div>
-              <div>
-                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('category')}</div>
-                <select style={{...s.select, width:'100%'}} value={quickCat} onChange={e=>setQuickCat(e.target.value)}>
-                  {Object.keys(SPENDING_CATEGORIES).map(c => <option key={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-            <div style={{marginBottom:'10px'}}>
-              <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('note')} ({t('optional')})</div>
-              <input placeholder={t('note')} style={{...s.input, width:'100%'}} value={quickNote||''} onChange={e => setQuickNote(e.target.value)} />
-            </div>
-            <button style={{...s.btn(), width:'100%'}} onClick={quickLogExpense}>{t('dash_log_expense')} +5xp</button>
-          </div>
-          {/* Vitals section */}
-          <div>
-            <div style={{fontSize:'12px', fontWeight:'700', color:T.text, marginBottom:'10px'}}>😴 {t('dash_vitals_label')}</div>
-            <div style={{marginBottom:'12px'}}>
-              <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_sleep')} — {quickSleep}h</div>
-              <input type="range" min="4" max="10" step="0.5" value={quickSleep} onChange={e=>setQuickSleep(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
-            </div>
-            <div style={{marginBottom:'12px'}}>
-              <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_mood')} — {quickMood}/10</div>
-              <input type="range" min="1" max="10" value={quickMood} onChange={e=>setQuickMood(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
-            </div>
-            <button style={{...s.btn(T.success), width:'100%'}} onClick={quickLogVitals}>{t('dash_log_vitals')} +5xp</button>
-          </div>
         </div>
       </div>
 
@@ -3341,7 +3325,7 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>⚔️ Character <InfoButton tab="character" T={T} s={s} /></span></div>
+        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>⚔️ Character</div>
       </div>
 
       {/* Sub-tab strip */}
@@ -4983,63 +4967,6 @@ const TAB_INFO = {
       { head: 'Session Log', body: 'Every focus session is recorded with duration and category for productivity tracking.' },
     ]
   },
-  investments: {
-    title: '📈 Investments',
-    sections: [
-      { head: 'Add a Position', body: 'Log stocks, ETFs, crypto or funds with ticker, quantity, and buy price. Current value updates based on your entries.' },
-      { head: 'Investment Thesis', body: 'Write a thesis for each holding explaining WHY you own it. The Thesis Decay Checker flags positions where the thesis is over 90 days old.' },
-      { head: 'Trade Journal', body: 'Log every buy/sell with notes. Invaluable for reviewing your decision quality over time.' },
-      { head: 'AI Advisor', body: 'Chat with the AI investment advisor by setting your risk profile, horizon, and available capital. Educational only — not financial advice.' },
-      { head: 'Price Alerts', body: 'Set target and stop prices for any symbol. You\'ll get an alert when the threshold is hit.' },
-    ]
-  },
-  mindbody: {
-    title: '🧘 Mind & Body',
-    sections: [
-      { head: 'Vitals Tab', body: 'Log sleep hours, mood, and quality each day. These feed into your Insights correlations.' },
-      { head: 'Focus Timer', body: 'Use the Pomodoro-style timer to track deep work sessions. Sessions earn XP and are logged for analytics.' },
-      { head: 'Focus Billing Mode', body: 'Toggle on and enter your hourly rate to see the monetary value of your focus sessions.' },
-      { head: 'AI Health Coach', body: 'Get AI-powered meal suggestions (enter available ingredients) or personalized sleep tips based on your vitals data.' },
-      { head: 'Custom Metrics', body: 'Track anything personal — weight, HRV, steps — with custom metric trackers. Charts show 30-day trends.' },
-    ]
-  },
-  learn: {
-    title: '📚 Learn',
-    sections: [
-      { head: 'Topics', body: 'Create learning topics (e.g. "Python", "French", "Investing"). Each topic gets its own notes, session log, and AI tutor.' },
-      { head: 'Log a Session', body: 'Record study sessions with duration and summary. Tracks your total hours per topic.' },
-      { head: 'Flashcards', body: 'Create Q&A flashcards for any topic. Review mode randomly cycles through them.' },
-      { head: 'AI Tutor', body: 'Chat with an AI tutor specialized for your active topic. Conversations can be saved as notes.' },
-    ]
-  },
-  character: {
-    title: '🦸 Character',
-    sections: [
-      { head: 'Profile & Level', body: 'Your level grows with XP earned from habits, expenses, goals, and focus sessions. Each level unlocks new perks.' },
-      { head: 'Hero Class', body: 'Your class evolves based on your dominant activity. Log more financial habits → Finance Wizard. More fitness → Warrior.' },
-      { head: 'Quests', body: 'Create daily or weekly habits. Check them off each day to build streaks and earn XP. Use the 7-day review calendar to catch up.' },
-      { head: 'Chronicles', body: 'Write journal-style entries about your life journey. These are private logs that don\'t affect XP.' },
-      { head: 'Achievements', body: 'Badges unlock automatically when you hit milestones — 7-day streak, first investment, zero debt, etc.' },
-    ]
-  },
-  cashflow: {
-    title: '📅 Cash Flow',
-    sections: [
-      { head: 'Recurring Expenses', body: 'Add fixed monthly costs like rent, utilities, phone. These auto-populate the cash flow calendar.' },
-      { head: 'Subscriptions', body: 'Track all subscriptions separately. The Subscription Audit panel flags any that haven\'t matched a real expense in 60+ days.' },
-      { head: 'Bills', body: 'Log bills with due dates. Bills due within 3 days trigger smart alerts on the Dashboard.' },
-      { head: 'Financial Calendar', body: 'Monthly grid view showing income and expense events day by day. Spot cash crunches before they happen.' },
-    ]
-  },
-  tools: {
-    title: '🛠️ Finance Tools',
-    sections: [
-      { head: 'Natural Language Search', body: 'Type queries like "coffee last month" or "over 50 euros" to instantly find matching expenses.' },
-      { head: 'Paycheck Planner', body: 'Envelope-style budget: allocate your monthly income into named buckets and track how much remains in each.' },
-      { head: 'Expense Splits', body: 'Track shared expenses with friends or a partner. Mark who owes whom and settle up.' },
-      { head: 'Subscription Audit', body: 'Flags subscriptions that haven\'t matched any real expense in 60+ days — potential zombie subscriptions.' },
-    ]
-  },
 };
 
 function InfoButton({ tab, T, s }) {
@@ -5147,7 +5074,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>💰 Money Hub <InfoButton tab="spending" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>💰 Money Hub</div>
       <div className="los-tab-strip">
         {[
           {id:'hoard',       label:'🏦 Hoard'},
@@ -5169,7 +5096,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
         <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
       )}
       {subTab==='intelligence' && (
-        <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} />
+        <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />
       )}
       {subTab==='discipline' && (
         <DisciplineView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} savingsRate={savingsRate} budgetTargets={budgetTargets} />
@@ -9095,7 +9022,7 @@ Be concise, specific, and actionable. Educational purposes only — not official
       {/* HEADER */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
         <div>
-          <div style={{ fontFamily:"'Exo 2',sans-serif", fontSize:22, fontWeight:900 }}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('inv_title')} <InfoButton tab="investments" T={T} s={s} /></span></div>
+          <div style={{ fontFamily:"'Exo 2',sans-serif", fontSize:22, fontWeight:900 }}>{t('inv_title')}</div>
           <div style={{ fontSize:11, color: statusColor, marginTop:2 }}>
             {priceStatus === 'live'    ? `🟢 Live · Updated ${lastRefresh?.toLocaleTimeString()}` :
              priceStatus === 'loading' ? '⏳ Fetching live prices...' :
@@ -9719,7 +9646,7 @@ function LearnTab({ T, s, addXP, settings }) {
     return (
       <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>📚 Learning Hub <InfoButton tab="learn" T={T} s={s} /></span></div>
+          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>📚 Learning Hub</div>
           <div style={{display:'flex',gap:'8px'}}>
             <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>{setShowLogSession(true);setSessionForm(f=>({...f,topicId:topics[0]?.id||''}));}}>⏱️ Log Session</button>
             <button style={{...s.btn(),fontSize:'12px'}} onClick={()=>setShowAddTopic(true)}>+ New Topic</button>
@@ -11283,7 +11210,7 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>🧘 Mind & Body <InfoButton tab="mindbody" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>🧘 Mind & Body</div>
 
       <div className="los-tab-strip">
         {[{id:'vitals',label:'😴 Vitals'},{id:'focus',label:'⏱️ Focus'},{id:'aihealth',label:'🤖 AI Health'}].map(st=>(
@@ -12529,24 +12456,60 @@ function QuickCaptureModal({ T, s, expenses, setExpenses, habits, habitLogs, set
   }
 
   return (
-    <div style={{position:'fixed',inset:0,background:'#00000088',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:500,paddingBottom:'80px'}}>
-      <div style={{...s.card,width:'480px',border:`1px solid ${T.accent}44`,boxShadow:`0 0 40px ${T.accentGlow}`}}>
-        <div style={{display:'flex',gap:'8px',marginBottom:'16px'}}>
+    <div style={{position:'fixed',inset:0,background:'#00000099',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:500}}>
+      <div style={{
+        ...s.card,
+        width:'100%', maxWidth:'520px',
+        border:`1px solid ${T.accent}55`,
+        boxShadow:`0 0 60px ${T.accentGlow}44`,
+        borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+        borderRadius:'20px 20px 0 0',
+        maxHeight:'85vh',
+        overflowY:'auto',
+        paddingBottom:'max(20px, env(safe-area-inset-bottom, 20px))',
+      }}>
+        {/* Mode tabs + close */}
+        <div style={{display:'flex',gap:'6px',marginBottom:'18px',alignItems:'center'}}>
           {[{id:'expense',label:'💸 Expense'},{id:'habit',label:'📜 Habit'},{id:'note',label:'📝 Note'}].map(m=>(
-            <button key={m.id} style={{...s.btnGhost,flex:1,background:mode===m.id?T.accentSoft:'transparent',color:mode===m.id?T.accent:T.textMuted,fontSize:'12px'}} onClick={()=>setMode(m.id)}>{m.label}</button>
+            <button key={m.id} style={{...s.btnGhost,flex:1,background:mode===m.id?T.accentSoft:'transparent',color:mode===m.id?T.accent:T.textMuted,fontSize:'13px',padding:'8px 4px',fontWeight:mode===m.id?'700':'400'}} onClick={()=>setMode(m.id)}>{m.label}</button>
           ))}
-          <button style={{background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:'18px'}} onClick={onClose}>✕</button>
+          <button style={{background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:'20px',padding:'4px 8px',lineHeight:1}} onClick={onClose}>✕</button>
         </div>
+
         {mode === 'expense' && (
-          <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
-            <div style={{display:'flex',gap:'10px'}}>
-              <input type="number" autoFocus style={{...s.input,flex:1}} placeholder={`Amount (${settings.currency})`} value={amount} onChange={e=>setAmount(e.target.value)} onKeyDown={e=>e.key==='Enter'&&save()} />
-              <select style={s.select} value={cat} onChange={e=>setCat(e.target.value)}>
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            {/* Amount — large prominent input */}
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'5px',fontWeight:'700',letterSpacing:'0.5px'}}>AMOUNT ({settings.currency})</div>
+              <input
+                type="number"
+                autoFocus
+                style={{...s.input, fontSize:'28px', fontWeight:'900', height:'56px', textAlign:'center', color:T.accent}}
+                placeholder="0.00"
+                value={amount}
+                onChange={e=>setAmount(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&save()}
+              />
+            </div>
+            {/* Category */}
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'5px',fontWeight:'700',letterSpacing:'0.5px'}}>CATEGORY</div>
+              <select style={{...s.select,width:'100%',fontSize:'14px',height:'44px'}} value={cat} onChange={e=>setCat(e.target.value)}>
                 {allCats.map(c=><option key={c}>{c}</option>)}
               </select>
-              <input style={{...s.input,flex:2}} placeholder="Note (optional)" value={note} onChange={e=>setNote(e.target.value)} />
             </div>
-            <button style={{...s.btn(T.danger),width:'100%'}} onClick={save}>Log Expense</button>
+            {/* Note */}
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'5px',fontWeight:'700',letterSpacing:'0.5px'}}>NOTE <span style={{fontWeight:'400'}}>(optional)</span></div>
+              <input style={{...s.input,width:'100%',fontSize:'14px'}} placeholder="What was this for?" value={note} onChange={e=>setNote(e.target.value)} onKeyDown={e=>e.key==='Enter'&&save()} />
+            </div>
+            <button style={{...s.btn(T.danger),width:'100%',fontSize:'16px',padding:'14px',fontWeight:'800',marginTop:'4px'}} onClick={save}>
+              Log {settings.currency}{amount||'0'} Expense +5xp
+            </button>
+            <button style={{...s.btnGhost,width:'100%',fontSize:'13px',padding:'10px',marginTop:'2px',display:'flex',alignItems:'center',justifyContent:'center',gap:'8px'}}
+              onClick={()=>{onClose(); if(typeof window.__openReceiptScanner==='function') window.__openReceiptScanner();}}>
+              📸 Scan Receipt instead
+            </button>
           </div>
         )}
         {mode === 'habit' && (
@@ -12642,7 +12605,7 @@ function FocusModeOverlay({ T, s, settings, habits, habitLogs, setHabitLogs, thi
 // ─────────────────────────────────────────────
 // FINANCE TAB — Financial Intelligence
 // ─────────────────────────────────────────────
-function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsRate, thisMonthIncome, thisMonthSpend, netWorth, financialHealthScore, bills, setBills, budgetTargets, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, addXP, emergencyFund, setEmergencyFund, recurringIncomes, setRecurringIncomes, weeklyBriefHistory, setWeeklyBriefHistory, vitals, habits, habitLogs }) {
+function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsRate, thisMonthIncome, thisMonthSpend, netWorth, financialHealthScore, bills, setBills, budgetTargets, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, addXP, emergencyFund, setEmergencyFund, recurringIncomes, setRecurringIncomes, weeklyBriefHistory, setWeeklyBriefHistory, vitals, habits, habitLogs, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
   const [whatIfCut, setWhatIfCut] = useState({ category: '🍽️ Food', amount: 100 });
   const [billForm, setBillForm] = useState({ name:'', amount:'', day:1 });
   const [showBills, setShowBills] = useState(true);
@@ -13004,6 +12967,21 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
 
       {/* I18 — AI WEEKLY BRIEF */}
       <AIWeeklyBrief T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} habits={habits||[]} habitLogs={habitLogs||{}} vitals={vitals||[]} savingsRate={savingsRate} netWorth={netWorth} debts={debts} weeklyBriefHistory={weeklyBriefHistory||[]} setWeeklyBriefHistory={setWeeklyBriefHistory||(() => {})} />
+
+      {/* F7 — SCENARIO PLANNER */}
+      <ScenarioPlannerPanel T={T} s={s} settings={settings} scenarios={scenarios||[]} setScenarios={setScenarios||(() => {})} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} netWorth={netWorth} debts={debts} />
+
+      {/* F8 — AI FINANCIAL COACH */}
+      <AIFinancialCoach T={T} s={s} settings={settings} coachHistory={coachHistory||[]} setCoachHistory={setCoachHistory||(() => {})} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} netWorth={netWorth} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} />
+
+      {/* F9 — RECURRING AUTO-DETECT */}
+      <RecurringAutoDetect T={T} s={s} settings={settings} expenses={expenses} detectedRecurring={detectedRecurring||[]} setDetectedRecurring={setDetectedRecurring||(() => {})} recurringIncomes={recurringIncomes||[]} setRecurringIncomes={setRecurringIncomes||(() => {})} />
+
+      {/* F10 — SOCIAL CHALLENGES */}
+      <SocialChallengesPanel T={T} s={s} settings={settings} socialChallenges={socialChallenges||[]} setSocialChallenges={setSocialChallenges||(() => {})} expenses={expenses} habits={habits||[]} habitLogs={habitLogs||{}} savingsRate={savingsRate} addXP={addXP} />
+
+      {/* F6 — SMART REMINDERS CONFIG */}
+      <SmartRemindersPanel T={T} s={s} reminderSettings={reminderSettings||{}} setReminderSettings={setReminderSettings||(() => {})} expenses={expenses} habits={habits||[]} habitLogs={habitLogs||{}} bills={bills||[]} />
     </div>
   );
 }
@@ -15778,6 +15756,691 @@ function ThesisDecayChecker({ T, s, investments, thesisBySymbol, setThesisBySymb
         );
       })}
       {investments.length === 0 && <div style={{ color: T.textMuted, fontSize: '12px' }}>Add investments in Portfolio to track their thesis.</div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F1 — RECEIPT SCANNER MODAL
+// ═══════════════════════════════════════════════════════════════════
+function ReceiptScannerModal({ T, s, settings, setExpenses, scannedReceipts, setScannedReceipts, addXP, onClose }) {
+  const [imgData, setImgData] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editCat, setEditCat] = useState('🍽️ Food');
+  const [editNote, setEditNote] = useState('');
+  const fileRef = useRef();
+
+  async function scanReceipt(base64) {
+    setScanning(true); setError('');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:400,
+          messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64}},
+            {type:'text',text:'Extract from this receipt: total amount, merchant/store name, and best expense category from: Food, Transport, Shopping, Entertainment, Health, Home, Education, Travel, Other. Reply ONLY with JSON: {"amount": number, "merchant": "string", "category": "string", "date": "YYYY-MM-DD or null"}'}
+          ]}]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || '';
+      const clean = text.replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(clean);
+      setResult(parsed);
+      setEditAmount(String(parsed.amount||''));
+      setEditNote(parsed.merchant||'');
+      const catMap = {'Food':'🍽️ Food','Transport':'🚗 Transport','Shopping':'🛍️ Shopping','Entertainment':'🎭 Entertainment','Health':'💊 Health','Home':'🏠 Home','Education':'📚 Education','Travel':'✈️ Travel'};
+      setEditCat(catMap[parsed.category]||'🛍️ Shopping');
+    } catch(e) { setError('Could not read receipt. Try a clearer photo.'); }
+    setScanning(false);
+  }
+
+  function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const b64 = e.target.result.split(',')[1];
+      setImgData(e.target.result);
+      scanReceipt(b64);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function saveExpense() {
+    if (!editAmount) return;
+    const entry = { id:Date.now(), amount:Number(editAmount), category:editCat, subcategory:'', note:editNote, date:today() };
+    setExpenses(ex=>[...ex, entry]);
+    setScannedReceipts(r=>[{...entry, scannedAt:new Date().toISOString(), imgPreview:imgData?.slice(0,100)},...r].slice(0,50));
+    addXP(8,'Receipt scanned 📸');
+    onClose();
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'#000000bb',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:600}}>
+      <div style={{...s.card,width:'100%',maxWidth:'520px',borderRadius:'20px 20px 0 0',border:`1px solid ${T.accent}44`,maxHeight:'90vh',overflowY:'auto',paddingBottom:'max(20px,env(safe-area-inset-bottom))'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px'}}>
+          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'18px',fontWeight:'900'}}>📸 Receipt Scanner</div>
+          <button style={{...s.btnGhost,padding:'4px 10px'}} onClick={onClose}>✕</button>
+        </div>
+
+        {!imgData && (
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            <div style={{border:`2px dashed ${T.accent}44`,borderRadius:'16px',padding:'40px 20px',textAlign:'center',cursor:'pointer',background:T.accentSoft}} onClick={()=>fileRef.current?.click()}>
+              <div style={{fontSize:'48px',marginBottom:'12px'}}>📷</div>
+              <div style={{fontWeight:'700',color:T.text,marginBottom:'4px'}}>Tap to take photo or upload</div>
+              <div style={{fontSize:'12px',color:T.textMuted}}>Supports JPG, PNG — AI reads the total automatically</div>
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>e.target.files[0]&&handleFile(e.target.files[0])} />
+            {scannedReceipts.length > 0 && (
+              <div style={{...s.card,padding:'12px'}}>
+                <div style={{...s.cardTitle,marginBottom:'8px'}}>Recent scans</div>
+                {scannedReceipts.slice(0,3).map((r,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'12px',padding:'4px 0',borderBottom:`1px solid ${T.border}`,color:T.textMuted}}>
+                    <span>{r.note||r.category}</span><span style={{color:T.accent}}>{settings.currency}{r.amount}</span><span>{r.date}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {imgData && scanning && (
+          <div style={{textAlign:'center',padding:'40px 20px'}}>
+            <div style={{fontSize:'48px',marginBottom:'16px',animation:'spin 1s linear infinite',display:'inline-block'}}>🔍</div>
+            <div style={{fontWeight:'700',color:T.text}}>Reading receipt with AI...</div>
+            <div style={{fontSize:'12px',color:T.textMuted,marginTop:'4px'}}>Extracting amount & merchant</div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{background:T.danger+'22',border:`1px solid ${T.danger}44`,borderRadius:'10px',padding:'12px 16px',color:T.danger,fontSize:'13px',marginBottom:'12px'}}>
+            ⚠️ {error}
+            <button style={{...s.btnGhost,marginLeft:'8px',fontSize:'11px',color:T.accent}} onClick={()=>{setImgData(null);setError('');}}>Try again</button>
+          </div>
+        )}
+
+        {result && !scanning && (
+          <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+            <div style={{background:T.success+'18',border:`1px solid ${T.success}44`,borderRadius:'12px',padding:'12px 16px',display:'flex',gap:'10px',alignItems:'center'}}>
+              <span style={{fontSize:'20px'}}>✅</span>
+              <div><div style={{fontWeight:'700',fontSize:'13px',color:T.success}}>Receipt read successfully</div><div style={{fontSize:'11px',color:T.textMuted}}>{result.merchant} · {result.date||'today'}</div></div>
+            </div>
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'5px',fontWeight:'700'}}>AMOUNT ({settings.currency})</div>
+              <input type="number" style={{...s.input,width:'100%',fontSize:'24px',fontWeight:'900',textAlign:'center',color:T.accent}} value={editAmount} onChange={e=>setEditAmount(e.target.value)} />
+            </div>
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'5px',fontWeight:'700'}}>CATEGORY</div>
+              <select style={{...s.select,width:'100%',height:'44px'}} value={editCat} onChange={e=>setEditCat(e.target.value)}>
+                {Object.keys(SPENDING_CATEGORIES).map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'5px',fontWeight:'700'}}>MERCHANT / NOTE</div>
+              <input style={{...s.input,width:'100%'}} value={editNote} onChange={e=>setEditNote(e.target.value)} />
+            </div>
+            <div style={{display:'flex',gap:'8px'}}>
+              <button style={{...s.btn(T.danger),flex:1,padding:'14px',fontWeight:'800'}} onClick={saveExpense}>Save Expense +8xp</button>
+              <button style={{...s.btnGhost,padding:'14px 12px'}} onClick={()=>{setImgData(null);setResult(null);}}>↩</button>
+            </div>
+          </div>
+        )}
+      </div>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F6 — SMART REMINDERS PANEL
+// ═══════════════════════════════════════════════════════════════════
+function SmartRemindersPanel({ T, s, reminderSettings, setReminderSettings, expenses, habits, habitLogs, bills }) {
+  const [open, setOpen] = useState(false);
+
+  // Check conditions on mount for proactive suggestions
+  const todayStr = today();
+  const todayDone = habits.filter(h=>h.frequency==='daily'&&(habitLogs[h.id]||[]).includes(todayStr)).length;
+  const totalDaily = habits.filter(h=>h.frequency==='daily').length;
+  const billsDueSoon = (bills||[]).filter(b=>{ const due=new Date(); due.setDate(b.day); return due.getDate()-new Date().getDate()<=3&&due.getDate()>=new Date().getDate(); });
+
+  function toggle(key) { setReminderSettings(r=>({...r,[key]:!r[key]})); }
+
+  async function requestNotifPermission() {
+    if (!('Notification' in window)) return alert('Notifications not supported in this browser');
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      new Notification('LifeOS', { body: '🔔 Reminders enabled! You\'ll get nudges for habits & bills.', icon: '/favicon.ico' });
+    }
+  }
+
+  const reminders = [
+    { key:'habitEvening', icon:'📜', label:'Evening habit reminder', desc:`Reminds you at ${reminderSettings.habitTime||'20:00'} if habits aren't done` },
+    { key:'billAlert', icon:'📅', label:'Bill due alerts', desc:'3-day warning before any bill is due' },
+    { key:'weeklyReview', icon:'📊', label:'Weekly review prompt', desc:'Sunday nudge to review your finances & goals' },
+  ];
+
+  return (
+    <div style={{...s.card, border:`1px solid ${T.accent}22`}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'16px':0}}>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <span style={{fontSize:'20px'}}>🔔</span>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontWeight:'700',fontSize:'14px',color:T.text}}>Smart Reminders</div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Browser notifications for habits, bills & reviews</div>
+          </div>
+        </div>
+        <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+          {/* Status cards */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'4px'}}>
+            <div style={{background:todayDone>=totalDaily?T.success+'22':T.warning+'22',borderRadius:'10px',padding:'8px 12px',border:`1px solid ${todayDone>=totalDaily?T.success:T.warning}33`}}>
+              <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700'}}>TODAY'S HABITS</div>
+              <div style={{fontSize:'16px',fontWeight:'900',color:todayDone>=totalDaily?T.success:T.warning}}>{todayDone}/{totalDaily}</div>
+            </div>
+            <div style={{background:billsDueSoon.length>0?T.danger+'22':T.success+'22',borderRadius:'10px',padding:'8px 12px',border:`1px solid ${billsDueSoon.length>0?T.danger:T.success}33`}}>
+              <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700'}}>BILLS DUE SOON</div>
+              <div style={{fontSize:'16px',fontWeight:'900',color:billsDueSoon.length>0?T.danger:T.success}}>{billsDueSoon.length} bill{billsDueSoon.length!==1?'s':''}</div>
+            </div>
+          </div>
+
+          <button style={{...s.btn(T.accent),width:'100%',padding:'10px',fontSize:'13px',fontWeight:'700'}} onClick={requestNotifPermission}>
+            🔔 Enable Browser Notifications
+          </button>
+
+          {/* Reminder toggles */}
+          {reminders.map(r=>(
+            <div key={r.key} style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 12px',borderRadius:'10px',background:T.surface,border:`1px solid ${T.border}`}}>
+              <span style={{fontSize:'18px'}}>{r.icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'13px',fontWeight:'700',color:T.text}}>{r.label}</div>
+                <div style={{fontSize:'11px',color:T.textMuted}}>{r.desc}</div>
+              </div>
+              <div onClick={()=>toggle(r.key)} style={{width:'40px',height:'22px',borderRadius:'11px',background:reminderSettings[r.key]?T.accent:T.border,cursor:'pointer',position:'relative',transition:'background 0.2s',flexShrink:0}}>
+                <div style={{position:'absolute',top:'3px',left:reminderSettings[r.key]?'21px':'3px',width:'16px',height:'16px',borderRadius:'50%',background:'#fff',transition:'left 0.2s',boxShadow:'0 1px 4px #00000044'}}/>
+              </div>
+            </div>
+          ))}
+
+          {reminderSettings.habitEvening && (
+            <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',borderRadius:'10px',background:T.surface,border:`1px solid ${T.border}`}}>
+              <span style={{fontSize:'13px',color:T.textMuted,fontWeight:'700'}}>Evening reminder time</span>
+              <input type="time" style={{...s.input,flex:1,maxWidth:'120px'}} value={reminderSettings.habitTime||'20:00'} onChange={e=>setReminderSettings(r=>({...r,habitTime:e.target.value}))} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F7 — SCENARIO PLANNER
+// ═══════════════════════════════════════════════════════════════════
+function ScenarioPlannerPanel({ T, s, settings, scenarios, setScenarios, thisMonthIncome, thisMonthSpend, savingsRate, netWorth, debts }) {
+  const [open, setOpen] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name:'', incomeChange:0, expenseChange:0, years:5 });
+
+  const totalDebt = debts.reduce((s,d)=>s+Number(d.balance||0),0);
+
+  function project(income, spend, yrs) {
+    const monthlySave = income - spend;
+    const annualSave = monthlySave * 12;
+    const futureNW = netWorth + annualSave * yrs;
+    const debtFreeMonths = monthlySave > 0 && totalDebt > 0 ? Math.ceil(totalDebt / Math.max(1, monthlySave)) : null;
+    return { monthlySave, annualSave, futureNW, debtFreeMonths, sr: income>0?(monthlySave/income*100):0 };
+  }
+
+  const baseline = project(thisMonthIncome, thisMonthSpend, 5);
+
+  function addScenario() {
+    if (!form.name) return;
+    const newInc = thisMonthIncome + Number(form.incomeChange);
+    const newSpend = thisMonthSpend + Number(form.expenseChange);
+    const proj = project(newInc, newSpend, Number(form.years));
+    setScenarios(sc=>[...sc, { id:Date.now(), ...form, income:newInc, spend:newSpend, ...proj }]);
+    setForm({ name:'', incomeChange:0, expenseChange:0, years:5 });
+    setShowAdd(false);
+  }
+
+  const cols = ['name','monthlySave','annualSave','futureNW','sr','debtFreeMonths'];
+  const allRows = [
+    { name:'📍 Current', monthlySave:baseline.monthlySave, annualSave:baseline.annualSave, futureNW:baseline.futureNW, sr:baseline.sr, debtFreeMonths:baseline.debtFreeMonths, isBaseline:true },
+    ...scenarios
+  ];
+
+  return (
+    <div style={{...s.card}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'16px':0}}>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <span style={{fontSize:'20px'}}>🎯</span>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontWeight:'700',fontSize:'14px',color:T.text}}>Scenario Planner</div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Compare financial futures side by side</div>
+          </div>
+        </div>
+        <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
+          {/* Scenarios table */}
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'12px'}}>
+              <thead>
+                <tr style={{borderBottom:`2px solid ${T.accent}33`}}>
+                  {['Scenario','Monthly Save','Annual Save',`NW in ${form.years||5}yr`,'Savings %','Debt Free'].map(h=>(
+                    <th key={h} style={{padding:'6px 8px',textAlign:'left',color:T.textMuted,fontWeight:'700',fontSize:'10px',whiteSpace:'nowrap'}}>{h}</th>
+                  ))}
+                  <th/>
+                </tr>
+              </thead>
+              <tbody>
+                {allRows.map((sc,i)=>(
+                  <tr key={sc.id||'base'} style={{borderBottom:`1px solid ${T.border}`,background:sc.isBaseline?T.accent+'0a':'transparent'}}>
+                    <td style={{padding:'8px',fontWeight:sc.isBaseline?'800':'600',color:sc.isBaseline?T.accent:T.text,whiteSpace:'nowrap'}}>{sc.name}</td>
+                    <td style={{padding:'8px',color:sc.monthlySave>=0?T.success:T.danger,fontWeight:'700'}}>{settings.currency}{fmtN(sc.monthlySave)}</td>
+                    <td style={{padding:'8px',color:T.text}}>{settings.currency}{fmtN(sc.annualSave)}</td>
+                    <td style={{padding:'8px',color:T.accent,fontWeight:'700'}}>{settings.currency}{fmtN(sc.futureNW)}</td>
+                    <td style={{padding:'8px',color:sc.sr>=20?T.success:sc.sr>=10?T.warning:T.danger}}>{sc.sr?.toFixed(1)}%</td>
+                    <td style={{padding:'8px',color:T.textMuted}}>{sc.debtFreeMonths?`${sc.debtFreeMonths}mo`:'—'}</td>
+                    <td>{!sc.isBaseline&&<button style={{...s.btnGhost,fontSize:'10px',padding:'2px 6px',color:T.danger}} onClick={()=>setScenarios(ss=>ss.filter(x=>x.id!==sc.id))}>✕</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add scenario */}
+          {showAdd ? (
+            <div style={{background:T.surface,borderRadius:'12px',padding:'14px',border:`1px solid ${T.accent}33`,display:'flex',flexDirection:'column',gap:'10px'}}>
+              <div style={{fontWeight:'700',fontSize:'13px',color:T.accent}}>New Scenario</div>
+              <input style={{...s.input,width:'100%'}} placeholder="Scenario name (e.g. Get a raise)" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px'}}>
+                <div>
+                  <div style={{fontSize:'10px',color:T.textMuted,marginBottom:'3px'}}>Income change ({settings.currency})</div>
+                  <input type="number" style={{...s.input,width:'100%'}} placeholder="+500" value={form.incomeChange} onChange={e=>setForm(f=>({...f,incomeChange:e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{fontSize:'10px',color:T.textMuted,marginBottom:'3px'}}>Expense change ({settings.currency})</div>
+                  <input type="number" style={{...s.input,width:'100%'}} placeholder="-200" value={form.expenseChange} onChange={e=>setForm(f=>({...f,expenseChange:e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{fontSize:'10px',color:T.textMuted,marginBottom:'3px'}}>Projection years</div>
+                  <input type="number" style={{...s.input,width:'100%'}} min="1" max="30" value={form.years} onChange={e=>setForm(f=>({...f,years:e.target.value}))} />
+                </div>
+              </div>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button style={{...s.btn(T.accent),flex:1,padding:'10px'}} onClick={addScenario}>Add Scenario</button>
+                <button style={{...s.btnGhost,padding:'10px 14px'}} onClick={()=>setShowAdd(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button style={{...s.btnGhost,width:'100%',padding:'10px',fontSize:'13px'}} onClick={()=>setShowAdd(true)}>+ Add Scenario</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F8 — AI FINANCIAL COACH
+// ═══════════════════════════════════════════════════════════════════
+function AIFinancialCoach({ T, s, settings, coachHistory, setCoachHistory, expenses, incomes, debts, assets, savingsRate, netWorth, financialHealthScore, thisMonthIncome, thisMonthSpend }) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const scrollRef = useRef();
+
+  const systemPrompt = `You are an empathetic, data-driven personal financial coach integrated into LifeOS.
+
+User's current financial snapshot:
+- Net Worth: ${settings.currency}${fmtN(netWorth)}
+- Monthly Income: ${settings.currency}${fmtN(thisMonthIncome)}
+- Monthly Spend: ${settings.currency}${fmtN(thisMonthSpend)}
+- Savings Rate: ${savingsRate.toFixed(1)}%
+- Total Debt: ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}
+- Financial Health Score: ${financialHealthScore}/100
+- Assets: ${assets.length} tracked, Cash: ${settings.currency}${fmtN(assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0))}
+- Top 3 spending categories this month: ${Object.entries(expenses.filter(e=>e.date?.startsWith(today().slice(0,7))).reduce((acc,e)=>{acc[e.category]=(acc[e.category]||0)+Number(e.amount);return acc},{} )).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,v])=>`${c} ${settings.currency}${fmtN(v)}`).join(', ')||'No data'}
+
+Rules: Be specific with their numbers. Give actionable advice. Keep replies under 150 words. Be encouraging but honest. This is educational, not regulated financial advice.`;
+
+  async function sendMessage(msg) {
+    if (!msg.trim()) return;
+    const userMsg = { role:'user', content:msg };
+    const history = [...coachHistory, userMsg];
+    setCoachHistory(history);
+    setInput('');
+    setLoading(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:300,
+          system: systemPrompt,
+          messages: history.slice(-10)
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || 'Sorry, I could not respond right now.';
+      setCoachHistory([...history, { role:'assistant', content:reply }]);
+    } catch { setCoachHistory([...history, { role:'assistant', content:'Connection error. Check your network.' }]); }
+    setLoading(false);
+    setTimeout(()=>scrollRef.current?.scrollTo({top:9999,behavior:'smooth'}),100);
+  }
+
+  const suggestions = [
+    `How can I improve my ${savingsRate.toFixed(0)}% savings rate?`,
+    'Where should I cut spending first?',
+    debts.length>0 ? `Best strategy to clear ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))} debt?` : 'How should I start investing?',
+    'Am I on track for retirement?',
+  ];
+
+  return (
+    <div style={{...s.card, border:`1px solid ${T.accent}33`}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'16px':0}}>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <div style={{width:'36px',height:'36px',borderRadius:'50%',background:T.accentGrad,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:`0 0 12px ${T.accentGlow}66`}}>
+            <span style={{fontSize:'18px'}}>🧠</span>
+          </div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontWeight:'700',fontSize:'14px',color:T.text}}>AI Financial Coach</div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Personalized advice based on your real data</div>
+          </div>
+        </div>
+        <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+      </button>
+
+      {open && (
+        <div>
+          {/* Chat messages */}
+          <div ref={scrollRef} style={{maxHeight:'320px',overflowY:'auto',display:'flex',flexDirection:'column',gap:'10px',marginBottom:'12px',paddingRight:'4px'}}>
+            {coachHistory.length===0 && (
+              <div style={{background:T.accent+'18',borderRadius:'12px',padding:'14px 16px',border:`1px solid ${T.accent}22`}}>
+                <div style={{fontWeight:'700',fontSize:'13px',color:T.accent,marginBottom:'6px'}}>👋 Hi {settings.name}! I'm your AI Financial Coach.</div>
+                <div style={{fontSize:'12px',color:T.textMuted,lineHeight:1.6}}>I know your numbers — your {savingsRate.toFixed(0)}% savings rate, your {settings.currency}{fmtN(netWorth)} net worth, and where your money is going. Ask me anything about your financial health.</div>
+              </div>
+            )}
+            {coachHistory.map((m,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
+                <div style={{
+                  maxWidth:'85%',padding:'10px 14px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',
+                  background:m.role==='user'?T.accentGrad:T.surface,
+                  color:m.role==='user'?'#fff':T.text,
+                  fontSize:'13px',lineHeight:1.6,
+                  border:m.role==='assistant'?`1px solid ${T.border}`:'none',
+                  boxShadow:`0 2px 8px #00000022`,
+                }}>{m.content}</div>
+              </div>
+            ))}
+            {loading && (
+              <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                <div style={{background:T.surface,borderRadius:'16px 16px 16px 4px',padding:'10px 16px',border:`1px solid ${T.border}`}}>
+                  <div style={{display:'flex',gap:'4px',alignItems:'center'}}>
+                    {[0,1,2].map(i=><div key={i} style={{width:'6px',height:'6px',borderRadius:'50%',background:T.accent,animation:`bounce 1s ${i*0.15}s ease-in-out infinite`}}/>)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Quick suggestions */}
+          {coachHistory.length<2 && (
+            <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'10px'}}>
+              {suggestions.map((sug,i)=>(
+                <button key={i} style={{background:T.surface,border:`1px solid ${T.accent}33`,borderRadius:'20px',padding:'6px 12px',fontSize:'11px',color:T.accent,cursor:'pointer',fontWeight:'600'}} onClick={()=>sendMessage(sug)}>{sug}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Input */}
+          <div style={{display:'flex',gap:'8px'}}>
+            <input style={{...s.input,flex:1,fontSize:'13px'}} placeholder="Ask your coach anything..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!loading&&sendMessage(input)} />
+            <button style={{...s.btn(T.accent),padding:'10px 16px',fontSize:'16px',flexShrink:0}} onClick={()=>!loading&&sendMessage(input)} disabled={loading}>➤</button>
+          </div>
+          {coachHistory.length>0 && (
+            <button style={{...s.btnGhost,width:'100%',marginTop:'6px',fontSize:'11px',color:T.danger}} onClick={()=>setCoachHistory([])}>Clear conversation</button>
+          )}
+        </div>
+      )}
+      <style>{`@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`}</style>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F9 — RECURRING EXPENSE AUTO-DETECT
+// ═══════════════════════════════════════════════════════════════════
+function RecurringAutoDetect({ T, s, settings, expenses, detectedRecurring, setDetectedRecurring, recurringIncomes, setRecurringIncomes }) {
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState([]);
+
+  // Detect recurring patterns: same note+amount appearing in 2+ different months
+  const suggestions = useMemo(() => {
+    const groups = {};
+    expenses.forEach(e => {
+      const key = `${e.note?.toLowerCase().trim()}|${e.amount}`;
+      if (!key.startsWith('|')) {
+        if (!groups[key]) groups[key] = { note:e.note, amount:e.amount, category:e.category, months:new Set(), dates:[] };
+        groups[key].months.add(e.date?.slice(0,7));
+        groups[key].dates.push(e.date);
+      }
+    });
+    return Object.values(groups)
+      .filter(g => g.months.size >= 2)
+      .filter(g => !dismissed.includes(`${g.note}|${g.amount}`))
+      .sort((a,b) => b.months.size - a.months.size)
+      .slice(0,8);
+  }, [expenses, dismissed]);
+
+  function dismiss(g) { setDismissed(d=>[...d,`${g.note}|${g.amount}`]); }
+
+  function addToRecurring(g) {
+    const entry = { id:Date.now(), name:g.note, amount:g.amount, category:g.category, frequency:'monthly', day:1 };
+    setRecurringIncomes(r=>[...r, entry]);
+    dismiss(g);
+  }
+
+  return (
+    <div style={{...s.card}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'16px':0}}>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <span style={{fontSize:'20px'}}>🔄</span>
+          <div style={{textAlign:'left'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontWeight:'700',fontSize:'14px',color:T.text}}>Recurring Auto-Detect</span>
+              {suggestions.length>0 && <span style={{background:T.warning,color:'#fff',fontSize:'9px',fontWeight:'800',padding:'1px 7px',borderRadius:'99px'}}>{suggestions.length}</span>}
+            </div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Expenses appearing every month you haven't tracked</div>
+          </div>
+        </div>
+        <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+          {suggestions.length === 0 && (
+            <div style={{textAlign:'center',padding:'20px',color:T.textMuted,fontSize:'13px'}}>
+              ✅ No new recurring patterns detected.<br/><span style={{fontSize:'11px'}}>Log more expenses and we'll spot patterns.</span>
+            </div>
+          )}
+          {suggestions.map((g,i) => (
+            <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',borderRadius:'10px',background:T.surface,border:`1px solid ${T.warning}33`}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:'700',fontSize:'13px',color:T.text}}>{g.note}</div>
+                <div style={{fontSize:'11px',color:T.textMuted}}>{g.category} · {g.months.size} months in a row · {settings.currency}{g.amount}/mo</div>
+              </div>
+              <button style={{...s.btn(T.warning),fontSize:'11px',padding:'5px 10px',flexShrink:0}} onClick={()=>addToRecurring(g)}>+ Track</button>
+              <button style={{...s.btnGhost,fontSize:'11px',padding:'5px 8px',flexShrink:0,color:T.textMuted}} onClick={()=>dismiss(g)}>✕</button>
+            </div>
+          ))}
+          {dismissed.length > 0 && (
+            <button style={{...s.btnGhost,fontSize:'11px',padding:'6px',color:T.textMuted}} onClick={()=>setDismissed([])}>↩ Restore {dismissed.length} dismissed</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// F10 — SOCIAL CHALLENGES
+// ═══════════════════════════════════════════════════════════════════
+const PRESET_CHALLENGES = [
+  { id:'nospend_day',   icon:'🚫', name:'No-Spend Day',        desc:'Zero non-essential spending today',      duration:1,  unit:'days',   xp:25,  goal:'spend_zero_day' },
+  { id:'nospend_week',  icon:'💪', name:'No-Spend Week',       desc:'7 days without discretionary purchases', duration:7,  unit:'days',   xp:100, goal:'spend_zero_week' },
+  { id:'save_100',      icon:'💰', name:'Save €100 Challenge', desc:'Save €100 in the next 30 days',          duration:30, unit:'days',   xp:75,  goal:'save_100' },
+  { id:'habits_7',      icon:'🔥', name:'7-Day Habit Streak',  desc:'Complete all habits for 7 days straight', duration:7, unit:'days',   xp:80,  goal:'habit_streak_7' },
+  { id:'log_30',        icon:'📝', name:'30-Day Logger',       desc:'Log an expense every day for 30 days',   duration:30, unit:'days',   xp:120, goal:'log_every_day' },
+  { id:'budget_month',  icon:'📊', name:'Stay on Budget',      desc:'Don\'t exceed your budget for a full month', duration:30, unit:'days', xp:150, goal:'budget_month' },
+];
+
+function SocialChallengesPanel({ T, s, settings, socialChallenges, setSocialChallenges, expenses, habits, habitLogs, savingsRate, addXP }) {
+  const [open, setOpen] = useState(false);
+  const [shareCode, setShareCode] = useState(null);
+
+  function joinChallenge(preset) {
+    if (socialChallenges.find(c=>c.id===preset.id&&c.status==='active')) return;
+    const start = today();
+    const endDate = new Date(); endDate.setDate(endDate.getDate()+preset.duration);
+    setSocialChallenges(cs=>[...cs,{...preset,start,end:endDate.toISOString().slice(0,10),status:'active',progress:0,joinedAt:new Date().toISOString()}]);
+  }
+
+  function computeProgress(c) {
+    if (c.goal==='spend_zero_day') {
+      const todaySpend = expenses.filter(e=>e.date===today()).reduce((s,e)=>s+Number(e.amount),0);
+      return todaySpend===0 ? 1 : 0;
+    }
+    if (c.goal==='habit_streak_7') {
+      const last7 = Array.from({length:7},(_,i)=>{ const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().slice(0,10); });
+      const allDone = last7.every(d=>habits.filter(h=>h.frequency==='daily').every(h=>(habitLogs[h.id]||[]).includes(d)));
+      return allDone ? 7 : last7.filter(d=>habits.filter(h=>h.frequency==='daily').every(h=>(habitLogs[h.id]||[]).includes(d))).length;
+    }
+    if (c.goal==='log_every_day') {
+      const days = Math.ceil((new Date()-new Date(c.start))/(1000*86400));
+      const logDays = new Set(expenses.filter(e=>e.date>=c.start).map(e=>e.date)).size;
+      return Math.min(logDays, c.duration);
+    }
+    return Math.floor(Math.random()*c.duration*0.6);
+  }
+
+  function shareChallenge(c) {
+    const code = btoa(JSON.stringify({n:c.name,s:c.start,e:c.end,xp:c.xp,user:settings.name})).slice(0,12);
+    setShareCode(code);
+    navigator.clipboard?.writeText(`LifeOS Challenge: ${c.name} | Code: ${code}`);
+  }
+
+  const active = socialChallenges.filter(c=>c.status==='active');
+  const completed = socialChallenges.filter(c=>c.status==='done');
+
+  return (
+    <div style={{...s.card}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'16px':0}}>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <span style={{fontSize:'20px'}}>🏅</span>
+          <div style={{textAlign:'left'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontWeight:'700',fontSize:'14px',color:T.text}}>Social Challenges</span>
+              {active.length>0&&<span style={{background:T.accent,color:'#fff',fontSize:'9px',fontWeight:'800',padding:'1px 7px',borderRadius:'99px'}}>{active.length} active</span>}
+            </div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Personal challenges — track, share & compare scores</div>
+          </div>
+        </div>
+        <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
+          {/* Active challenges */}
+          {active.length > 0 && (
+            <div>
+              <div style={{fontSize:'11px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px',marginBottom:'8px'}}>ACTIVE</div>
+              {active.map(c=>{
+                const prog = computeProgress(c);
+                const pct = Math.min(100, Math.round((prog/c.duration)*100));
+                const daysLeft = Math.max(0,Math.ceil((new Date(c.end)-new Date())/(1000*86400)));
+                return (
+                  <div key={c.id} style={{background:T.surface,borderRadius:'12px',padding:'12px',border:`1px solid ${T.accent}33`,marginBottom:'8px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'8px'}}>
+                      <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+                        <span style={{fontSize:'20px'}}>{c.icon}</span>
+                        <div>
+                          <div style={{fontWeight:'700',fontSize:'13px',color:T.text}}>{c.name}</div>
+                          <div style={{fontSize:'11px',color:T.textMuted}}>{daysLeft}d left · +{c.xp}xp</div>
+                        </div>
+                      </div>
+                      <div style={{display:'flex',gap:'4px'}}>
+                        <button style={{...s.btnGhost,fontSize:'11px',padding:'3px 8px'}} onClick={()=>shareChallenge(c)}>📤 Share</button>
+                        <button style={{...s.btn(T.success),fontSize:'11px',padding:'3px 8px'}} onClick={()=>{setSocialChallenges(cs=>cs.map(x=>x.id===c.id?{...x,status:'done'}:x));addXP(c.xp,`Challenge: ${c.name}`);}}>✓ Done</button>
+                      </div>
+                    </div>
+                    <div style={{height:'6px',borderRadius:'3px',background:T.border,overflow:'hidden'}}>
+                      <div style={{height:'100%',width:`${pct}%`,background:T.accentGrad,borderRadius:'3px',transition:'width 0.5s'}}/>
+                    </div>
+                    <div style={{fontSize:'11px',color:T.textMuted,marginTop:'4px',textAlign:'right'}}>{pct}% · {prog}/{c.duration} {c.unit}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Available challenges */}
+          <div>
+            <div style={{fontSize:'11px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px',marginBottom:'8px'}}>AVAILABLE CHALLENGES</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+              {PRESET_CHALLENGES.map(c=>{
+                const joined = socialChallenges.find(sc=>sc.id===c.id&&sc.status==='active');
+                const done = socialChallenges.find(sc=>sc.id===c.id&&sc.status==='done');
+                return (
+                  <button key={c.id} onClick={()=>!joined&&!done&&joinChallenge(c)} style={{
+                    display:'flex',flexDirection:'column',gap:'4px',padding:'12px',textAlign:'left',
+                    borderRadius:'12px',border:`1.5px solid ${done?T.success+'44':joined?T.accent+'55':T.border}`,
+                    background:done?T.success+'0a':joined?T.accent+'0a':T.surface,
+                    cursor:joined||done?'default':'pointer',
+                    opacity:done?0.7:1,transition:'all 0.15s',
+                  }}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:'18px'}}>{c.icon}</span>
+                      <span style={{fontSize:'10px',fontWeight:'800',color:done?T.success:joined?T.accent:T.textMuted}}>
+                        {done?'✅ Done':joined?'Active':`+${c.xp}xp`}
+                      </span>
+                    </div>
+                    <div style={{fontWeight:'700',fontSize:'12px',color:T.text}}>{c.name}</div>
+                    <div style={{fontSize:'10px',color:T.textMuted,lineHeight:1.4}}>{c.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Share code toast */}
+          {shareCode && (
+            <div style={{background:T.success+'22',border:`1px solid ${T.success}44`,borderRadius:'10px',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontWeight:'700',fontSize:'12px',color:T.success}}>📋 Copied to clipboard!</div>
+                <div style={{fontSize:'11px',color:T.textMuted}}>Share code: <code style={{color:T.accent,fontFamily:'monospace'}}>{shareCode}</code></div>
+              </div>
+              <button style={{...s.btnGhost,fontSize:'11px'}} onClick={()=>setShareCode(null)}>✕</button>
+            </div>
+          )}
+
+          {completed.length>0 && (
+            <div style={{fontSize:'12px',color:T.textMuted,textAlign:'center',borderTop:`1px solid ${T.border}`,paddingTop:'10px'}}>
+              🏆 {completed.length} challenge{completed.length!==1?'s':''} completed · {completed.reduce((s,c)=>s+c.xp,0)} XP earned
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
