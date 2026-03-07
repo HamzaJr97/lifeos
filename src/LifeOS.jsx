@@ -1153,12 +1153,18 @@ export default function LifeOS() {
 
   const notifTimer = useRef(null);
   const addXP = useCallback((amount, reason) => {
-    setTotalXP(x => x + amount);
-    setXpHistory(h => [...h, {date: today(), amount, reason}]);
-    setNotification(`+${amount} XP — ${reason}`);
+    // C11 — sleep-aware XP multiplier: boost if slept ≥7h, penalty if <5h
+    const todayVitals = vitals.find(v => v.date === today());
+    const sleepH = todayVitals?.sleep ?? 7;
+    const multiplier = sleepH >= 8 ? 1.25 : sleepH >= 7 ? 1.0 : sleepH >= 5 ? 0.9 : 0.75;
+    const finalAmount = Math.round(amount * multiplier);
+    setTotalXP(x => x + finalAmount);
+    setXpHistory(h => [...h, {date: today(), amount: finalAmount, reason}]);
+    const bonusLabel = multiplier > 1 ? ' 😴✨' : multiplier < 1 ? ' 😴📉' : '';
+    setNotification(`+${finalAmount} XP — ${reason}${bonusLabel}`);
     if (notifTimer.current) clearTimeout(notifTimer.current);
     notifTimer.current = setTimeout(() => setNotification(null), 2500);
-  }, [setTotalXP, setXpHistory]);
+  }, [setTotalXP, setXpHistory, vitals]);
 
   // Undo system
   const pushUndo = useCallback((label, fn) => {
@@ -1252,8 +1258,21 @@ export default function LifeOS() {
       const dueDay = Number(b.day);
       if (dueDay >= dayOfMonth && dueDay <= dayOfMonth + 3) alerts.push({type:'info', msg:t('alert_bill_due')(b.name, settings.currency, fmtN(b.amount), dueDay-dayOfMonth)});
     });
-    return alerts.slice(0,5);
-  }, [budgetTargets, expenses, incomes, savingsRate, bills, settings.currency, thisMonthSpend]);
+    // C21 — Low financial health score → suggest building a savings habit
+    if (financialHealthScore < 40) {
+      const hasSavingsHabit = habits.some(h=>(h.name||'').toLowerCase().includes('sav') || (h.name||'').toLowerCase().includes('budget'));
+      if (!hasSavingsHabit) alerts.push({type:'warning', msg:`💡 Health score is ${financialHealthScore}/100. Consider adding a daily "Review Budget" habit to build discipline.`});
+    }
+    // C22 — Anomaly detection: this month's spending >50% above 3-month average
+    const prev3Months = [-3,-2,-1].map(o=>{const d=new Date();d.setMonth(d.getMonth()+o);return d.toISOString().slice(0,7);});
+    const avgMonthlySpend3m = prev3Months.reduce((s,pm)=>s+expenses.filter(e=>e.date?.startsWith(pm)).reduce((ss,e)=>ss+Number(e.amount),0),0)/3;
+    const curMonthSpend = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount),0);
+    const projectedMonthSpend = dayOfMonth > 0 ? (curMonthSpend / dayOfMonth) * daysInMonth : curMonthSpend;
+    if (avgMonthlySpend3m > 0 && projectedMonthSpend > avgMonthlySpend3m * 1.5) {
+      alerts.push({type:'danger', msg:`🚨 Spending anomaly: on track for ${settings.currency}${fmtN(projectedMonthSpend)}/mo — ${Math.round((projectedMonthSpend/avgMonthlySpend3m-1)*100)}% above your 3-month average.`});
+    }
+    return alerts.slice(0,6);
+  }, [budgetTargets, expenses, incomes, savingsRate, bills, settings.currency, thisMonthSpend, financialHealthScore, habits]);
 
   const todayHabits = useMemo(() => {
     const d = today();
@@ -1736,19 +1755,18 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
 
           {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} />}
           {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} />}
-          {activeTab === 'hoard' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} />}
           {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} />}
-          {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} />}
-          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} />}
+          {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
+          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} />}
           {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} />}
           {activeTab === 'notes' && <NotesTab T={T} s={s} notes={notes} setNotes={setNotes} settings={settings} addXP={addXP} />}
           {activeTab === 'learn' && <LearnTab T={T} s={s} settings={settings} addXP={addXP} />}
-          {activeTab === 'career' && <CareerTab T={T} s={s} settings={settings} careerProfile={careerProfile} setCareerProfile={setCareerProfile} careerApps={careerApps} setCareerApps={setCareerApps} careerRex={careerRex} setCareerRex={setCareerRex} addXP={addXP} />}
+          {activeTab === 'career' && <CareerTab T={T} s={s} settings={settings} careerProfile={careerProfile} setCareerProfile={setCareerProfile} careerApps={careerApps} setCareerApps={setCareerApps} careerRex={careerRex} setCareerRex={setCareerRex} addXP={addXP} incomes={incomes} setIncomes={setIncomes} />}
           {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} />}
-          {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} />}
+          {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
           {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} />}
-          {activeTab === 'mindbody' && <MindBodyTab T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} goals={goals} settings={settings} />}
+          {activeTab === 'mindbody' && <MindBodyTab T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
         </div>
@@ -3180,7 +3198,7 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
             <button style={{...s.btn()}} onClick={()=>{if(!newChronicle.trim())return;setChronicles(c=>[{id:Date.now(),text:newChronicle,date:today()},...c]);setNewChronicle('');addXP(15,'Chronicle entry');}}>📖 Log Entry</button>
           </div>
           {chronicles.length===0&&<div style={{...s.card,textAlign:'center',color:T.textMuted,padding:'40px 0'}}><div style={{fontSize:'40px',marginBottom:'12px'}}>📖</div>No chronicles yet. Start writing your story!</div>}
-          {chronicles.map(c=>(
+          {(chronicles||[]).map(c=>(
             <div key={c.id} style={{...s.card,border:`1px solid ${T.border}`}}>
               <div style={{fontSize:'11px',color:T.accent,marginBottom:'8px',fontWeight:'700'}}>{c.date}</div>
               <div style={{fontSize:'14px',color:T.text,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{c.text}</div>
@@ -3984,7 +4002,7 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
 // ─────────────────────────────────────────────
 // DEBTS TAB
 // ─────────────────────────────────────────────
-function DebtsTab({ T, s, debts, setDebts, settings, expenses, setExpenses, addXP, pushUndo }) {
+function DebtsTab({ T, s, debts, setDebts, settings, expenses, setExpenses, addXP, pushUndo, goals, setGoals }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name:'', balance:'', rate:'', minPayment:'', icon:'💳' });
   const [extraPayment, setExtraPayment] = useState('');
@@ -4000,13 +4018,26 @@ function DebtsTab({ T, s, debts, setDebts, settings, expenses, setExpenses, addX
 
   function saveEdit() {
     if (!editingDebt) return;
+    const newBal = Math.max(0, Number(editingDebt.balance));
     setDebts(ds=>ds.map(d=>d.id===editingDebt.id ? {
       ...editingDebt,
-      balance: Math.max(0, Number(editingDebt.balance)),
+      balance: newBal,
       originalBalance: Number(editingDebt.originalBalance) || Number(editingDebt.balance),
       rate: Number(editingDebt.rate),
       minPayment: Number(editingDebt.minPayment)
     } : d));
+    // C4 — if debt just cleared, prompt to redirect payment to a goal
+    if (newBal === 0 && Number(editingDebt.minPayment) > 0 && goals && goals.length > 0) {
+      const openGoals = goals.filter(g=>(g.progress||0)<g.target);
+      if (openGoals.length > 0) {
+        setTimeout(() => {
+          const names = openGoals.slice(0,5).map((g,i)=>`${i+1}. ${g.name}`).join('\n');
+          const pick = window.confirm(`🎉 "${editingDebt.name}" is paid off!\n\nRedirect the ${settings.currency}${fmtN(editingDebt.minPayment)}/month freed-up payment to a goal?\n\nPress OK to go to Goals, Cancel to skip.`);
+          if (pick) setGoals(gs=>gs); // just a signal — user will go to goals
+          alert(`💡 Tip: Go to Goals and add ${settings.currency}${fmtN(editingDebt.minPayment)}/month to accelerate: ${openGoals[0]?.name}`);
+        }, 300);
+      }
+    }
     setEditingDebt(null);
   }
 
@@ -4561,7 +4592,7 @@ function CatManagerItem({ cat, isBuiltin, isCustom, subcats, newSub, role, displ
 // ─────────────────────────────────────────────
 // MONEY HUB TAB (Spending + Finance + Discipline + CashFlow)
 // ─────────────────────────────────────────────
-function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund }) {
+function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals }) {
   const [subTab, setSubTab] = useState('hoard');
 
   return (
@@ -4869,7 +4900,7 @@ function CashFlowView({ T, s, settings, expenses, incomes, recurringExpenses, su
       let fixedOut = 0;
       const fixedItems = [];
 
-      recurringExpenses.forEach(r=>{
+      (recurringExpenses||[]).forEach(r=>{
         if (r.day && Number(r.day)===dayNum) {
           const key = `${monthStr}-${String(dayNum).padStart(2,'0')}`;
           const alreadyLogged = expenses.some(e=>e.recurringId===r.id&&e.date?.startsWith(monthStr));
@@ -4880,7 +4911,7 @@ function CashFlowView({ T, s, settings, expenses, incomes, recurringExpenses, su
         }
       });
 
-      subscriptions.forEach(sub=>{
+      (subscriptions||[]).forEach(sub=>{
         if (sub.day && Number(sub.day)===dayNum) {
           fixedOut += Number(sub.amount||0);
           fixedItems.push({name:sub.name,amount:Number(sub.amount||0)});
@@ -5154,6 +5185,34 @@ function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
     if (form.category==='💳 Debts' && debts.length > 0 && form.subcategory) {
       setDebts(ds=>ds.map(d=>d.name===form.subcategory?{...d,balance:Math.max(0,d.balance-Number(form.amount))}:d));
     }
+    // B9 — Subscription match detection
+    const noteL = (form.note||'').toLowerCase();
+    const amtN = Number(form.amount);
+    const matchedSub = (subscriptions||[]).find(sub => {
+      const nameL = (sub.name||'').toLowerCase();
+      const amtMatch = Math.abs(Number(sub.amount) - amtN) < 0.01;
+      const nameMatch = nameL.length > 2 && (noteL.includes(nameL) || nameL.includes(noteL));
+      return (amtMatch || nameMatch) && nameL.length > 1;
+    });
+    if (matchedSub) {
+      setTimeout(() => alert(`ℹ️ This expense looks like your "${matchedSub.name}" subscription (${settings.currency}${fmtN(matchedSub.amount)}/mo). Consider if it's already tracked to avoid double-counting.`), 100);
+    }
+    // C1 — Savings expense → prompt to apply to a goal
+    if (form.category === '💰 Savings' && goals && goals.length > 0) {
+      const openGoals = goals.filter(g => (g.progress||0) < g.target);
+      if (openGoals.length > 0) {
+        setTimeout(() => {
+          const names = openGoals.slice(0,5).map((g,i)=>`${i+1}. ${g.name} (${settings.currency}${fmtN(g.progress||0)} / ${settings.currency}${fmtN(g.target)})`).join('\n');
+          const pick = window.prompt(`💰 Apply this ${settings.currency}${fmtN(amtN)} savings to a goal?\nEnter number or leave blank to skip:\n${names}`);
+          const idx = parseInt(pick) - 1;
+          if (!isNaN(idx) && openGoals[idx]) {
+            const g = openGoals[idx];
+            setGoals(gs => gs.map(x => x.id===g.id ? {...x, progress: Math.min(x.target, (x.progress||0)+amtN)} : x));
+            addXP(5, `Savings applied to goal: ${g.name}`);
+          }
+        }, 200);
+      }
+    }
     addXP(3,'Expense logged'); setForm(f=>({...f,amount:'',note:''}));
   }
 
@@ -5283,7 +5342,7 @@ Max 280 words.`
     }
     try {
       let resultText = '';
-      if (provider === 'groq' || provider === 'anthropic' && !settings.anthropicKey) {
+      if (provider === 'groq' || (provider === 'anthropic' && !settings.anthropicKey)) {
         // Groq — OpenAI-compatible endpoint, works from browser, completely free
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -5459,7 +5518,18 @@ Max 280 words.`
         // Monthly variable pool = income - needs(recurring) - committed savings
         // Use actual income logged, actual needs spend as proxy for monthly needs
         const needsForecast = selectedMonthExpenses.filter(_isNeedsExp).reduce((s,e)=>s+Number(e.amount),0);
-        const monthlyVarPool = Math.max(0, selectedMonthIncome - needsForecast - selectedMonthSavings);
+        // C6 — pre-deduct bills due this month that aren't already in expenses
+        const billsThisMonth = (bills||[]).reduce((s,b)=>{
+          const dueDate = `${monthStr}-${String(Number(b.day)).padStart(2,'0')}`;
+          const alreadyPaid = expenses.some(e=>e.date===dueDate && Math.abs(Number(e.amount)-Number(b.amount))<0.01);
+          return s + (alreadyPaid ? 0 : Number(b.amount||0));
+        }, 0);
+        // C23 — pre-deduct recurring expenses not yet logged this month
+        const recurringThisMonth = (recurringExpenses||[]).reduce((s,r)=>{
+          const alreadyLogged = expenses.some(e=>e.date?.startsWith(monthStr) && Math.abs(Number(e.amount)-Number(r.amount))<0.01 && (e.category===r.category || (e.note||'').toLowerCase().includes((r.name||'').toLowerCase())));
+          return s + (alreadyLogged ? 0 : Number(r.amount||0));
+        }, 0);
+        const monthlyVarPool = Math.max(0, selectedMonthIncome - needsForecast - selectedMonthSavings - billsThisMonth - recurringThisMonth);
         if(selectedMonthIncome <= 0) return null;
 
         // Split month into ISO weeks (Mon-Sun) that overlap with this month
@@ -5581,7 +5651,7 @@ Max 280 words.`
         const daysLeft = daysInMonth - dayOfMonth;
         // Today's variable spend
         const todaySpent = expenses.filter(e=>e.date===todayStr&&_isVarExp(e)).reduce((s,e)=>s+Number(e.amount),0);
-        const dailyAllowance = selectedMonthIncome > 0 ? Math.max(0, selectedMonthRemaining + selectedMonthVarSimple) / daysInMonth : 0;
+        const dailyAllowance = selectedMonthIncome > 0 ? Math.max(0, selectedMonthRemaining) / daysInMonth : 0;
         const dailyPct = dailyAllowance > 0 ? Math.min(100,(todaySpent/dailyAllowance)*100) : 0;
         const todayOk = todaySpent <= dailyAllowance;
         // Top variable categories this month
@@ -6945,7 +7015,7 @@ async function sharedSearchAsset(query, geckoIds = SHARED_COINGECKO_IDS, assetMe
 // ─────────────────────────────────────────────
 // PORTFOLIO HUB (Investments + Markets merged + AI picks)
 // ─────────────────────────────────────────────
-function PortfolioHubTab({ T, s, investments, setInvestments, settings, expenses, addXP, assets, setAssets, thisMonthIncome, thisMonthSpend, savingsRate, debts }) {
+function PortfolioHubTab({ T, s, investments, setInvestments, settings, expenses, addXP, assets, setAssets, thisMonthIncome, thisMonthSpend, savingsRate, debts, selectedMonthRemaining }) {
   const [subTab, setSubTab] = useState('portfolio');
   const [aiChat, setAiChat] = useState([]);
   const [aiInput, setAiInput] = useState('');
@@ -6959,8 +7029,8 @@ function PortfolioHubTab({ T, s, investments, setInvestments, settings, expenses
   const totalPnL      = currentValue - totalInvested;
   const totalReturn   = totalInvested>0?(totalPnL/totalInvested)*100:0;
 
-  // Cash surplus calculation (key for investment advice)
-  const monthlySurplus = thisMonthIncome - thisMonthSpend;
+  // Cash surplus calculation — use MoneyHub's selectedMonthRemaining if passed (B14), else fall back
+  const monthlySurplus = selectedMonthRemaining !== undefined ? selectedMonthRemaining : (thisMonthIncome - thisMonthSpend);
   const totalDebt      = debts.reduce((s,d)=>s+Number(d.balance||0),0);
   const cashAssets     = assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
 
@@ -6971,6 +7041,10 @@ function PortfolioHubTab({ T, s, investments, setInvestments, settings, expenses
       const pnlPct=((i.currentPrice??i.buyPrice)-i.buyPrice)/i.buyPrice*100;
       return `${i.symbol} (${i.type||'Stock'}): ${i.quantity} units @ buy ${settings.currency}${i.buyPrice} | current ${settings.currency}${i.currentPrice??i.buyPrice} | value ${settings.currency}${fmtN(val)} | P&L ${pnl>=0?'+':''}${settings.currency}${fmtN(pnl)} (${pnlPct.toFixed(1)}%)`;
     }).join('\n');
+    // C24 — emergency fund months covered
+    const avgMonthlySpend = thisMonthSpend || 1;
+    const efMonths = cashAssets / avgMonthlySpend;
+    const efWarning = efMonths < 3 ? `⚠️ IMPORTANT: User only has ${efMonths.toFixed(1)} months of emergency fund (target: 3-6 months). Strongly recommend building emergency fund BEFORE investing more.` : `✅ Emergency fund: ${efMonths.toFixed(1)} months covered (healthy).`;
     return `PORTFOLIO SUMMARY:
 Total invested: ${settings.currency}${fmtN(totalInvested)}
 Current value: ${settings.currency}${fmtN(currentValue)}
@@ -6986,6 +7060,7 @@ Monthly surplus available to invest: ${settings.currency}${fmtN(monthlySurplus)}
 Cash reserves: ${settings.currency}${fmtN(cashAssets)}
 Total debt: ${settings.currency}${fmtN(totalDebt)}
 Savings rate: ${savingsRate.toFixed(1)}%
+${efWarning}
 
 RISK PROFILE: ${riskProfile}
 TIME HORIZON: ${horizon}`;
@@ -7030,6 +7105,22 @@ TIME HORIZON: ${horizon}`;
       {/* ── AI ADVISOR ── */}
       {subTab==='advisor' && (
         <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+          {/* C24 — Emergency fund warning */}
+          {(() => {
+            const efMonths = thisMonthSpend > 0 ? cashAssets / thisMonthSpend : 0;
+            if (efMonths < 3) return (
+              <div style={{...s.card,border:`1px solid ${T.warning}55`,background:`${T.warning}11`}}>
+                <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+                  <span style={{fontSize:'24px'}}>🛡️</span>
+                  <div>
+                    <div style={{fontWeight:'700',color:T.warning,marginBottom:'2px'}}>Build Your Emergency Fund First</div>
+                    <div style={{fontSize:'12px',color:T.textMuted}}>You have {efMonths.toFixed(1)} months of expenses in cash (target: 3–6 months = {settings.currency}{fmtN(thisMonthSpend*3)}–{settings.currency}{fmtN(thisMonthSpend*6)}). Financial advisors recommend securing this before investing.</div>
+                  </div>
+                </div>
+              </div>
+            );
+            return null;
+          })()}
           {/* Surplus spotlight */}
           <div style={{...s.card,border:`1px solid ${monthlySurplus>0?T.success+'55':T.danger+'44'}`,background:`linear-gradient(135deg,${monthlySurplus>0?T.success+'0d':T.danger+'0d'},${T.card})`}}>
             <div style={s.cardTitle}>💰 Monthly Surplus Available to Invest</div>
@@ -8803,7 +8894,7 @@ function LearnTab({ T, s, addXP, settings }) {
 // ─────────────────────────────────────────────
 // CALENDAR TAB
 // ─────────────────────────────────────────────
-function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, settings }) {
+function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, settings, bills, notes }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null); // full 'YYYY-MM-DD' string
 
@@ -8889,7 +8980,11 @@ function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, 
     const dayVitals = vitals.find(v=>v.date===dateStr);
     const habitsCompleted = habits.filter(h=>(habitLogs[h.id]||[]).includes(dateStr));
     const meetings = gcalByDate[dateStr] || [];
-    return { date:dateStr, expenses:dayExpenses, vitals:dayVitals, habits:habitsCompleted, meetings };
+    const dayNum = parseInt(dateStr.split('-')[2], 10);
+    const dueBills = (bills||[]).filter(b => Number(b.day) === dayNum);
+    // C8 — notes/tasks with a dueDate on this day
+    const dueTasks = (notes||[]).filter(n => n.dueDate === dateStr);
+    return { date:dateStr, expenses:dayExpenses, vitals:dayVitals, habits:habitsCompleted, meetings, dueBills, dueTasks };
   }
 
   function getDensity(data) {
@@ -8898,6 +8993,8 @@ function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, 
     if (data.expenses.length > 0) score += 1;
     if (data.vitals) score += 2;
     if (data.meetings.length > 0) score += 1;
+    if (data.dueBills && data.dueBills.length > 0) score += 1;
+    if (data.dueTasks && data.dueTasks.length > 0) score += 1;
     return score;
   }
 
@@ -9048,6 +9145,28 @@ function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, 
               <div style={s.cardTitle}>{selectedDay} — Day Summary</div>
               <button style={{...s.btnGhost,fontSize:'11px',padding:'3px 8px'}} onClick={()=>setSelectedDay(null)}>✕ Close</button>
             </div>
+            {data.dueBills && data.dueBills.length>0 && (
+              <div style={{marginBottom:'12px'}}>
+                <div style={{fontSize:'12px',color:T.warning,fontWeight:'700',marginBottom:'6px'}}>📋 Bills Due ({data.dueBills.length})</div>
+                {data.dueBills.map((b,i)=>(
+                  <div key={i} style={{fontSize:'13px',padding:'4px 0',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between'}}>
+                    <span>{b.name}</span>
+                    <span style={{color:T.warning,fontWeight:'700'}}>{settings.currency}{fmtN(b.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.dueTasks && data.dueTasks.length>0 && (
+              <div style={{marginBottom:'12px'}}>
+                <div style={{fontSize:'12px',color:T.accent,fontWeight:'700',marginBottom:'6px'}}>📝 Tasks Due ({data.dueTasks.length})</div>
+                {data.dueTasks.map((n,i)=>(
+                  <div key={i} style={{fontSize:'13px',padding:'4px 0',borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',gap:'8px'}}>
+                    <span style={{opacity:n.done?0.5:1,textDecoration:n.done?'line-through':'none'}}>{n.done?'✅':'⬜'} {n.text||n.title||'Task'}</span>
+                    {n.done && <span style={{fontSize:'10px',color:T.success}}>done</span>}
+                  </div>
+                ))}
+              </div>
+            )}
             {data.habits.length>0 && <div style={{marginBottom:'12px'}}><div style={{fontSize:'12px',color:T.success,fontWeight:'700',marginBottom:'6px'}}>✓ Habits Completed ({data.habits.length})</div>{data.habits.map(h=><div key={h.id} style={{fontSize:'13px',padding:'4px 0',borderBottom:`1px solid ${T.border}`}}>{h.icon||'•'} {h.name}</div>)}</div>}
             {data.vitals && <div style={{marginBottom:'12px'}}><div style={{fontSize:'12px',color:T.accent,fontWeight:'700',marginBottom:'6px'}}>😴 Vitals</div><div style={{fontSize:'13px',color:T.text}}>Sleep: {data.vitals.sleep}h · Mood: {data.vitals.mood}/10{data.vitals.energy?' · Energy: '+data.vitals.energy+'/10':''}</div></div>}
             {data.meetings.length>0 && (
@@ -9085,7 +9204,7 @@ function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, 
                 </div>
               </div>
             )}
-            {!data.habits.length&&!data.vitals&&!data.expenses.length&&!data.meetings.length&&<div style={{color:T.textMuted,textAlign:'center',padding:'20px 0',fontSize:'13px'}}>No data logged for this day.</div>}
+            {!data.habits.length&&!data.vitals&&!data.expenses.length&&!data.meetings.length&&!data.dueBills?.length&&!data.dueTasks?.length&&<div style={{color:T.textMuted,textAlign:'center',padding:'20px 0',fontSize:'13px'}}>No data logged for this day.</div>}
           </div>
         );
       })()}
@@ -9098,6 +9217,13 @@ function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, 
 // ─────────────────────────────────────────────
 function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs, vitals, settings, netWorthHistory }) {
   const [range, setRange] = useState('3M');
+  // Safe fallbacks for first install
+  const safeExpenses = expenses || [];
+  const safeIncomes = incomes || [];
+  const safeHabits = habits || [];
+  const safeHabitLogs = habitLogs || {};
+  const safeVitals = vitals || [];
+  const safeNetWorthHistory = netWorthHistory || [];
 
   const months = useMemo(() => {
     const n = range==='1M'?1:range==='3M'?3:range==='6M'?6:12;
@@ -9109,8 +9235,8 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 
   const spendingData = months.map(m=>({
     month: m.slice(5),
-    spend: expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount),0),
-    income: incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount),0),
+    spend: safeExpenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount),0),
+    income: safeIncomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount),0),
   }));
 
   const savingsRateData = spendingData.map(d=>({
@@ -9120,13 +9246,13 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 
   const habitData = months.map(m=>({
     month: m.slice(5),
-    completions: habits.reduce((s,h)=>{
-      const logs = habitLogs[h.id]||[];
+    completions: safeHabits.reduce((s,h)=>{
+      const logs = safeHabitLogs[h.id]||[];
       return s + logs.filter(d=>d.startsWith(m)).length;
     },0)
   }));
 
-  const vitalsData = vitals.filter(v=>months.some(m=>v.date?.startsWith(m))).map(v=>({
+  const vitalsData = safeVitals.filter(v=>months.some(m=>v.date?.startsWith(m))).map(v=>({
     date: dateLabel(v.date), sleep:v.sleep, mood:v.mood
   }));
 
@@ -9237,9 +9363,9 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
         {/* ── Net Worth ── */}
         <div style={s.card}>
           <div style={s.cardTitle}>Net Worth Over Time</div>
-          {netWorthHistory.length > 1
+          {safeNetWorthHistory.length > 1
             ? <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={netWorthHistory}>
+                <AreaChart data={safeNetWorthHistory}>
                   <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
                   <XAxis dataKey="month" tick={{fill:T.textMuted,fontSize:10}} />
                   <YAxis tick={{fill:T.textMuted,fontSize:10}} tickFormatter={v=>`${settings.currency}${fmtN(v)}`} />
@@ -9250,13 +9376,13 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
             : <div style={{color:T.textMuted,textAlign:'center',padding:'40px 0',fontSize:'13px'}}>Net worth will chart here once you have 2+ months of data.</div>
           }
           {/* Table */}
-          {netWorthHistory.length > 0 && (
+          {safeNetWorthHistory.length > 0 && (
             <div style={{marginTop:'12px',borderTop:`1px solid ${T.border}`,paddingTop:'10px'}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'4px',fontSize:'10px',color:T.textMuted,fontWeight:'700',marginBottom:'5px',padding:'0 2px'}}>
                 <span>{t('monthly')}</span><span style={{textAlign:'right'}}>{t('hoard_net_worth')}</span><span style={{textAlign:'right'}}>Change</span>
               </div>
               <div style={{maxHeight:'140px',overflowY:'auto'}}>
-                {[...netWorthHistory].reverse().map((d,i,arr)=>{
+                {safeNetWorthHistory.length > 0 && [...safeNetWorthHistory].reverse().map((d,i,arr)=>{
                   const prev = arr[i+1];
                   const delta = prev ? d.value - prev.value : null;
                   return (
@@ -9394,6 +9520,14 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 // INSIGHTS TAB
 // ─────────────────────────────────────────────
 function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome }) {
+  // B10 — safe fallbacks for all arrays in case they're undefined on first install
+  const safeExpenses = expenses || [];
+  const safeVitals = vitals || [];
+  const safeHabits = habits || [];
+  const safeHabitLogs = habitLogs || {};
+  const safeIncomes = incomes || [];
+  const safeAssets = assets || [];
+  const safeDebts = debts || [];
   const [chatHistory, setChatHistory] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -9412,24 +9546,41 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
   },[compound]);
 
   // Correlation: sleep vs mood
-  const sleepMoodData = vitals.slice(-60).map(v=>({sleep:v.sleep,mood:v.mood}));
+  const sleepMoodData = safeVitals.slice(-60).map(v=>({sleep:v.sleep,mood:v.mood}));
 
   // Spending vs mood
-  const spendMoodData = vitals.slice(-30).map(v=>{
-    const daySpend = expenses.filter(e=>e.date===v.date).reduce((s,e)=>s+Number(e.amount),0);
+  const spendMoodData = safeVitals.slice(-30).map(v=>{
+    const daySpend = safeExpenses.filter(e=>e.date===v.date).reduce((s,e)=>s+Number(e.amount),0);
     return {date:dateLabel(v.date),mood:v.mood,spend:daySpend};
   }).filter(d=>d.spend>0||d.mood>0);
 
-  const overBudget = Object.entries(budgetTargets).filter(([cat,tgt])=>{
-    const spent = expenses.filter(e=>e.date?.startsWith(today().slice(0,7))&&e.category===cat).reduce((s,e)=>s+Number(e.amount),0);
+  // C10 — Low mood spending insight: compare avg spend on low-mood vs high-mood days
+  const moodSpendInsight = useMemo(()=>{
+    const daysWithBoth = safeVitals.filter(v=>v.mood!=null).map(v=>({
+      mood: v.mood,
+      spend: safeExpenses.filter(e=>e.date===v.date).reduce((s,e)=>s+Number(e.amount),0)
+    })).filter(d=>d.spend>0);
+    if(daysWithBoth.length < 5) return null;
+    const lowMood = daysWithBoth.filter(d=>d.mood<=4);
+    const highMood = daysWithBoth.filter(d=>d.mood>=7);
+    if(!lowMood.length||!highMood.length) return null;
+    const avgLow  = lowMood.reduce((s,d)=>s+d.spend,0)/lowMood.length;
+    const avgHigh = highMood.reduce((s,d)=>s+d.spend,0)/highMood.length;
+    const diff = avgLow - avgHigh;
+    if(Math.abs(diff) < 2) return null;
+    return { avgLow, avgHigh, diff, lowCount:lowMood.length, highCount:highMood.length };
+  },[safeVitals, safeExpenses]);
+
+  const overBudget = Object.entries(budgetTargets||{}).filter(([cat,tgt])=>{
+    const spent = safeExpenses.filter(e=>e.date?.startsWith(today().slice(0,7))&&e.category===cat).reduce((s,e)=>s+Number(e.amount),0);
     return spent > tgt;
   });
 
   const wins = [];
-  const bestStreak = habits.reduce((max,h)=>{let st=0,d=new Date();while((habitLogs[h.id]||[]).includes(d.toISOString().slice(0,10))){st++;d.setDate(d.getDate()-1);}return Math.max(max,st);},0);
+  const bestStreak = safeHabits.reduce((max,h)=>{let st=0,d=new Date();while((safeHabitLogs[h.id]||[]).includes(d.toISOString().slice(0,10))){st++;d.setDate(d.getDate()-1);}return Math.max(max,st);},0);
   if (bestStreak >= 7) wins.push(`🔥 ${bestStreak}-day streak!`);
   if (savingsRate >= 20) wins.push(`💾 ${savingsRate.toFixed(0)}% savings rate — excellent!`);
-  if (debts.length > 0) wins.push(`💪 Tracking ${debts.length} debt${debts.length>1?'s':''}`);
+  if (safeDebts.length > 0) wins.push(`💪 Tracking ${safeDebts.length} debt${safeDebts.length>1?'s':''}`);
 
   async function sendChat() {
     if (!chatInput.trim() || chatLoading) return;
@@ -9439,7 +9590,7 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
 
     const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
     const model = settings.aiModel || 'llama3.2';
-    const context = `Finances: Net worth ${settings.currency}${fmtN(assets.reduce((s,a)=>s+Number(a.value),0)-debts.reduce((s,d)=>s+Number(d.balance),0))}, Income this month ${settings.currency}${fmtN(thisMonthIncome)}, Spending ${settings.currency}${fmtN(thisMonthSpend)}, Savings rate ${savingsRate.toFixed(1)}%, Debts: ${debts.length} totalling ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance),0))}. Habits: ${habits.length} tracked. Vitals: ${vitals.length} days logged.`;
+    const context = `Finances: Net worth ${settings.currency}${fmtN(safeAssets.reduce((s,a)=>s+Number(a.value),0)-safeDebts.reduce((s,d)=>s+Number(d.balance),0))}, Income this month ${settings.currency}${fmtN(thisMonthIncome)}, Spending ${settings.currency}${fmtN(thisMonthSpend)}, Savings rate ${savingsRate.toFixed(1)}%, Debts: ${safeDebts.length} totalling ${settings.currency}${fmtN(safeDebts.reduce((s,d)=>s+Number(d.balance),0))}. Habits: ${safeHabits.length} tracked. Vitals: ${safeVitals.length} days logged.`;
 
     const messages = [
       {role:'system', content:`You are a personal life coach AI embedded in LifeOS. User data: ${context}. Be concise, specific, and actionable. Max 3-4 sentences.`},
@@ -9584,13 +9735,25 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
               </LineChart>
             </ResponsiveContainer>
           ) : <div style={{color:T.textMuted,textAlign:'center',padding:'40px'}}>Log expenses + vitals to see correlation</div>}
+          {/* C10 — Mood impulse spend insight */}
+          {moodSpendInsight && (
+            <div style={{marginTop:'12px',padding:'10px 14px',borderRadius:'8px',background:moodSpendInsight.diff>0?T.danger+'15':T.success+'15',border:`1px solid ${moodSpendInsight.diff>0?T.danger:T.success}33`}}>
+              <div style={{fontWeight:'700',fontSize:'12px',marginBottom:'4px',color:moodSpendInsight.diff>0?T.danger:T.success}}>
+                {moodSpendInsight.diff>0?'⚠️ Impulse Spending Detected':'✅ Good Emotional Spending Control'}
+              </div>
+              <div style={{fontSize:'12px',color:T.textMuted}}>
+                On <strong>low mood days</strong> (≤4/10) you spend {settings.currency}{fmtN(moodSpendInsight.avgLow)}/day vs {settings.currency}{fmtN(moodSpendInsight.avgHigh)}/day on high mood days —{' '}
+                {moodSpendInsight.diff>0?<span style={{color:T.danger}}>+{settings.currency}{fmtN(moodSpendInsight.diff)} more when feeling low.</span>:<span style={{color:T.success}}>no significant difference.</span>}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* SPENDING PERSONALITY */}
       {(()=>{
         const m = today().slice(0,7);
-        const monthly = expenses.filter(e=>e.date?.startsWith(m));
+        const monthly = safeExpenses.filter(e=>e.date?.startsWith(m));
         const total = monthly.reduce((s,e)=>s+Number(e.amount),0);
         if (total < 50) return null;
         const catBreakdown = Object.keys(SPENDING_CATEGORIES).map(cat=>({
@@ -9635,8 +9798,8 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
         const m = today().slice(0,7);
         const prevM = (() => { const d=new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
         const anomalies = Object.keys(SPENDING_CATEGORIES).map(cat=>{
-          const curr = expenses.filter(e=>e.date?.startsWith(m)&&e.category===cat).reduce((s,e)=>s+Number(e.amount),0);
-          const prev = expenses.filter(e=>e.date?.startsWith(prevM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount),0);
+          const curr = safeExpenses.filter(e=>e.date?.startsWith(m)&&e.category===cat).reduce((s,e)=>s+Number(e.amount),0);
+          const prev = safeExpenses.filter(e=>e.date?.startsWith(prevM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount),0);
           if (prev < 10) return null;
           const ratio = curr / prev;
           if (ratio >= 1.5) return { cat, curr, prev, ratio, type:'spike' };
@@ -9662,10 +9825,10 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
 
       {/* HABIT + VITALS CORRELATION */}
       {(()=>{
-        if (habits.length === 0 || vitals.length < 5) return null;
-        const insights = habits.map(h => {
-          const loggedDates = new Set((habitLogs[h.id]||[]));
-          const daysWithVitals = vitals.filter(v=>v.sleep!=null||v.mood!=null);
+        if (safeHabits.length === 0 || safeVitals.length < 5) return null;
+        const insights = safeHabits.map(h => {
+          const loggedDates = new Set((safeHabitLogs[h.id]||[]));
+          const daysWithVitals = safeVitals.filter(v=>v.sleep!=null||v.mood!=null);
           if (daysWithVitals.length < 5) return null;
           const onDays  = daysWithVitals.filter(v=>loggedDates.has(v.date));
           const offDays = daysWithVitals.filter(v=>!loggedDates.has(v.date));
@@ -9743,7 +9906,7 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
 // ─────────────────────────────────────────────
 // MIND & BODY TAB (Vitals + Focus merged)
 // ─────────────────────────────────────────────
-function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMetrics, metricLogs, setMetricLogs, focusSessions, setFocusSessions, habits, goals, settings }) {
+function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMetrics, metricLogs, setMetricLogs, focusSessions, setFocusSessions, habits, setHabitLogs, goals, settings }) {
   const [subTab, setSubTab] = useState('vitals');
   // Vitals state
   const [form, setForm] = useState({ sleep:7, quality:3, mood:7, note:'', date:today() });
@@ -9803,6 +9966,18 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
             if(timerMode==='work'){
               setFocusSessions(s=>[...s,{id:Date.now(),duration:dur,task:sessionTask||'Free focus',completedAt:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}]);
               addXP(dur,'Focus session completed');
+              // C9 — if session was linked to a habit, auto-tick it
+              if(sessionTask) {
+                const linked = habits.find(h=>h.name===sessionTask||h.id===sessionTask);
+                if(linked && setHabitLogs) {
+                  setHabitLogs(logs=>{
+                    const prev = logs[linked.id]||[];
+                    const d = today();
+                    if(!prev.includes(d)) return {...logs,[linked.id]:[...prev,d]};
+                    return logs;
+                  });
+                }
+              }
             }
             return 0;
           }
@@ -11946,7 +12121,7 @@ Be specific. If it's financial, give a tip. If it's a task, give the best first 
 // ─────────────────────────────────────────────
 // CAREER TAB — v2 France / Tours / Ingénieur Mécanique
 // ─────────────────────────────────────────────
-function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps, setCareerApps, careerRex, setCareerRex, addXP }) {
+function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps, setCareerApps, careerRex, setCareerRex, addXP, incomes, setIncomes }) {
   const [activeSection, setActiveSection] = useState('cv');
   const [cvInput, setCvInput] = useState(careerProfile.cv || '');
   const [aiResult, setAiResult] = useState('');
@@ -12197,7 +12372,19 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
 
   function updateAppStatus(id, status) {
     setCareerApps(a=>a.map(app=>app.id===id?{...app,status}:app));
-    if (status==='offer') addXP(50, 'Offre reçue ! 🎉');
+    if (status==='offer') {
+      addXP(50, 'Offre reçue ! 🎉');
+      // C12 — prompt to update income when offer accepted
+      setTimeout(() => {
+        const app = careerApps.find(a=>a.id===id);
+        const salaryStr = window.prompt(`🎉 Offer received from ${app?.company||'company'}!\n\nEnter your new monthly salary to update income tracking (or leave blank to skip):`);
+        const salary = parseFloat(salaryStr);
+        if (!isNaN(salary) && salary > 0 && setIncomes) {
+          setIncomes(i=>[...i,{id:Date.now(),amount:salary,note:`💼 Salary — ${app?.company||'New job'}`,date:today()}]);
+          addXP(10, 'Income updated from job offer');
+        }
+      }, 300);
+    }
     if (status==='interview') addXP(20, 'Entretien décroché !');
   }
 
