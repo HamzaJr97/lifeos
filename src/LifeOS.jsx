@@ -1941,14 +1941,16 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
               const tabs = expandedHub.tabs;
               const n = tabs.length;
               // Arc: spread bubbles in a semicircle above the anchor point
-              // Angle range: from 210° to 330° (opening upward, centred on 270°)
-              const R = Math.min(110, 80 + n * 8); // arc radius px
-              const spread = Math.min(140, 40 + n * 22); // total arc angle in degrees
+              // Tighter spread so labels never drop below the dock
+              const R = Math.min(100, 72 + n * 6); // arc radius px
+              const spread = Math.min(90, 28 + n * 14); // reduced spread to keep all bubbles well above dock
               const startAngle = 270 - spread / 2;
               const step = n > 1 ? spread / (n - 1) : 0;
               const BUBBLE = 58; // px per bubble
               // Clamp anchor so arc never goes off-screen
               const safeX = Math.max(BUBBLE, Math.min(window.innerWidth - BUBBLE, hubAnchor.x));
+              // Ensure bubbles never go below this Y (above dock with clearance for label pill)
+              const dockClearance = hubAnchor.y - BUBBLE - 30; // at least 30px above the dock top
 
               return (
                 <div style={{position:'fixed',inset:0,zIndex:195,pointerEvents:'none'}}>
@@ -1978,7 +1980,9 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                     const angleDeg = startAngle + i * step;
                     const angleRad = (angleDeg * Math.PI) / 180;
                     const bx = safeX + R * Math.cos(angleRad);
-                    const by = hubAnchor.y + R * Math.sin(angleRad); // sin is negative upward
+                    // Clamp so bubble + label never overlaps dock
+                    const rawBy = hubAnchor.y + R * Math.sin(angleRad);
+                    const by = Math.min(rawBy, dockClearance); // never below dock clearance
                     const isActive = activeTab === tab.id;
                     const badge = getBadge(tab.id);
                     const delay = `${i * 0.04}s`;
@@ -2611,6 +2615,35 @@ function OnboardingWizard({ T, s, settings, setSettings, onComplete, step, setSt
 // ─────────────────────────────────────────────
 // DASHBOARD TAB
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// PAGE HELP — collapsible guide shown on each tab
+// ─────────────────────────────────────────────
+function PageHelp({ T, s, title, tips }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{...s.card, border:`1px solid ${T.accent}22`, padding:'10px 14px'}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:'8px',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0}}>
+        <span style={{fontSize:'14px'}}>💡</span>
+        <span style={{fontSize:'11px',fontWeight:'700',color:T.textMuted,flex:1,textAlign:'left',textTransform:'uppercase',letterSpacing:'1px'}}>{title}</span>
+        <span style={{fontSize:'12px',color:T.textMuted}}>{open ? '▲ Hide' : '▼ How to use'}</span>
+      </button>
+      {open && (
+        <div style={{marginTop:'10px',display:'flex',flexDirection:'column',gap:'6px'}}>
+          {tips.map((tip,i) => (
+            <div key={i} style={{display:'flex',gap:'10px',alignItems:'flex-start',padding:'6px 0',borderTop:i>0?`1px solid ${T.border}22`:'none'}}>
+              <span style={{fontSize:'14px',flexShrink:0}}>{tip.icon}</span>
+              <div>
+                <div style={{fontSize:'12px',fontWeight:'700',color:T.text}}>{tip.title}</div>
+                <div style={{fontSize:'11px',color:T.textMuted,lineHeight:1.5,marginTop:'2px'}}>{tip.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes, weeklyBriefHistory, setWeeklyBriefHistory }) {
   const [quickAmount, setQuickAmount] = useState('');
   const [quickCat, setQuickCat] = useState('🍽️ Food');
@@ -2693,6 +2726,14 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
         </div>
       </div>
 
+      <PageHelp T={T} s={s} title="Dashboard Guide" tips={[
+        {icon:'📊', title:'Overview widgets', desc:'The 4 stat cards show your key numbers. Tap any card to navigate to that section.'},
+        {icon:'✅', title:'Today\'s Quests', desc:'Check off your daily habits here. Each completion earns XP toward your next level.'},
+        {icon:'💸', title:'Quick Log', desc:'Instantly record an expense (amount + category + note) or log your sleep/mood for the day. No navigation needed.'},
+        {icon:'📅', title:'Week Planner', desc:'Tap any day in the 7-day strip to add tasks or goals for that day. Track your week at a glance.'},
+        {icon:'🚨', title:'Smart Alerts', desc:'Red/yellow banners appear automatically when you\'re over budget, have a bill due, or data is missing.'},
+      ]} />
+
       {/* SMART ALERTS */}
       {smartAlerts.length > 0 && (
         <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
@@ -2749,7 +2790,7 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
         </div>
       </div>
 
-      <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr 1fr', gap:'16px'}}>
+      <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr', gap:'16px', alignItems:'start'}}>
         {/* TODAY'S QUESTS */}
         <div style={s.card}>
           <div style={s.cardTitle}>{t('dash_quests')}</div>
@@ -2768,45 +2809,8 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
           {todayHabits.length === 0 && <div style={{color:T.textMuted, fontSize:'13px'}}>{t('dash_no_habits')} <span style={{color:T.accent, cursor:'pointer'}} onClick={() => setActiveTab('quests')}>{t('create')} →</span></div>}
         </div>
 
-        {/* QUICK LOG */}
+        {/* WEEKLY PLANNER */}
         <div style={s.card}>
-          <div style={s.cardTitle}>{t('dash_quicklog')}</div>
-          {/* Amount */}
-          <div style={{marginBottom:'8px'}}>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('amount')} ({settings.currency})</div>
-            <input type="number" placeholder="0.00" style={{...s.input, width:'100%'}} value={quickAmount} onChange={e => setQuickAmount(e.target.value)} />
-          </div>
-          {/* Category */}
-          <div style={{marginBottom:'8px'}}>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('category')}</div>
-            <select style={{...s.select, width:'100%'}} value={quickCat} onChange={e=>setQuickCat(e.target.value)}>
-              {Object.keys(SPENDING_CATEGORIES).map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-          {/* Note */}
-          <div style={{marginBottom:'10px'}}>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('note')} ({t('optional')})</div>
-            <input placeholder={t('note')} style={{...s.input, width:'100%'}} value={quickNote||''} onChange={e => setQuickNote(e.target.value)} />
-          </div>
-          <button style={{...s.btn(), width:'100%', marginBottom:'14px'}} onClick={quickLogExpense}>{t('dash_log_expense')}</button>
-          <div style={{borderTop:`1px solid ${T.border}`, paddingTop:'12px'}}>
-            <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'8px'}}>{t('dash_vitals_label')}</div>
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'10px'}}>
-              <div>
-                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_sleep')} {quickSleep}h</div>
-                <input type="range" min="4" max="10" step="0.5" value={quickSleep} onChange={e=>setQuickSleep(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
-              </div>
-              <div>
-                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_mood')} {quickMood}/10</div>
-                <input type="range" min="1" max="10" value={quickMood} onChange={e=>setQuickMood(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
-              </div>
-            </div>
-            <button style={{...s.btn(T.success), width:'100%'}} onClick={quickLogVitals}>{t('dash_log_vitals')} +5xp</button>
-          </div>
-        </div>
-
-        {/* WEEKLY PLANNER — I24 */}
-        <div style={{...s.card, gridColumn: s.isMobile ? 'span 1' : 'span 1'}}>
           <div style={{...s.cardTitle, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <span>📅 Week Planner</span>
             <button style={s.btnGhost} onClick={() => setShowWF(!showWF)}>{showWF ? '▲' : '▼'}</button>
@@ -2864,6 +2868,47 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
             );
           })()}
           {longestStreak > 0 && <div style={{marginTop:'10px', padding:'6px 8px', background:T.accentSoft, borderRadius:'6px', fontSize:'11px', color:T.accent}}>🔥 {t('dash_best_streak')}: {longestStreak} days</div>}
+        </div>
+      </div>
+
+      {/* QUICK LOG — full width for easy access */}
+      <div style={s.card}>
+        <div style={s.cardTitle}>{t('dash_quicklog')}</div>
+        <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr', gap:'16px'}}>
+          {/* Expense section */}
+          <div>
+            <div style={{fontSize:'12px', fontWeight:'700', color:T.text, marginBottom:'10px'}}>💸 {t('dash_log_expense')}</div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', marginBottom:'8px'}}>
+              <div>
+                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('amount')} ({settings.currency})</div>
+                <input type="number" placeholder="0.00" style={{...s.input, width:'100%'}} value={quickAmount} onChange={e => setQuickAmount(e.target.value)} />
+              </div>
+              <div>
+                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('category')}</div>
+                <select style={{...s.select, width:'100%'}} value={quickCat} onChange={e=>setQuickCat(e.target.value)}>
+                  {Object.keys(SPENDING_CATEGORIES).map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{marginBottom:'10px'}}>
+              <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('note')} ({t('optional')})</div>
+              <input placeholder={t('note')} style={{...s.input, width:'100%'}} value={quickNote||''} onChange={e => setQuickNote(e.target.value)} />
+            </div>
+            <button style={{...s.btn(), width:'100%'}} onClick={quickLogExpense}>{t('dash_log_expense')} +5xp</button>
+          </div>
+          {/* Vitals section */}
+          <div>
+            <div style={{fontSize:'12px', fontWeight:'700', color:T.text, marginBottom:'10px'}}>😴 {t('dash_vitals_label')}</div>
+            <div style={{marginBottom:'12px'}}>
+              <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_sleep')} — {quickSleep}h</div>
+              <input type="range" min="4" max="10" step="0.5" value={quickSleep} onChange={e=>setQuickSleep(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
+            </div>
+            <div style={{marginBottom:'12px'}}>
+              <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px'}}>{t('dash_mood')} — {quickMood}/10</div>
+              <input type="range" min="1" max="10" value={quickMood} onChange={e=>setQuickMood(e.target.value)} style={{width:'100%', accentColor:T.accent}} />
+            </div>
+            <button style={{...s.btn(T.success), width:'100%'}} onClick={quickLogVitals}>{t('dash_log_vitals')} +5xp</button>
+          </div>
         </div>
       </div>
 
@@ -3296,7 +3341,7 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>⚔️ Character</div>
+        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>⚔️ Character <InfoButton tab="character" T={T} s={s} /></span></div>
       </div>
 
       {/* Sub-tab strip */}
@@ -4938,6 +4983,63 @@ const TAB_INFO = {
       { head: 'Session Log', body: 'Every focus session is recorded with duration and category for productivity tracking.' },
     ]
   },
+  investments: {
+    title: '📈 Investments',
+    sections: [
+      { head: 'Add a Position', body: 'Log stocks, ETFs, crypto or funds with ticker, quantity, and buy price. Current value updates based on your entries.' },
+      { head: 'Investment Thesis', body: 'Write a thesis for each holding explaining WHY you own it. The Thesis Decay Checker flags positions where the thesis is over 90 days old.' },
+      { head: 'Trade Journal', body: 'Log every buy/sell with notes. Invaluable for reviewing your decision quality over time.' },
+      { head: 'AI Advisor', body: 'Chat with the AI investment advisor by setting your risk profile, horizon, and available capital. Educational only — not financial advice.' },
+      { head: 'Price Alerts', body: 'Set target and stop prices for any symbol. You\'ll get an alert when the threshold is hit.' },
+    ]
+  },
+  mindbody: {
+    title: '🧘 Mind & Body',
+    sections: [
+      { head: 'Vitals Tab', body: 'Log sleep hours, mood, and quality each day. These feed into your Insights correlations.' },
+      { head: 'Focus Timer', body: 'Use the Pomodoro-style timer to track deep work sessions. Sessions earn XP and are logged for analytics.' },
+      { head: 'Focus Billing Mode', body: 'Toggle on and enter your hourly rate to see the monetary value of your focus sessions.' },
+      { head: 'AI Health Coach', body: 'Get AI-powered meal suggestions (enter available ingredients) or personalized sleep tips based on your vitals data.' },
+      { head: 'Custom Metrics', body: 'Track anything personal — weight, HRV, steps — with custom metric trackers. Charts show 30-day trends.' },
+    ]
+  },
+  learn: {
+    title: '📚 Learn',
+    sections: [
+      { head: 'Topics', body: 'Create learning topics (e.g. "Python", "French", "Investing"). Each topic gets its own notes, session log, and AI tutor.' },
+      { head: 'Log a Session', body: 'Record study sessions with duration and summary. Tracks your total hours per topic.' },
+      { head: 'Flashcards', body: 'Create Q&A flashcards for any topic. Review mode randomly cycles through them.' },
+      { head: 'AI Tutor', body: 'Chat with an AI tutor specialized for your active topic. Conversations can be saved as notes.' },
+    ]
+  },
+  character: {
+    title: '🦸 Character',
+    sections: [
+      { head: 'Profile & Level', body: 'Your level grows with XP earned from habits, expenses, goals, and focus sessions. Each level unlocks new perks.' },
+      { head: 'Hero Class', body: 'Your class evolves based on your dominant activity. Log more financial habits → Finance Wizard. More fitness → Warrior.' },
+      { head: 'Quests', body: 'Create daily or weekly habits. Check them off each day to build streaks and earn XP. Use the 7-day review calendar to catch up.' },
+      { head: 'Chronicles', body: 'Write journal-style entries about your life journey. These are private logs that don\'t affect XP.' },
+      { head: 'Achievements', body: 'Badges unlock automatically when you hit milestones — 7-day streak, first investment, zero debt, etc.' },
+    ]
+  },
+  cashflow: {
+    title: '📅 Cash Flow',
+    sections: [
+      { head: 'Recurring Expenses', body: 'Add fixed monthly costs like rent, utilities, phone. These auto-populate the cash flow calendar.' },
+      { head: 'Subscriptions', body: 'Track all subscriptions separately. The Subscription Audit panel flags any that haven\'t matched a real expense in 60+ days.' },
+      { head: 'Bills', body: 'Log bills with due dates. Bills due within 3 days trigger smart alerts on the Dashboard.' },
+      { head: 'Financial Calendar', body: 'Monthly grid view showing income and expense events day by day. Spot cash crunches before they happen.' },
+    ]
+  },
+  tools: {
+    title: '🛠️ Finance Tools',
+    sections: [
+      { head: 'Natural Language Search', body: 'Type queries like "coffee last month" or "over 50 euros" to instantly find matching expenses.' },
+      { head: 'Paycheck Planner', body: 'Envelope-style budget: allocate your monthly income into named buckets and track how much remains in each.' },
+      { head: 'Expense Splits', body: 'Track shared expenses with friends or a partner. Mark who owes whom and settle up.' },
+      { head: 'Subscription Audit', body: 'Flags subscriptions that haven\'t matched any real expense in 60+ days — potential zombie subscriptions.' },
+    ]
+  },
 };
 
 function InfoButton({ tab, T, s }) {
@@ -5045,7 +5147,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>💰 Money Hub</div>
+      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>💰 Money Hub <InfoButton tab="spending" T={T} s={s} /></span></div>
       <div className="los-tab-strip">
         {[
           {id:'hoard',       label:'🏦 Hoard'},
@@ -8993,7 +9095,7 @@ Be concise, specific, and actionable. Educational purposes only — not official
       {/* HEADER */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
         <div>
-          <div style={{ fontFamily:"'Exo 2',sans-serif", fontSize:22, fontWeight:900 }}>{t('inv_title')}</div>
+          <div style={{ fontFamily:"'Exo 2',sans-serif", fontSize:22, fontWeight:900 }}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('inv_title')} <InfoButton tab="investments" T={T} s={s} /></span></div>
           <div style={{ fontSize:11, color: statusColor, marginTop:2 }}>
             {priceStatus === 'live'    ? `🟢 Live · Updated ${lastRefresh?.toLocaleTimeString()}` :
              priceStatus === 'loading' ? '⏳ Fetching live prices...' :
@@ -9617,7 +9719,7 @@ function LearnTab({ T, s, addXP, settings }) {
     return (
       <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>📚 Learning Hub</div>
+          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>📚 Learning Hub <InfoButton tab="learn" T={T} s={s} /></span></div>
           <div style={{display:'flex',gap:'8px'}}>
             <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>{setShowLogSession(true);setSessionForm(f=>({...f,topicId:topics[0]?.id||''}));}}>⏱️ Log Session</button>
             <button style={{...s.btn(),fontSize:'12px'}} onClick={()=>setShowAddTopic(true)}>+ New Topic</button>
@@ -11181,7 +11283,7 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>🧘 Mind & Body</div>
+      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>🧘 Mind & Body <InfoButton tab="mindbody" T={T} s={s} /></span></div>
 
       <div className="los-tab-strip">
         {[{id:'vitals',label:'😴 Vitals'},{id:'focus',label:'⏱️ Focus'},{id:'aihealth',label:'🤖 AI Health'}].map(st=>(
