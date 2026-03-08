@@ -2319,26 +2319,53 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         // Badge counts per tab
         const getBadge = (tabId) => {
           switch(tabId) {
-            case 'character':  return level > 1 ? `LV${level}` : null;
-            case 'moneyhub':   return thisMonthSpend > 0 ? fmtN(thisMonthSpend) : null;
+            case 'character':  return level > 1 ? `${level}` : null;
+            case 'moneyhub': {
+              // Count budget overruns
+              const overruns = smartAlerts.filter(a => a.type === 'danger').length;
+              return overruns > 0 ? String(overruns) : null;
+            }
             case 'portfolio':  return investments?.length > 0 ? `${investments.length}` : null;
-            case 'goals':      return goals?.length > 0 ? `${goals.length}` : null;
+            case 'goals': {
+              const active = goals?.filter(g => (g.progress || g.current || 0) < (g.target || 1)).length || 0;
+              return active > 0 ? String(active) : null;
+            }
             case 'debts':      return debts?.length > 0 ? `${debts.length}` : null;
             case 'career':     return careerApps?.length > 0 ? `${careerApps.length}` : null;
-            case 'gmail':      return gmailToken ? '●' : null;
+            case 'gmail':      return gmailToken ? '1' : null;
             case 'notes':      return notes?.length > 0 ? `${notes.length}` : null;
-            case 'mindbody':   return todayDoneCount > 0 ? `${todayDoneCount}✓` : null;
+            case 'mindbody': {
+              const remaining = todayHabits.length - todayDoneCount;
+              return remaining > 0 ? String(remaining) : (todayDoneCount > 0 ? '✓' : null);
+            }
+            case 'insights':   return smartAlerts.length > 0 ? `${smartAlerts.length}` : null;
+            case 'learn': {
+              const ls = JSON.parse(localStorage.getItem('los_learn_courses') || '[]');
+              const inProgress = ls.filter(c => c.progress > 0 && c.progress < 100).length;
+              return inProgress > 0 ? String(inProgress) : null;
+            }
             default:           return null;
           }
         };
 
-        // Hub-level badge: summarise sub-tabs
+        // Hub-level badge: sum up meaningful counts across sub-tabs
         const getHubBadge = (hub) => {
           if (hub.isSingle) {
             return smartAlerts.length > 0 ? `${smartAlerts.length}` : null;
           }
-          const anyBadge = hub.tabs.find(t => getBadge(t.id));
-          return anyBadge ? '●' : null;
+          // Collect numeric counts from sub-tabs
+          let total = 0;
+          let hasNonNumeric = false;
+          hub.tabs.forEach(t => {
+            const b = getBadge(t.id);
+            if (!b) return;
+            const n = parseInt(b);
+            if (!isNaN(n)) total += n;
+            else hasNonNumeric = true;
+          });
+          if (total > 0) return total > 99 ? '99+' : String(total);
+          if (hasNonNumeric) return '●';
+          return null;
         };
 
         // Is any sub-tab of this hub the active page?
@@ -5537,6 +5564,209 @@ function CatManagerItem({ cat, isBuiltin, isCustom, subcats, newSub, role, displ
 // ─────────────────────────────────────────────
 // MONEY HUB TAB (Spending + Finance + Discipline + CashFlow)
 // ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// FRENCH INCOME TAX CALCULATOR (Impôt sur le revenu)
+// Barème 2024 — modèle quotient familial + décote
+// ─────────────────────────────────────────────
+function FrenchTaxCalculator({ T, s, settings }) {
+  const [gross, setGross]       = useState('');
+  const [status, setStatus]     = useState('single');   // single | married | pacs
+  const [parts, setParts]       = useState('1');
+  const [donations, setDonations] = useState('');
+  const [result, setResult]     = useState(null);
+
+  // 2024 tax brackets (per part)
+  const TRANCHES = [
+    { min: 0,      max: 11294,  rate: 0.00 },
+    { min: 11294,  max: 28797,  rate: 0.11 },
+    { min: 28797,  max: 82341,  rate: 0.30 },
+    { min: 82341,  max: 177106, rate: 0.41 },
+    { min: 177106, max: Infinity, rate: 0.45 },
+  ];
+
+  function applyBareme(revenuParPart) {
+    let tax = 0;
+    for (const t of TRANCHES) {
+      if (revenuParPart <= t.min) break;
+      const tranche = Math.min(revenuParPart, t.max) - t.min;
+      tax += tranche * t.rate;
+    }
+    return tax;
+  }
+
+  function calcTax() {
+    const G = parseFloat(gross) || 0;
+    const P = parseFloat(parts) || 1;
+    const D = parseFloat(donations) || 0;
+
+    // Step 1: Abattement 10%
+    const taxable = G * 0.9;
+
+    // Step 2: Quotient familial → tax per part × nb parts
+    const revenuParPart = taxable / P;
+    const taxBrut = applyBareme(revenuParPart) * P;
+
+    // Décote 2024: if tax < 1929 (single) or 3191 (couple)
+    const isCouple = status === 'married' || status === 'pacs';
+    const decoteSeuil = isCouple ? 3191 : 1929;
+    const decoteBase  = isCouple ? 2120 : 1444;
+    let decote = 0;
+    if (taxBrut > 0 && taxBrut < decoteSeuil) {
+      decote = Math.max(0, decoteBase - taxBrut * 0.4525);
+    }
+
+    // Step 3: Réduction dons (66% for associations, 75% for humanitarian)
+    const reductionDons = D * 0.66;
+
+    const taxFinal = Math.max(0, taxBrut - decote - reductionDons);
+    const tauxEffectif = G > 0 ? (taxFinal / G) * 100 : 0;
+    const tauxMarginal = TRANCHES.slice().reverse().find(t => taxable / P > t.min)?.rate || 0;
+    const netApresImpot = G - taxFinal;
+
+    // Monthly breakdown
+    const mensualImpot = taxFinal / 12;
+    const mensualNet   = netApresImpot / 12;
+
+    // Breakdown by tranche
+    const revenuParPartVal = taxable / P;
+    const breakdown = TRANCHES.map(t => {
+      if (revenuParPartVal <= t.min) return null;
+      const trancheAmt = (Math.min(revenuParPartVal, t.max) - t.min) * P;
+      const taxAmt     = trancheAmt * t.rate;
+      if (taxAmt === 0 && t.rate === 0) return { label: `0% (jusqu'à ${fmtN(t.max * P * 1.11)} €)`, amount: 0, rate: 0, base: trancheAmt };
+      return { label: `${(t.rate*100).toFixed(0)}%`, amount: taxAmt, rate: t.rate, base: trancheAmt };
+    }).filter(Boolean);
+
+    setResult({ taxable, taxBrut, decote, reductionDons, taxFinal, tauxEffectif, tauxMarginal, netApresImpot, mensualImpot, mensualNet, breakdown, G, P });
+  }
+
+  const cur = settings?.currency || '€';
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
+      <div style={s.card}>
+        <div style={s.cardTitle}>🇫🇷 Simulateur Impôt sur le Revenu 2024</div>
+        <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'16px'}}>Barème officiel · Quotient familial · Décote · Réductions</div>
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'16px'}}>
+          {/* Salaire brut */}
+          <div style={{gridColumn:'1/-1'}}>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Salaire brut annuel (€)</div>
+            <input type="number" placeholder="ex: 45000" style={{...s.input, width:'100%'}} value={gross} onChange={e=>setGross(e.target.value)} />
+          </div>
+
+          {/* Situation maritale */}
+          <div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Situation familiale</div>
+            <select style={{...s.select, width:'100%'}} value={status} onChange={e=>setStatus(e.target.value)}>
+              <option value="single">Célibataire / Divorcé</option>
+              <option value="married">Marié(e)</option>
+              <option value="pacs">Pacsé(e)</option>
+            </select>
+          </div>
+
+          {/* Nombre de parts */}
+          <div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Nombre de parts (QF)</div>
+            <input type="number" min="1" max="10" step="0.5" placeholder="ex: 2.5" style={{...s.input, width:'100%'}} value={parts} onChange={e=>setParts(e.target.value)} />
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>1 seul · +1 conjoint · +0.5 par enfant</div>
+          </div>
+
+          {/* Dons */}
+          <div style={{gridColumn:'1/-1'}}>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Dons & mécénat annuels (€) <span style={{color:T.accent}}>→ réduction 66%</span></div>
+            <input type="number" placeholder="0" style={{...s.input, width:'100%'}} value={donations} onChange={e=>setDonations(e.target.value)} />
+          </div>
+        </div>
+
+        <button onClick={calcTax} style={{...s.btn, width:'100%', padding:'12px'}}>
+          Calculer mon impôt 2024
+        </button>
+      </div>
+
+      {result && (
+        <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+
+          {/* Summary cards */}
+          <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px'}}>
+            {[
+              { label:'Impôt total', value:`${fmtN(Math.round(result.taxFinal))} €`, color:result.taxFinal > 0 ? T.danger : T.success, sub:'Net annuel à payer' },
+              { label:'Taux effectif', value:`${result.tauxEffectif.toFixed(2)}%`, color:T.warning, sub:`Tranche marginale ${(result.tauxMarginal*100).toFixed(0)}%` },
+              { label:'Revenu net/mois', value:`${fmtN(Math.round(result.mensualNet))} €`, color:T.success, sub:`−${fmtN(Math.round(result.mensualImpot))} € impôt/mois` },
+            ].map((c,i) => (
+              <div key={i} style={{...s.card, background:`${c.color}0e`, borderColor:`${c.color}30`, textAlign:'center'}}>
+                <div style={{fontSize:'10px', color:T.textMuted, fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'6px'}}>{c.label}</div>
+                <div style={{fontSize:'20px', fontWeight:'900', color:c.color, fontFamily:"'Syne',sans-serif"}}>{c.value}</div>
+                <div style={{fontSize:'10px', color:T.textMuted, marginTop:'4px'}}>{c.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Step-by-step calculation */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>📐 Détail du calcul</div>
+            <div style={{display:'flex', flexDirection:'column', gap:'0'}}>
+              {[
+                { step:'1', label:'Salaire brut', val:`${fmtN(Math.round(result.G))} €`, note:'' },
+                { step:'', label:'Abattement 10% (frais professionnels)', val:`− ${fmtN(Math.round(result.G * 0.1))} €`, note:'', dim:true },
+                { step:'', label:'Revenu net imposable', val:`= ${fmtN(Math.round(result.taxable))} €`, note:'', bold:true },
+                { step:'2', label:`Quotient familial (÷ ${result.P} parts)`, val:`${fmtN(Math.round(result.taxable / result.P))} € / part`, note:'' },
+                { step:'', label:'Impôt brut (barème × parts)', val:`${fmtN(Math.round(result.taxBrut))} €`, note:'', bold:true },
+                ...(result.decote > 0 ? [{ step:'3a', label:'Décote', val:`− ${fmtN(Math.round(result.decote))} €`, note:'Allègement pour petits impôts', dim:true }] : []),
+                ...(result.reductionDons > 0 ? [{ step:'3b', label:'Réduction dons (66%)', val:`− ${fmtN(Math.round(result.reductionDons))} €`, note:'', dim:true }] : []),
+                { step:'=', label:'Impôt net à payer', val:`${fmtN(Math.round(result.taxFinal))} €`, note:'', bold:true, accent:true },
+              ].map((row, i) => (
+                <div key={i} style={{display:'flex', alignItems:'center', gap:'10px', padding:'9px 0', borderBottom:`1px solid ${T.border}44`}}>
+                  <div style={{width:'24px', height:'24px', borderRadius:'50%', background: row.accent ? T.accent : row.step ? T.accent+'22' : 'transparent', border: row.step ? `1px solid ${T.accent}44` : 'none', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                    <span style={{fontSize:'9px', fontWeight:'800', color: row.accent ? '#fff' : T.accent}}>{row.step}</span>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:'12px', color: row.dim ? T.textMuted : T.text, fontWeight: row.bold ? '700' : '400'}}>{row.label}</div>
+                    {row.note && <div style={{fontSize:'10px', color:T.textMuted}}>{row.note}</div>}
+                  </div>
+                  <div style={{fontSize:'13px', fontWeight: row.bold ? '800' : '600', color: row.accent ? T.accent : row.dim ? T.textMuted : T.text, fontFamily:"'Syne',sans-serif"}}>{row.val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tranche breakdown */}
+          <div style={s.card}>
+            <div style={s.cardTitle}>📊 Répartition par tranche</div>
+            {result.breakdown.map((b, i) => (
+              <div key={i} style={{marginBottom:'10px'}}>
+                <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'4px'}}>
+                  <span style={{color:T.text, fontWeight:'600'}}>Tranche {b.label}</span>
+                  <span style={{color: b.rate === 0 ? T.success : b.rate < 0.3 ? T.warning : T.danger, fontWeight:'700'}}>
+                    {fmtN(Math.round(b.amount))} €
+                  </span>
+                </div>
+                <div style={{height:'6px', borderRadius:'99px', background:T.textDim||T.border, overflow:'hidden'}}>
+                  <div style={{height:'100%', width: result.taxBrut > 0 ? `${(b.amount/result.taxBrut)*100}%` : '0%', background: b.rate === 0 ? T.success : b.rate < 0.3 ? T.warning : T.danger, borderRadius:'99px', transition:'width 0.6s'}} />
+                </div>
+                <div style={{fontSize:'10px', color:T.textMuted, marginTop:'2px'}}>Base imposable : {fmtN(Math.round(b.base))} €</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Prélèvement à la source */}
+          <div style={{...s.card, background:`${T.accent}0a`, borderColor:`${T.accent}25`}}>
+            <div style={{fontSize:'12px', color:T.accent, fontWeight:'700', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px'}}>
+              <Info size={13} color={T.accent} /> Prélèvement à la source (PAS)
+            </div>
+            <div style={{fontSize:'12px', color:T.text, lineHeight:1.7}}>
+              Taux personnalisé estimé : <strong style={{color:T.accent}}>{result.tauxEffectif.toFixed(1)}%</strong><br/>
+              Retenue mensuelle : <strong style={{color:T.accent}}>{fmtN(Math.round(result.mensualImpot))} €/mois</strong><br/>
+              Salaire net après impôt : <strong style={{color:T.success}}>{fmtN(Math.round(result.mensualNet))} €/mois</strong>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
   const [subTab, setSubTab] = useState('hoard');
 
@@ -5552,6 +5782,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
           {id:'intelligence',label:'💡 Intelligence'},
           {id:'tools',       label:'🛠️ Tools'},
           {id:'freelance',   label:'🧾 Freelance'},
+          {id:'taxes',       label:'🇫🇷 Taxes'},
         ].map(st=>(
           <button key={st.id} onClick={()=>setSubTab(st.id)} style={{...s.btnGhost,fontSize:13,padding:'8px 18px',background:subTab===st.id?T.accentSoft:'transparent',color:subTab===st.id?T.accent:T.textMuted,borderColor:subTab===st.id?T.accent+'55':T.border,fontWeight:subTab===st.id?'700':'400'}}>{st.label}</button>
         ))}
@@ -5591,6 +5822,9 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
           <FreelanceModePanel T={T} s={s} settings={settings} freelanceData={freelanceData} setFreelanceData={setFreelanceData} incomes={incomes} thisMonthIncome={thisMonthIncome} />
           <TaxEstimationPanel T={T} s={s} settings={settings} thisMonthIncome={thisMonthIncome} expenses={expenses} incomes={incomes} />
         </div>
+      )}
+      {subTab==='taxes' && (
+        <FrenchTaxCalculator T={T} s={s} settings={settings} />
       )}
     </div>
   );
