@@ -5802,10 +5802,10 @@ function FrenchTaxCalculator({ T, s, settings }) {
               <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
                 <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>{settings?.language==='en'?'Revenue detail':'Détail des revenus'}</div>
                 {[
-                  { label:{settings?.language==='en'?'Gross salary':'Salaires bruts'},                    val:`${fmtN(Math.round(result.G))} €`,           bold:false },
-                  { label:{settings?.language==='en'?'10% deduction (professional expenses)':'Déduction 10% (frais professionnels)'},val:`− ${fmtN(Math.round(result.abattement))} €`, dim:true },
-                  { label:{settings?.language==='en'?'Net salary':'Salaires, pensions, rentes nets'},   val:`${fmtN(Math.round(result.salaireNet))} €`,  bold:true },
-                  { label:{settings?.language==='en'?'Gross global income':'Revenu brut global'},                 val:`${fmtN(Math.round(result.revenuBrut))} €`, bold:true, separator:true },
+                  { label: settings?.language==='en'?'Gross salary':'Salaires bruts',                    val:`${fmtN(Math.round(result.G))} €`,           bold:false },
+                  { label: settings?.language==='en'?'10% deduction (professional expenses)':'Déduction 10% (frais professionnels)', val:`− ${fmtN(Math.round(result.abattement))} €`, dim:true },
+                  { label: settings?.language==='en'?'Net salary':'Salaires, pensions, rentes nets',   val:`${fmtN(Math.round(result.salaireNet))} €`,  bold:true },
+                  { label: settings?.language==='en'?'Gross global income':'Revenu brut global',                 val:`${fmtN(Math.round(result.revenuBrut))} €`, bold:true, separator:true },
                 ].map((r,i) => <TaxRow key={i} T={T} {...r} />)}
               </div>
 
