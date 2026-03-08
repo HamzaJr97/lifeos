@@ -5,18 +5,6 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid, AreaChart, Area
 } from "recharts";
-import {
-  LayoutDashboard, Sword, Trophy, CreditCard, Wallet, TrendingUp,
-  Briefcase, Mail, FileText, BookOpen, Calendar, Archive, Brain,
-  Activity, Settings, Home, Target, Zap, BarChart2, PieChart as PieIcon,
-  Bell, Search, Bot, StickyNote, Sparkles, ChevronRight, ChevronLeft,
-  CheckCircle2, Circle, Flame, Star, Shield, Lock, Unlock, Plus,
-  ArrowUp, ArrowDown, Minus, RefreshCw, Globe, Clock, Heart,
-  DollarSign, Eye, EyeOff, Layers, Map, Flag, Award, Coffee,
-  Dumbbell, Moon, Sun, Wind, Leaf, Compass, Package, Users,
-  Send, Inbox, AlertTriangle, Info, CheckCheck, X, Menu,
-  ChevronUp, ChevronDown, MoreHorizontal, Grid, List
-} from "lucide-react";
 
 // ─────────────────────────────────────────────
 // UNIVERSAL AI CALLER  (respects settings.aiProvider: groq | anthropic | ollama)
@@ -837,7 +825,6 @@ const LANGS = {
     alert_budget_warn: (pct, cat, days) => `You've spent ${pct}% of your ${cat} budget with ${days} days left.`,
     alert_budget_over: (cat, cur, amt) => `${cat} is over budget by ${cur}${amt}!`,
     alert_savings_drop: (drop) => `Savings rate dropped ${drop}% vs last month.`,
-    alert_no_income: (month) => `No income logged for ${month}.`,
     alert_bill_due: (name, cur, amt, days) => `Bill "${name}" (${cur}${amt}) due in ${days} days!`,
     // Data health (Settings)
     health_no_income: (month) => `No income logged for ${month}.`,
@@ -1229,7 +1216,6 @@ const LANGS = {
     alert_budget_warn: (pct, cat, days) => `Vous avez dépensé ${pct}% de votre budget ${cat} avec ${days} jours restants.`,
     alert_budget_over: (cat, cur, amt) => `${cat} dépasse le budget de ${cur}${amt} !`,
     alert_savings_drop: (drop) => `Le taux d'épargne a chuté de ${drop}% vs le mois dernier.`,
-    alert_no_income: (month) => `Aucun revenu saisi pour ${month}.`,
     alert_bill_due: (name, cur, amt, days) => `Facture « ${name} » (${cur}${amt}) dans ${days} jours !`,
     // Data health
     health_no_income: (month) => `Aucun revenu saisi pour ${month}.`,
@@ -3147,7 +3133,7 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
                 </div>
               </div>
               <div style={{fontSize:'21px', fontWeight:'900', color:w.color(), fontFamily:"'Syne',sans-serif", letterSpacing:'-0.5px'}}>{w.value()}</div>
-              <div style={{fontSize:'11px', color:T.textMuted, marginTop:'4px', fontWeight:'600', letterSpacing:'0.5px', textTransform:'uppercase', fontSize:'10px'}}>{w.label}</div>
+              <div style={{fontSize:'10px', color:T.textMuted, marginTop:'4px', fontWeight:'600', letterSpacing:'0.5px', textTransform:'uppercase'}}>{w.label}</div>
               {w.sub() && <div style={{fontSize:'11px', color:w.color()+'cc', marginTop:'4px'}}>{w.sub()}</div>}
             </div>
             );
