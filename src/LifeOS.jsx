@@ -2282,7 +2282,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} careerApps={careerApps} setCareerApps={setCareerApps} />}
           {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
-          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} eventLog={eventLog} dailySnapshots={dailySnapshots} />}
+          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} eventLog={eventLog} dailySnapshots={dailySnapshots} goals={goals} netWorthHistory={netWorthHistory} netWorth={netWorth} recurringExpenses={recurringExpenses} />}
           {activeTab === 'mindbody' && <MindBodyTab logEvent={logEvent} T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} focusBillingSettings={focusBillingSettings} setFocusBillingSettings={setFocusBillingSettings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
@@ -11574,7 +11574,7 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 // ─────────────────────────────────────────────
 // INSIGHTS TAB
 // ─────────────────────────────────────────────
-function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal, eventLog, dailySnapshots }) {
+function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal, eventLog, dailySnapshots, goals, netWorthHistory, netWorth, recurringExpenses }) {
   // B10 — safe fallbacks for all arrays in case they're undefined on first install
   const safeExpenses = expenses || [];
   const safeVitals = vitals || [];
@@ -12347,6 +12347,316 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
                       }}>{a.urgency}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* PHASE 3 — PREDICTIVE ENGINE                                        */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {(() => {
+        const safeGoals     = goals || [];
+        const safeNWH       = netWorthHistory || [];
+        const safeRecurring = recurringExpenses || [];
+        const cur = settings?.currency || '€';
+
+        // ── Need at least 2 months of net worth history or 2 income data points ──
+        const hasEnoughData = safeNWH.length >= 2 || (incomes||[]).length >= 2;
+        if (!hasEnoughData) return (
+          <div style={{...s.card, border:`1px solid ${T.border}`, opacity:0.7, textAlign:'center', padding:'28px'}}>
+            <div style={{fontSize:'28px', marginBottom:'8px'}}>🔮</div>
+            <div style={{fontWeight:'800', fontSize:'14px', marginBottom:'6px'}}>Predictive Engine — Warming up</div>
+            <div style={{fontSize:'12px', color:T.textMuted}}>Log income or track net worth for 2+ months to unlock financial trajectory forecasts.</div>
+          </div>
+        );
+
+        // ── PREDICTION 1: NET WORTH TRAJECTORY WITH VARIANCE CONE ────────────
+        // Compute monthly growth from netWorthHistory
+        const nwhSorted = [...safeNWH].sort((a,b)=>a.month?.localeCompare(b.month));
+        let monthlyDeltas = [];
+        for (let i = 1; i < nwhSorted.length; i++) {
+          monthlyDeltas.push(nwhSorted[i].value - nwhSorted[i-1].value);
+        }
+
+        // Fallback: infer from savings rate if NWH is thin
+        if (monthlyDeltas.length < 2) {
+          const mInc  = (incomes||[]).filter(i=>i.date?.startsWith(today().slice(0,7))).reduce((s,i)=>s+Number(i.amount||0),0) || Number(settings?.incomeTarget||0);
+          const mSpend= (expenses||[]).filter(e=>e.date?.startsWith(today().slice(0,7))).reduce((s,e)=>s+Number(e.amount||0),0);
+          const impliedSavings = mInc - mSpend;
+          monthlyDeltas = Array(3).fill(impliedSavings > 0 ? impliedSavings : 0);
+        }
+
+        const avgMonthlyGrowth = monthlyDeltas.reduce((s,d)=>s+d,0)/monthlyDeltas.length;
+        const variance = monthlyDeltas.length >= 2
+          ? Math.sqrt(monthlyDeltas.reduce((s,d)=>s+Math.pow(d-avgMonthlyGrowth,2),0)/monthlyDeltas.length)
+          : Math.abs(avgMonthlyGrowth)*0.3;
+
+        const baseNW = netWorth || (nwhSorted.length > 0 ? nwhSorted[nwhSorted.length-1].value : 0);
+        const trajectoryData = [];
+        for (let m = 0; m <= 60; m += m < 12 ? 1 : 3) {
+          trajectoryData.push({
+            month: m === 0 ? 'Now' : m < 12 ? `${m}m` : `${m/12}y`,
+            base: Math.round(baseNW + avgMonthlyGrowth * m),
+            optimistic: Math.round(baseNW + (avgMonthlyGrowth + variance) * m),
+            pessimistic: Math.round(baseNW + (avgMonthlyGrowth - variance) * m),
+            m,
+          });
+        }
+        const proj1y  = trajectoryData.find(d=>d.m===12);
+        const proj5y  = trajectoryData.find(d=>d.m===60);
+
+        // ── PREDICTION 2: MONTH-END SPENDING FORECAST ────────────────────────
+        const dayOfMonth  = new Date().getDate();
+        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+        const daysLeft    = daysInMonth - dayOfMonth;
+        const monthKey    = today().slice(0,7);
+        const spentSoFar  = (expenses||[]).filter(e=>e.date?.startsWith(monthKey)).reduce((s,e)=>s+Number(e.amount||0),0);
+        const dailyRunRate= dayOfMonth > 0 ? spentSoFar / dayOfMonth : 0;
+        const projectedSpend = Math.round(spentSoFar + dailyRunRate * daysLeft);
+        const recurringLeft  = safeRecurring
+          .filter(r => {
+            const dueDate = `${monthKey}-${String(r.day||1).padStart(2,'0')}`;
+            return dueDate > today();
+          })
+          .reduce((s,r)=>s+Number(r.amount||0), 0);
+        const totalForecast  = projectedSpend + recurringLeft;
+        const mIncome = (incomes||[]).filter(i=>i.date?.startsWith(monthKey)).reduce((s,i)=>s+Number(i.amount||0),0)
+          || Number(settings?.incomeTarget||0);
+        const forecastSR = mIncome > 0 ? Math.round(((mIncome - totalForecast) / mIncome) * 100) : null;
+
+        // Category-level forecasts vs budgets
+        const catForecasts = Object.entries(budgetTargets||{}).map(([cat,budget])=>{
+          if (!budget) return null;
+          const spent = (expenses||[]).filter(e=>e.date?.startsWith(monthKey)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+          const catRunRate = dayOfMonth > 0 ? spent / dayOfMonth : 0;
+          const catProjected = Math.round(spent + catRunRate * daysLeft);
+          const pct = Math.round((catProjected / budget) * 100);
+          return { cat, budget, spent, catProjected, pct, over: catProjected > budget };
+        }).filter(Boolean).sort((a,b)=>b.pct-a.pct).slice(0,5);
+
+        // ── PREDICTION 3: GOAL ETA ENGINE ────────────────────────────────────
+        const goalForecasts = safeGoals
+          .filter(g => g.target > 0 && (g.progress||0) < g.target)
+          .map(g => {
+            const remaining = g.target - (g.progress||0);
+            // Infer monthly contribution from event log contributions or savings rate
+            const contribEvents = (eventLog||[]).filter(e=>e.type==='goal.contribution'&&e.data?.goalId===g.id);
+            let monthlyContrib = 0;
+            if (contribEvents.length >= 2) {
+              const totalContrib = contribEvents.reduce((s,e)=>s+(e.data?.amount||0),0);
+              const firstDate = new Date(contribEvents[0].ts);
+              const monthsSpan = Math.max(1,(new Date()-firstDate)/(1000*60*60*24*30));
+              monthlyContrib = totalContrib / monthsSpan;
+            } else if (mIncome > 0 && forecastSR != null) {
+              // fallback: allocate 30% of projected savings to this goal
+              const projSavings = mIncome * (forecastSR/100);
+              monthlyContrib = projSavings * 0.3 / Math.max(1, safeGoals.filter(g=>g.target>(g.progress||0)).length);
+            }
+            if (monthlyContrib <= 0) return null;
+            const monthsToComplete = Math.ceil(remaining / monthlyContrib);
+            const eta = new Date();
+            eta.setMonth(eta.getMonth() + monthsToComplete);
+            const etaStr = eta.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+            const deadlineDiff = g.deadline
+              ? Math.round((new Date(g.deadline+' 00:00:00') - eta) / (1000*60*60*24*30))
+              : null;
+            return { ...g, monthlyContrib: Math.round(monthlyContrib), monthsToComplete, etaStr, deadlineDiff };
+          })
+          .filter(Boolean)
+          .slice(0,5);
+
+        // ── PREDICTION 4: HABIT DROPOUT RISK ─────────────────────────────────
+        const dropoutRisks = (habits||[]).map(h => {
+          const logs = (habitLogs||{})[h.id] || [];
+          if (logs.length < 5) return null;
+          // compute last-30-day completion rate
+          const last30 = Array.from({length:30},(_,i)=>{
+            const d=new Date(); d.setDate(d.getDate()-i);
+            return d.toISOString().slice(0,10);
+          });
+          const recentRate = last30.filter(d=>logs.includes(d)).length / 30;
+          // compute all-time rate
+          const firstLog = logs.slice().sort()[0];
+          const totalDays = Math.max(1, Math.round((new Date()-new Date(firstLog+'T00:00:00'))/86400000));
+          const allTimeRate = logs.length / totalDays;
+          // consecutive misses
+          let misses = 0;
+          for (let i=0;i<14;i++){
+            const d=new Date(); d.setDate(d.getDate()-i);
+            if (!logs.includes(d.toISOString().slice(0,10))) misses++;
+            else break;
+          }
+          // Dropout score 0-100: weighted mix of recent decline + consecutive misses
+          const rateDrop = Math.max(0, allTimeRate - recentRate);
+          const dropScore = Math.min(100, Math.round((rateDrop * 60 + (misses/14)*40)*100));
+          if (dropScore < 15 && misses < 2) return null; // no risk
+          return { habit:h, recentRate:Math.round(recentRate*100), allTimeRate:Math.round(allTimeRate*100), misses, dropScore };
+        }).filter(Boolean).sort((a,b)=>b.dropScore-a.dropScore).slice(0,4);
+
+        // ─────────── RENDER ───────────────────────────────────────────────────
+        return (
+          <>
+            {/* HEADER */}
+            <div style={{display:'flex', alignItems:'center', gap:'10px', padding:'4px 0'}}>
+              <span style={{fontSize:'24px'}}>🔮</span>
+              <div>
+                <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'17px'}}>Predictive Engine</div>
+                <div style={{fontSize:'11px', color:T.textMuted}}>What will happen if current patterns continue</div>
+              </div>
+            </div>
+
+            {/* P1: NET WORTH TRAJECTORY */}
+            <div style={{...s.card, border:`1px solid ${T.accent}33`}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'14px', flexWrap:'wrap', gap:'8px'}}>
+                <div>
+                  <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px'}}>📈 Net Worth Trajectory</div>
+                  <div style={{fontSize:'11px', color:T.textMuted, marginTop:'2px'}}>
+                    Based on {monthlyDeltas.length} month{monthlyDeltas.length!==1?'s':''} of growth data · avg {cur}{fmtN(Math.round(avgMonthlyGrowth))}/mo
+                  </div>
+                </div>
+                <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
+                  {proj1y && (
+                    <div style={{textAlign:'center', padding:'6px 14px', borderRadius:'8px', background:T.surface, border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:'10px', color:T.textMuted}}>1 year</div>
+                      <div style={{fontWeight:'900', fontSize:'14px', color:proj1y.base>=baseNW?T.success:T.danger}}>{cur}{fmtN(proj1y.base)}</div>
+                    </div>
+                  )}
+                  {proj5y && (
+                    <div style={{textAlign:'center', padding:'6px 14px', borderRadius:'8px', background:T.surface, border:`1px solid ${T.border}`}}>
+                      <div style={{fontSize:'10px', color:T.textMuted}}>5 years</div>
+                      <div style={{fontWeight:'900', fontSize:'14px', color:T.accent}}>{cur}{fmtN(proj5y.base)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={trajectoryData} margin={{top:4,right:4,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
+                  <XAxis dataKey="month" tick={{fill:T.textMuted,fontSize:9}} interval="preserveStartEnd"/>
+                  <YAxis tick={{fill:T.textMuted,fontSize:9}} tickFormatter={v=>`${cur}${fmtN(Math.round(v/1000))}k`}/>
+                  <Tooltip contentStyle={{background:T.card,border:`1px solid ${T.border}`,color:T.text,fontSize:'11px'}} formatter={v=>`${cur}${fmtN(Math.round(v))}`}/>
+                  <Area type="monotone" dataKey="optimistic" stroke="transparent" fill={T.success} fillOpacity={0.08} name="Optimistic"/>
+                  <Area type="monotone" dataKey="pessimistic" stroke="transparent" fill={T.danger} fillOpacity={0.08} name="Pessimistic"/>
+                  <Area type="monotone" dataKey="base" stroke={T.accent} fill={T.accentSoft} fillOpacity={0.4} strokeWidth={2} name="Expected" dot={false}/>
+                </AreaChart>
+              </ResponsiveContainer>
+              <div style={{display:'flex', gap:'16px', marginTop:'10px', fontSize:'11px', color:T.textMuted, flexWrap:'wrap'}}>
+                <span style={{display:'flex', alignItems:'center', gap:'4px'}}><span style={{width:'10px', height:'3px', background:T.accent, display:'inline-block', borderRadius:'2px'}}/>Expected</span>
+                <span style={{display:'flex', alignItems:'center', gap:'4px'}}><span style={{width:'10px', height:'8px', background:T.success, opacity:0.3, display:'inline-block', borderRadius:'2px'}}/>Optimistic (+1σ)</span>
+                <span style={{display:'flex', alignItems:'center', gap:'4px'}}><span style={{width:'10px', height:'8px', background:T.danger, opacity:0.3, display:'inline-block', borderRadius:'2px'}}/>Pessimistic (−1σ)</span>
+              </div>
+            </div>
+
+            {/* P2: MONTH-END SPENDING FORECAST */}
+            <div style={{...s.card, border:`1px solid ${totalForecast > mIncome*0.9 ? T.danger+'44' : T.border}`}}>
+              <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px', marginBottom:'14px'}}>
+                📅 Month-End Forecast <span style={{fontSize:'12px', fontWeight:'400', color:T.textMuted}}>— {daysLeft} days remaining</span>
+              </div>
+              <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'10px', marginBottom:'16px'}}>
+                {[
+                  {label:'Projected spend', val:`${cur}${fmtN(totalForecast)}`, color: totalForecast>mIncome?T.danger:T.text},
+                  {label:'Recurring still due', val:`${cur}${fmtN(Math.round(recurringLeft))}`, color:T.warning},
+                  {label:'Projected savings rate', val: forecastSR!=null ? `${forecastSR}%` : '—', color: forecastSR!=null?(forecastSR>=20?T.success:forecastSR>=10?T.warning:T.danger):T.textMuted},
+                ].map((item,i)=>(
+                  <div key={i} style={{background:T.surface, borderRadius:'10px', padding:'12px', textAlign:'center', border:`1px solid ${T.border}`}}>
+                    <div style={{fontSize:'10px', color:T.textMuted, marginBottom:'4px', textTransform:'uppercase', letterSpacing:'0.5px'}}>{item.label}</div>
+                    <div style={{fontWeight:'900', fontSize:'16px', color:item.color}}>{item.val}</div>
+                  </div>
+                ))}
+              </div>
+              {catForecasts.length > 0 && (
+                <div>
+                  <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'8px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.5px'}}>Category projections vs budget</div>
+                  <div style={{display:'flex', flexDirection:'column', gap:'6px'}}>
+                    {catForecasts.map(cf=>(
+                      <div key={cf.cat} style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                        <div style={{fontSize:'12px', flex:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{cf.cat}</div>
+                        <div style={{flex:2, height:'8px', background:T.surface, borderRadius:'4px', overflow:'hidden', border:`1px solid ${T.border}`}}>
+                          <div style={{height:'100%', width:`${Math.min(cf.pct,100)}%`, background:cf.pct>=100?T.danger:cf.pct>=80?T.warning:T.success, borderRadius:'4px', transition:'width 0.4s'}}/>
+                        </div>
+                        <div style={{fontSize:'11px', fontWeight:'700', color:cf.pct>=100?T.danger:cf.pct>=80?T.warning:T.success, minWidth:'36px', textAlign:'right'}}>{cf.pct}%</div>
+                        <div style={{fontSize:'10px', color:T.textMuted, minWidth:'80px', textAlign:'right'}}>{cur}{fmtN(cf.catProjected)} / {cur}{fmtN(cf.budget)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* P3: GOAL ETA ENGINE */}
+            {goalForecasts.length > 0 && (
+              <div style={{...s.card, border:`1px solid ${T.accent}33`}}>
+                <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px', marginBottom:'14px'}}>🎯 Goal Completion Forecast</div>
+                <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                  {goalForecasts.map(g=>{
+                    const pct = Math.round(((g.progress||0)/g.target)*100);
+                    const onTrack = g.deadlineDiff == null || g.deadlineDiff >= 0;
+                    return (
+                      <div key={g.id} style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', border:`1px solid ${onTrack?T.success+'33':T.danger+'33'}`}}>
+                        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'8px'}}>
+                          <div style={{fontWeight:'800', fontSize:'13px'}}>{g.name}</div>
+                          <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
+                            {g.deadlineDiff != null && (
+                              <span style={{fontSize:'10px', padding:'2px 8px', borderRadius:'99px', fontWeight:'700',
+                                background:onTrack?T.success+'22':T.danger+'22', color:onTrack?T.success:T.danger}}>
+                                {onTrack ? `${g.deadlineDiff}m ahead` : `${Math.abs(g.deadlineDiff)}m behind`}
+                              </span>
+                            )}
+                            <span style={{fontSize:'11px', color:T.textMuted}}>{pct}%</span>
+                          </div>
+                        </div>
+                        <div style={{height:'6px', background:T.bg, borderRadius:'3px', overflow:'hidden', marginBottom:'8px', border:`1px solid ${T.border}`}}>
+                          <div style={{height:'100%', width:`${pct}%`, background:onTrack?T.success:T.warning, borderRadius:'3px'}}/>
+                        </div>
+                        <div style={{display:'flex', justifyContent:'space-between', fontSize:'11px', color:T.textMuted}}>
+                          <span>{cur}{fmtN(Math.round(g.progress||0))} / {cur}{fmtN(g.target)}</span>
+                          <span>at {cur}{fmtN(g.monthlyContrib)}/mo → <strong style={{color:T.accent}}>{g.etaStr}</strong></span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* P4: HABIT DROPOUT RISK */}
+            {dropoutRisks.length > 0 && (
+              <div style={{...s.card, border:`1px solid ${T.warning}33`}}>
+                <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px', marginBottom:'6px'}}>⚡ Habit Dropout Risk</div>
+                <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'14px'}}>Predicted based on recent completion rate vs your personal baseline</div>
+                <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                  {dropoutRisks.map(({habit:h, recentRate, allTimeRate, misses, dropScore})=>{
+                    const riskColor = dropScore>=70?T.danger:dropScore>=40?T.warning:T.success;
+                    const riskLabel = dropScore>=70?'High risk':dropScore>=40?'Watch out':'Mild dip';
+                    return (
+                      <div key={h.id} style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', border:`1px solid ${riskColor}33`}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'8px'}}>
+                          <span style={{fontSize:'18px'}}>{h.icon||'⭐'}</span>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:'800', fontSize:'13px'}}>{h.name}</div>
+                            <div style={{fontSize:'11px', color:T.textMuted}}>{misses} consecutive miss{misses!==1?'es':''} · last 30d: {recentRate}% vs {allTimeRate}% baseline</div>
+                          </div>
+                          <div style={{textAlign:'center'}}>
+                            <div style={{fontSize:'18px', fontWeight:'900', color:riskColor}}>{dropScore}</div>
+                            <div style={{fontSize:'9px', color:riskColor, fontWeight:'700'}}>{riskLabel}</div>
+                          </div>
+                        </div>
+                        <div style={{height:'6px', background:T.bg, borderRadius:'3px', overflow:'hidden', border:`1px solid ${T.border}`}}>
+                          <div style={{height:'100%', width:`${dropScore}%`, background:riskColor, borderRadius:'3px', transition:'width 0.5s'}}/>
+                        </div>
+                        <div style={{fontSize:'11px', color:T.textMuted, marginTop:'6px', fontStyle:'italic'}}>
+                          {dropScore >= 70
+                            ? `⚠️ High dropout probability — research shows 3+ consecutive misses predict full abandonment. Act today.`
+                            : dropScore >= 40
+                            ? `👀 Recent rate (${recentRate}%) is declining from your ${allTimeRate}% baseline. Rebuild momentum now.`
+                            : `💛 Slight dip — just ${misses} miss${misses!==1?'es':''}. Easy to recover.`}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
