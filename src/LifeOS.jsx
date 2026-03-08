@@ -5,6 +5,18 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid, AreaChart, Area
 } from "recharts";
+import {
+  LayoutDashboard, Sword, Trophy, CreditCard, Wallet, TrendingUp,
+  Briefcase, Mail, FileText, BookOpen, Calendar, Archive, Brain,
+  Activity, Settings, Home, Target, Zap, BarChart2, PieChart as PieIcon,
+  Bell, Search, Bot, StickyNote, Sparkles, ChevronRight, ChevronLeft,
+  CheckCircle2, Circle, Flame, Star, Shield, Lock, Unlock, Plus,
+  ArrowUp, ArrowDown, Minus, RefreshCw, Globe, Clock, Heart,
+  DollarSign, Eye, EyeOff, Layers, Map, Flag, Award, Coffee,
+  Dumbbell, Moon, Sun, Wind, Leaf, Compass, Package, Users,
+  Send, Inbox, AlertTriangle, Info, CheckCheck, X, Menu,
+  ChevronUp, ChevronDown, MoreHorizontal, Grid, List
+} from "lucide-react";
 
 // ─────────────────────────────────────────────
 // UNIVERSAL AI CALLER  (respects settings.aiProvider: groq | anthropic | ollama)
@@ -95,6 +107,315 @@ async function callAIChat(messages, settings, maxTokens = 600) {
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
   return data.content?.[0]?.text || 'No response.';
+}
+
+
+// ─────────────────────────────────────────────
+// TAB ICON MAP — Lucide icons per tab/hub
+// ─────────────────────────────────────────────
+const TAB_ICONS = {
+  dashboard:  LayoutDashboard,
+  character:  Sword,
+  goals:      Trophy,
+  debts:      CreditCard,
+  moneyhub:   Wallet,
+  portfolio:  TrendingUp,
+  career:     Briefcase,
+  gmail:      Mail,
+  notes:      FileText,
+  learn:      BookOpen,
+  calendar:   Calendar,
+  history:    Archive,
+  insights:   Brain,
+  mindbody:   Activity,
+  settings:   Settings,
+  money:      Wallet,
+  life:       Sword,
+  home:       Home,
+  health:     Heart,
+  mind:       Brain,
+  system:     Settings,
+  explore:    Compass,
+  capsule:    Clock,
+};
+
+function TabIcon({ id, size = 18, color, style = {} }) {
+  const Icon = TAB_ICONS[id];
+  if (!Icon) return null;
+  return <Icon size={size} color={color} style={style} strokeWidth={1.8} />;
+}
+
+// ─────────────────────────────────────────────
+// SPARKLINE — tiny inline SVG trend chart
+// ─────────────────────────────────────────────
+function SparkLine({ data = [], width = 80, height = 28, color = '#6c63ff', filled = true }) {
+  if (!data || data.length < 2) return null;
+  const vals = data.map(Number).filter(v => !isNaN(v));
+  if (vals.length < 2) return null;
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const pts = vals.map((v, i) => [
+    (i / (vals.length - 1)) * width,
+    height - ((v - min) / range) * (height - 4) - 2,
+  ]);
+  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const areaD = pathD + ` L${width},${height} L0,${height} Z`;
+  return (
+    <svg width={width} height={height} style={{ overflow: 'visible', display: 'block' }}>
+      {filled && <path d={areaD} fill={`${color}22`} />}
+      <path d={pathD} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      {/* last point dot */}
+      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PROGRESS RING — SVG circular progress
+// ─────────────────────────────────────────────
+function ProgressRing({ value = 0, max = 100, size = 52, stroke = 4, color = '#6c63ff', bg = '#1a1a35', children }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(Math.max(value / max, 0), 1);
+  const dash = pct * circ;
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={bg} strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 0.6s cubic-bezier(.4,0,.2,1)' }} />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// USECOUNT UP — animated number on mount
+// ─────────────────────────────────────────────
+function useCountUp(target, duration = 900) {
+  const [val, setVal] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => {
+    const start = Date.now();
+    const from = 0;
+    if (ref.current) cancelAnimationFrame(ref.current);
+    function tick() {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setVal(from + (target - from) * ease);
+      if (progress < 1) ref.current = requestAnimationFrame(tick);
+    }
+    ref.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(ref.current);
+  }, [target]);
+  return val;
+}
+
+// ─────────────────────────────────────────────
+// STAT CARD — with sparkline + animated counter
+// ─────────────────────────────────────────────
+function StatCard({ T, label, value, prefix = '', suffix = '', trend, trendData = [], color, icon: Icon, size = 'md' }) {
+  const animated = useCountUp(typeof value === 'number' ? value : 0);
+  const isUp = trendData.length >= 2 && trendData[trendData.length-1] > trendData[trendData.length-2];
+  const trendColor = isUp ? T.success : T.danger;
+  const pad = size === 'sm' ? '14px 16px' : '18px 20px';
+  return (
+    <div style={{
+      background: `linear-gradient(145deg, ${T.card} 0%, ${T.surface} 100%)`,
+      border: `1px solid ${color || T.border}22`,
+      borderRadius: '18px',
+      padding: pad,
+      display: 'flex', flexDirection: 'column', gap: '8px',
+      backdropFilter: 'blur(12px)',
+      boxShadow: `0 4px 24px ${T.bg}99, inset 0 1px 0 ${T.accent}0a`,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* bg glow accent */}
+      {color && <div style={{ position:'absolute', top:'-30%', right:'-10%', width:'100px', height:'100px', borderRadius:'50%', background:`radial-gradient(circle, ${color}18 0%, transparent 70%)`, pointerEvents:'none' }} />}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          {Icon && <div style={{ background: `${color||T.accent}18`, borderRadius:'10px', padding:'6px', display:'flex' }}><Icon size={15} color={color||T.accent} strokeWidth={2} /></div>}
+          <span style={{ fontSize:'11px', fontWeight:'700', color:T.textMuted, letterSpacing:'1px', textTransform:'uppercase', fontFamily:"'Syne',sans-serif" }}>{label}</span>
+        </div>
+        {trend !== undefined && (
+          <span style={{ fontSize:'10px', fontWeight:'700', color: trend >= 0 ? T.success : T.danger, display:'flex', alignItems:'center', gap:'2px' }}>
+            {trend >= 0 ? <ArrowUp size={10} /> : <ArrowDown size={10} />}{Math.abs(trend).toFixed(1)}%
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: size === 'sm' ? '20px' : '26px', fontWeight:'900', color: T.text, letterSpacing:'-0.5px', fontFamily:"'Syne',sans-serif", lineHeight:1 }}>
+        {prefix}{typeof value === 'number' ? fmtN(Math.round(animated)) : value}{suffix}
+      </div>
+      {trendData.length > 1 && (
+        <div style={{ marginTop:'2px' }}>
+          <SparkLine data={trendData} width={80} height={22} color={color||T.accent} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// ACTIVITY FEED — timeline of recent events
+// ─────────────────────────────────────────────
+function ActivityFeed({ T, expenses = [], habits = [], habitLogs = {}, goals = [], settings }) {
+  const events = useMemo(() => {
+    const list = [];
+    // Last 5 expenses
+    [...expenses].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,5).forEach(e => {
+      list.push({ type:'expense', date:e.date, label:`${e.category||'Expense'} — ${settings?.currency||'€'}${fmtN(e.amount)}`, note:e.note, color: '#ff6b35', icon: 'expense' });
+    });
+    // Recent habit completions
+    const todayStr = today();
+    habits.slice(0,4).forEach(h => {
+      const logs = habitLogs[h.id] || [];
+      if (logs.includes(todayStr)) list.push({ type:'habit', date:todayStr, label:`${h.name} done`, color:'#22d3a0', icon:'habit' });
+    });
+    // Goal milestones
+    goals.filter(g => g.current >= g.target).slice(0,2).forEach(g => {
+      list.push({ type:'goal', date:g.updatedAt||today(), label:`Goal reached: ${g.name}`, color:'#a78bfa', icon:'goal' });
+    });
+    return list.sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,8);
+  }, [expenses, habits, habitLogs, goals]);
+
+  if (events.length === 0) return (
+    <div style={{ textAlign:'center', padding:'28px 16px', color:T.textMuted, fontSize:'13px' }}>
+      <Activity size={28} color={T.textMuted} style={{ margin:'0 auto 10px', display:'block', opacity:0.4 }} />
+      No recent activity yet
+    </div>
+  );
+
+  const typeIcon = { expense: DollarSign, habit: CheckCheck, goal: Trophy };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column' }}>
+      {events.map((ev, i) => {
+        const Icon = typeIcon[ev.type] || Activity;
+        return (
+          <div key={i} style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'10px 0', borderBottom: i < events.length-1 ? `1px solid ${T.border}` : 'none' }}>
+            <div style={{ width:'30px', height:'30px', borderRadius:'50%', background:`${ev.color}18`, border:`1px solid ${ev.color}33`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Icon size={13} color={ev.color} strokeWidth={2} />
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:'13px', color:T.text, fontWeight:'600', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.label}</div>
+              {ev.note && <div style={{ fontSize:'11px', color:T.textMuted, marginTop:'2px' }}>{ev.note}</div>}
+              <div style={{ fontSize:'10px', color:T.textMuted, marginTop:'3px' }}>{ev.date}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// HEATMAP — GitHub-style year calendar
+// ─────────────────────────────────────────────
+function HeatmapGrid({ T, data = {}, label = 'Activity', color }) {
+  const accentColor = color || T.accent;
+  const weeks = useMemo(() => {
+    const result = [];
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 364);
+    // Align start to Sunday
+    while (start.getDay() !== 0) start.setDate(start.getDate() - 1);
+    let d = new Date(start);
+    while (d <= end) {
+      const week = [];
+      for (let i = 0; i < 7; i++) {
+        const key = d.toISOString().slice(0,10);
+        week.push({ date: key, count: data[key] || 0 });
+        d.setDate(d.getDate() + 1);
+      }
+      result.push(week);
+    }
+    return result;
+  }, [data]);
+
+  const maxCount = Math.max(...Object.values(data), 1);
+  const getOpacity = (count) => count === 0 ? 0 : 0.15 + (count / maxCount) * 0.85;
+
+  const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthPositions = [];
+  weeks.forEach((week, wi) => {
+    const firstDay = week.find(d => d.date);
+    if (firstDay) {
+      const d = new Date(firstDay.date);
+      if (d.getDate() <= 7) monthPositions.push({ wi, month: MONTH_LABELS[d.getMonth()] });
+    }
+  });
+
+  return (
+    <div>
+      <div style={{ fontSize:'11px', fontWeight:'700', color:T.textMuted, letterSpacing:'1.5px', textTransform:'uppercase', marginBottom:'10px', fontFamily:"'Syne',sans-serif" }}>{label}</div>
+      {/* Month labels */}
+      <div style={{ display:'flex', gap:'3px', marginBottom:'4px', marginLeft:'20px', overflow:'hidden' }}>
+        {weeks.map((_, wi) => {
+          const mp = monthPositions.find(m => m.wi === wi);
+          return <div key={wi} style={{ width:'11px', fontSize:'8px', color:T.textMuted, flexShrink:0, whiteSpace:'nowrap' }}>{mp ? mp.month : ''}</div>;
+        })}
+      </div>
+      {/* Grid */}
+      <div style={{ display:'flex', gap:'2px', alignItems:'flex-start' }}>
+        {/* Day labels */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'2px', marginRight:'4px' }}>
+          {['S','M','T','W','T','F','S'].map((d,i) => (
+            <div key={i} style={{ width:'11px', height:'11px', fontSize:'7px', color: i%2===1 ? T.textMuted : 'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>{d}</div>
+          ))}
+        </div>
+        {/* Weeks */}
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+            {week.map((day, di) => (
+              <div key={di} title={`${day.date}: ${day.count}`} style={{
+                width:'11px', height:'11px', borderRadius:'2px',
+                background: day.count > 0 ? accentColor : T.textDim,
+                opacity: day.count > 0 ? getOpacity(day.count) + 0.1 : 0.3,
+                transition:'opacity 0.2s',
+                cursor: day.count > 0 ? 'default' : 'default',
+              }} />
+            ))}
+          </div>
+        ))}
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:'4px', marginTop:'8px', justifyContent:'flex-end' }}>
+        <span style={{ fontSize:'9px', color:T.textMuted }}>Less</span>
+        {[0,0.25,0.5,0.75,1].map(v => (
+          <div key={v} style={{ width:'10px', height:'10px', borderRadius:'2px', background: v === 0 ? T.textDim : accentColor, opacity: v === 0 ? 0.3 : 0.15 + v*0.85 }} />
+        ))}
+        <span style={{ fontSize:'9px', color:T.textMuted }}>More</span>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// EMPTY STATE — inline SVG illustration
+// ─────────────────────────────────────────────
+function EmptyState({ T, icon: Icon, title, desc, action, onAction }) {
+  return (
+    <div style={{ textAlign:'center', padding:'40px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
+      <div style={{ width:'64px', height:'64px', borderRadius:'20px', background:`${T.accent}12`, border:`1px solid ${T.accent}20`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {Icon ? <Icon size={28} color={T.accent} strokeWidth={1.5} style={{ opacity:0.7 }} /> : <Sparkles size={28} color={T.accent} strokeWidth={1.5} style={{ opacity:0.7 }} />}
+      </div>
+      <div>
+        <div style={{ fontSize:'15px', fontWeight:'700', color:T.text, marginBottom:'6px', fontFamily:"'Syne',sans-serif" }}>{title}</div>
+        {desc && <div style={{ fontSize:'13px', color:T.textMuted, lineHeight:1.6, maxWidth:'240px' }}>{desc}</div>}
+      </div>
+      {action && onAction && (
+        <button onClick={onAction} style={{ background:T.accentGrad, color:'#fff', border:'none', borderRadius:'12px', padding:'9px 20px', fontSize:'13px', fontWeight:'700', cursor:'pointer', boxShadow:`0 4px 16px ${T.accentGlow}` }}>
+          {action}
+        </button>
+      )}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -1553,10 +1874,10 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       maxWidth:'100%', boxSizing:'border-box',
     },
     card: {
-      background: T.card, border:`1px solid ${T.border}`,
+      background: `linear-gradient(145deg, ${T.card} 0%, ${T.surface}cc 100%)`, backdropFilter:'blur(16px)', WebkitBackdropFilter:'blur(16px)', border:`1px solid ${T.border}`, borderTop:`1px solid ${T.accent}14`,
       borderRadius: isMobile ? '16px' : '20px',
       padding: isMobile ? '16px' : '24px',
-      boxShadow:`0 4px 24px ${T.bg}88, inset 0 1px 0 ${T.accent}08`, transition:'box-shadow 0.2s',
+      boxShadow:`0 4px 32px ${T.bg}99, inset 0 1px 0 ${T.accent}0d`, transition:'box-shadow 0.2s, transform 0.2s',
     },
     cardTitle: {
       fontSize:'11px', fontWeight:'700', color: T.textMuted,
@@ -1732,6 +2053,11 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         @keyframes fadeSlideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 20px 4px rgba(108,99,255,0.3); } }
+        @keyframes hubSheetPop { from { opacity:0; transform:translateY(16px) scale(0.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes hubIconPop { from { opacity:0; transform:scale(0.7); } to { opacity:1; transform:scale(1); } }
+        @keyframes hubGlowPulse { 0%,100% { opacity:0.4; } 50% { opacity:0.8; } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 40px rgba(0,0,0,0.3) !important; }
         .los-card-enter { animation: fadeSlideUp 0.35s cubic-bezier(.4,0,.2,1); }
         * { scrollbar-width: thin; scrollbar-color: ${T.border} transparent; }
         *::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -1765,10 +2091,10 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {!isMobile && (
             <div style={{display:'flex', gap:'6px'}}>
               <div style={{background:`${savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}12`, border:`1px solid ${savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}30`, borderRadius:'10px', padding:'4px 12px', fontSize:'10px', fontWeight:'700', color:savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger, letterSpacing:'0.5px'}}>
-                💾 {savingsRate.toFixed(0)}%
+                <TrendingUp size={10} strokeWidth={2.5} /> {savingsRate.toFixed(0)}%
               </div>
               <div style={{background:`${financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}12`, border:`1px solid ${financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}30`, borderRadius:'10px', padding:'4px 12px', fontSize:'10px', fontWeight:'700', color:financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger, letterSpacing:'0.5px'}}>
-                ♥ {financialHealthScore}
+                <Heart size={10} strokeWidth={2.5} /> {financialHealthScore}
               </div>
               {smartAlerts.length > 0 && (
                 <div style={{...s.tag(T.warning), cursor:'pointer', padding:'4px 10px'}} onClick={()=>setActiveTab('dashboard')}>
@@ -1779,21 +2105,22 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           )}
           {/* Icon buttons */}
           {(isMobile
-            ? [{icon:'🔍', label:'Search', fn:()=>setShowSearch(true)}, {icon:'🤖', label:'AI', fn:()=>setShowAI(v=>!v), active:showAI}]
+            ? [{IconC:Search, label:'Search', fn:()=>setShowSearch(true)}, {IconC:Bot, label:'AI', fn:()=>setShowAI(v=>!v), active:showAI}]
             : [
-                {icon:'🎯', label:'Focus', fn:()=>setShowFocusMode(true)},
-                {icon:'🤖', label:'AI', fn:()=>setShowAI(v=>!v), active:showAI},
-                {icon:'🔍', label:'Search ⌘K', fn:()=>setShowSearch(true)},
-                {icon:'📝', label:'Note', fn:()=>setShowQuickNote(true)},
+                {IconC:Zap, label:'Focus', fn:()=>setShowFocusMode(true)},
+                {IconC:Bot, label:'AI', fn:()=>setShowAI(v=>!v), active:showAI},
+                {IconC:Search, label:'Search ⌘K', fn:()=>setShowSearch(true)},
+                {IconC:StickyNote, label:'Note', fn:()=>setShowQuickNote(true)},
               ]
-          ).map(({icon,label,fn,active})=>(
+          ).map(({IconC,label,fn,active})=>(
             <button key={label} onClick={fn} title={label} style={{
               background: active ? `${T.accent}18` : 'transparent',
               border: active ? `1px solid ${T.accent}40` : `1px solid ${T.border}`,
-              borderRadius:'10px', padding:'7px 11px', cursor:'pointer',
-              fontSize:'14px', color: active ? T.accent : T.textMuted,
+              borderRadius:'10px', padding:'7px 9px', cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              color: active ? T.accent : T.textMuted,
               transition:'all 0.18s',
-            }}>{icon}</button>
+            }}><IconC size={16} strokeWidth={active?2.2:1.8} /></button>
           ))}
           {!isMobile && (
             <select style={{...s.select, padding:'5px 10px', fontSize:'11px', maxWidth:'120px'}} value={themeName} onChange={e=>setThemeName(e.target.value)}>
@@ -1815,7 +2142,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           display:'flex', alignItems:'center', gap:'8px',
           letterSpacing:'0.3px',
         }}>
-          ✨ {notification}
+          <Sparkles size={14} strokeWidth={2} /> {notification}
         </div>
       )}
 
@@ -1859,7 +2186,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
 
       {/* QUICK CAPTURE FAB */}
       {!showQuickCapture && (
-        <button onClick={()=>setShowQuickCapture(true)} style={{position:'fixed',bottom:'calc(108px + env(safe-area-inset-bottom, 0px))',right:'20px',width:'54px',height:'54px',borderRadius:'50%',background:T.accentGrad,border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',boxShadow:`0 8px 32px ${T.accentGlow}, 0 2px 12px #00000055`,zIndex:199,display:'flex',alignItems:'center',justifyContent:'center',transition:'transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s',fontWeight:'300'}} title="Quick Capture (E)">+</button>
+        <button onClick={()=>setShowQuickCapture(true)} style={{position:'fixed',bottom:'calc(108px + env(safe-area-inset-bottom, 0px))',right:'20px',width:'54px',height:'54px',borderRadius:'50%',background:T.accentGrad,border:'none',color:'#fff',cursor:'pointer',boxShadow:`0 8px 32px ${T.accentGlow}, 0 2px 12px #00000055`,zIndex:199,display:'flex',alignItems:'center',justifyContent:'center',transition:'transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s'}} title="Quick Capture (E)"><Plus size={24} strokeWidth={2.5} /></button>
       )}
       {showQuickCapture && <QuickCaptureModal T={T} s={s} expenses={expenses} setExpenses={setExpenses} habits={habits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} quickNotes={quickNotes} setQuickNotes={setQuickNotes} settings={settings} addXP={addXP} customCategories={customCategories} onClose={()=>setShowQuickCapture(false)} />}
       {showReceiptScanner && <ReceiptScannerModal T={T} s={s} settings={settings} setExpenses={setExpenses} scannedReceipts={scannedReceipts} setScannedReceipts={setScannedReceipts} addXP={addXP} onClose={()=>setShowReceiptScanner(false)} />}
@@ -1873,47 +2200,47 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       {(() => {
         const HUBS = [
           {
-            id: 'money', icon: '💰', label: 'Money',
+            id: 'money', icon: 'moneyhub', label: 'Money',
             tabs: [
-              { id:'moneyhub',   icon:'💰', label:'Spending' },
-              { id:'portfolio',  icon:'💹', label:'Portfolio' },
-              { id:'goals',      icon:'🏆', label:'Goals' },
-              { id:'debts',      icon:'💳', label:'Debts' },
+              { id:'moneyhub',   icon:'moneyhub', label:'Spending' },
+              { id:'portfolio',  icon:'portfolio', label:'Portfolio' },
+              { id:'goals',      icon:'goals', label:'Goals' },
+              { id:'debts',      icon:'debts', label:'Debts' },
             ]
           },
           {
-            id: 'life', icon: '⚔️', label: 'Life',
+            id: 'life', icon: 'character', label: 'Life',
             tabs: [
-              { id:'character',  icon:'⚔️', label:'Character' },
-              { id:'notes',      icon:'📝', label:'Notes' },
-              { id:'learn',      icon:'📚', label:'Learn' },
-              { id:'capsule',    icon:'⏳', label:'Time Capsule' },
+              { id:'character',  icon:'character', label:'Character' },
+              { id:'notes',      icon:'notes', label:'Notes' },
+              { id:'learn',      icon:'learn', label:'Learn' },
+              { id:'capsule',    icon:'capsule', label:'Time Capsule' },
             ]
           },
           {
-            id: 'dashboard', icon: '🏠', label: 'Home', isSingle: true,
-            tabs: [{ id:'dashboard', icon:'🏠', label:'Dashboard' }]
+            id: 'dashboard', icon: 'dashboard', label: 'Home', isSingle: true,
+            tabs: [{ id:'dashboard', icon:'dashboard', label:'Dashboard' }]
           },
           {
-            id: 'health', icon: '🧘', label: 'Health',
+            id: 'health', icon: 'mindbody', label: 'Health',
             tabs: [
-              { id:'mindbody',   icon:'🧘', label:'Mind & Body' },
-              { id:'insights',   icon:'🧠', label:'Insights' },
-              { id:'history',    icon:'🗂️',  label:'History' },
+              { id:'mindbody',   icon:'mindbody', label:'Mind & Body' },
+              { id:'insights',   icon:'insights', label:'Insights' },
+              { id:'history',    icon:'history', label:'History' },
             ]
           },
           {
-            id: 'mind', icon: '🧠', label: 'Explore',
+            id: 'mind', icon: 'insights', label: 'Explore',
             tabs: [
-              { id:'calendar',   icon:'📅', label:'Calendar' },
-              { id:'career',     icon:'💼', label:'Career' },
-              { id:'gmail',      icon:'📬', label:'Gmail' },
+              { id:'calendar',   icon:'calendar', label:'Calendar' },
+              { id:'career',     icon:'career', label:'Career' },
+              { id:'gmail',      icon:'gmail', label:'Gmail' },
             ]
           },
           {
-            id: 'career', icon: '⚙️', label: 'System',
+            id: 'career', icon: 'settings', label: 'System',
             tabs: [
-              { id:'settings',   icon:'⚙️', label:'Settings' },
+              { id:'settings',   icon:'settings', label:'Settings' },
             ]
           },
         ];
@@ -2017,7 +2344,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                       borderBottom:`1px solid ${T.accent}22`,
                       display:'flex', alignItems:'center', gap:'8px',
                     }}>
-                      <span style={{fontSize:'16px', filter:`drop-shadow(0 0 6px ${T.accentGlow})`}}>{expandedHub.icon}</span>
+                      <TabIcon id={expandedHub.icon} size={16} color={T.accent} style={{filter:`drop-shadow(0 0 6px ${T.accentGlow})`}} />
                       <span style={{
                         fontSize:'11px', fontWeight:'900', letterSpacing:'2px', textTransform:'uppercase',
                         background: T.accentGrad, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text',
@@ -2061,12 +2388,12 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                                   animation:'hubGlowPulse 2s ease-in-out infinite',
                                 }}/>
                               )}
-                              <span style={{
-                                fontSize:'26px', lineHeight:1, display:'block',
+                              <div style={{
+                                display:'flex', alignItems:'center', justifyContent:'center',
                                 filter: isActive ? `drop-shadow(0 0 10px ${T.accentGlow})` : `drop-shadow(0 2px 4px #00000044)`,
                                 transform: isActive ? 'scale(1.1)' : 'scale(1)',
                                 transition:'transform 0.2s',
-                              }}>{tab.icon}</span>
+                              }}><TabIcon id={tab.icon} size={22} color={isActive ? T.accent : T.textMuted} /></div>
                             </div>
                             {/* Label — always fully visible */}
                             <span style={{
@@ -2145,11 +2472,11 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
                         position:'relative',
                         transform: isOpen ? 'scale(1.12)' : 'scale(1)',
                       }}>
-                        <span style={{
-                          fontSize:iconSize, lineHeight:1,
+                        <div style={{
+                          display:'flex', alignItems:'center', justifyContent:'center',
                           filter: isActive || isOpen ? `drop-shadow(0 0 ${isCenter?'10':'6'}px ${T.accentGlow})` : 'none',
                           transition:'filter 0.2s',
-                        }}>{hub.icon}</span>
+                        }}><TabIcon id={hub.icon} size={isCenter?24:20} color={isActive||isOpen ? T.accent : T.textMuted} /></div>
                         {/* Hub badge */}
                         {hubBadge && (
                           <div style={{
@@ -2406,7 +2733,7 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
               {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           )}
-          <button onClick={onClose} style={{ background:'none', border:'none', color:T.textMuted, cursor:'pointer', fontSize:20, padding:'0 4px' }}>✕</button>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:T.textMuted, cursor:'pointer', padding:'4px', display:'flex' }}><X size={18} strokeWidth={1.8} /></button>
         </div>
 
         {/* Messages */}
@@ -2752,11 +3079,11 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
     <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
         <div>
-          <div style={{fontFamily:"'Syne',sans-serif", fontSize:'22px', fontWeight:'900'}}>{getGreeting()}, {settings.name} 👋</div>
+          <div style={{fontFamily:"'Syne',sans-serif", fontSize:'22px', fontWeight:'900', display:'flex', alignItems:'center', gap:'10px'}}><Sun size={20} color={T.warning} strokeWidth={1.8} />{getGreeting()}, {settings.name}</div>
           <div style={{color:T.textMuted, fontSize:'13px', marginTop:'4px'}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
         </div>
         <div style={{display:'flex', gap:'8px'}}>
-          <div style={{...s.tag(T.accent)}}>{todayDoneCount}/{todayHabits.length} {t('quests_count')}</div>
+          <div style={{...s.tag(T.accent), display:'flex', alignItems:'center', gap:'5px'}}><Flame size={11} strokeWidth={2} />{todayDoneCount}/{todayHabits.length} {t('quests_count')}</div>
           {!todayVitals && <div style={{...s.tag(T.warning)}}>{t('no_vitals_today')}</div>}
         </div>
       </div>
@@ -2765,7 +3092,8 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
       {smartAlerts.length > 0 && (
         <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
           {smartAlerts.map((a,i)=>(
-            <div key={i} style={{background:a.type==='danger'?T.danger+'22':a.type==='warning'?T.warning+'22':T.accent+'22',border:`1px solid ${a.type==='danger'?T.danger:a.type==='warning'?T.warning:T.accent}44`,borderRadius:'8px',padding:'8px 14px',fontSize:'12px',color:T.text,display:'flex',gap:'8px',alignItems:'center'}}>
+            <div key={i} style={{background:a.type==='danger'?T.danger+'18':a.type==='warning'?T.warning+'18':T.accent+'18',border:`1px solid ${a.type==='danger'?T.danger:a.type==='warning'?T.warning:T.accent}33`,borderRadius:'12px',padding:'10px 14px',fontSize:'12px',color:T.text,display:'flex',gap:'10px',alignItems:'center'}}>
+              {a.type==='danger'?<AlertTriangle size={14} color={T.danger}/>:a.type==='warning'?<AlertTriangle size={14} color={T.warning}/>:<Info size={14} color={T.accent}/>}
               <span>{a.type==='danger'?'🚨':a.type==='warning'?'⚠️':'ℹ️'}</span>{a.msg}
             </div>
           ))}
@@ -2799,7 +3127,10 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
           </div>
         )}
         <div style={s.grid4}>
-          {activeWidgets.map((w,idx) => (
+          {activeWidgets.map((w,idx) => {
+            const WICONS = { networth:DollarSign, savings:TrendingUp, debts:CreditCard, health:Heart, xp:Zap, goals:Trophy, habits:CheckCheck, spend:Wallet };
+            const WIcon = WICONS[w.id] || Star;
+            return (
             <div key={w.id}
               draggable
               onDragStart={e=>{e.dataTransfer.setData('widgetIdx',idx);e.currentTarget.style.opacity='0.4';}}
@@ -2807,13 +3138,35 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
               onDragOver={e=>{e.preventDefault();e.currentTarget.style.outline=`2px dashed ${T.accent}`;}}
               onDragLeave={e=>{e.currentTarget.style.outline='none';}}
               onDrop={e=>{e.currentTarget.style.outline='none';const from=parseInt(e.dataTransfer.getData('widgetIdx'));if(from===idx)return;setDashWidgetOrder(o=>{const ids=o.filter(k=>ALL_WIDGETS[k]);const[item]=ids.splice(from,1);ids.splice(idx,0,item);return ids;});}}
-              style={{...s.card, cursor:'pointer', borderColor:w.color()+'33', userSelect:'none'}} onClick={() => setActiveTab(w.tab)}>
-              <div style={{fontSize:'20px', marginBottom:'8px'}}>{w.icon}</div>
-              <div style={{fontSize:'20px', fontWeight:'800', color:w.color()}}>{w.value()}</div>
-              <div style={{fontSize:'11px', color:T.textMuted, marginTop:'4px'}}>{w.label}</div>
-              {w.sub() && <div style={{fontSize:'10px', color:w.color(), marginTop:'2px'}}>{w.sub()}</div>}
+              className="card-hover" style={{...s.card, cursor:'pointer', borderColor:w.color()+'33', userSelect:'none', position:'relative', overflow:'hidden'}} onClick={() => setActiveTab(w.tab)}>
+              {/* bg glow */}
+              <div style={{position:'absolute',top:'-20%',right:'-10%',width:'80px',height:'80px',borderRadius:'50%',background:`radial-gradient(circle,${w.color()}1a 0%,transparent 70%)`,pointerEvents:'none'}}/>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'10px'}}>
+                <div style={{background:`${w.color()}18`,borderRadius:'10px',padding:'7px',display:'flex'}}>
+                  <WIcon size={15} color={w.color()} strokeWidth={2} />
+                </div>
+              </div>
+              <div style={{fontSize:'21px', fontWeight:'900', color:w.color(), fontFamily:"'Syne',sans-serif", letterSpacing:'-0.5px'}}>{w.value()}</div>
+              <div style={{fontSize:'11px', color:T.textMuted, marginTop:'4px', fontWeight:'600', letterSpacing:'0.5px', textTransform:'uppercase', fontSize:'10px'}}>{w.label}</div>
+              {w.sub() && <div style={{fontSize:'11px', color:w.color()+'cc', marginTop:'4px'}}>{w.sub()}</div>}
             </div>
-          ))}
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ACTIVITY FEED + HEATMAP ROW */}
+      <div style={{display:'grid', gridTemplateColumns: s.isMobile ? '1fr' : '1fr 1fr', gap:'20px'}}>
+        <div style={{...s.card}}>
+          <div style={s.cardTitle}>Recent Activity</div>
+          <ActivityFeed T={T} expenses={expenses} habits={habits} habitLogs={habitLogsFull} goals={goals} settings={settings} />
+        </div>
+        <div style={{...s.card}}>
+          <HeatmapGrid T={T}
+            data={Object.fromEntries(Object.entries(habitLogsFull).flatMap(([hid,logs])=>logs.map(d=>[d,(()=>{const v={}; logs.forEach(x=>v[x]=(v[x]||0)+1); return v[d]||1; })()])))}
+            label="Habit Consistency"
+            color={T.accent}
+          />
         </div>
       </div>
 
@@ -2825,15 +3178,20 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
             const done = (habitLogsFull[h.id]||[]).includes(today());
             return (
               <div key={h.id} style={{display:'flex', alignItems:'center', gap:'10px', padding:'8px 0', borderBottom:`1px solid ${T.border}`}}>
-                <div onClick={() => toggleHabit(h)} style={{width:'20px', height:'20px', border:`2px solid ${done?T.accent:T.border}`, borderRadius:'4px', background:done?T.accent:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
-                  {done && <span style={{color:'#fff', fontSize:'12px'}}>✓</span>}
+                <div onClick={() => toggleHabit(h)} style={{width:'22px', height:'22px', border:`2px solid ${done?T.accent:T.border}`, borderRadius:'6px', background:done?T.accent:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s'}}>
+                  {done ? <CheckCheck size={12} color="#fff" strokeWidth={2.5} /> : <div style={{width:'8px',height:'8px',borderRadius:'50%',background:T.border,opacity:0.5}}/>}
                 </div>
                 <span style={{fontSize:'13px', color:done?T.textMuted:T.text, textDecoration:done?'line-through':'none', flex:1}}>{h.name}</span>
-                <span style={{fontSize:'10px', color:T.accent}}>+{h.xp||15}xp</span>
+                <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+                  <ProgressRing value={done?1:0} max={1} size={24} stroke={3} color={T.accent} bg={T.textDim}>
+                    <div style={{width:'8px',height:'8px',borderRadius:'50%',background:done?T.accent:T.textDim,transition:'background 0.2s'}}/>
+                  </ProgressRing>
+                  <span style={{fontSize:'10px', color:T.accent}}>+{h.xp||15}xp</span>
+                </div>
               </div>
             );
           })}
-          {todayHabits.length === 0 && <div style={{color:T.textMuted, fontSize:'13px'}}>{t('dash_no_habits')} <span style={{color:T.accent, cursor:'pointer'}} onClick={() => setActiveTab('quests')}>{t('create')} →</span></div>}
+          {todayHabits.length === 0 && <EmptyState T={T} icon={Flame} title="No habits yet" desc="Build your first streak today" action="Create Habit" onAction={() => setActiveTab('character')} />}
         </div>
 
         {/* QUICK LOG */}
