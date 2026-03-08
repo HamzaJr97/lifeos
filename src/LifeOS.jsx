@@ -1536,6 +1536,10 @@ export default function LifeOS() {
   const [socialChallenges, setSocialChallenges] = useLocalStorage('los_soc_challenges', []); // F10 Social Challenges
   const [showReceiptScanner, setShowReceiptScanner] = useState(false);
 
+  // ── PHASE 1 — Unified Event Log & Daily Snapshots ───────────────────────
+  const [eventLog, setEventLog] = useLocalStorage('los_eventlog', []);
+  const [dailySnapshots, setDailySnapshots] = useLocalStorage('los_snapshots', {});
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [openHub, setOpenHub] = useState(null); // which hub is expanded: 'money'|'life'|'mind'|'career'|null
   const [lastHubTab, setLastHubTab] = useLocalStorage('los_lasthub', {}); // N10: remember last visited sub-page per hub
@@ -1608,6 +1612,24 @@ export default function LifeOS() {
     if (notifTimer.current) clearTimeout(notifTimer.current);
     notifTimer.current = setTimeout(() => setNotification(null), 2500);
   }, [setTotalXP, setXpHistory, vitals]);
+
+  // ── Unified Event Logger ───────────────────────────────────────────────────
+  // Appends a structured event to los_eventlog. Max 2000 entries (ring buffer).
+  // Schema: { id, ts, date, module, type, data }
+  const logEvent = useCallback((module, type, data = {}) => {
+    const entry = {
+      id: Date.now() + Math.random(),
+      ts: new Date().toISOString(),
+      date: today(),
+      module,   // 'habits' | 'finance' | 'vitals' | 'goals' | 'focus' | 'investments' | 'debts'
+      type,     // e.g. 'habit.completed', 'expense.added', 'vitals.logged' …
+      data,
+    };
+    setEventLog(log => {
+      const next = [...log, entry];
+      return next.length > 2000 ? next.slice(next.length - 2000) : next;
+    });
+  }, [setEventLog]);
 
   // Undo system
   const pushUndo = useCallback((label, fn) => {
@@ -1874,6 +1896,30 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       setNetWorthHistory(h => [...h.slice(-23), { month: thisMonth, value: netWorth }]);
     }
   }, [onboarded, assets, debts, investments]);
+
+  // ── Daily snapshot — writes module health scores once per day ─────────────
+  useEffect(() => {
+    if (!onboarded) return;
+    const d = today();
+    if (dailySnapshots[d]) return; // already snapped today
+    // Only snap if we have meaningful data
+    if (!habits.length && !expenses.length && !vitals.length) return;
+    const habitsDone = habits.filter(h => (habitLogs[h.id] || []).includes(d)).length;
+    const habitRate = habits.length > 0 ? Math.round((habitsDone / habits.length) * 100) : null;
+    const monthKey = d.slice(0, 7);
+    const mSpend = expenses.filter(e => e.date?.startsWith(monthKey)).reduce((s, e) => s + Number(e.amount || 0), 0);
+    const mIncome = incomes.filter(i => i.date?.startsWith(monthKey)).reduce((s, i) => s + Number(i.amount || 0), 0);
+    const snap = {
+      date: d,
+      netWorth,
+      savingsRate: mIncome > 0 ? Math.round(((mIncome - mSpend) / mIncome) * 100) : null,
+      habitRate,
+      financialHealthScore,
+      totalXP,
+      vitals: vitals.find(v => v.date === d) || null,
+    };
+    setDailySnapshots(s => ({ ...s, [d]: snap }));
+  }, [onboarded, today(), habits, habitLogs, expenses, incomes, vitals, netWorth, financialHealthScore, totalXP]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -2223,11 +2269,11 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         <div className="los-main" style={s.main}>
           <ErrorBoundary>
 
-          {activeTab === 'dashboard' && <DashboardTab T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} checkins={checkins} setCheckins={setCheckins} incomes={incomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} />}
-          {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} customChallenges={customChallenges} setCustomChallenges={setCustomChallenges} thisMonthIncome={thisMonthIncome} />}
-          {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} investments={investments} debts={debts} />}
-          {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
-          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} bondTracker={bondTracker} setBondTracker={setBondTracker} checkins={checkins} setCheckins={setCheckins} expenseRegrets={expenseRegrets} setExpenseRegrets={setExpenseRegrets} assetDepreciation={assetDepreciation} setAssetDepreciation={setAssetDepreciation} freelanceData={freelanceData} setFreelanceData={setFreelanceData} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />}
+          {activeTab === 'dashboard' && <DashboardTab logEvent={logEvent} T={T} s={s} settings={settings} habits={habits} habitLogs={habitLogs} todayHabits={todayHabits} todayDoneCount={todayDoneCount} netWorth={netWorth} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} debts={debts} goals={goals} vitals={vitals} todayVitals={todayVitals} setActiveTab={setActiveTab} weeklyFocus={weeklyFocus} setWeeklyFocus={setWeeklyFocus} totalXP={totalXP} level={level} xpProgress={xpProgress} addXP={addXP} expenses={expenses} setExpenses={setExpenses} setVitals={setVitals} habitLogsFull={habitLogs} setHabitLogs={setHabitLogs} smartAlerts={smartAlerts} financialHealthScore={financialHealthScore} notes={notes} setNotes={setNotes} budgetTargets={budgetTargets} checkins={checkins} setCheckins={setCheckins} incomes={incomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} />}
+          {activeTab === 'character' && <CharacterTab logEvent={logEvent} T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} customChallenges={customChallenges} setCustomChallenges={setCustomChallenges} thisMonthIncome={thisMonthIncome} />}
+          {activeTab === 'goals' && <GoalsTab logEvent={logEvent} T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} investments={investments} debts={debts} />}
+          {activeTab === 'debts' && <DebtsTab logEvent={logEvent} T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
+          {activeTab === 'moneyhub' && <MoneyHubTab logEvent={logEvent} T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} bondTracker={bondTracker} setBondTracker={setBondTracker} checkins={checkins} setCheckins={setCheckins} expenseRegrets={expenseRegrets} setExpenseRegrets={setExpenseRegrets} assetDepreciation={assetDepreciation} setAssetDepreciation={setAssetDepreciation} freelanceData={freelanceData} setFreelanceData={setFreelanceData} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />}
           {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} tradeJournal={tradeJournal} setTradeJournal={setTradeJournal} priceAlerts={priceAlerts} setPriceAlerts={setPriceAlerts} goals={goals} setGoals={setGoals} thesisDates={thesisDates} setThesisDates={setThesisDates} />}
           {activeTab === 'notes' && <NotesTab T={T} s={s} notes={notes} setNotes={setNotes} settings={settings} addXP={addXP} />}
           {activeTab === 'capsule' && <TimeCapsuleTab T={T} s={s} settings={settings} addXP={addXP} />}
@@ -2237,7 +2283,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
           {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} />}
-          {activeTab === 'mindbody' && <MindBodyTab T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} focusBillingSettings={focusBillingSettings} setFocusBillingSettings={setFocusBillingSettings} />}
+          {activeTab === 'mindbody' && <MindBodyTab logEvent={logEvent} T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} focusBillingSettings={focusBillingSettings} setFocusBillingSettings={setFocusBillingSettings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
         </div>
@@ -3104,7 +3150,7 @@ function OnboardingWizard({ T, s, settings, setSettings, onComplete, step, setSt
 // ─────────────────────────────────────────────
 // DASHBOARD TAB
 // ─────────────────────────────────────────────
-function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes, weeklyBriefHistory, setWeeklyBriefHistory }) {
+function DashboardTab({ logEvent, T, s, settings, habits, habitLogs, todayHabits, todayDoneCount, netWorth, savingsRate, thisMonthSpend, thisMonthIncome, debts, goals, vitals, todayVitals, setActiveTab, weeklyFocus, setWeeklyFocus, totalXP, level, xpProgress, addXP, expenses, setExpenses, setVitals, habitLogsFull, setHabitLogs, smartAlerts, financialHealthScore, notes, setNotes, budgetTargets, checkins, setCheckins, incomes, weeklyBriefHistory, setWeeklyBriefHistory }) {
   const [quickAmount, setQuickAmount] = useState('');
   const [quickCat, setQuickCat] = useState('🍽️ Food');
   const [quickNote, setQuickNote] = useState('');
@@ -3723,7 +3769,7 @@ Write 4-5 short bullet points (each ≤ 20 words). Be specific, motivating, and 
 // ─────────────────────────────────────────────
 // CHARACTER TAB (Hero + Quests merged)
 // ─────────────────────────────────────────────
-function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForNext, xpForCurrent, habits, setHabits, habitLogs, setHabitLogs, vitals, savingsRate, netWorth, expenses, achievements, setAchievements, chronicles, setChronicles, getStreak, addXP, setTotalXP, setXpHistory, pushUndo, goals, setGoals, debts, thisMonthSpend, customChallenges, setCustomChallenges, thisMonthIncome }) {
+function CharacterTab({ logEvent, T, s, settings, totalXP, level, xpProgress, heroClass, xpForNext, xpForCurrent, habits, setHabits, habitLogs, setHabitLogs, vitals, savingsRate, netWorth, expenses, achievements, setAchievements, chronicles, setChronicles, getStreak, addXP, setTotalXP, setXpHistory, pushUndo, goals, setGoals, debts, thisMonthSpend, customChallenges, setCustomChallenges, thisMonthIncome }) {
   const [subTab, setSubTab] = useState('profile');
 
   // ── Profile (Hero) data ──
@@ -3777,8 +3823,12 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
     setHabitLogs(l=>{
       const curr=l[h.id]||[];
       const done=curr.includes(d);
-      if(done) return {...l,[h.id]:curr.filter(x=>x!==d)};
+      if(done){
+        logEvent?.('habits','habit.uncompleted',{habitId:h.id,name:h.name});
+        return {...l,[h.id]:curr.filter(x=>x!==d)};
+      }
       addXP(h.xp||10,`Quest: ${h.name}`);
+      logEvent?.('habits','habit.completed',{habitId:h.id,name:h.name,category:h.category,xp:h.xp||10,streak:curr.length});
       return {...l,[h.id]:[...curr,d]};
     });
   }
@@ -4353,7 +4403,7 @@ function HeroTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForN
 // ─────────────────────────────────────────────
 // QUESTS TAB
 // ─────────────────────────────────────────────
-function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, getStreak, pushUndo, settings, thisMonthIncome, customChallenges, setCustomChallenges }) {
+function QuestsTab({ logEvent, T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, getStreak, pushUndo, settings, thisMonthIncome, customChallenges, setCustomChallenges }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name:'', frequency:'daily', category:'Health', xp:15, days:[0,1,2,3,4,5,6] });
   const [editingHabit, setEditingHabit] = useState(null);
@@ -4374,7 +4424,12 @@ function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, ge
     setHabitLogs(l => {
       const curr = l[h.id]||[];
       const done = curr.includes(d);
-      if (!done) addXP(h.xp||15, `Quest: ${h.name}`);
+      if (!done) {
+        addXP(h.xp||15, `Quest: ${h.name}`);
+        logEvent?.('habits', 'habit.completed', { habitId: h.id, name: h.name, category: h.category, xp: h.xp || 15, streak: (curr.length) });
+      } else {
+        logEvent?.('habits', 'habit.uncompleted', { habitId: h.id, name: h.name });
+      }
       return { ...l, [h.id]: done ? curr.filter(x=>x!==d) : [...curr, d] };
     });
   }
@@ -4724,7 +4779,7 @@ function goalMeta(category) {
   }
 }
 
-function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncome, addXP, goalMilestones, setGoalMilestones, visionBoard, setVisionBoard, pushUndo, investments, debts }) {
+function GoalsTab({ logEvent, T, s, goals, setGoals, settings, savingsRate, thisMonthIncome, addXP, goalMilestones, setGoalMilestones, visionBoard, setVisionBoard, pushUndo, investments, debts }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name:'', target:'', deadline:'', progress:0, note:'', category:'💰 Financial', linkedInvestmentId:'', linkedDebtId:'' });
   const [showContrib, setShowContrib] = useState(null);
@@ -4765,6 +4820,7 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
       if (debt) newGoal.target = Number(debt.balance) || Number(form.target);
     }
     setGoals(g=>[...g, newGoal]);
+    logEvent?.('goals','goal.created',{name:newGoal.name,target:newGoal.target,category:newGoal.category,deadline:newGoal.deadline});
     setForm({name:'',target:'',deadline:'',progress:0,note:'',category:'💰 Financial',linkedInvestmentId:'',linkedDebtId:''}); setShowAdd(false); addXP(10,'Goal created');
   }
 
@@ -4974,7 +5030,7 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
 // ─────────────────────────────────────────────
 // DEBTS TAB
 // ─────────────────────────────────────────────
-function DebtsTab({ T, s, debts, setDebts, settings, expenses, setExpenses, addXP, pushUndo, goals, setGoals }) {
+function DebtsTab({ logEvent, T, s, debts, setDebts, settings, expenses, setExpenses, addXP, pushUndo, goals, setGoals }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name:'', balance:'', rate:'', minPayment:'', icon:'💳' });
   const [extraPayment, setExtraPayment] = useState('');
@@ -5160,7 +5216,7 @@ function DebtsTab({ T, s, debts, setDebts, settings, expenses, setExpenses, addX
                     <div style={{fontSize:'12px',color:T.textMuted}}>{t('debts_rate')}: {d.rate}% · Min: {settings.currency}{fmtN(d.minPayment)}</div>
                   </div>
                   <div style={{display:'flex',gap:'6px',alignItems:'center'}}>
-                    <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>setDebts(ds=>ds.map(x=>x.id===d.id?{...x,balance:Math.max(0,Number(x.balance)-Number(x.minPayment))}:x))}>{t('debts_pay_min')}</button>
+                    <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>{ const prev=d.balance; setDebts(ds=>ds.map(x=>x.id===d.id?{...x,balance:Math.max(0,Number(x.balance)-Number(x.minPayment))}:x)); logEvent?.('debts','debt.payment',{debtId:d.id,name:d.name,amount:Number(d.minPayment),type:'minimum',balanceBefore:Number(prev)}); }}>{t('debts_pay_min')}</button>
                     <button style={{...s.btnGhost,fontSize:'12px',color:T.accent}} onClick={()=>setEditingDebt({...d,originalBalance:d.originalBalance||d.balance})}>{t('debts_edit')}</button>
                     <button style={{...s.btnGhost,color:T.danger,fontSize:'12px'}} onClick={()=>{ const removed=d; setDebts(ds=>ds.filter(x=>x.id!==d.id)); pushUndo?.(`Deleted debt "${d.name}"`, ()=>setDebts(ds=>[...ds,removed])); }}>✕</button>
                   </div>
@@ -5951,7 +6007,7 @@ function TaxRow({ T, label, val, bold, dim, separator, accent, color }) {
 }
 
 
-function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
+function MoneyHubTab({ logEvent, T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
   const [subTab, setSubTab] = useState('hoard');
 
   return (
@@ -5976,7 +6032,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
         <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} assetDepreciation={assetDepreciation||{}} setAssetDepreciation={setAssetDepreciation||(() => {})} />
       )}
       {subTab==='expenses' && (
-        <SpendingTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
+        <SpendingTab logEvent={logEvent} T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
       )}
       {subTab==='intelligence' && (
         <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />
@@ -6424,7 +6480,7 @@ function CashFlowView({ T, s, settings, expenses, incomes, recurringExpenses, su
 }
 
 
-function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals, bills, expenseRegrets, setExpenseRegrets }) {
+function SpendingTab({ logEvent, T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, goals, setGoals, bills, expenseRegrets, setExpenseRegrets }) {
   const [form, setForm] = useState({ amount:'', category:'🍽️ Food', subcategory:'Groceries', note:'', date:today() });
   const [incomeForm, setIncomeForm] = useState({ amount:'', note:'', date:today() });
   const [showBudgets, setShowBudgets] = useState(false);
@@ -6566,6 +6622,7 @@ function SpendingTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
     if (!form.amount) return;
     const entry = { id:Date.now(), amount:Number(form.amount), category:form.category, subcategory:form.subcategory, note:form.note, date:form.date };
     setExpenses(e=>[...e,entry]);
+    logEvent?.('finance','expense.added',{amount:entry.amount,category:entry.category,subcategory:entry.subcategory,note:entry.note,date:entry.date});
     // Auto-reduce debt balance if Debts category
     if (form.category==='💳 Debts' && debts.length > 0 && form.subcategory) {
       setDebts(ds=>ds.map(d=>d.name===form.subcategory?{...d,balance:Math.max(0,d.balance-Number(form.amount))}:d));
@@ -7510,7 +7567,7 @@ Max 280 words.`
               <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Date</div>
               <input type="date" style={s.input} value={incomeForm.date} onChange={e=>setIncomeForm(f=>({...f,date:e.target.value}))} />
             </div>
-            <button style={{...s.btn(T.success),alignSelf:'end'}} onClick={()=>{ if(incomeForm.amount){ setIncomes(i=>[...i,{id:Date.now(),...incomeForm,amount:Number(incomeForm.amount)}]); setIncomeForm({amount:'',note:'',date:today()}); addXP(5,'Income logged'); } }}>Add</button>
+            <button style={{...s.btn(T.success),alignSelf:'end'}} onClick={()=>{ if(incomeForm.amount){ const inc={id:Date.now(),...incomeForm,amount:Number(incomeForm.amount)}; setIncomes(i=>[...i,inc]); logEvent?.('finance','income.added',{amount:inc.amount,note:inc.note,date:inc.date}); setIncomeForm({amount:'',note:'',date:today()}); addXP(5,'Income logged'); } }}>Add</button>
           </div>
           {/* Recent income list */}
           {incomes.length > 0 && (
@@ -11986,7 +12043,7 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
 // ─────────────────────────────────────────────
 // MIND & BODY TAB (Vitals + Focus merged)
 // ─────────────────────────────────────────────
-function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMetrics, metricLogs, setMetricLogs, focusSessions, setFocusSessions, habits, setHabitLogs, goals, settings, focusBillingSettings, setFocusBillingSettings }) {
+function MindBodyTab({ logEvent, T, s, vitals, setVitals, addXP, customMetrics, setCustomMetrics, metricLogs, setMetricLogs, focusSessions, setFocusSessions, habits, setHabitLogs, goals, settings, focusBillingSettings, setFocusBillingSettings }) {
   const [subTab, setSubTab] = useState('vitals');
   // Vitals state
   const [form, setForm] = useState({ sleep:7, quality:3, mood:7, note:'', date:today() });
@@ -12017,6 +12074,7 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
   function logVitals(){
     const entry={id:Date.now(),...form,sleep:Number(form.sleep),mood:Number(form.mood),quality:Number(form.quality)};
     setVitals(v=>[...v.filter(x=>x.date!==form.date),entry]);
+    logEvent?.('vitals','vitals.logged',{date:entry.date,sleep:entry.sleep,mood:entry.mood,energy:entry.energy,steps:entry.steps});
     addXP(5,'Vitals logged');
   }
   function addMetric(){
@@ -12044,7 +12102,7 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
             clearInterval(timerRef.current);setRunning(false);
             const dur=durationRef.current;
             if(timerMode==='work'){
-              setFocusSessions(s=>[...s,{id:Date.now(),duration:dur,task:sessionTask||'Free focus',completedAt:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}]);
+              const sess={id:Date.now(),duration:dur,task:sessionTask||'Free focus',completedAt:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}; setFocusSessions(s=>[...s,sess]); logEvent?.('focus','focus.completed',{duration:dur,task:sess.task});
               addXP(dur,'Focus session completed');
               // C9 — if session was linked to a habit, auto-tick it
               if(sessionTask) {
