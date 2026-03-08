@@ -2282,7 +2282,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} careerApps={careerApps} setCareerApps={setCareerApps} />}
           {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
-          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} />}
+          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} eventLog={eventLog} dailySnapshots={dailySnapshots} />}
           {activeTab === 'mindbody' && <MindBodyTab logEvent={logEvent} T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} focusBillingSettings={focusBillingSettings} setFocusBillingSettings={setFocusBillingSettings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
@@ -11574,7 +11574,7 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 // ─────────────────────────────────────────────
 // INSIGHTS TAB
 // ─────────────────────────────────────────────
-function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal }) {
+function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal, eventLog, dailySnapshots }) {
   // B10 — safe fallbacks for all arrays in case they're undefined on first install
   const safeExpenses = expenses || [];
   const safeVitals = vitals || [];
@@ -11988,6 +11988,369 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
             </div>
             <div style={{marginTop:'10px',fontSize:'11px',color:T.textDim}}>Correlation ≠ causation — but patterns in your own data are worth noticing.</div>
           </div>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* PHASE 2 — DIAGNOSTIC ENGINE                                        */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {(() => {
+        // ── Helpers ──────────────────────────────────────────────────────
+        const safeLog = eventLog || [];
+        const safeSnaps = dailySnapshots || {};
+        const snapList = Object.values(safeSnaps).sort((a,b)=>a.date>b.date?1:-1);
+
+        if (snapList.length < 3 && safeLog.length < 5) return (
+          <div style={{...s.card, border:`1px solid ${T.border}`, opacity:0.7, textAlign:'center', padding:'28px'}}>
+            <div style={{fontSize:'28px',marginBottom:'8px'}}>🔬</div>
+            <div style={{fontWeight:'800', fontSize:'14px', marginBottom:'6px'}}>Diagnostic Engine — Building your baseline</div>
+            <div style={{fontSize:'12px',color:T.textMuted}}>Keep using the app for a few more days — the more data you log, the deeper the insights get.</div>
+          </div>
+        );
+
+        // ── 1. CROSS-MODULE CORRELATIONS ─────────────────────────────────
+        // For each day in snapshots, pair: habitRate, savingsRate, mood, spend
+        const pairedDays = snapList.filter(s => s.habitRate != null).map(snap => {
+          const dayExpenses = (expenses||[]).filter(e=>e.date===snap.date).reduce((s,e)=>s+Number(e.amount||0),0);
+          return {
+            date: snap.date,
+            habitRate: snap.habitRate,
+            savingsRate: snap.savingsRate,
+            mood: snap.vitals?.mood ?? null,
+            sleep: snap.vitals?.sleep ?? null,
+            spend: dayExpenses,
+            fhs: snap.financialHealthScore,
+          };
+        });
+
+        const correlations = [];
+
+        // Correlation A: low habit days → higher spending
+        const habitSpendDays = pairedDays.filter(d=>d.spend>0);
+        if (habitSpendDays.length >= 5) {
+          const lowHabit  = habitSpendDays.filter(d=>d.habitRate < 50);
+          const highHabit = habitSpendDays.filter(d=>d.habitRate >= 50);
+          if (lowHabit.length >= 2 && highHabit.length >= 2) {
+            const avgSpendLow  = lowHabit.reduce((s,d)=>s+d.spend,0)/lowHabit.length;
+            const avgSpendHigh = highHabit.reduce((s,d)=>s+d.spend,0)/highHabit.length;
+            const diff = avgSpendLow - avgSpendHigh;
+            if (diff > 2) correlations.push({
+              id:'habits_spend',
+              icon:'🔗',
+              title:'Low habit days → higher spending',
+              color: T.warning,
+              body: `On days you complete <50% of habits, you spend on average ${settings.currency}${Math.abs(diff).toFixed(0)} more than on high-habit days (${settings.currency}${avgSpendLow.toFixed(0)} vs ${settings.currency}${avgSpendHigh.toFixed(0)}).`,
+              insight: `Your discipline and spending are linked. Missing habits may signal lower self-regulation overall.`,
+              strength: diff / Math.max(avgSpendHigh, 1),
+            });
+          }
+        }
+
+        // Correlation B: low sleep → lower habit rate
+        const sleepHabitDays = pairedDays.filter(d=>d.sleep!=null);
+        if (sleepHabitDays.length >= 5) {
+          const poorSleep = sleepHabitDays.filter(d=>d.sleep < 7);
+          const goodSleep = sleepHabitDays.filter(d=>d.sleep >= 7);
+          if (poorSleep.length >= 2 && goodSleep.length >= 2) {
+            const avgHabitPoor = poorSleep.reduce((s,d)=>s+d.habitRate,0)/poorSleep.length;
+            const avgHabitGood = goodSleep.reduce((s,d)=>s+d.habitRate,0)/goodSleep.length;
+            const diff = avgHabitGood - avgHabitPoor;
+            if (diff > 5) correlations.push({
+              id:'sleep_habits',
+              icon:'😴',
+              title:'Sleep quality drives habit completion',
+              color: T.accent,
+              body: `On nights with 7h+ sleep, your habit completion is ${diff.toFixed(0)}% higher (${avgHabitGood.toFixed(0)}% vs ${avgHabitPoor.toFixed(0)}%).`,
+              insight: `Sleep is your keystone habit. Protecting your sleep schedule has a multiplier effect on everything else.`,
+              strength: diff / 100,
+            });
+          }
+        }
+
+        // Correlation C: low mood → spending spike
+        const moodSpendDays = pairedDays.filter(d=>d.mood!=null && d.spend>0);
+        if (moodSpendDays.length >= 5) {
+          const lowMood  = moodSpendDays.filter(d=>d.mood <= 4);
+          const highMood = moodSpendDays.filter(d=>d.mood >= 7);
+          if (lowMood.length >= 2 && highMood.length >= 2) {
+            const avgLow  = lowMood.reduce((s,d)=>s+d.spend,0)/lowMood.length;
+            const avgHigh = highMood.reduce((s,d)=>s+d.spend,0)/highMood.length;
+            const diff = avgLow - avgHigh;
+            if (diff > 5) correlations.push({
+              id:'mood_spend',
+              icon:'💸',
+              title:'Emotional spending pattern detected',
+              color: T.danger,
+              body: `On low-mood days (≤4/10) you spend ${settings.currency}${diff.toFixed(0)} more than on high-mood days (${settings.currency}${avgLow.toFixed(0)} vs ${settings.currency}${avgHigh.toFixed(0)}).`,
+              insight: `Consider a 24-hour rule before non-essential purchases when you're feeling low.`,
+              strength: diff / Math.max(avgHigh, 1),
+            });
+          }
+        }
+
+        // Correlation D: focus sessions → better habit rate same day
+        const focusEvents = safeLog.filter(e=>e.type==='focus.completed');
+        if (focusEvents.length >= 3 && pairedDays.length >= 5) {
+          const focusDates = new Set(focusEvents.map(e=>e.date));
+          const withFocus    = pairedDays.filter(d=>focusDates.has(d.date));
+          const withoutFocus = pairedDays.filter(d=>!focusDates.has(d.date));
+          if (withFocus.length >= 2 && withoutFocus.length >= 2) {
+            const avgWith    = withFocus.reduce((s,d)=>s+d.habitRate,0)/withFocus.length;
+            const avgWithout = withoutFocus.reduce((s,d)=>s+d.habitRate,0)/withoutFocus.length;
+            const diff = avgWith - avgWithout;
+            if (diff > 5) correlations.push({
+              id:'focus_habits',
+              icon:'🎯',
+              title:'Focus sessions boost habit completion',
+              color: T.success,
+              body: `On days you log a focus session, habit completion is ${diff.toFixed(0)}% higher (${avgWith.toFixed(0)}% vs ${avgWithout.toFixed(0)}%).`,
+              insight: `Starting your day with a focused work block appears to set a productive tone across all habits.`,
+              strength: diff / 100,
+            });
+          }
+        }
+
+        // ── 2. MONTHLY AUTO-NARRATIVE ─────────────────────────────────────
+        const monthKey = today().slice(0,7);
+        const prevMonthKey = (() => {const d=new Date();d.setMonth(d.getMonth()-1);return d.toISOString().slice(0,7);})();
+        const thisMonthSnaps = snapList.filter(s=>s.date.startsWith(monthKey));
+        const prevMonthSnaps = snapList.filter(s=>s.date.startsWith(prevMonthKey));
+
+        let narrative = null;
+        if (thisMonthSnaps.length >= 3 || prevMonthSnaps.length >= 3) {
+          const avgHabitThis = thisMonthSnaps.filter(s=>s.habitRate!=null).length > 0
+            ? Math.round(thisMonthSnaps.filter(s=>s.habitRate!=null).reduce((s,d)=>s+d.habitRate,0)/thisMonthSnaps.filter(s=>s.habitRate!=null).length)
+            : null;
+          const avgHabitPrev = prevMonthSnaps.filter(s=>s.habitRate!=null).length > 0
+            ? Math.round(prevMonthSnaps.filter(s=>s.habitRate!=null).reduce((s,d)=>s+d.habitRate,0)/prevMonthSnaps.filter(s=>s.habitRate!=null).length)
+            : null;
+
+          const thisSpend = (expenses||[]).filter(e=>e.date?.startsWith(monthKey)).reduce((s,e)=>s+Number(e.amount||0),0);
+          const prevSpend = (expenses||[]).filter(e=>e.date?.startsWith(prevMonthKey)).reduce((s,e)=>s+Number(e.amount||0),0);
+          const thisInc   = (incomes||[]).filter(i=>i.date?.startsWith(monthKey)).reduce((s,i)=>s+Number(i.amount||0),0);
+
+          const thisMonthFocusMins = safeLog.filter(e=>e.type==='focus.completed'&&e.date?.startsWith(monthKey)).reduce((s,e)=>s+(e.data?.duration||0),0);
+
+          const spendDelta = prevSpend > 0 ? Math.round(((thisSpend-prevSpend)/prevSpend)*100) : null;
+          const habitDelta = avgHabitThis!=null && avgHabitPrev!=null ? avgHabitThis - avgHabitPrev : null;
+
+          const monthLabel = new Date(monthKey+'-01').toLocaleString('en-US',{month:'long',year:'numeric'});
+          const sentences = [];
+
+          if (thisSpend > 0) {
+            const spendStr = spendDelta != null
+              ? `${settings.currency}${fmtN(Math.round(thisSpend))} (${spendDelta>=0?'+':''}${spendDelta}% vs last month)`
+              : `${settings.currency}${fmtN(Math.round(thisSpend))}`;
+            sentences.push(`💰 Spending is at ${spendStr}.`);
+          }
+          if (thisInc > 0) {
+            const sr = thisInc > 0 ? Math.round(((thisInc-thisSpend)/thisInc)*100) : 0;
+            const srColor = sr >= 20 ? '🟢' : sr >= 10 ? '🟡' : '🔴';
+            sentences.push(`${srColor} Savings rate: ${sr}% (${settings.currency}${fmtN(Math.round(thisInc-thisSpend))} saved).`);
+          }
+          if (avgHabitThis != null) {
+            const habitEmoji = avgHabitThis >= 80 ? '🔥' : avgHabitThis >= 50 ? '✅' : '⚠️';
+            const deltaStr = habitDelta != null ? ` (${habitDelta>=0?'+':''}${habitDelta}% vs last month)` : '';
+            sentences.push(`${habitEmoji} Average habit completion: ${avgHabitThis}%${deltaStr}.`);
+          }
+          if (thisMonthFocusMins > 0) {
+            sentences.push(`🎯 ${Math.round(thisMonthFocusMins/60)}h ${thisMonthFocusMins%60}m of focused work logged.`);
+          }
+          if (correlations.length > 0) {
+            sentences.push(`🔗 ${correlations.length} cross-module pattern${correlations.length>1?'s':''} detected this period.`);
+          }
+
+          narrative = { month: monthLabel, sentences, habitDelta, spendDelta };
+        }
+
+        // ── 3. BEHAVIOURAL ANOMALY DETECTOR ──────────────────────────────
+        const anomalies = [];
+
+        // A1: Habit dropout early warning — 2 consecutive misses on a habit
+        if ((habits||[]).length > 0) {
+          (habits||[]).forEach(h => {
+            const logs = (habitLogs||{})[h.id] || [];
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+            const y1 = yesterday.toISOString().slice(0,10);
+            const y2 = new Date(yesterday.getTime()-86400000).toISOString().slice(0,10);
+            const missedYesterday = !logs.includes(y1);
+            const missedDayBefore = !logs.includes(y2);
+            if (missedYesterday && missedDayBefore && logs.length >= 3) {
+              // only warn if this habit has a history (streak was good before)
+              const totalDone = logs.length;
+              const rate = totalDone > 0 ? Math.round((totalDone / Math.max(1, (new Date()-new Date(logs[0]+'T00:00:00'))/86400000))*100) : 0;
+              if (rate > 40) {
+                anomalies.push({
+                  id:`dropout_${h.id}`,
+                  icon:'⚡',
+                  color: T.warning,
+                  title:`"${h.name}" at dropout risk`,
+                  body:`Missed 2 consecutive days. Historically, a 2-day miss leads to full dropout 60%+ of the time.`,
+                  urgency: 'high',
+                });
+              }
+            }
+          });
+        }
+
+        // A2: Spending pace anomaly — on track to exceed 3-month average
+        if ((expenses||[]).length >= 10) {
+          const dayOfMonth = new Date().getDate();
+          const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+          const prev3 = [-3,-2,-1].map(o=>{const d=new Date();d.setMonth(d.getMonth()+o);return d.toISOString().slice(0,7);});
+          const avg3m = prev3.reduce((s,m)=>{
+            return s + (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((ss,e)=>ss+Number(e.amount||0),0);
+          },0)/3;
+          const curSpend = (expenses||[]).filter(e=>e.date?.startsWith(monthKey)).reduce((s,e)=>s+Number(e.amount||0),0);
+          const projected = dayOfMonth > 0 ? (curSpend/dayOfMonth)*daysInMonth : curSpend;
+          if (avg3m > 0 && projected > avg3m * 1.3) {
+            anomalies.push({
+              id:'spend_pace',
+              icon:'📈',
+              color: T.danger,
+              title:'Spending pace unusually high',
+              body:`Projected ${settings.currency}${fmtN(Math.round(projected))}/month — ${Math.round((projected/avg3m-1)*100)}% above your 3-month average of ${settings.currency}${fmtN(Math.round(avg3m))}.`,
+              urgency: 'high',
+            });
+          }
+        }
+
+        // A3: No vitals logged for 3+ days
+        if ((vitals||[]).length > 3) {
+          const lastVital = [...(vitals||[])].sort((a,b)=>a.date>b.date?-1:1)[0];
+          if (lastVital) {
+            const daysSince = Math.floor((new Date()-new Date(lastVital.date+'T12:00:00'))/86400000);
+            if (daysSince >= 3) {
+              anomalies.push({
+                id:'vitals_gap',
+                icon:'😴',
+                color: T.textMuted,
+                title:`Vitals gap — ${daysSince} days without logging`,
+                body:`You were logging vitals regularly. A gap often means a disrupted routine. Last logged: ${dateLabel(lastVital.date)}.`,
+                urgency: 'low',
+              });
+            }
+          }
+        }
+
+        // A4: Large single expense vs personal average
+        if ((expenses||[]).length >= 10) {
+          const allAmounts = (expenses||[]).map(e=>Number(e.amount||0)).filter(a=>a>0);
+          const avgExpense = allAmounts.reduce((s,a)=>s+a,0)/allAmounts.length;
+          const stdDev = Math.sqrt(allAmounts.reduce((s,a)=>s+Math.pow(a-avgExpense,2),0)/allAmounts.length);
+          const threshold = avgExpense + 2.5*stdDev;
+          const recentBig = (expenses||[]).filter(e=>{
+            const daysAgo = (new Date()-new Date(e.date+'T12:00:00'))/86400000;
+            return daysAgo <= 7 && Number(e.amount||0) > threshold;
+          });
+          recentBig.forEach(e=>{
+            anomalies.push({
+              id:`big_expense_${e.id}`,
+              icon:'💥',
+              color: T.warning,
+              title:`Unusually large expense`,
+              body:`${e.category} — ${settings.currency}${fmtN(Number(e.amount))} on ${dateLabel(e.date)}. That's ${Math.round(Number(e.amount)/avgExpense)}× your typical transaction of ${settings.currency}${fmtN(Math.round(avgExpense))}.`,
+              urgency: 'medium',
+            });
+          });
+        }
+
+        // ── RENDER ────────────────────────────────────────────────────────
+        return (
+          <>
+            {/* MONTHLY NARRATIVE */}
+            {narrative && (
+              <div style={{...s.card, border:`1px solid ${T.accent}33`, background:`linear-gradient(135deg,${T.card},${T.accent}08)`}}>
+                <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'16px'}}>
+                  <span style={{fontSize:'22px'}}>📋</span>
+                  <div>
+                    <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px'}}>Monthly Debrief — {narrative.month}</div>
+                    <div style={{fontSize:'11px', color:T.textMuted}}>Auto-generated from your data</div>
+                  </div>
+                  <div style={{marginLeft:'auto', display:'flex', gap:'8px'}}>
+                    {narrative.spendDelta != null && (
+                      <span style={{...s.tag(narrative.spendDelta > 10 ? T.danger : narrative.spendDelta < -5 ? T.success : T.textMuted), fontSize:'11px'}}>
+                        Spend {narrative.spendDelta > 0 ? '+' : ''}{narrative.spendDelta}%
+                      </span>
+                    )}
+                    {narrative.habitDelta != null && (
+                      <span style={{...s.tag(narrative.habitDelta >= 0 ? T.success : T.warning), fontSize:'11px'}}>
+                        Habits {narrative.habitDelta >= 0 ? '+' : ''}{narrative.habitDelta}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                  {narrative.sentences.map((sent, i) => (
+                    <div key={i} style={{fontSize:'13px', color:T.text, lineHeight:'1.6', padding:'8px 12px', background:T.surface, borderRadius:'8px', border:`1px solid ${T.border}`}}>
+                      {sent}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* CROSS-MODULE CORRELATIONS */}
+            {correlations.length > 0 && (
+              <div style={{...s.card, border:`1px solid ${T.accent}33`}}>
+                <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>
+                  <span style={{fontSize:'20px'}}>🔗</span>
+                  <div>
+                    <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px'}}>Cross-Module Correlations</div>
+                    <div style={{fontSize:'11px', color:T.textMuted}}>Patterns connecting different areas of your life</div>
+                  </div>
+                </div>
+                <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                  {correlations.map(c => (
+                    <div key={c.id} style={{borderRadius:'10px', padding:'14px 16px', background:T.surface, border:`1px solid ${c.color}33`}}>
+                      <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'6px'}}>
+                        <span style={{fontSize:'18px'}}>{c.icon}</span>
+                        <div style={{fontWeight:'800', fontSize:'13px', color:c.color, flex:1}}>{c.title}</div>
+                        <div style={{fontSize:'10px', color:T.textMuted, background:T.bg, padding:'2px 8px', borderRadius:'99px', border:`1px solid ${T.border}`}}>
+                          {Math.round(Math.min(c.strength * 80 + 20, 99))}% signal
+                        </div>
+                      </div>
+                      <div style={{fontSize:'12px', color:T.text, marginBottom:'6px', lineHeight:'1.6'}}>{c.body}</div>
+                      <div style={{fontSize:'12px', color:T.textMuted, fontStyle:'italic', borderLeft:`3px solid ${c.color}55`, paddingLeft:'8px'}}>
+                        💡 {c.insight}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* BEHAVIOURAL ANOMALIES */}
+            {anomalies.length > 0 && (
+              <div style={{...s.card, border:`1px solid ${T.warning}33`}}>
+                <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>
+                  <span style={{fontSize:'20px'}}>🧠</span>
+                  <div>
+                    <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'15px'}}>Behavioural Anomalies</div>
+                    <div style={{fontSize:'11px', color:T.textMuted}}>Unusual patterns vs your personal baseline</div>
+                  </div>
+                  <span style={{marginLeft:'auto', background:T.warning+'22', color:T.warning, fontWeight:'800', fontSize:'12px', padding:'2px 10px', borderRadius:'99px'}}>{anomalies.length} detected</span>
+                </div>
+                <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                  {anomalies.map(a => (
+                    <div key={a.id} style={{display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', borderRadius:'10px', background:T.surface, border:`1px solid ${a.color}33`}}>
+                      <span style={{fontSize:'20px', flexShrink:0, marginTop:'1px'}}>{a.icon}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:'800', fontSize:'13px', color:a.color, marginBottom:'4px'}}>{a.title}</div>
+                        <div style={{fontSize:'12px', color:T.textMuted, lineHeight:'1.5'}}>{a.body}</div>
+                      </div>
+                      <span style={{
+                        fontSize:'10px', padding:'2px 8px', borderRadius:'99px', flexShrink:0,
+                        background: a.urgency==='high'?T.danger+'22':a.urgency==='medium'?T.warning+'22':T.border,
+                        color: a.urgency==='high'?T.danger:a.urgency==='medium'?T.warning:T.textMuted,
+                        fontWeight:'700',
+                      }}>{a.urgency}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         );
       })()}
       {/* I4 — MOOD TO SPENDING HEATMAP */}
