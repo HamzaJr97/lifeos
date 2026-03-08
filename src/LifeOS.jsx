@@ -129,41 +129,65 @@ class ErrorBoundary extends Component {
 // ─────────────────────────────────────────────
 const THEMES = {
   obsidian: {
-    bg: '#05050d', surface: '#0b0b18', card: '#101024', border: '#1c1c38',
-    accent: '#7c6fff', accentSoft: '#7c6fff18', accentGlow: '#7c6fff55',
-    accentGrad: 'linear-gradient(135deg,#7c6fff 0%,#00d4ff 100%)',
-    text: '#eeeeff', textMuted: '#5e5e96', textDim: '#1e1e44',
-    success: '#00ffb3', warning: '#ffb830', danger: '#ff3d6b',
-    chart: ['#7c6fff','#00d4ff','#00ffb3','#ffb830','#ff3d6b','#c084fc','#34d399'],
+    bg: '#04040c', surface: '#09091a', card: '#0d0d20', border: '#1a1a35',
+    accent: '#6c63ff', accentSoft: '#6c63ff15', accentGlow: '#6c63ff50',
+    accentGrad: 'linear-gradient(135deg,#6c63ff 0%,#4fc3f7 100%)',
+    accentGrad2: 'linear-gradient(135deg,#6c63ff 0%,#9c59ff 100%)',
+    text: '#e8e8ff', textMuted: '#5a5a8a', textDim: '#18183a',
+    success: '#00e5a0', warning: '#ffb020', danger: '#ff3060',
+    chart: ['#6c63ff','#4fc3f7','#00e5a0','#ffb020','#ff3060','#b57bff','#26d9c8'],
     name: '🌑 Obsidian'
   },
+  void: {
+    bg: '#020208', surface: '#07071a', card: '#0b0b22', border: '#16163a',
+    accent: '#a78bfa', accentSoft: '#a78bfa12', accentGlow: '#a78bfa45',
+    accentGrad: 'linear-gradient(135deg,#a78bfa 0%,#f472b6 100%)',
+    accentGrad2: 'linear-gradient(135deg,#818cf8 0%,#a78bfa 100%)',
+    text: '#f0eeff', textMuted: '#6060a0', textDim: '#14143a',
+    success: '#34d399', warning: '#fbbf24', danger: '#f87171',
+    chart: ['#a78bfa','#f472b6','#34d399','#fbbf24','#f87171','#60a5fa','#2dd4bf'],
+    name: '🔮 Void'
+  },
   forest: {
-    bg: '#030a04', surface: '#080f09', card: '#0e1a10', border: '#172a1a',
-    accent: '#3dff88', accentSoft: '#3dff8818', accentGlow: '#3dff8855',
-    accentGrad: 'linear-gradient(135deg,#3dff88 0%,#00d4aa 100%)',
-    text: '#e0f5e8', textMuted: '#4a7a52', textDim: '#142018',
-    success: '#3dff88', warning: '#ffcc44', danger: '#ff5566',
-    chart: ['#3dff88','#00d4aa','#00c8ff','#a78bfa','#ffcc44','#ff5566','#34d399'],
+    bg: '#020c04', surface: '#060e08', card: '#0a1510', border: '#112a18',
+    accent: '#22d3a0', accentSoft: '#22d3a012', accentGlow: '#22d3a045',
+    accentGrad: 'linear-gradient(135deg,#22d3a0 0%,#34d399 100%)',
+    accentGrad2: 'linear-gradient(135deg,#059669 0%,#22d3a0 100%)',
+    text: '#d8f5e8', textMuted: '#3a7a52', textDim: '#0a2016',
+    success: '#22d3a0', warning: '#fbbf24', danger: '#f87171',
+    chart: ['#22d3a0','#34d399','#60a5fa','#a78bfa','#fbbf24','#f87171','#2dd4bf'],
     name: '🌿 Forest'
   },
   ivory: {
-    bg: '#f0ebe0', surface: '#e8e0d0', card: '#f8f4ec', border: '#ccc0a4',
-    accent: '#b06800', accentSoft: '#b0680014', accentGlow: '#b0680044',
-    accentGrad: 'linear-gradient(135deg,#b06800 0%,#d4900a 100%)',
-    text: '#18120a', textMuted: '#7a6040', textDim: '#c8b090',
-    success: '#306040', warning: '#b06800', danger: '#aa2828',
-    chart: ['#b06800','#306040','#1a5a90','#60368a','#b05010','#aa2828','#107070'],
+    bg: '#f7f4ef', surface: '#ede8e0', card: '#faf8f5', border: '#d0c8b8',
+    accent: '#c2780a', accentSoft: '#c2780a10', accentGlow: '#c2780a40',
+    accentGrad: 'linear-gradient(135deg,#c2780a 0%,#e6960e 100%)',
+    accentGrad2: 'linear-gradient(135deg,#a86200 0%,#c2780a 100%)',
+    text: '#120e08', textMuted: '#7a6040', textDim: '#d8cc96',
+    success: '#2e6b4a', warning: '#c2780a', danger: '#b03030',
+    chart: ['#c2780a','#2e6b4a','#2460a0','#6a3a9a','#c05010','#b03030','#107070'],
     name: '☀️ Ivory'
   },
   ember: {
-    bg: '#080503', surface: '#120a05', card: '#1a0e06', border: '#2c1408',
-    accent: '#ff5e1a', accentSoft: '#ff5e1a18', accentGlow: '#ff5e1a55',
-    accentGrad: 'linear-gradient(135deg,#ff5e1a 0%,#ff2255 100%)',
-    text: '#f5ece0', textMuted: '#906040', textDim: '#3a1808',
-    success: '#3dff88', warning: '#ffcc44', danger: '#ff4444',
-    chart: ['#ff5e1a','#ff2255','#ffcc44','#ff8833','#cc1a00','#ff7700','#00ffaa'],
+    bg: '#060402', surface: '#0f0804', card: '#160c06', border: '#2a1208',
+    accent: '#ff6b35', accentSoft: '#ff6b3514', accentGlow: '#ff6b3550',
+    accentGrad: 'linear-gradient(135deg,#ff6b35 0%,#ff2d55 100%)',
+    accentGrad2: 'linear-gradient(135deg,#ff8c00 0%,#ff6b35 100%)',
+    text: '#f8ede0', textMuted: '#8a5a3a', textDim: '#301a08',
+    success: '#22d3a0', warning: '#fbbf24', danger: '#ff4444',
+    chart: ['#ff6b35','#ff2d55','#fbbf24','#ff8c00','#c41a00','#ff7700','#22d3a0'],
     name: '🔥 Ember'
-  }
+  },
+  arctic: {
+    bg: '#03080f', surface: '#081525', card: '#0c1c30', border: '#122640',
+    accent: '#38bdf8', accentSoft: '#38bdf812', accentGlow: '#38bdf845',
+    accentGrad: 'linear-gradient(135deg,#38bdf8 0%,#818cf8 100%)',
+    accentGrad2: 'linear-gradient(135deg,#0ea5e9 0%,#38bdf8 100%)',
+    text: '#e0f0ff', textMuted: '#3a6080', textDim: '#0a2040',
+    success: '#34d399', warning: '#fbbf24', danger: '#f87171',
+    chart: ['#38bdf8','#818cf8','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf'],
+    name: '❄️ Arctic'
+  },
 };
 
 const SPENDING_CATEGORIES = {
@@ -1476,7 +1500,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
   const css = (styles) => Object.entries(styles).map(([k,v]) => `${k.replace(/([A-Z])/g,m=>'-'+m.toLowerCase())}:${v}`).join(';');
 
   const s = {
-    app: { position:'fixed', top:0, left:0, right:0, bottom:0, background:T.bg, color:T.text, fontFamily:"'JetBrains Mono','Fira Code',monospace", display:'flex', flexDirection:'column', overflowX:'hidden', overflowY:'hidden', overscrollBehavior:'none', boxSizing:'border-box' },
+    app: { position:'fixed', top:0, left:0, right:0, bottom:0, background:T.bg, color:T.text, fontFamily:"'Syne','DM Sans','Inter',sans-serif", display:'flex', flexDirection:'column', overflowX:'hidden', overflowY:'hidden', overscrollBehavior:'none', boxSizing:'border-box' },
     topbar: {
       background: `${T.surface}f0`, backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
       borderBottom:`1px solid ${T.accent}22`,
@@ -1492,8 +1516,8 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       boxShadow:`0 1px 0 ${T.accent}18, 0 8px 32px #00000044`,
     },
     logo: {
-      fontSize:'19px', fontWeight:'900', letterSpacing:'-1px',
-      fontFamily:"'Exo 2',sans-serif",
+      fontSize:'16px', fontWeight:'900', letterSpacing:'3px',
+      fontFamily:"'Syne','Exo 2',sans-serif", textTransform:'uppercase',
       background: T.accentGrad, WebkitBackgroundClip:'text',
       WebkitTextFillColor:'transparent', backgroundClip:'text',
     },
@@ -1511,14 +1535,14 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       whiteSpace:'nowrap',
     }),
     navBtn: (active) => ({
-      display:'flex', alignItems:'center', gap:'10px', padding:'9px 13px',
+      display:'flex', alignItems:'center', gap:'10px', padding:'9px 14px',
       borderRadius:'10px', border:'none',
-      background: active ? `${T.accent}18` : 'transparent',
-      color: active ? T.accent : T.textMuted,
+      background: active ? `${T.accent}14` : 'transparent',
+      color: active ? T.text : T.textMuted,
       cursor:'pointer', fontSize:'13px', fontFamily:'inherit',
-      textAlign:'left', width:'100%', transition:'all 0.18s ease',
-      borderLeft: active ? `3px solid ${T.accent}` : '3px solid transparent',
-      fontWeight: active ? '700' : '400',
+      textAlign:'left', width:'100%', transition:'all 0.15s ease',
+      borderLeft: active ? `2px solid ${T.accent}` : '2px solid transparent',
+      fontWeight: active ? '700' : '500',
     }),
     main: {
       flex:1, overflowY:'auto', overflowX:'hidden', background:T.bg,
@@ -1530,18 +1554,19 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
     },
     card: {
       background: T.card, border:`1px solid ${T.border}`,
-      borderRadius: isMobile ? '12px' : '16px',
-      padding: isMobile ? '14px' : '22px',
-      boxShadow:`0 2px 16px #00000022, inset 0 1px 0 ${T.accent}0a`,
+      borderRadius: isMobile ? '16px' : '20px',
+      padding: isMobile ? '16px' : '24px',
+      boxShadow:`0 4px 24px ${T.bg}88, inset 0 1px 0 ${T.accent}08`, transition:'box-shadow 0.2s',
     },
     cardTitle: {
-      fontSize:'10px', fontWeight:'700', color: T.textMuted,
-      letterSpacing:'2.5px', textTransform:'uppercase', marginBottom: isMobile ? '12px' : '18px',
+      fontSize:'11px', fontWeight:'700', color: T.textMuted,
+      letterSpacing:'2px', textTransform:'uppercase', marginBottom: isMobile ? '14px' : '20px',
+      fontFamily:"'Syne',sans-serif",
     },
     btn: (color=T.accent) => ({
       background: color===T.accent ? T.accentGrad : color,
-      color:'#fff', border:'none', borderRadius:'10px',
-      padding: isMobile ? '12px 16px' : '10px 20px',
+      color:'#fff', border:'none', borderRadius:'12px',
+      padding: isMobile ? '13px 18px' : '10px 22px', letterSpacing:'0.3px',
       cursor:'pointer', fontSize: isMobile ? '14px' : '13px',
       fontWeight:'700', fontFamily:'inherit', transition:'all 0.18s',
       boxShadow: color===T.accent ? `0 4px 18px ${T.accentGlow}` : `0 4px 12px ${color}44`,
@@ -1549,26 +1574,26 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
     }),
     btnGhost: {
       background:'transparent', color: T.textMuted,
-      border:`1px solid ${T.border}`, borderRadius:'10px',
-      padding: isMobile ? '10px 14px' : '8px 16px',
+      border:`1px solid ${T.border}`, borderRadius:'12px',
+      padding: isMobile ? '11px 16px' : '9px 18px',
       cursor:'pointer', fontSize: isMobile ? '13px' : '12px',
-      fontFamily:'inherit', transition:'all 0.18s',
-      minHeight: isMobile ? '44px' : 'auto',
+      fontFamily:'inherit', transition:'all 0.18s', fontWeight:'500',
+      minHeight: isMobile ? '46px' : 'auto',
     },
     input: {
       background: T.surface, border:`1px solid ${T.border}`,
-      borderRadius:'10px', padding:'10px 14px', color: T.text,
+      borderRadius:'12px', padding:'11px 16px', color: T.text,
       fontSize:'16px', fontFamily:'inherit', outline:'none',
       width:'100%', boxSizing:'border-box', transition:'border-color 0.18s',
     },
     select: {
       background: T.surface, border:`1px solid ${T.border}`,
-      borderRadius:'10px', padding:'10px 14px', color: T.text,
+      borderRadius:'12px', padding:'11px 16px', color: T.text,
       fontSize:'16px', fontFamily:'inherit', outline:'none',
       width:'100%', boxSizing:'border-box',
     },
-    grid2: { display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '12px' : '18px' },
-    grid3: { display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? '12px' : '18px' },
+    grid2: { display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '14px' : '20px' },
+    grid3: { display:'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? '14px' : '20px' },
     grid4: { display:'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: isMobile ? '10px' : '16px' },
     // Horizontal scroll strip — use for 4-col stat cards on mobile
     hscroll: {
@@ -1577,14 +1602,14 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       scrollbarWidth:'none',
     },
     hscrollCard: {
-      flexShrink:0, minWidth: isMobile ? '140px' : '160px',
-      background:T.surface, borderRadius:'12px', padding:'14px 16px', border:`1px solid ${T.border}`,
+      flexShrink:0, minWidth: isMobile ? '148px' : '168px',
+      background:T.surface, borderRadius:'14px', padding:'16px', border:`1px solid ${T.border}`,
     },
     isMobile,
     tag: (color) => ({
-      background: color+'1a', color: color, borderRadius:'6px',
-      padding:'3px 9px', fontSize:'11px', fontWeight:'700',
-      border:`1px solid ${color}28`,
+      background: color+'15', color: color, borderRadius:'8px',
+      padding:'3px 10px', fontSize:'11px', fontWeight:'700',
+      border:`1px solid ${color}25`, letterSpacing:'0.2px',
     }),
     badge: (color=T.accent) => ({
       background: color, color:'#fff', borderRadius:'20px',
@@ -1592,7 +1617,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       boxShadow:`0 2px 8px ${color}55`,
     }),
     drawer: {
-      position:'fixed', top:0, left:0, bottom:0, width:'260px', zIndex:300,
+      position:'fixed', top:0, left:0, bottom:0, width:'270px', zIndex:300,
       background:T.surface, borderRight:`1px solid ${T.border}`,
       overflowY:'auto', paddingTop:'max(14px, env(safe-area-inset-top))', paddingBottom:'20px', paddingLeft:'max(10px, env(safe-area-inset-left))', paddingRight:'10px',
       display:'flex', flexDirection:'column', gap:'3px',
@@ -1611,14 +1636,14 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
       paddingBottom:'env(safe-area-inset-bottom)',
       paddingLeft:'env(safe-area-inset-left)',
       paddingRight:'env(safe-area-inset-right)',
-      boxShadow:`0 -4px 24px #00000033`,
+      boxShadow:`0 -4px 28px ${T.bg}cc`,
       boxSizing:'border-box',
     },
     bottomNavBtn: (active) => ({
       flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
       padding:'8px 4px', border:'none', background:'transparent', cursor:'pointer',
       color: active ? T.accent : T.textMuted, fontSize:'10px', fontFamily:'inherit',
-      gap:'3px', minHeight:'56px', transition:'color 0.15s',
+      gap:'3px', minHeight:'58px', transition:'color 0.15s', fontWeight: active ? '700' : '500',
     }),
   };
 
@@ -1648,10 +1673,10 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
   // PIN lock screen
   if (pinHash && pinLocked) return (
     <div style={{...s.app, alignItems:'center', justifyContent:'center'}}>
-      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Exo+2:wght@700;900&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
       <div style={{...s.card, width:'320px', textAlign:'center', border:`1px solid ${T.accent}44`, boxShadow:`0 0 60px ${T.accentGlow}`}}>
         <div style={{fontSize:'40px', marginBottom:'12px'}}>🔐</div>
-        <div style={{fontFamily:"'Exo 2',sans-serif", fontSize:'22px', fontWeight:'900', marginBottom:'20px', background:T.accentGrad, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text'}}>LIFE OS</div>
+        <div style={{fontFamily:"'Syne',sans-serif", fontSize:'20px', fontWeight:'900', marginBottom:'20px', letterSpacing:'3px', textTransform:'uppercase', background:T.accentGrad, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text'}}>LIFE<span style={{letterSpacing:'0px'}}>·</span>OS</div>
         <div style={{display:'flex', gap:'8px', justifyContent:'center', marginBottom:'16px'}}>
           {[0,1,2,3].map(i => <div key={i} style={{width:'14px',height:'14px',borderRadius:'50%',background:pinInput.length>i?T.accent:T.border}}/>)}
         </div>
@@ -1670,7 +1695,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
   return (
     <div style={s.app}>
       {/* Google Fonts */}
-      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Exo+2:wght@700;900&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
       {/* ALWAYS-PRESENT GLOBAL CSS */}
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
@@ -1692,6 +1717,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         .los-tab-strip > button {
           padding: 10px 20px !important;
           font-size: 13px !important;
+          font-family: 'Syne', 'DM Sans', sans-serif !important;
           min-height: 42px !important;
           border-radius: 10px !important;
           flex-shrink: 0 !important;
@@ -1700,24 +1726,29 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         input, select, textarea { font-size: 16px !important; }
         * { -webkit-tap-highlight-color: transparent; }
         button { box-sizing: border-box; font-family: inherit; }
-        button:hover { filter: brightness(1.12); }
-        button:active { filter: brightness(0.9); transform: scale(0.97); }
-        input:focus, textarea:focus, select:focus { outline: none; }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        button:active { filter: brightness(0.92); transform: scale(0.97) translateY(0); }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent, #6c63ff) !important; box-shadow: 0 0 0 3px rgba(108,99,255,0.12); }
+        @keyframes fadeSlideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 20px 4px rgba(108,99,255,0.3); } }
+        .los-card-enter { animation: fadeSlideUp 0.35s cubic-bezier(.4,0,.2,1); }
         * { scrollbar-width: thin; scrollbar-color: ${T.border} transparent; }
         *::-webkit-scrollbar { width: 5px; height: 5px; }
         *::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 10px; }
       `}</style>
       {/* Ambient background orbs */}
-      <div style={{position:'fixed',top:'-15%',left:'-8%',width:'600px',height:'600px',borderRadius:'50%',background:`radial-gradient(circle,${T.accent}08 0%,transparent 70%)`,pointerEvents:'none',zIndex:0}}/>
-      <div style={{position:'fixed',bottom:'-10%',right:'-5%',width:'450px',height:'450px',borderRadius:'50%',background:`radial-gradient(circle,${T.success}06 0%,transparent 70%)`,pointerEvents:'none',zIndex:0}}/>
-      <div style={{position:'fixed',top:'50%',right:'15%',width:'300px',height:'300px',borderRadius:'50%',background:`radial-gradient(circle,${T.warning}04 0%,transparent 70%)`,pointerEvents:'none',zIndex:0}}/>
+      <div style={{position:'fixed',top:'-20%',left:'-10%',width:'700px',height:'700px',borderRadius:'50%',background:`radial-gradient(circle,${T.accent}0a 0%,transparent 65%)`,pointerEvents:'none',zIndex:0,filter:'blur(1px)'}}/>
+      <div style={{position:'fixed',bottom:'-15%',right:'-8%',width:'550px',height:'550px',borderRadius:'50%',background:`radial-gradient(circle,${T.success}07 0%,transparent 65%)`,pointerEvents:'none',zIndex:0,filter:'blur(1px)'}}/>
+      <div style={{position:'fixed',top:'40%',right:'10%',width:'350px',height:'350px',borderRadius:'50%',background:`radial-gradient(circle,${T.warning}05 0%,transparent 65%)`,pointerEvents:'none',zIndex:0}}/>
+      <div style={{position:'fixed',top:'20%',left:'40%',width:'200px',height:'200px',borderRadius:'50%',background:`radial-gradient(circle,${T.accent}06 0%,transparent 70%)`,pointerEvents:'none',zIndex:0}}/>
 
       {/* TOP BAR */}
       <div className="los-topbar" style={s.topbar}>
-                <div style={s.logo}>LIFE OS</div>
+                <div style={s.logo}>LIFE<span style={{color:T.accent,marginLeft:'2px',opacity:0.8}}>·</span>OS</div>
         <div style={{display:'flex', alignItems:'center', gap:'8px', flex:1, minWidth:0}}>
           {/* Level badge */}
-          <div style={{background:T.accentGrad, color:'#fff', borderRadius:'8px', padding:'3px 10px', fontSize:'11px', fontWeight:'900', letterSpacing:'1px', flexShrink:0, boxShadow:`0 2px 10px ${T.accentGlow}`}}>
+          <div style={{background:T.accentGrad, color:'#fff', borderRadius:'10px', padding:'4px 12px', fontSize:'10px', fontWeight:'900', letterSpacing:'2px', flexShrink:0, boxShadow:`0 2px 14px ${T.accentGlow}`, fontFamily:"'Syne',sans-serif", textTransform:'uppercase'}}>
             LV {level}
           </div>
           {!isMobile && (
@@ -1733,10 +1764,10 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         <div style={{display:'flex', gap:'6px', alignItems:'center'}}>
           {!isMobile && (
             <div style={{display:'flex', gap:'6px'}}>
-              <div style={{background:`${savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}18`, border:`1px solid ${savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}33`, borderRadius:'8px', padding:'4px 10px', fontSize:'11px', fontWeight:'700', color:savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}}>
+              <div style={{background:`${savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}12`, border:`1px solid ${savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger}30`, borderRadius:'10px', padding:'4px 12px', fontSize:'10px', fontWeight:'700', color:savingsRate>=20?T.success:savingsRate>=10?T.warning:T.danger, letterSpacing:'0.5px'}}>
                 💾 {savingsRate.toFixed(0)}%
               </div>
-              <div style={{background:`${financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}18`, border:`1px solid ${financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}33`, borderRadius:'8px', padding:'4px 10px', fontSize:'11px', fontWeight:'700', color:financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}}>
+              <div style={{background:`${financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}12`, border:`1px solid ${financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger}30`, borderRadius:'10px', padding:'4px 12px', fontSize:'10px', fontWeight:'700', color:financialHealthScore>=70?T.success:financialHealthScore>=40?T.warning:T.danger, letterSpacing:'0.5px'}}>
                 ♥ {financialHealthScore}
               </div>
               {smartAlerts.length > 0 && (
@@ -1757,9 +1788,9 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
               ]
           ).map(({icon,label,fn,active})=>(
             <button key={label} onClick={fn} title={label} style={{
-              background: active ? `${T.accent}28` : 'transparent',
-              border: active ? `1px solid ${T.accent}55` : `1px solid ${T.border}`,
-              borderRadius:'9px', padding:'6px 10px', cursor:'pointer',
+              background: active ? `${T.accent}18` : 'transparent',
+              border: active ? `1px solid ${T.accent}40` : `1px solid ${T.border}`,
+              borderRadius:'10px', padding:'7px 11px', cursor:'pointer',
               fontSize:'14px', color: active ? T.accent : T.textMuted,
               transition:'all 0.18s',
             }}>{icon}</button>
@@ -1777,7 +1808,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
         <div style={{
           position:'fixed', top:'68px', right:'24px',
           background: T.accentGrad, color:'#fff',
-          padding:'12px 22px', borderRadius:'12px',
+          padding:'12px 24px', borderRadius:'16px',
           zIndex:1000, fontWeight:'700', fontSize:'13px',
           boxShadow:`0 8px 32px ${T.accentGlow}, 0 2px 8px #00000044`,
           animation:'slideIn 0.3s cubic-bezier(.4,0,.2,1)',
@@ -1828,7 +1859,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
 
       {/* QUICK CAPTURE FAB */}
       {!showQuickCapture && (
-        <button onClick={()=>setShowQuickCapture(true)} style={{position:'fixed',bottom:'calc(108px + env(safe-area-inset-bottom, 0px))',right:'20px',width:'52px',height:'52px',borderRadius:'50%',background:T.accentGrad,border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',boxShadow:`0 6px 28px ${T.accentGlow}, 0 2px 8px #00000044`,zIndex:199,display:'flex',alignItems:'center',justifyContent:'center',transition:'transform 0.2s, box-shadow 0.2s',fontWeight:'300'}} title="Quick Capture (E)">+</button>
+        <button onClick={()=>setShowQuickCapture(true)} style={{position:'fixed',bottom:'calc(108px + env(safe-area-inset-bottom, 0px))',right:'20px',width:'54px',height:'54px',borderRadius:'50%',background:T.accentGrad,border:'none',color:'#fff',fontSize:'26px',cursor:'pointer',boxShadow:`0 8px 32px ${T.accentGlow}, 0 2px 12px #00000055`,zIndex:199,display:'flex',alignItems:'center',justifyContent:'center',transition:'transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s',fontWeight:'300'}} title="Quick Capture (E)">+</button>
       )}
       {showQuickCapture && <QuickCaptureModal T={T} s={s} expenses={expenses} setExpenses={setExpenses} habits={habits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} quickNotes={quickNotes} setQuickNotes={setQuickNotes} settings={settings} addXP={addXP} customCategories={customCategories} onClose={()=>setShowQuickCapture(false)} />}
       {showReceiptScanner && <ReceiptScannerModal T={T} s={s} settings={settings} setExpenses={setExpenses} scannedReceipts={scannedReceipts} setScannedReceipts={setScannedReceipts} addXP={addXP} onClose={()=>setShowReceiptScanner(false)} />}
@@ -2589,10 +2620,10 @@ function OnboardingWizard({ T, s, settings, setSettings, onComplete, step, setSt
   const [local, setLocal] = useState({ name:'', currency:'€', income:3000, habit:'' });
   const steps = ['Welcome','Your Name','Currency','Income','First Habit'];
   return (
-    <div style={{minHeight:'100vh', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'JetBrains Mono', monospace", color:T.text, backgroundImage:`radial-gradient(ellipse at 30% 50%, ${T.accent}0a 0%, transparent 60%), radial-gradient(ellipse at 70% 20%, ${T.success}08 0%, transparent 50%)`}}>
-      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Exo+2:wght@700;900&display=swap" rel="stylesheet" />
+    <div style={{minHeight:'100vh', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Syne','DM Sans',sans-serif", color:T.text, backgroundImage:`radial-gradient(ellipse at 30% 50%, ${T.accent}0a 0%, transparent 60%), radial-gradient(ellipse at 70% 20%, ${T.success}08 0%, transparent 50%)`}}>
+      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
       <div style={{...s.card, maxWidth:'480px', width:'100%', textAlign:'center', border:`1px solid ${T.accent}44`, boxShadow:`0 0 60px ${T.accentGlow}`}}>
-        <div style={{fontFamily:"'Exo 2', sans-serif", fontSize:'36px', fontWeight:'900', marginBottom:'8px', background:T.accentGrad, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', letterSpacing:'-1px'}}>LIFE OS</div>
+        <div style={{fontFamily:"'Syne', sans-serif", fontSize:'32px', fontWeight:'900', marginBottom:'8px', background:T.accentGrad, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', letterSpacing:'3px', textTransform:'uppercase'}}>LIFE<span style={{opacity:0.7}}>·</span>OS</div>
         <div style={{color:T.textMuted, marginBottom:'24px', fontSize:'13px'}}>Step {step+1} of {steps.length} — {steps[step]}</div>
         <div style={{background:T.surface, height:'4px', borderRadius:'2px', marginBottom:'32px'}}>
           <div style={{background:T.accent, height:'100%', width:`${((step+1)/steps.length)*100}%`, borderRadius:'2px', transition:'width 0.4s ease'}}/>
@@ -2721,7 +2752,7 @@ function DashboardTab({ T, s, settings, habits, habitLogs, todayHabits, todayDon
     <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
         <div>
-          <div style={{fontFamily:"'Exo 2',sans-serif", fontSize:'22px', fontWeight:'900'}}>{getGreeting()}, {settings.name} 👋</div>
+          <div style={{fontFamily:"'Syne',sans-serif", fontSize:'22px', fontWeight:'900'}}>{getGreeting()}, {settings.name} 👋</div>
           <div style={{color:T.textMuted, fontSize:'13px', marginTop:'4px'}}>{new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
         </div>
         <div style={{display:'flex', gap:'8px'}}>
@@ -3333,7 +3364,7 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>⚔️ Character</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>⚔️ Character</div>
       </div>
 
       {/* Sub-tab strip */}
@@ -3356,7 +3387,7 @@ function CharacterTab({ T, s, settings, totalXP, level, xpProgress, heroClass, x
             <div style={{width:'80px',height:'80px',borderRadius:'50%',background:`linear-gradient(135deg,${T.accent},${T.accentGlow})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'36px',margin:'0 auto 16px'}}>
               {settings.name?.[0]?.toUpperCase()||'⚔️'}
             </div>
-            <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'24px',fontWeight:'900'}}>{settings.name}</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:'24px',fontWeight:'900'}}>{settings.name}</div>
             <div style={{color:T.accent,fontSize:'13px',fontWeight:'700',marginBottom:'4px'}}>{heroClass}</div>
             <div style={{color:T.textMuted,fontSize:'12px',marginBottom:'12px'}}>Level {level}</div>
             <div style={{background:T.textDim,height:'6px',borderRadius:'3px',marginBottom:'4px'}}>
@@ -3725,7 +3756,7 @@ function HeroTab({ T, s, settings, totalXP, level, xpProgress, heroClass, xpForN
           <div style={{width:'80px', height:'80px', borderRadius:'50%', background:`linear-gradient(135deg, ${T.accent}, ${T.accentGlow})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'36px', margin:'0 auto 16px'}}>
             {settings.name?.[0]?.toUpperCase() || '⚔️'}
           </div>
-          <div style={{fontFamily:"'Exo 2',sans-serif", fontSize:'24px', fontWeight:'900'}}>{settings.name}</div>
+          <div style={{fontFamily:"'Syne',sans-serif", fontSize:'24px', fontWeight:'900'}}>{settings.name}</div>
           <div style={{color:T.accent, fontSize:'13px', fontWeight:'700', marginBottom:'4px'}}>{heroClass}</div>
           <div style={{color:T.textMuted, fontSize:'12px', marginBottom:'12px'}}>Level {level}</div>
           <div style={{background:T.textDim, height:'6px', borderRadius:'3px', marginBottom:'4px'}}>
@@ -3907,7 +3938,7 @@ function QuestsTab({ T, s, habits, setHabits, habitLogs, setHabitLogs, addXP, ge
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('quests_title')} <InfoButton tab="quests" T={T} s={s} /></span></div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('quests_title')} <InfoButton tab="quests" T={T} s={s} /></span></div>
         <button style={s.btn()} onClick={()=>setShowAdd(!showAdd)}>{t('quests_new')}</button>
       </div>
 
@@ -4120,7 +4151,7 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('hoard_title')} <InfoButton tab="hoard" T={T} s={s} /></span></div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('hoard_title')} <InfoButton tab="hoard" T={T} s={s} /></span></div>
           <div style={{fontSize:'28px',fontWeight:'900',color:netWorth>=0?T.success:T.danger}}>{settings.currency}{fmtN(netWorth)}</div>
           <div style={{fontSize:'12px',color:T.textMuted}}>{t('hoard_net_worth_label')}</div>
         </div>
@@ -4298,7 +4329,7 @@ function GoalsTab({ T, s, goals, setGoals, settings, savingsRate, thisMonthIncom
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('goals_title')} <InfoButton tab="goals" T={T} s={s} /></span></div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('goals_title')} <InfoButton tab="goals" T={T} s={s} /></span></div>
         <div style={{display:'flex',gap:'8px'}}>
           <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>setShowVisionBoard(!showVisionBoard)}>🖼️ Vision Board</button>
           <button style={s.btn()} onClick={()=>setShowAdd(!showAdd)}>+ New Goal</button>
@@ -4593,7 +4624,7 @@ function DebtsTab({ T, s, debts, setDebts, settings, expenses, setExpenses, addX
 
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
         <div>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('debts_title')} <InfoButton tab="debts" T={T} s={s} /></span></div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('debts_title')} <InfoButton tab="debts" T={T} s={s} /></span></div>
           <div style={{fontSize:'13px',color:T.textMuted,marginTop:'4px'}}>{t('debts_track_sub')}</div>
         </div>
         <button style={s.btn()} onClick={()=>setShowAdd(!showAdd)}>{t('debts_add_btn')}</button>
@@ -5000,7 +5031,7 @@ function InfoButton({ tab, T, s }) {
         <div style={{position:'fixed',inset:0,background:'#00000088',display:'flex',alignItems:'center',justifyContent:'center',zIndex:700}} onClick={()=>setOpen(false)}>
           <div style={{...s.card,width:'500px',maxWidth:'95vw',maxHeight:'85vh',overflowY:'auto',border:`1px solid ${T.accent}44`}} onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px'}}>
-              <div style={{fontFamily:"'Exo 2',sans-serif",fontWeight:'900',fontSize:'18px'}}>{info.title} — How to use</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'18px'}}>{info.title} — How to use</div>
               <button style={{...s.btnGhost,padding:'3px 10px',fontSize:'12px'}} onClick={()=>setOpen(false)}>✕</button>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:'12px'}}>
@@ -5082,7 +5113,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>💰 Money Hub</div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>💰 Money Hub</div>
       <div className="los-tab-strip">
         {[
           {id:'hoard',       label:'🏦 Hoard'},
@@ -5259,7 +5290,7 @@ Give 3 specific, direct discipline recommendations. Be blunt about problem areas
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
           <div>
             <div style={{fontSize:'13px',fontWeight:'700',color:T.textMuted}}>TODAY</div>
-            <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'28px',fontWeight:'900',color:todaySpend>dailyBudget?T.danger:T.success}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:'28px',fontWeight:'900',color:todaySpend>dailyBudget?T.danger:T.success}}>
               {settings.currency}{fmtN(todaySpend)} <span style={{fontSize:'16px',color:T.textMuted}}>/ {settings.currency}{fmtN(dailyBudget)}</span>
             </div>
             <div style={{fontSize:'12px',color:todaySpend>dailyBudget?T.danger:T.success,fontWeight:'700'}}>
@@ -5920,7 +5951,7 @@ Max 280 words.`
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
         <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>{t('spending_title')}</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>{t('spending_title')}</div>
           <InfoButton tab="spending" T={T} s={s} />
           {/* Month selector */}
           <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
@@ -6514,7 +6545,7 @@ Max 280 words.`
         <div style={{position:'fixed',inset:0,background:'#00000088',display:'flex',alignItems:'center',justifyContent:'center',zIndex:600}} onClick={()=>setShowAiCoach(false)}>
           <div style={{...s.card,width:'620px',maxWidth:'96vw',maxHeight:'90vh',overflowY:'auto',border:`1px solid ${T.accent}55`}} onClick={e=>e.stopPropagation()}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'4px'}}>
-              <div style={{fontFamily:"'Exo 2',sans-serif",fontWeight:'900',fontSize:'17px',background:T.accentGrad,WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>🤖 AI Finance Coach</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'17px',background:T.accentGrad,WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text'}}>🤖 AI Finance Coach</div>
               <button style={{...s.btnGhost,fontSize:'11px',padding:'3px 8px'}} onClick={()=>setShowAiCoach(false)}>✕</button>
             </div>
             <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'14px'}}>Powered by Claude · Analyzes your real data · Not generic advice</div>
@@ -6579,7 +6610,7 @@ Max 280 words.`
       {/* ── AI FINANCE COACH CARD ────────────────────────────────── */}
       <div style={{background:`linear-gradient(135deg,${T.accent}18 0%,${T.surface} 100%)`,border:`1px solid ${T.accent}44`,borderRadius:'14px',padding:'16px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'12px'}}>
         <div>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontWeight:'900',fontSize:'14px',color:T.accent,marginBottom:'3px'}}>🤖 AI Finance Coach</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'14px',color:T.accent,marginBottom:'3px'}}>🤖 AI Finance Coach</div>
           <div style={{fontSize:'11px',color:T.textMuted,lineHeight:'1.5'}}>
             Analyzes your real spending · Spots leaks · Builds savings & debt plans
           </div>
@@ -7311,7 +7342,7 @@ Max 280 words.`
         );
         return (
           <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-            <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'16px',fontWeight:'900',paddingLeft:'2px'}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:'16px',fontWeight:'900',paddingLeft:'2px'}}>
               📋 Expenses — {fmtSelectedMonth(selectedViewMonth)}
             </div>
 
@@ -7648,7 +7679,7 @@ TIME HORIZON: ${horizon}`;
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>💹 Portfolio Hub</div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>💹 Portfolio Hub</div>
       <div className="los-tab-strip">
         {[{id:'portfolio',label:'💹 Portfolio'},{id:'markets',label:'📈 Markets'},{id:'trades',label:'📒 Trades'},{id:'alerts',label:'🔔 Alerts'},{id:'advisor',label:'🤖 AI Advisor'}].map(st=>(
           <button key={st.id} onClick={()=>setSubTab(st.id)} style={{...s.btnGhost,fontSize:13,padding:'8px 18px',background:subTab===st.id?T.accentSoft:'transparent',color:subTab===st.id?T.accent:T.textMuted,borderColor:subTab===st.id?T.accent+'55':T.border,fontWeight:subTab===st.id?'700':'400'}}>{st.label}</button>
@@ -7789,7 +7820,7 @@ TIME HORIZON: ${horizon}`;
           {/* Surplus spotlight */}
           <div style={{...s.card,border:`1px solid ${monthlySurplus>0?T.success+'55':T.danger+'44'}`,background:`linear-gradient(135deg,${monthlySurplus>0?T.success+'0d':T.danger+'0d'},${T.card})`}}>
             <div style={s.cardTitle}>💰 Monthly Surplus Available to Invest</div>
-            <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'32px',fontWeight:'900',color:monthlySurplus>0?T.success:T.danger,marginBottom:'4px'}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:'32px',fontWeight:'900',color:monthlySurplus>0?T.success:T.danger,marginBottom:'4px'}}>
               {monthlySurplus>0?'+':''}{settings.currency}{fmtN(monthlySurplus)}
             </div>
             <div style={{fontSize:'12px',color:T.textMuted,marginBottom:'12px'}}>
@@ -8401,7 +8432,7 @@ riskScore: 1 (low risk) to 10 (extreme risk)`;
       <div>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
           <div>
-            <div style={{fontFamily:"'Exo 2',sans-serif", fontSize:'22px', fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>📈 Markets <InfoButton tab="markets" T={T} s={s} /></span></div>
+            <div style={{fontFamily:"'Syne',sans-serif", fontSize:'22px', fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>📈 Markets <InfoButton tab="markets" T={T} s={s} /></span></div>
             <div style={{fontSize:'11px', marginTop:2, color: apiStatus==='live' ? T.success : apiStatus==='loading' ? T.textMuted : T.warning}}>
               {apiStatus === 'live' ? `🟢 Live · ${lastUpdated ? 'Updated ' + lastUpdated.toLocaleTimeString() : ''}` : apiStatus === 'loading' ? '⏳ Fetching prices...' : '🟡 Offline — live prices unavailable'}
             </div>
@@ -9030,7 +9061,7 @@ Be concise, specific, and actionable. Educational purposes only — not official
       {/* HEADER */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
         <div>
-          <div style={{ fontFamily:"'Exo 2',sans-serif", fontSize:22, fontWeight:900 }}>{t('inv_title')}</div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:900 }}>{t('inv_title')}</div>
           <div style={{ fontSize:11, color: statusColor, marginTop:2 }}>
             {priceStatus === 'live'    ? `🟢 Live · Updated ${lastRefresh?.toLocaleTimeString()}` :
              priceStatus === 'loading' ? '⏳ Fetching live prices...' :
@@ -9458,7 +9489,7 @@ function TimeCapsuleTab({ T, s, settings, addXP }) {
       {/* Header */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>⏳ Time Capsule</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>⏳ Time Capsule</div>
           <div style={{color:T.textMuted,fontSize:'13px',marginTop:'4px'}}>Letters to your future self — sealed until a date you choose</div>
         </div>
         <button style={s.btn()} onClick={()=>setShowForm(v=>!v)}>{showForm?'✕ Cancel':'✍️ Write Letter'}</button>
@@ -9654,7 +9685,7 @@ function LearnTab({ T, s, addXP, settings }) {
     return (
       <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>📚 Learning Hub</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>📚 Learning Hub</div>
           <div style={{display:'flex',gap:'8px'}}>
             <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>{setShowLogSession(true);setSessionForm(f=>({...f,topicId:topics[0]?.id||''}));}}>⏱️ Log Session</button>
             <button style={{...s.btn(),fontSize:'12px'}} onClick={()=>setShowAddTopic(true)}>+ New Topic</button>
@@ -9818,7 +9849,7 @@ function LearnTab({ T, s, addXP, settings }) {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
         <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
           <button style={{...s.btnGhost,fontSize:'12px'}} onClick={()=>setActiveTopic(null)}>← All Topics</button>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'20px',fontWeight:'900'}}>{topic?.emoji} {topic?.name}</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'20px',fontWeight:'900'}}>{topic?.emoji} {topic?.name}</div>
         </div>
         <div style={{display:'flex',gap:'8px'}}>
           <span style={{fontSize:'12px',color:T.textMuted,alignSelf:'center'}}>⏱️ {totalHours.toFixed(1)}h studied</span>
@@ -10128,7 +10159,7 @@ function CalendarTab({ T, s, habits, habitLogs, expenses, vitals, debts, goals, 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('calendar_title')} <InfoButton tab="calendar" T={T} s={s} /></span></div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('calendar_title')} <InfoButton tab="calendar" T={T} s={s} /></span></div>
         <div style={{display:'flex',gap:'12px',alignItems:'center',flexWrap:'wrap'}}>
           <button style={s.btnGhost} onClick={()=>setCurrentDate(d=>{const n=new Date(d);n.setMonth(n.getMonth()-1);return n;})}>← Prev</button>
           <span style={{fontSize:'16px',fontWeight:'700'}}>{currentDate.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</span>
@@ -10379,7 +10410,7 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('history_title')} <InfoButton tab="history" T={T} s={s} /></span></div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('history_title')} <InfoButton tab="history" T={T} s={s} /></span></div>
         <div style={{display:'flex',gap:'8px'}}>
           {['1M','3M','6M','1Y'].map(r=>(
             <button key={r} style={{...s.btnGhost,background:range===r?T.accentSoft:'transparent',color:range===r?T.accent:T.textMuted}} onClick={()=>setRange(r)}>{r}</button>
@@ -10750,7 +10781,7 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('insights_title')} <InfoButton tab="insights" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('insights_title')} <InfoButton tab="insights" T={T} s={s} /></span></div>
 
       {/* ALERTS + WINS */}
       {overBudget.length > 0 && (
@@ -10932,7 +10963,7 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
             <div style={{display:'flex',gap:'16px',alignItems:'center',marginBottom:'16px'}}>
               <div style={{fontSize:'48px'}}>{personality.emoji}</div>
               <div>
-                <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'20px',fontWeight:'900',color:T.accent}}>{personality.type}</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:'20px',fontWeight:'900',color:T.accent}}>{personality.type}</div>
                 <div style={{fontSize:'13px',color:T.textMuted,marginTop:'4px'}}>{personality.desc}</div>
               </div>
             </div>
@@ -11218,7 +11249,7 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>🧘 Mind & Body</div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>🧘 Mind & Body</div>
 
       <div className="los-tab-strip">
         {[{id:'vitals',label:'😴 Vitals'},{id:'focus',label:'⏱️ Focus'},{id:'aihealth',label:'🤖 AI Health'}].map(st=>(
@@ -11344,7 +11375,7 @@ function MindBodyTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomM
                   strokeDasharray={`${2*Math.PI*82}`} strokeDashoffset={`${2*Math.PI*82*(1-pct/100)}`} style={{transition:'stroke-dashoffset 0.5s',filter:`drop-shadow(0 0 6px ${T.accentGlow})`}}/>
               </svg>
               <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center'}}>
-                <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'42px',fontWeight:'900',color:T.text}}>{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:'42px',fontWeight:'900',color:T.text}}>{String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}</div>
                 <div style={{fontSize:'11px',color:T.textMuted,textTransform:'uppercase',letterSpacing:'2px'}}>{timerMode==='work'?'Focus':timerMode==='shortBreak'?'Short Break':timerMode==='longBreak'?'Long Break':'Custom'}</div>
               </div>
             </div>
@@ -11485,7 +11516,7 @@ function VitalsTab({ T, s, vitals, setVitals, addXP, customMetrics, setCustomMet
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('vitals_title')} <InfoButton tab="vitals" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('vitals_title')} <InfoButton tab="vitals" T={T} s={s} /></span></div>
 
       {/* ── AI HEALTH ASSISTANT ─────────────────────────────────────── */}
       <div style={{...s.card,border:`1px solid ${T.accent}44`,background:`linear-gradient(135deg,${T.card} 0%,${T.accentSoft} 100%)`}}>
@@ -11743,7 +11774,7 @@ function FocusTab({ T, s, focusSessions, setFocusSessions, habits, goals, addXP,
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('focus_title')} <InfoButton tab="focus" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('focus_title')} <InfoButton tab="focus" T={T} s={s} /></span></div>
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'20px'}}>
         {/* TIMER */}
@@ -11761,7 +11792,7 @@ function FocusTab({ T, s, focusSessions, setFocusSessions, habits, goals, addXP,
                 strokeLinecap="round" style={{transition:'stroke-dashoffset 1s linear'}}/>
             </svg>
             <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
-              <div style={{fontSize:'40px',fontWeight:'900',fontFamily:"'Exo 2',sans-serif",color:T.text}}>{minutes}:{seconds}</div>
+              <div style={{fontSize:'40px',fontWeight:'900',fontFamily:"'Syne',sans-serif",color:T.text}}>{minutes}:{seconds}</div>
               <div style={{fontSize:'11px',color:T.textMuted}}>{mode==='focus'?`${focusDuration}min focus`:`${breakDuration}min break`}</div>
             </div>
           </div>
@@ -11903,7 +11934,7 @@ function SettingsTab({ T, s, settings, setSettings, themeName, setThemeName, cus
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>{t('settings_title')}</div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>{t('settings_title')}</div>
 
       <div style={s.grid2}>
         {/* PROFILE */}
@@ -12399,7 +12430,7 @@ function MonthlyReviewModal({ T, s, habits, habitLogs, getStreak, expenses, savi
       <div style={{...s.card,width:'540px',border:`1px solid ${T.accent}44`,boxShadow:`0 0 60px ${T.accentGlow}`}}>
         <div style={{textAlign:'center',marginBottom:'20px'}}>
           <div style={{fontSize:'48px',marginBottom:'8px'}}>📋</div>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}>Monthly Review</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}>Monthly Review</div>
           <div style={{color:T.textMuted,fontSize:'13px'}}>{lastMonth}</div>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'20px'}}>
@@ -12571,8 +12602,8 @@ function FocusModeOverlay({ T, s, settings, habits, habitLogs, setHabitLogs, thi
   return (
     <div style={{position:'fixed',inset:0,background:T.bg+'ee',display:'flex',alignItems:'center',justifyContent:'center',zIndex:600,flexDirection:'column',gap:'24px',padding:'20px',overflowY:'auto'}}>
       <button className="los-focus-close" onClick={onClose} style={{position:'fixed',top:'max(20px, env(safe-area-inset-top, 20px))',right:'max(16px, env(safe-area-inset-right, 16px))',background:T.surface,border:`1px solid ${T.border}`,borderRadius:'50%',color:T.textMuted,fontSize:'18px',cursor:'pointer',width:'44px',height:'44px',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999}}>✕</button>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'16px',color:T.textMuted}}>{now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'72px',fontWeight:'900',color:T.text,lineHeight:1}}>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'16px',color:T.textMuted}}>{now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'72px',fontWeight:'900',color:T.text,lineHeight:1}}>
         {now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})}
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:'16px',maxWidth:'600px',width:'100%'}}>
@@ -12660,7 +12691,7 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('finance_title')} <InfoButton tab="finance" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:'22px',fontWeight:'900'}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>{t('finance_title')} <InfoButton tab="finance" T={T} s={s} /></span></div>
 
       {/* FINANCIAL HEALTH SCORE */}
       <div style={{...s.card,border:`1px solid ${scoreColor}44`,background:`linear-gradient(135deg, ${T.card}, ${scoreColor}11)`}}>
@@ -12678,7 +12709,7 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
             </div>
           </div>
           <div>
-            <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'20px',fontWeight:'900',color:scoreColor}}>{scoreLabel}</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:'20px',fontWeight:'900',color:scoreColor}}>{scoreLabel}</div>
             <div style={{fontSize:'12px',color:T.textMuted,marginTop:'4px',lineHeight:1.7}}>
               Savings Rate: {savingsRate.toFixed(1)}% · DTI: {dti.toFixed(1)}% · EF: {efMonths.toFixed(1)} months
             </div>
@@ -13721,7 +13752,7 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:20}}>
-      <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:22,fontWeight:900}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>💼 Intelligence Carrière <InfoButton tab="career" T={T} s={s} /></span></div>
+      <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:900}}><span style={{display:'flex',alignItems:'center',gap:'8px'}}>💼 Intelligence Carrière <InfoButton tab="career" T={T} s={s} /></span></div>
 
       {/* Sub-nav */}
       <div className="los-tab-strip" style={{display:"flex",flexWrap:"nowrap",overflowX:"auto",WebkitOverflowScrolling:"touch",gap:8,paddingBottom:4,scrollbarWidth:"none"}}>
@@ -14223,7 +14254,7 @@ function GmailTab({ T, s, settings, gmailToken, setGmailToken, careerApps, setCa
       {/* Google Identity Services script */}
       <script src="https://accounts.google.com/gsi/client" async></script>
 
-      <div style={{ fontFamily:"'Exo 2',sans-serif", fontSize:22, fontWeight:900, display:'flex', alignItems:'center', gap:8 }}>📬 Gmail Intelligence <InfoButton tab="gmail" T={T} s={s} /></div>
+      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:900, display:'flex', alignItems:'center', gap:8 }}>📬 Gmail Intelligence <InfoButton tab="gmail" T={T} s={s} /></div>
 
       {/* ── SETUP GUIDE ── */}
       {showSetup && (
@@ -15844,7 +15875,7 @@ function ReceiptScannerModal({ T, s, settings, setExpenses, scannedReceipts, set
     <div style={{position:'fixed',inset:0,background:'#000000bb',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:600}}>
       <div style={{...s.card,width:'100%',maxWidth:'520px',borderRadius:'20px 20px 0 0',border:`1px solid ${T.accent}44`,maxHeight:'90vh',overflowY:'auto',paddingBottom:'max(20px,env(safe-area-inset-bottom))'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'18px'}}>
-          <div style={{fontFamily:"'Exo 2',sans-serif",fontSize:'18px',fontWeight:'900'}}>📸 Receipt Scanner</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:'18px',fontWeight:'900'}}>📸 Receipt Scanner</div>
           <button style={{...s.btnGhost,padding:'4px 10px'}} onClick={onClose}>✕</button>
         </div>
 
