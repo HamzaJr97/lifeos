@@ -6035,7 +6035,7 @@ function MoneyHubTab({ logEvent, T, s, expenses, setExpenses, incomes, setIncome
         <SpendingTab logEvent={logEvent} T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
       )}
       {subTab==='intelligence' && (
-        <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />
+        <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} investments={investments} goals={goals} />
       )}
       {subTab==='discipline' && (
         <DisciplineView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} savingsRate={savingsRate} budgetTargets={budgetTargets} />
@@ -14560,7 +14560,7 @@ function FocusModeOverlay({ T, s, settings, habits, habitLogs, setHabitLogs, thi
 // ─────────────────────────────────────────────
 // FINANCE TAB — Financial Intelligence
 // ─────────────────────────────────────────────
-function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsRate, thisMonthIncome, thisMonthSpend, netWorth, financialHealthScore, bills, setBills, budgetTargets, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, addXP, emergencyFund, setEmergencyFund, recurringIncomes, setRecurringIncomes, weeklyBriefHistory, setWeeklyBriefHistory, vitals, habits, habitLogs, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
+function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsRate, thisMonthIncome, thisMonthSpend, netWorth, financialHealthScore, bills, setBills, budgetTargets, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, addXP, emergencyFund, setEmergencyFund, recurringIncomes, setRecurringIncomes, weeklyBriefHistory, setWeeklyBriefHistory, vitals, habits, habitLogs, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings, investments, goals }) {
   const [whatIfCut, setWhatIfCut] = useState({ category: '🍽️ Food', amount: 100 });
   const [billForm, setBillForm] = useState({ name:'', amount:'', day:1 });
   const [showBills, setShowBills] = useState(true);
@@ -14928,6 +14928,9 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
 
       {/* F8 — AI FINANCIAL COACH */}
       <AIFinancialCoach T={T} s={s} settings={settings} coachHistory={coachHistory||[]} setCoachHistory={setCoachHistory||(() => {})} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} netWorth={netWorth} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} />
+
+      {/* AI WEALTH MANAGER */}
+      <AIWealthManager T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} investments={investments||[]} goals={goals||[]} savingsRate={savingsRate} netWorth={netWorth} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorthHistory={netWorthHistory||[]} />
 
       {/* F9 — RECURRING AUTO-DETECT */}
       <RecurringAutoDetect T={T} s={s} settings={settings} expenses={expenses} detectedRecurring={detectedRecurring||[]} setDetectedRecurring={setDetectedRecurring||(() => {})} recurringIncomes={recurringIncomes||[]} setRecurringIncomes={setRecurringIncomes||(() => {})} />
@@ -18173,6 +18176,359 @@ Rules: Be specific with their numbers. Give actionable advice. Keep replies unde
         </div>
       )}
       <style>{`@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`}</style>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI WEALTH MANAGER — 12-Step Investment Strategy Dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+function AIWealthManager({ T, s, settings, expenses, incomes, debts, assets, investments, goals, savingsRate, netWorth, financialHealthScore, thisMonthIncome, thisMonthSpend, netWorthHistory }) {
+  const [open, setOpen] = useState(false);
+  const [horizon, setHorizon] = useState('5');
+  const [age, setAge] = useState('');
+  const [userGoals, setUserGoals] = useState(['wealth_accumulation']);
+  const [loading, setLoading] = useState(false);
+  const [analysis, setAnalysis] = useLocalStorage('los_wealth_analysis', null);
+  const [wealthError, setWealthError] = useState('');
+  const cur = settings?.currency || '€';
+
+  const GOAL_OPTIONS = [
+    { id:'wealth_accumulation', label:'Wealth Accumulation' },
+    { id:'passive_income',      label:'Passive Income'      },
+    { id:'financial_freedom',   label:'Financial Freedom'   },
+    { id:'retirement',          label:'Retirement'          },
+    { id:'property',            label:'Buy Property'        },
+  ];
+  const PROFILE_COLORS = { Conservative:'#3b82f6', Balanced:'#8b5cf6', Growth:'#f59e0b', Aggressive:'#ef4444', Opportunistic:'#ec4899' };
+  const ALLOC_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#3b82f6','#ec4899','#14b8a6'];
+
+  function buildContext() {
+    const monthlySavings = Math.max(0, thisMonthIncome - thisMonthSpend);
+    const cashAssets = (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+    const invValue = (investments||[]).reduce((s,i)=>s+(i.currentPrice!=null?i.currentPrice:i.buyPrice)*i.quantity,0);
+    const totalDebt = (debts||[]).reduce((s,d)=>s+Number(d.balance||0),0);
+    const efMonths = thisMonthSpend>0 ? (cashAssets/thisMonthSpend).toFixed(1) : '0';
+    const invList = (investments||[]).slice(0,6).map(i=>`${i.symbol||i.name}(${cur}${fmtN((i.currentPrice!=null?i.currentPrice:i.buyPrice)*i.quantity)})`).join(', ')||'None';
+    const debtList = (debts||[]).map(d=>`${d.name}@${d.rate||0}%(${cur}${fmtN(d.balance)})`).join(', ')||'None';
+    const sorted = [...(netWorthHistory||[])].sort((a,b)=>a.month>b.month?1:-1);
+    const nwTrend = sorted.length>=2 ? `NW trend: ${cur}${fmtN(sorted[sorted.length-2].value)}->${cur}${fmtN(sorted[sorted.length-1].value)}` : '';
+    return `Monthly income:${cur}${fmtN(thisMonthIncome)} | Expenses:${cur}${fmtN(thisMonthSpend)} | Savings:${cur}${fmtN(monthlySavings)} | Cash:${cur}${fmtN(cashAssets)} | Net worth:${cur}${fmtN(netWorth)} | Investments:${invList} total ${cur}${fmtN(invValue)} | Debts:${debtList} total ${cur}${fmtN(totalDebt)} | EF:${efMonths}mo | Savings rate:${savingsRate.toFixed(0)}% | FHS:${financialHealthScore}/100 | ${age?'Age:'+age+' |':''} Goals:${userGoals.join(',')} | Horizon:${horizon}yr | ${nwTrend}`;
+  }
+
+  async function runAnalysis() {
+    setLoading(true); setWealthError('');
+    const context = buildContext();
+    const schema = `{"profile":"Conservative|Balanced|Growth|Aggressive|Opportunistic","riskScore":<0-100>,"capacityScore":<0-100>,"maturityScore":<0-100>,"profileReason":"<2 sentences>","healthScore":<0-100>,"healthIssues":["<i1>","<i2>","<i3>"],"behaviorPatterns":["<p1>","<p2>"],"allocation":[{"asset":"<n>","pct":<int>,"returnRange":"<e.g.7-10%>","risk":"Low|Medium|High"}],"monthlySplit":[{"asset":"<n>","pct":<int>,"why":"<reason>"}],"rotation":[{"asset":"<n>","action":"Hold|Take Partial Profits|Exit","reason":"<why>"}],"roadmap":[{"period":"3M","targetValue":<int>,"actions":["<a>"]},{"period":"6M","targetValue":<int>,"actions":["<a>"]},{"period":"1Y","targetValue":<int>,"actions":["<a>"]},{"period":"3Y","targetValue":<int>,"actions":["<a>"]},{"period":"5Y","targetValue":<int>,"actions":["<a>"]}],"projections":{"conservative":[<y1>,<y2>,<y3>,<y4>,<y5>],"moderate":[<y1>,<y2>,<y3>,<y4>,<y5>],"aggressive":[<y1>,<y2>,<y3>,<y4>,<y5>]},"opportunities":["<o1>","<o2>","<o3>"],"nextAction":"<single most impactful action>"}`;
+    const prompt = `You are an Advanced AI Wealth Manager acting as a professional robo-advisor. Analyze the user data and return ONLY valid JSON matching the schema. No markdown fences, no explanation outside JSON.
+
+USER DATA: ${context}
+
+JSON SCHEMA: ${schema}
+
+Fill every numeric field with realistic values derived from the user data. Make monthlySplit percentages sum to 100. Make allocation percentages sum to 100. Project portfolio values realistically over 5 years given their current trajectory.`;
+
+    try {
+      const provider = settings.aiProvider || 'groq';
+      let raw = '';
+      if (provider === 'ollama') {
+        raw = await callAI(prompt, settings, 2000);
+      } else if (provider === 'groq') {
+        const apiKey = settings.groqKey;
+        if (!apiKey) throw new Error('No Groq key. Go to Settings -> AI.');
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},
+          body:JSON.stringify({model:'llama-3.3-70b-versatile',max_tokens:2000,temperature:0.3,messages:[{role:'user',content:prompt}]})
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+        raw = d.choices?.[0]?.message?.content || '';
+      } else {
+        const apiKey = settings.anthropicKey;
+        if (!apiKey) throw new Error('No Anthropic key. Go to Settings -> AI.');
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:prompt}]})
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message);
+        raw = d.content?.[0]?.text || '';
+      }
+      const clean = raw.replace(/```json|```/g,'').trim();
+      const j0 = clean.indexOf('{');
+      const j1 = clean.lastIndexOf('}');
+      if (j0 === -1) throw new Error('AI returned non-JSON. Try the Anthropic provider for best results.');
+      const parsed = JSON.parse(clean.slice(j0, j1+1));
+      setAnalysis({...parsed, generatedAt:new Date().toISOString(), horizon, userGoals});
+    } catch(e) {
+      setWealthError(e.message || 'Analysis failed. Check your AI key in Settings.');
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{...s.card, border:'1px solid #6366f144'}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'20px':0}}>
+        <div style={{display:'flex',gap:'12px',alignItems:'center'}}>
+          <div style={{width:'40px',height:'40px',borderRadius:'12px',background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,boxShadow:'0 4px 16px #6366f144'}}>
+            <span style={{fontSize:'20px'}}>🏦</span>
+          </div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontWeight:'800',fontSize:'15px',color:T.text}}>AI Wealth Manager</div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>12-step strategy · portfolio optimization · wealth roadmap</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+          {analysis && <span style={{fontSize:'10px',color:T.textMuted,whiteSpace:'nowrap'}}>Last: {new Date(analysis.generatedAt).toLocaleDateString()}</span>}
+          <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div>
+          <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border,marginBottom:'16px'}}>
+            <div style={{fontWeight:'700',fontSize:'13px',marginBottom:'12px',color:'#6366f1'}}>Configure Analysis</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'12px'}}>
+              <div>
+                <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'6px',fontWeight:'600'}}>Investment Horizon</div>
+                <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                  {['1','3','5','7','10'].map(h=>(
+                    <button key={h} onClick={()=>setHorizon(h)} style={{padding:'4px 10px',borderRadius:'99px',fontSize:'11px',fontWeight:'700',cursor:'pointer',border:'none',background:horizon===h?'#6366f1':T.bg,color:horizon===h?'#fff':T.textMuted,outline:horizon===h?'2px solid #6366f1':'none'}}>{h}Y</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'6px',fontWeight:'600'}}>Your Age (optional)</div>
+                <input type="number" style={{...s.input,width:'80px'}} placeholder="e.g. 32" value={age} onChange={e=>setAge(e.target.value)} min="18" max="80" />
+              </div>
+            </div>
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'6px',fontWeight:'600'}}>Financial Goals</div>
+              <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                {GOAL_OPTIONS.map(g=>{
+                  const sel = userGoals.includes(g.id);
+                  return (
+                    <button key={g.id} onClick={()=>setUserGoals(p=>sel?p.filter(x=>x!==g.id):[...p,g.id])} style={{padding:'4px 12px',borderRadius:'99px',fontSize:'11px',fontWeight:'600',cursor:'pointer',border:'none',background:sel?T.accentSoft:T.bg,color:sel?T.accent:T.textMuted,outline:sel?'1px solid '+T.accent+'55':'1px solid '+T.border}}>
+                      {sel?'✓ ':''}{g.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={{display:'flex',gap:'10px',alignItems:'center',marginBottom:'16px'}}>
+            <button style={{...s.btn(),background:'linear-gradient(135deg,#6366f1,#8b5cf6)',padding:'10px 24px',fontSize:'13px',fontWeight:'700',flex:1,maxWidth:'280px'}} onClick={runAnalysis} disabled={loading}>
+              {loading ? 'Generating analysis...' : analysis ? 'Refresh Analysis' : 'Generate Full Analysis'}
+            </button>
+            {analysis && <button style={{...s.btnGhost,fontSize:'11px',color:T.danger}} onClick={()=>setAnalysis(null)}>Clear</button>}
+          </div>
+
+          {wealthError && (
+            <div style={{background:T.danger+'18',border:'1px solid '+T.danger+'44',borderRadius:'10px',padding:'12px 16px',marginBottom:'16px',fontSize:'12px',color:T.danger}}>{wealthError}</div>
+          )}
+
+          {loading && (
+            <div style={{textAlign:'center',padding:'40px',color:T.textMuted}}>
+              <div style={{fontSize:'32px',marginBottom:'12px'}}>⚙️</div>
+              <div style={{fontWeight:'700',fontSize:'14px',marginBottom:'6px'}}>Generating your wealth strategy...</div>
+              <div style={{fontSize:'12px'}}>Analyzing {(investments||[]).length} investments, {(debts||[]).length} debts, {(goals||[]).length} goals, {horizon}Y horizon</div>
+            </div>
+          )}
+
+          {analysis && !loading && (() => {
+            const a = analysis;
+            const pColor = PROFILE_COLORS[a.profile] || T.accent;
+            const projData = [1,2,3,4,5].map((y,i)=>({year:'Y'+y,conservative:(a.projections?.conservative||[])[i]||0,moderate:(a.projections?.moderate||[])[i]||0,aggressive:(a.projections?.aggressive||[])[i]||0}));
+            return (
+              <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+                  <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'2px solid '+pColor+'44'}}>
+                    <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'10px'}}>Investor Profile</div>
+                    <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'10px'}}>
+                      <div style={{width:'44px',height:'44px',borderRadius:'50%',background:pColor+'22',border:'2px solid '+pColor,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <span style={{fontSize:'22px'}}>{a.profile==='Conservative'?'🛡️':a.profile==='Balanced'?'⚖️':a.profile==='Growth'?'📈':a.profile==='Aggressive'?'⚡':'🎯'}</span>
+                      </div>
+                      <div>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'17px',color:pColor}}>{a.profile}</div>
+                        <div style={{fontSize:'11px',color:T.textMuted}}>Investor</div>
+                      </div>
+                    </div>
+                    <div style={{fontSize:'12px',color:T.textMuted,lineHeight:'1.6',marginBottom:'12px'}}>{a.profileReason}</div>
+                    {[{label:'Risk Tolerance',val:a.riskScore,c:a.riskScore>70?T.danger:a.riskScore>40?T.warning:T.success},{label:'Risk Capacity',val:a.capacityScore,c:T.accent},{label:'Inv. Maturity',val:a.maturityScore,c:T.success}].map(({label,val,c})=>(
+                      <div key={label} style={{marginBottom:'6px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',marginBottom:'3px'}}><span style={{color:T.textMuted}}>{label}</span><span style={{fontWeight:'700',color:c}}>{val}/100</span></div>
+                        <div style={{height:'5px',background:T.bg,borderRadius:'3px',overflow:'hidden',border:'1px solid '+T.border}}><div style={{height:'100%',width:(val||0)+'%',background:c,borderRadius:'3px'}}/></div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'2px solid '+(a.healthScore>=70?T.success:a.healthScore>=40?T.warning:T.danger)+'44'}}>
+                    <div style={{fontSize:'10px',color:T.textMuted,fontWeight:'700',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:'10px'}}>Financial Health</div>
+                    <div style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'12px'}}>
+                      <div style={{position:'relative',width:'64px',height:'64px',flexShrink:0}}>
+                        <svg width="64" height="64" viewBox="0 0 64 64">
+                          <circle cx="32" cy="32" r="26" fill="none" stroke={T.border} strokeWidth="7"/>
+                          <circle cx="32" cy="32" r="26" fill="none" stroke={a.healthScore>=70?T.success:a.healthScore>=40?T.warning:T.danger} strokeWidth="7" strokeLinecap="round" strokeDasharray={(a.healthScore||0)/100*163.4+' 163.4'} strokeDashoffset="40.8" transform="rotate(-90 32 32)"/>
+                        </svg>
+                        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'900',fontSize:'14px',color:a.healthScore>=70?T.success:a.healthScore>=40?T.warning:T.danger}}>{a.healthScore}</div>
+                      </div>
+                      <div>
+                        <div style={{fontWeight:'800',fontSize:'14px',color:a.healthScore>=70?T.success:a.healthScore>=40?T.warning:T.danger}}>{a.healthScore>=70?'Healthy':a.healthScore>=40?'Needs Work':'Critical'}</div>
+                        <div style={{fontSize:'11px',color:T.textMuted}}>out of 100</div>
+                      </div>
+                    </div>
+                    {(a.healthIssues||[]).map((issue,i)=>(
+                      <div key={i} style={{fontSize:'11px',color:T.textMuted,display:'flex',gap:'6px',alignItems:'flex-start',marginBottom:'4px'}}>
+                        <span style={{color:T.warning,flexShrink:0}}>⚠</span>{issue}
+                      </div>
+                    ))}
+                    {(a.behaviorPatterns||[]).map((p,i)=>(
+                      <div key={i} style={{fontSize:'11px',color:T.textMuted,display:'flex',gap:'6px',alignItems:'flex-start',marginBottom:'4px'}}>
+                        <span style={{color:T.accent,flexShrink:0}}>→</span>{p}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {(a.allocation||[]).length > 0 && (
+                  <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border}}>
+                    <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'14px'}}>Recommended Portfolio Allocation</div>
+                    {(a.allocation||[]).map((item,i)=>(
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'8px'}}>
+                        <div style={{width:'12px',height:'12px',borderRadius:'3px',background:ALLOC_COLORS[i%ALLOC_COLORS.length],flexShrink:0}}/>
+                        <div style={{flex:1,fontSize:'12px',fontWeight:'600'}}>{item.asset}</div>
+                        <div style={{flex:2,height:'8px',background:T.bg,borderRadius:'4px',overflow:'hidden',border:'1px solid '+T.border}}>
+                          <div style={{height:'100%',width:(item.pct||0)+'%',background:ALLOC_COLORS[i%ALLOC_COLORS.length],borderRadius:'4px'}}/>
+                        </div>
+                        <div style={{fontWeight:'800',fontSize:'13px',minWidth:'36px',textAlign:'right',color:ALLOC_COLORS[i%ALLOC_COLORS.length]}}>{item.pct}%</div>
+                        <div style={{fontSize:'10px',color:T.textMuted,minWidth:'56px',textAlign:'right'}}>{item.returnRange}</div>
+                        <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'99px',fontWeight:'700',flexShrink:0,background:item.risk==='High'?T.danger+'22':item.risk==='Medium'?T.warning+'22':T.success+'22',color:item.risk==='High'?T.danger:item.risk==='Medium'?T.warning:T.success}}>{item.risk}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+                  {(a.monthlySplit||[]).length > 0 && (
+                    <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border}}>
+                      <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'10px'}}>Monthly Investment Plan</div>
+                      <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'10px'}}>From ~{cur}{fmtN(Math.max(0,thisMonthIncome-thisMonthSpend))}/mo savings:</div>
+                      {(a.monthlySplit||[]).map((item,i)=>{
+                        const amt = Math.round(Math.max(0,thisMonthIncome-thisMonthSpend)*(item.pct||0)/100);
+                        return (
+                          <div key={i} style={{marginBottom:'8px',padding:'8px 10px',borderRadius:'8px',background:T.bg,border:'1px solid '+T.border}}>
+                            <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}>
+                              <span style={{fontWeight:'700',fontSize:'12px'}}>{item.asset}</span>
+                              <span style={{fontWeight:'800',fontSize:'12px',color:T.accent}}>{item.pct}% · {cur}{fmtN(amt)}</span>
+                            </div>
+                            <div style={{fontSize:'11px',color:T.textMuted}}>{item.why}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {(a.rotation||[]).length > 0 && (
+                    <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border}}>
+                      <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'10px'}}>Profit Rotation</div>
+                      {(a.rotation||[]).map((item,i)=>{
+                        const ac = item.action==='Exit'?T.danger:item.action&&item.action.includes('Partial')?T.warning:T.success;
+                        return (
+                          <div key={i} style={{display:'flex',gap:'10px',alignItems:'flex-start',marginBottom:'8px',padding:'8px 10px',borderRadius:'8px',background:T.bg,border:'1px solid '+ac+'22'}}>
+                            <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'99px',fontWeight:'700',background:ac+'22',color:ac,flexShrink:0,marginTop:'1px'}}>{item.action}</span>
+                            <div>
+                              <div style={{fontWeight:'700',fontSize:'12px',marginBottom:'2px'}}>{item.asset}</div>
+                              <div style={{fontSize:'11px',color:T.textMuted}}>{item.reason}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {projData.length > 0 && (
+                  <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border}}>
+                    <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'4px'}}>Wealth Projection — {a.horizon||horizon} Year Horizon</div>
+                    <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'12px'}}>Three scenarios based on your current trajectory</div>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <AreaChart data={projData} margin={{top:4,right:4,left:0,bottom:0}}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={T.border}/>
+                        <XAxis dataKey="year" tick={{fill:T.textMuted,fontSize:10}}/>
+                        <YAxis tick={{fill:T.textMuted,fontSize:9}} tickFormatter={v=>cur+fmtN(Math.round(v/1000))+'k'}/>
+                        <Tooltip contentStyle={{background:T.card,border:'1px solid '+T.border,color:T.text,fontSize:'11px'}} formatter={v=>cur+fmtN(Math.round(v))}/>
+                        <Area type="monotone" dataKey="aggressive" stroke={T.success} fill={T.success} fillOpacity={0.08} strokeWidth={1.5} strokeDasharray="4 2" name="Aggressive"/>
+                        <Area type="monotone" dataKey="moderate" stroke={T.accent} fill={T.accent} fillOpacity={0.15} strokeWidth={2} name="Moderate"/>
+                        <Area type="monotone" dataKey="conservative" stroke={T.warning} fill={T.warning} fillOpacity={0.08} strokeWidth={1.5} strokeDasharray="4 2" name="Conservative"/>
+                      </AreaChart>
+                    </ResponsiveContainer>
+                    <div style={{display:'flex',gap:'16px',marginTop:'8px',fontSize:'10px',color:T.textMuted,flexWrap:'wrap'}}>
+                      {[['Conservative',T.warning,'conservative'],['Moderate',T.accent,'moderate'],['Aggressive',T.success,'aggressive']].map(([l,c,k])=>(
+                        <span key={l} style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                          <span style={{width:'10px',height:'3px',background:c,display:'inline-block',borderRadius:'2px'}}/>
+                          {l}: {cur}{fmtN(Math.round((a.projections?.[k]||[])[4]||0))}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(a.roadmap||[]).length > 0 && (
+                  <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border}}>
+                    <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'14px'}}>Long-Term Wealth Roadmap</div>
+                    <div style={{position:'relative',paddingLeft:'20px'}}>
+                      <div style={{position:'absolute',left:'7px',top:'8px',bottom:'8px',width:'2px',background:'linear-gradient(to bottom,'+T.accent+','+T.border+')',borderRadius:'2px'}}/>
+                      {(a.roadmap||[]).map((m,i)=>(
+                        <div key={i} style={{display:'flex',gap:'12px',marginBottom:'14px',position:'relative'}}>
+                          <div style={{width:'14px',height:'14px',borderRadius:'50%',background:i===0?T.accent:T.surface,border:'2px solid '+T.accent,flexShrink:0,marginTop:'2px',position:'relative',zIndex:1,marginLeft:'-21px'}}/>
+                          <div style={{flex:1,padding:'10px 12px',borderRadius:'8px',background:T.bg,border:'1px solid '+T.border}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
+                              <span style={{fontWeight:'800',fontSize:'12px',color:T.accent}}>{m.period}</span>
+                              <span style={{fontWeight:'700',fontSize:'13px'}}>{cur}{fmtN(m.targetValue)}</span>
+                            </div>
+                            {(m.actions||[]).map((act,j)=>(
+                              <div key={j} style={{fontSize:'11px',color:T.textMuted,display:'flex',gap:'5px',marginBottom:'2px'}}>
+                                <span style={{color:T.success,flexShrink:0}}>•</span>{act}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px'}}>
+                  {(a.opportunities||[]).length > 0 && (
+                    <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.warning+'33'}}>
+                      <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'10px'}}>Opportunities Detected</div>
+                      {(a.opportunities||[]).map((opp,i)=>(
+                        <div key={i} style={{fontSize:'12px',color:T.textMuted,padding:'7px 10px',background:T.bg,borderRadius:'6px',marginBottom:'6px',border:'1px solid '+T.border,display:'flex',gap:'6px',alignItems:'flex-start'}}>
+                          <span style={{color:T.warning,flexShrink:0}}>💡</span>{opp}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{background:'linear-gradient(135deg,#6366f111,#8b5cf611)',borderRadius:'12px',padding:'16px',border:'2px solid #6366f133'}}>
+                    <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'10px',color:'#6366f1'}}>Next Best Action</div>
+                    <div style={{fontSize:'13px',color:T.text,lineHeight:'1.7',fontStyle:'italic'}}>{a.nextAction}</div>
+                    <div style={{marginTop:'12px',fontSize:'10px',color:T.textMuted}}>
+                      Generated {new Date(analysis.generatedAt).toLocaleString()} · {a.horizon||horizon}Y horizon
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{fontSize:'10px',color:T.textMuted,textAlign:'center',padding:'8px',borderRadius:'6px',background:T.surface,border:'1px solid '+T.border}}>
+                  This is AI-generated educational content, not regulated financial advice. Consult a licensed advisor before investing.
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
