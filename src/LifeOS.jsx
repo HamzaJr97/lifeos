@@ -5585,11 +5585,11 @@ function FrenchTaxCalculator({ T, s, settings }) {
   // 2024 brackets — per part
   const BAREME = {
     '2024': [
-      { min:0,      max:11294,   rate:0.00 },
-      { min:11294,  max:28797,   rate:0.11 },
-      { min:28797,  max:82341,   rate:0.30 },
-      { min:82341,  max:177106,  rate:0.41 },
-      { min:177106, max:Infinity,rate:0.45 },
+      { min:0,      max:11497,   rate:0.00 },
+      { min:11497,  max:29315,   rate:0.11 },
+      { min:29315,  max:83823,   rate:0.30 },
+      { min:83823,  max:180294,  rate:0.41 },
+      { min:180294, max:Infinity,rate:0.45 },
     ],
     '2023': [
       { min:0,      max:10778,   rate:0.00 },
@@ -5632,11 +5632,12 @@ function FrenchTaxCalculator({ T, s, settings }) {
     const impotBrut     = applyBareme(revenuParPart, tranches) * P;
 
     // ── Décote ──────────────────────────────────────
-    const decoteSeuil = isCouple ? 3191 : 1929;
-    const decoteBase  = isCouple ? 2120 : 1444;
+    // Décote 2024 — base: single=889, couple=1453 (seuil: single=1966, couple=3214)
+    const decoteSeuil = isCouple ? 3214 : 1966;
+    const decoteBase  = isCouple ? 1453 : 889;
     let decote = 0;
     if (impotBrut > 0 && impotBrut < decoteSeuil) {
-      decote = Math.max(0, decoteBase - impotBrut * 0.4525);
+      decote = Math.max(0, Math.round(decoteBase - impotBrut * 0.4525));
     }
     const impotAvantReductions = Math.max(0, impotBrut - decote);
 
@@ -5706,18 +5707,18 @@ function FrenchTaxCalculator({ T, s, settings }) {
       </div>
 
       <div style={s.card}>
-        <div style={{fontFamily:"'Syne',sans-serif", fontSize:'17px', fontWeight:'900', marginBottom:'4px'}}>🇫🇷 Impôt sur le Revenu {year}</div>
-        <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'20px'}}>Barème officiel · Quotient familial · Pensions alimentaires · Décote · Réductions</div>
+        <div style={{fontFamily:"'Syne',sans-serif", fontSize:'17px', fontWeight:'900', marginBottom:'4px'}}>🇫🇷 {settings?.language==='en' ? `Income Tax ${year}` : `Impôt sur le Revenu ${year}`}</div>
+        <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'20px'}}>{settings?.language==='en' ? 'Official brackets · Family quotient · Alimony · Décote · Reductions' : 'Barème officiel · Quotient familial · Pensions alimentaires · Décote · Réductions'}</div>
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px'}}>
           {/* Salaire brut */}
           <div style={{gridColumn:'1/-1'}}>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Salaires bruts annuels (€)</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>{settings?.language==='en'?'Annual gross salary (€)':'Salaires bruts annuels (€)'}</div>
             <input type="number" placeholder="ex: 31732" style={{...s.input, width:'100%', fontSize:'16px', padding:'12px'}} value={gross} onChange={e=>setGross(e.target.value)} />
           </div>
 
           <div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Situation familiale</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>{settings?.language==='en'?'Marital status':'Situation familiale'}</div>
             <select style={{...s.select, width:'100%'}} value={status} onChange={e=>setStatus(e.target.value)}>
               <option value="single">Célibataire / Veuf(ve)</option>
               <option value="married">Marié(e)</option>
@@ -5726,9 +5727,9 @@ function FrenchTaxCalculator({ T, s, settings }) {
           </div>
 
           <div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Nombre de parts (QF)</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>{settings?.language==='en'?'Number of parts (family quotient)':'Nombre de parts (QF)'}</div>
             <input type="number" min="1" max="10" step="0.5" placeholder="1" style={{...s.input, width:'100%'}} value={parts} onChange={e=>setParts(e.target.value)} />
-            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>1 seul · +1 conjoint · +0.5/enfant</div>
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>{settings?.language==='en'?'1 single · +1 spouse · +0.5/child':'1 seul · +1 conjoint · +0.5/enfant'}</div>
           </div>
 
           {/* Pensions alimentaires — charge déductible */}
@@ -5737,7 +5738,7 @@ function FrenchTaxCalculator({ T, s, settings }) {
               🇲🇦 Pensions alimentaires versées (€) — Charge déductible
             </div>
             <input type="number" placeholder="ex: 2972" style={{...s.input, width:'100%'}} value={pensions} onChange={e=>setPensions(e.target.value)} />
-            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'4px'}}>Déduit du revenu global avant calcul du barème (Art. 156 CGI)</div>
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'4px'}}>{settings?.language==='en'?'Deducted from global income before bracket calc (Art. 156 CGI)':'Déduit du revenu global avant calcul du barème (Art. 156 CGI)'}</div>
           </div>
 
           {/* Dons */}
@@ -5748,14 +5749,14 @@ function FrenchTaxCalculator({ T, s, settings }) {
 
           {/* PAS already withheld */}
           <div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>PAS prélevé à la source (€)</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>{settings?.language==='en'?'Tax already withheld at source (€)':'PAS prélevé à la source (€)'}</div>
             <input type="number" placeholder="ex: 437" style={{...s.input, width:'100%'}} value={pasWithheld} onChange={e=>setPasWithheld(e.target.value)} />
             <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>Retenu par votre employeur en {year}</div>
           </div>
 
           {/* Avance / crédits d'impôt */}
           <div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Avance / Crédits d'impôt (€)</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>{settings?.language==='en'?'Tax credits / advance paid (€)':"Avance / Crédits d'impôt (€)"}</div>
             <input type="number" placeholder="ex: 65" style={{...s.input, width:'100%'}} value={creditImpot} onChange={e=>setCreditImpot(e.target.value)} />
             <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>Versés par l'État en avance</div>
           </div>
@@ -5799,19 +5800,19 @@ function FrenchTaxCalculator({ T, s, settings }) {
 
               {/* Section: Revenus */}
               <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
-                <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Détail des revenus</div>
+                <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>{settings?.language==='en'?'Revenue detail':'Détail des revenus'}</div>
                 {[
-                  { label:'Salaires bruts',                    val:`${fmtN(Math.round(result.G))} €`,           bold:false },
-                  { label:'Déduction 10% (frais professionnels)',val:`− ${fmtN(Math.round(result.abattement))} €`, dim:true },
-                  { label:'Salaires, pensions, rentes nets',   val:`${fmtN(Math.round(result.salaireNet))} €`,  bold:true },
-                  { label:'Revenu brut global',                 val:`${fmtN(Math.round(result.revenuBrut))} €`, bold:true, separator:true },
+                  { label:{settings?.language==='en'?'Gross salary':'Salaires bruts'},                    val:`${fmtN(Math.round(result.G))} €`,           bold:false },
+                  { label:{settings?.language==='en'?'10% deduction (professional expenses)':'Déduction 10% (frais professionnels)'},val:`− ${fmtN(Math.round(result.abattement))} €`, dim:true },
+                  { label:{settings?.language==='en'?'Net salary':'Salaires, pensions, rentes nets'},   val:`${fmtN(Math.round(result.salaireNet))} €`,  bold:true },
+                  { label:{settings?.language==='en'?'Gross global income':'Revenu brut global'},                 val:`${fmtN(Math.round(result.revenuBrut))} €`, bold:true, separator:true },
                 ].map((r,i) => <TaxRow key={i} T={T} {...r} />)}
               </div>
 
               {/* Section: Charges déductibles */}
               {result.PENS > 0 && (
                 <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.warning}22`}}>
-                  <div style={{fontSize:'10px', fontWeight:'800', color:T.warning, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Charges déductibles du revenu global</div>
+                  <div style={{fontSize:'10px', fontWeight:'800', color:T.warning, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>{settings?.language==='en'?'Deductible charges':'Charges déductibles du revenu global'}</div>
                   <TaxRow T={T} label="Pensions alimentaires versées 🇲🇦" val={`− ${fmtN(Math.round(result.PENS))} €`} dim />
                   <TaxRow T={T} label="Total des charges déduites" val={`− ${fmtN(Math.round(result.PENS))} €`} bold separator />
                   <TaxRow T={T} label="Revenu imposable" val={`${fmtN(Math.round(result.revenuImposable))} €`} bold accent />
@@ -5825,7 +5826,7 @@ function FrenchTaxCalculator({ T, s, settings }) {
 
               {/* Section: Barème */}
               <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
-                <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Impôt soumis au barème</div>
+                <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>{settings?.language==='en'?'Tax under brackets':'Impôt soumis au barème'}</div>
                 <TaxRow T={T} label={`Impôt brut (${result.P} part${result.P>1?'s':''})`} val={`${fmtN(Math.round(result.impotBrut))} €`} />
                 {result.decote > 0 && <TaxRow T={T} label="Décote" val={`− ${fmtN(Math.round(result.decote))} €`} dim />}
                 <TaxRow T={T} label="Impôt avant réductions" val={`${fmtN(Math.round(result.impotAvantReductions))} €`} bold separator />
@@ -5834,7 +5835,7 @@ function FrenchTaxCalculator({ T, s, settings }) {
               {/* Section: Réductions */}
               {result.D > 0 && (
                 <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
-                  <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Réductions d'impôt</div>
+                  <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>{settings?.language==='en'?'Tax reductions':'Réductions d\'impôt'}</div>
                   <TaxRow T={T} label={`Dons aux œuvres (${fmtN(result.D)} € × 66%)`} val={`− ${fmtN(Math.round(result.reductionDons))} €`} dim />
                   <TaxRow T={T} label="Total réductions" val={`− ${fmtN(Math.round(result.reductionDons))} €`} bold separator />
                 </div>
@@ -5842,7 +5843,7 @@ function FrenchTaxCalculator({ T, s, settings }) {
 
               {/* IMPÔT NET */}
               <div style={{background:`${T.danger}0e`, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.danger}25`}}>
-                <div style={{fontSize:'10px', fontWeight:'800', color:T.danger, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Impôt net</div>
+                <div style={{fontSize:'10px', fontWeight:'800', color:T.danger, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>{settings?.language==='en'?'Net tax':'Impôt net'}</div>
                 <TaxRow T={T} label="Total de l'impôt sur le revenu net" val={`${fmtN(Math.round(result.impotNet))} €`} bold accent />
               </div>
 
@@ -5905,7 +5906,7 @@ function FrenchTaxCalculator({ T, s, settings }) {
             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
               <thead>
                 <tr style={{borderBottom:`2px solid ${T.border}`}}>
-                  {['Année','Revenu brut','Revenu imposable','Impôt net','Taux effectif','Solde'].map(h => (
+                  {['Année','Revenu brut',{settings?.language==='en'?'Taxable income':'Revenu imposable'},'Impôt net','Taux effectif','Solde'].map(h => (
                     <th key={h} style={{padding:'8px 10px', textAlign:'right', color:T.textMuted, fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px', fontSize:'10px', whiteSpace:'nowrap'}}>{h}</th>
                   ))}
                 </tr>
@@ -5965,7 +5966,7 @@ function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetT
           {id:'intelligence',label:'💡 Intelligence'},
           {id:'tools',       label:'🛠️ Tools'},
           {id:'freelance',   label:'🧾 Freelance'},
-          {id:'taxes',       label:'🇫🇷 Taxes'},
+          {id:'taxes',       label:'Taxes'},
         ].map(st=>(
           <button key={st.id} onClick={()=>setSubTab(st.id)} style={{...s.btnGhost,fontSize:13,padding:'8px 18px',background:subTab===st.id?T.accentSoft:'transparent',color:subTab===st.id?T.accent:T.textMuted,borderColor:subTab===st.id?T.accent+'55':T.border,fontWeight:subTab===st.id?'700':'400'}}>{st.label}</button>
         ))}
