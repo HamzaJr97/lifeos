@@ -7696,6 +7696,8 @@ Max 280 words.`
               </div>
             </div>
           )}
+          </div>
+          </div>
         </div>
       )}
 
@@ -7788,13 +7790,6 @@ Max 280 words.`
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-          </div>
-        </div>
-      )}
-
           </div>
         </div>
       )}
@@ -7863,9 +7858,7 @@ Max 280 words.`
             </div>
           ))}
           {(subscriptions||[]).length===0 && <div style={{color:T.textMuted,fontSize:'12px'}}>Track Netflix, Spotify, cloud storage, etc.</div>}
-        </div>
-      )}
-
+          </div>
           </div>
         </div>
       )}
@@ -7913,7 +7906,7 @@ Max 280 words.`
               </BarChart>
             </ResponsiveContainer>
           </div>
-            </div>
+          </div>
           </div>
         );
       })()}
