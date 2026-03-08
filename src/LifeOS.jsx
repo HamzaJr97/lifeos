@@ -2282,7 +2282,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {activeTab === 'gmail' && <GmailTab T={T} s={s} settings={settings} gmailToken={gmailToken} setGmailToken={setGmailToken} careerApps={careerApps} setCareerApps={setCareerApps} />}
           {activeTab === 'calendar' && <CalendarTab T={T} s={s} habits={habits} habitLogs={habitLogs} expenses={expenses} vitals={vitals} debts={debts} goals={goals} settings={settings} bills={bills} notes={notes} />}
           {activeTab === 'history' && <HistoryTab T={T} s={s} expenses={expenses} incomes={incomes} assets={assets} debts={debts} habits={habits} habitLogs={habitLogs} vitals={vitals} settings={settings} netWorthHistory={netWorthHistory} />}
-          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} eventLog={eventLog} dailySnapshots={dailySnapshots} goals={goals} netWorthHistory={netWorthHistory} netWorth={netWorth} recurringExpenses={recurringExpenses} />}
+          {activeTab === 'insights' && <InsightsTab T={T} s={s} expenses={expenses} vitals={vitals} habits={habits} habitLogs={habitLogs} incomes={incomes} assets={assets} debts={debts} settings={settings} budgetTargets={budgetTargets} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} investments={investments} tradeJournal={tradeJournal} eventLog={eventLog} dailySnapshots={dailySnapshots} goals={goals} netWorthHistory={netWorthHistory} netWorth={netWorth} recurringExpenses={recurringExpenses} setActiveTab={setActiveTab} />}
           {activeTab === 'mindbody' && <MindBodyTab logEvent={logEvent} T={T} s={s} vitals={vitals} setVitals={setVitals} addXP={addXP} customMetrics={customMetrics} setCustomMetrics={setCustomMetrics} metricLogs={metricLogs} setMetricLogs={setMetricLogs} focusSessions={focusSessions} setFocusSessions={setFocusSessions} habits={habits} setHabitLogs={setHabitLogs} goals={goals} settings={settings} focusBillingSettings={focusBillingSettings} setFocusBillingSettings={setFocusBillingSettings} />}
           {activeTab === 'settings' && <SettingsTab T={T} s={s} settings={settings} setSettings={setSettings} themeName={themeName} setThemeName={setThemeName} customCategories={customCategories} setCustomCategories={setCustomCategories} pinHash={pinHash} setPinHash={setPinHash} setPinLocked={setPinLocked} expenses={expenses} habits={habits} habitLogs={habitLogs} debts={debts} incomes={incomes} />}
           </ErrorBoundary>
@@ -11574,7 +11574,7 @@ function HistoryTab({ T, s, expenses, incomes, assets, debts, habits, habitLogs,
 // ─────────────────────────────────────────────
 // INSIGHTS TAB
 // ─────────────────────────────────────────────
-function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal, eventLog, dailySnapshots, goals, netWorthHistory, netWorth, recurringExpenses }) {
+function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, assets, debts, settings, budgetTargets, savingsRate, thisMonthSpend, thisMonthIncome, investments, tradeJournal, eventLog, dailySnapshots, goals, netWorthHistory, netWorth, recurringExpenses, setActiveTab }) {
   // B10 — safe fallbacks for all arrays in case they're undefined on first install
   const safeExpenses = expenses || [];
   const safeVitals = vitals || [];
@@ -11588,6 +11588,9 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
   const [chatLoading, setChatLoading] = useState(false);
   const [compound, setCompound] = useState({ monthly:500, rate:7, years:20 });
   const chatRef = useRef(null);
+  // Phase 4 — prescriptive recs
+  const [dismissedRecs, setDismissedRecs] = useLocalStorage('los_dismissed_recs', {});
+  const [recFeedback, setRecFeedback] = useState({}); // { recId: 'done'|'snooze'|'skip' }
 
   // Compound interest data
   const compoundData = useMemo(() => {
@@ -12661,6 +12664,341 @@ function InsightsTab({ T, s, expenses, vitals, habits, habitLogs, incomes, asset
               </div>
             )}
           </>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* PHASE 4 — PRESCRIPTIVE ENGINE / RECOMMENDATIONS                    */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {(() => {
+        const cur = settings?.currency || '€';
+        const monthKey = today().slice(0,7);
+        const dayOfMonth = new Date().getDate();
+        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1,0).getDate();
+        const daysLeft = daysInMonth - dayOfMonth;
+
+        // Helper: is rec dismissed or snoozed for today?
+        const isActive = (id) => {
+          const d = dismissedRecs[id];
+          if (!d) return true;
+          if (d.action === 'skip') return false;          // permanently dismissed
+          if (d.action === 'snooze') return d.until < today(); // snoozed but expired
+          if (d.action === 'done') return false;
+          return true;
+        };
+        const dismiss = (id, action) => {
+          const until = (() => { const dt=new Date(); dt.setDate(dt.getDate()+7); return dt.toISOString().slice(0,10); })();
+          setDismissedRecs(p=>({...p,[id]:{action,until,ts:today()}}));
+        };
+
+        // ── RECOMMENDATION GENERATORS ─────────────────────────────────────
+        const recs = [];
+
+        // ── R1: Budget overspend — reduce a specific category ──────────────
+        Object.entries(budgetTargets||{}).forEach(([cat,budget])=>{
+          if (!budget) return;
+          const spent = (expenses||[]).filter(e=>e.date?.startsWith(monthKey)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+          const pct = (spent/budget)*100;
+          const projected = dayOfMonth>0 ? (spent/dayOfMonth)*daysInMonth : spent;
+          if (projected > budget*1.1 && daysLeft > 3) {
+            const overshoot = Math.round(projected - budget);
+            const id = `budget_${cat}_${monthKey}`;
+            if (!isActive(id)) return;
+            const dailyCap = Math.round((budget-spent)/Math.max(1,daysLeft));
+            recs.push({
+              id, impact:'high', category:'money',
+              icon:'💸', title:`Cap ${cat.split(' ').slice(1).join(' ')} spending`,
+              body:`On track to overshoot your budget by ${cur}${fmtN(overshoot)}. With ${daysLeft}d left, keep daily spend in this category under ${cur}${fmtN(dailyCap)}.`,
+              action: { label:`Adjust budget`, tab:'moneyhub' },
+              impactScore: overshoot,
+            });
+          }
+        });
+
+        // ── R2: High-interest debt — avalanche payoff nudge ─────────────────
+        const highRateDebt = [...(debts||[])].sort((a,b)=>Number(b.rate||0)-Number(a.rate||0)).find(d=>Number(d.rate||0)>10&&Number(d.balance||0)>0);
+        if (highRateDebt) {
+          const id = `debt_avalanche_${highRateDebt.id}`;
+          if (isActive(id)) {
+            const annualInterest = Math.round(Number(highRateDebt.balance)*Number(highRateDebt.rate||0)/100);
+            const extraPayment = Math.round(Math.min((thisMonthIncome||0)*0.05, Number(highRateDebt.balance)*0.1));
+            recs.push({
+              id, impact:'high', category:'money',
+              icon:'💳', title:`Attack "${highRateDebt.name}" first`,
+              body:`At ${highRateDebt.rate}% APR you're paying ~${cur}${fmtN(annualInterest)}/year in interest. Even an extra ${cur}${fmtN(extraPayment)}/month would cut payoff time significantly.`,
+              action: { label:'Go to Debts', tab:'debts' },
+              impactScore: annualInterest,
+            });
+          }
+        }
+
+        // ── R3: Savings rate below target ───────────────────────────────────
+        const savingsTarget = Number(settings?.savingsTarget||20);
+        if (savingsRate < savingsTarget - 5 && thisMonthIncome > 0) {
+          const id = `savings_rate_${monthKey}`;
+          if (isActive(id)) {
+            const gap = Math.round(thisMonthIncome * (savingsTarget - savingsRate) / 100);
+            // Find top discretionary category to trim
+            const disc = (expenses||[]).filter(e=>e.date?.startsWith(monthKey)&&['🎮 Leisure','🍔 Fast Food','☕ Coffee','🛍️ Shopping'].includes(e.category));
+            const topDisc = disc.reduce((s,e)=>s+Number(e.amount||0),0);
+            recs.push({
+              id, impact:'high', category:'money',
+              icon:'💰', title:`Boost savings rate to ${savingsTarget}%`,
+              body:`Currently at ${savingsRate.toFixed(0)}% — ${gap > 0 ? `${cur}${fmtN(gap)} short of target` : 'nearly there'}. ${topDisc>0?`You've spent ${cur}${fmtN(Math.round(topDisc))} on discretionary this month — a 30% trim = ${cur}${fmtN(Math.round(topDisc*0.3))} saved.`:''}`,
+              action: { label:'Review spending', tab:'moneyhub' },
+              impactScore: gap,
+            });
+          }
+        }
+
+        // ── R4: No income logged this month ────────────────────────────────
+        const hasIncomeSoFar = (incomes||[]).some(i=>i.date?.startsWith(monthKey));
+        if (!hasIncomeSoFar && dayOfMonth > 5) {
+          const id = `log_income_${monthKey}`;
+          if (isActive(id)) {
+            recs.push({
+              id, impact:'medium', category:'money',
+              icon:'📥', title:'Log this month\'s income',
+              body:`No income recorded yet for ${new Date(monthKey+'-01').toLocaleString('en-US',{month:'long'})}. Without it, savings rate and all financial forecasts are blind.`,
+              action: { label:'Log income', tab:'moneyhub' },
+              impactScore: Number(settings?.incomeTarget||0),
+            });
+          }
+        }
+
+        // ── R5: Habit with streak about to break ───────────────────────────
+        (habits||[]).forEach(h => {
+          const logs = (habitLogs||{})[h.id] || [];
+          const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+          const yStr = yesterday.toISOString().slice(0,10);
+          const todayStr = today();
+          const doneTodayOrYesterday = logs.includes(todayStr)||logs.includes(yStr);
+          // Build current streak
+          let streak=0; let d=new Date();
+          while(logs.includes(d.toISOString().slice(0,10))){streak++;d.setDate(d.getDate()-1);}
+          if (streak >= 5 && !logs.includes(todayStr)) {
+            const id = `streak_save_${h.id}_${todayStr}`;
+            if (isActive(id)) {
+              recs.push({
+                id, impact:'medium', category:'habits',
+                icon:'🔥', title:`Save your ${streak}-day "${h.name}" streak`,
+                body:`You haven't logged "${h.name}" today. You have a ${streak}-day streak — don't break it now. Takes < 1 min.`,
+                action: { label:'Go to Quests', tab:'character' },
+                impactScore: streak * 10,
+                urgent: true,
+              });
+            }
+          }
+        });
+
+        // ── R6: No vitals logged today ──────────────────────────────────────
+        const loggedVitalsToday = (vitals||[]).some(v=>v.date===today());
+        const hasVitalsHistory = (vitals||[]).length >= 3;
+        if (!loggedVitalsToday && hasVitalsHistory) {
+          const id = `log_vitals_${today()}`;
+          if (isActive(id)) {
+            recs.push({
+              id, impact:'low', category:'health',
+              icon:'😴', title:'Log today\'s vitals',
+              body:`You have a vitals history but haven't logged today yet. Sleep, mood, and energy data powers the correlation and anomaly engines.`,
+              action: { label:'Log vitals', tab:'mindbody' },
+              impactScore: 20,
+            });
+          }
+        }
+
+        // ── R7: Goal with close deadline ────────────────────────────────────
+        (goals||[]).filter(g=>g.deadline&&(g.progress||0)<g.target).forEach(g => {
+          const daysToDeadline = Math.round((new Date(g.deadline+' 00:00:00') - new Date())/(1000*60*60*24));
+          if (daysToDeadline > 0 && daysToDeadline <= 60) {
+            const remaining = g.target - (g.progress||0);
+            const neededPerMonth = Math.round(remaining / Math.max(1, daysToDeadline/30));
+            const id = `goal_deadline_${g.id}`;
+            if (isActive(id)) {
+              recs.push({
+                id, impact:'high', category:'goals',
+                icon:'🎯', title:`"${g.name}" deadline in ${daysToDeadline} days`,
+                body:`Need ${cur}${fmtN(remaining)} more to hit target. At current pace you need ${cur}${fmtN(neededPerMonth)}/month — is that funded?`,
+                action: { label:'Review goals', tab:'goals' },
+                impactScore: remaining,
+              });
+            }
+          }
+        });
+
+        // ── R8: Emergency fund below 1 month ───────────────────────────────
+        const cashAssets = (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+        const monthlySpend = thisMonthSpend || Number(settings?.incomeTarget||0)*0.7;
+        const efMonths = monthlySpend > 0 ? cashAssets/monthlySpend : 0;
+        if (efMonths < 1 && monthlySpend > 0) {
+          const id = `emergency_fund`;
+          if (isActive(id)) {
+            const target1m = Math.round(monthlySpend);
+            recs.push({
+              id, impact:'high', category:'money',
+              icon:'🛡️', title:'Build a 1-month emergency buffer',
+              body:`Cash reserves cover only ${efMonths.toFixed(1)} months of expenses. A single unexpected cost could force debt. Target: ${cur}${fmtN(target1m)} minimum.`,
+              action: { label:'Go to Assets', tab:'moneyhub' },
+              impactScore: target1m - cashAssets,
+            });
+          }
+        }
+
+        // ── R9: Cross-module — sleep < 6h AND habits below 50% ─────────────
+        const todayVital = (vitals||[]).find(v=>v.date===today());
+        const yesterdayVital = (vitals||[]).find(v=>{const d=new Date();d.setDate(d.getDate()-1);return v.date===d.toISOString().slice(0,10);});
+        const recentSleep = todayVital?.sleep ?? yesterdayVital?.sleep;
+        const todayHabitsDone = (habits||[]).filter(h=>(habitLogs||{})[h.id]?.includes(today())).length;
+        const todayHabitRate = (habits||[]).length>0?Math.round(todayHabitsDone/(habits||[]).length*100):null;
+        if (recentSleep!=null && recentSleep<6 && todayHabitRate!=null && todayHabitRate<50) {
+          const id = `low_sleep_low_habits_${today()}`;
+          if (isActive(id)) {
+            recs.push({
+              id, impact:'medium', category:'health',
+              icon:'🌙', title:'Protect tonight\'s sleep',
+              body:`Only ${recentSleep}h last night — your habit completion is already at ${todayHabitRate}%. Data shows poor sleep is your #1 predictor of low-productivity days. Prioritise an earlier bedtime tonight.`,
+              action: { label:'Log vitals', tab:'mindbody' },
+              impactScore: (6-recentSleep)*15,
+            });
+          }
+        }
+
+        // ── R10: Investment portfolio uninvested cash ───────────────────────
+        const cashPosition = (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+        const invValue = (investments||[]).reduce((s,i)=>s+(i.currentPrice??i.buyPrice)*i.quantity,0);
+        const cashPct = (cashPosition+invValue)>0 ? (cashPosition/(cashPosition+invValue))*100 : 0;
+        if (cashPct > 40 && cashPosition > 500) {
+          const id = `idle_cash`;
+          if (isActive(id)) {
+            recs.push({
+              id, impact:'medium', category:'money',
+              icon:'📊', title:`${cashPct.toFixed(0)}% of portfolio sitting in cash`,
+              body:`${cur}${fmtN(Math.round(cashPosition))} in cash vs ${cur}${fmtN(Math.round(invValue))} invested. At average inflation of 2-3%/year, idle cash loses real value. Consider deploying some into diversified assets.`,
+              action: { label:'Go to Portfolio', tab:'portfolio' },
+              impactScore: Math.round(cashPosition * 0.03),
+            });
+          }
+        }
+
+        // ── Sort by impact score descending ───────────────────────────────
+        const IMPACT_ORDER = { high:3, medium:2, low:1 };
+        recs.sort((a,b)=>(IMPACT_ORDER[b.impact]||0)-(IMPACT_ORDER[a.impact]||0)||b.impactScore-a.impactScore);
+
+        const CAT_COLOR = { money:T.success, habits:T.accent, health:T.warning, goals:T.danger };
+        const CAT_LABEL = { money:'💰 Finance', habits:'⚡ Habits', health:'❤️ Health', goals:'🎯 Goals' };
+        const IMPACT_COL = { high:T.danger, medium:T.warning, low:T.textMuted };
+
+        if (recs.length === 0) return (
+          <div style={{...s.card, border:`1px solid ${T.success}44`, background:`${T.success}08`, textAlign:'center', padding:'28px'}}>
+            <div style={{fontSize:'32px', marginBottom:'8px'}}>✅</div>
+            <div style={{fontWeight:'900', fontSize:'15px', color:T.success, marginBottom:'6px'}}>Nothing urgent to act on</div>
+            <div style={{fontSize:'12px', color:T.textMuted}}>All recommendations are either completed or snoozed. Keep going — you're on top of things.</div>
+          </div>
+        );
+
+        return (
+          <div style={{...s.card, border:`1px solid ${T.accent}33`}}>
+            {/* Header */}
+            <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'6px'}}>
+              <span style={{fontSize:'22px'}}>🧭</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:"'Syne',sans-serif", fontWeight:'900', fontSize:'16px'}}>What To Do This Week</div>
+                <div style={{fontSize:'11px', color:T.textMuted}}>Ranked by impact · tap an action to navigate · dismiss when done</div>
+              </div>
+              <span style={{background:T.accentSoft, color:T.accent, fontWeight:'800', fontSize:'12px', padding:'2px 10px', borderRadius:'99px'}}>{recs.length} actions</span>
+            </div>
+
+            {/* Category filter pills */}
+            <div style={{display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'16px', marginTop:'10px'}}>
+              {['all',...new Set(recs.map(r=>r.category))].map(cat=>(
+                <span key={cat} style={{
+                  fontSize:'11px', padding:'3px 10px', borderRadius:'99px', cursor:'default',
+                  background: cat==='all' ? T.accentSoft : `${CAT_COLOR[cat]||T.textMuted}22`,
+                  color: cat==='all' ? T.accent : CAT_COLOR[cat]||T.textMuted,
+                  fontWeight:'700', border:`1px solid ${cat==='all'?T.accent:CAT_COLOR[cat]||T.border}44`,
+                }}>
+                  {cat==='all'?`All (${recs.length})`:CAT_LABEL[cat]||cat}
+                </span>
+              ))}
+            </div>
+
+            {/* Recommendations list */}
+            <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+              {recs.map((rec,i)=>{
+                const feedback = recFeedback[rec.id];
+                if (feedback) return (
+                  <div key={rec.id} style={{padding:'10px 14px', borderRadius:'10px', background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:'8px', opacity:0.5}}>
+                    <span style={{fontSize:'14px'}}>{feedback==='done'?'✅':feedback==='snooze'?'⏰':'🚫'}</span>
+                    <span style={{fontSize:'12px', color:T.textMuted}}>{feedback==='done'?'Marked done':'Snoozed 7 days'} — {rec.title}</span>
+                  </div>
+                );
+                return (
+                  <div key={rec.id} style={{
+                    borderRadius:'12px', padding:'14px 16px', background:T.surface,
+                    border:`1px solid ${rec.urgent?T.danger+'55':T.border}`,
+                    boxShadow: rec.urgent?`0 0 0 1px ${T.danger}22`:'none',
+                    position:'relative', overflow:'hidden',
+                  }}>
+                    {/* Priority stripe */}
+                    <div style={{position:'absolute',left:0,top:0,bottom:0,width:'4px',borderRadius:'12px 0 0 12px',background:IMPACT_COL[rec.impact]}}/>
+
+                    <div style={{display:'flex', gap:'10px', alignItems:'flex-start', paddingLeft:'8px'}}>
+                      <span style={{fontSize:'22px', flexShrink:0, marginTop:'1px'}}>{rec.icon}</span>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'4px', flexWrap:'wrap'}}>
+                          <div style={{fontWeight:'800', fontSize:'13px'}}>{rec.title}</div>
+                          <span style={{fontSize:'10px', padding:'1px 7px', borderRadius:'99px', fontWeight:'700',
+                            background:`${IMPACT_COL[rec.impact]}22`, color:IMPACT_COL[rec.impact]}}>
+                            {rec.impact}
+                          </span>
+                          <span style={{fontSize:'10px', padding:'1px 7px', borderRadius:'99px',
+                            background:`${CAT_COLOR[rec.category]||T.textMuted}18`, color:CAT_COLOR[rec.category]||T.textMuted}}>
+                            {CAT_LABEL[rec.category]||rec.category}
+                          </span>
+                        </div>
+                        <div style={{fontSize:'12px', color:T.textMuted, lineHeight:'1.6', marginBottom:'10px'}}>{rec.body}</div>
+                        <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
+                          {/* Primary action */}
+                          <button style={{...s.btn(), fontSize:'11px', padding:'5px 12px'}}
+                            onClick={()=>{ setActiveTab?.(rec.action.tab); setRecFeedback(p=>({...p,[rec.id]:'done'})); dismiss(rec.id,'done'); }}>
+                            {rec.action.label} →
+                          </button>
+                          {/* Mark done without navigating */}
+                          <button style={{...s.btnGhost, fontSize:'11px', padding:'5px 10px', color:T.success}}
+                            onClick={()=>{ setRecFeedback(p=>({...p,[rec.id]:'done'})); dismiss(rec.id,'done'); }}>
+                            ✅ Done
+                          </button>
+                          {/* Snooze 7 days */}
+                          <button style={{...s.btnGhost, fontSize:'11px', padding:'5px 10px', color:T.textMuted}}
+                            onClick={()=>{ setRecFeedback(p=>({...p,[rec.id]:'snooze'})); dismiss(rec.id,'snooze'); }}>
+                            ⏰ Snooze 7d
+                          </button>
+                          {/* Dismiss permanently */}
+                          <button style={{...s.btnGhost, fontSize:'11px', padding:'5px 10px', color:T.textMuted}}
+                            onClick={()=>{ setRecFeedback(p=>({...p,[rec.id]:'skip'})); dismiss(rec.id,'skip'); }}>
+                            🚫
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Dismissed count */}
+            {Object.keys(dismissedRecs).length > 0 && (
+              <div style={{marginTop:'12px', textAlign:'center'}}>
+                <span style={{fontSize:'11px', color:T.textMuted}}>
+                  {Object.keys(dismissedRecs).length} recommendation{Object.keys(dismissedRecs).length!==1?'s':''} hidden ·{' '}
+                  <span style={{color:T.accent, cursor:'pointer', textDecoration:'underline'}}
+                    onClick={()=>setDismissedRecs({})}>
+                    Reset all
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
         );
       })()}
       {/* I4 — MOOD TO SPENDING HEATMAP */}
