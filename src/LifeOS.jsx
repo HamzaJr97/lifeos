@@ -599,7 +599,7 @@ const SPENDING_CATEGORIES = {
   '✈️ Travel': ['Flights','Hotels','Activities'],
 };
 
-const ASSET_TYPES = ['Stocks','Crypto','ETF','Bonds','Cash','Real Estate','Other'];
+const ASSET_TYPES = ['Stocks','Crypto','ETF','Bonds','Cash','Real Estate','Savings','Other'];
 
 // Fixed charges categories for prevision/forecast feature
 const FIXED_CHARGE_LABELS = [
@@ -1652,8 +1652,10 @@ export default function LifeOS() {
     const a = assets.reduce((s,a) => s + Number(a.value||0), 0);
     const inv = investments.reduce((s,i) => s + (i.currentPrice ?? i.buyPrice) * i.quantity, 0);
     const d = debts.reduce((s,d) => s + Number(d.balance||0), 0);
-    return a + inv - d;
-  }, [assets, investments, debts]);
+    // Include all 💰 Savings category expenses as accumulated savings balance
+    const savedDeposits = expenses.filter(e=>e.category==='💰 Savings').reduce((s,e)=>s+Number(e.amount||0),0);
+    return a + inv - d + savedDeposits;
+  }, [assets, investments, debts, expenses]);
 
   const [currentMonth, setCurrentMonth] = useState(() => today().slice(0,7));
   useEffect(() => {
@@ -4627,16 +4629,42 @@ function QuestsTab({ logEvent, T, s, habits, setHabits, habitLogs, setHabitLogs,
 // ─────────────────────────────────────────────
 // HOARD TAB
 // ─────────────────────────────────────────────
-function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pushUndo, assetDepreciation, setAssetDepreciation }) {
-  const [form, setForm] = useState({ name:'', type:'Stocks', value:'', currency: settings.currency });
+function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pushUndo, assetDepreciation, setAssetDepreciation, expenses }) {
+  const [form, setForm] = useState({ name:'', type:'Stocks', value:'', ticker:'', qty:'', entryPrice:'', entryDate:today(), closePrice:'', closeDate:'', currency: settings.currency });
   const [showAdd, setShowAdd] = useState(false);
+  const isMarketType = (t) => ['Stocks','ETF','Crypto'].includes(t);
 
   function add() {
-    if (!form.name || !form.value) return;
-    setAssets(a => [...a, { id:Date.now(), ...form, value:Number(form.value), date:today() }]);
-    setForm({ name:'', type:'Stocks', value:'', currency:settings.currency });
+    if (!form.name) return;
+    let value = Number(form.value||0);
+    // For market assets: value = qty × entryPrice (or closePrice if closed)
+    if (isMarketType(form.type) && form.qty && form.entryPrice) {
+      const closeP = form.closePrice ? Number(form.closePrice) : Number(form.entryPrice);
+      value = Number(form.qty) * closeP;
+    }
+    if (!value && form.type !== 'Savings') return;
+    const asset = {
+      id: Date.now(),
+      name: form.name,
+      ticker: form.ticker || '',
+      type: form.type,
+      value: form.type === 'Savings' ? 0 : value, // Savings value auto-derived
+      qty: form.qty ? Number(form.qty) : undefined,
+      entryPrice: form.entryPrice ? Number(form.entryPrice) : undefined,
+      entryDate: form.entryDate || today(),
+      closePrice: form.closePrice ? Number(form.closePrice) : undefined,
+      closeDate: form.closeDate || undefined,
+      isClosed: !!form.closePrice,
+      currency: settings.currency,
+      date: today(),
+    };
+    setAssets(a => [...a, asset]);
+    setForm({ name:'', type:'Stocks', value:'', ticker:'', qty:'', entryPrice:'', entryDate:today(), closePrice:'', closeDate:'', currency:settings.currency });
     setShowAdd(false);
   }
+
+  // Auto-calculate cumulative savings from 💰 Savings expenses
+  const totalSavingsDeposits = (expenses||[]).filter(e=>e.category==='💰 Savings').reduce((s,e)=>s+Number(e.amount||0),0);
 
   // Include investments (from portfolio) as virtual assets for display
   const investmentAssets = (investments||[]).map(inv => ({
@@ -4681,13 +4709,74 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
 
       {showAdd && (
         <div style={{...s.card,border:`1px solid ${T.accent}44`}}>
-          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr',gap:'10px'}}>
-            <input style={s.input} placeholder={t('hoard_asset_name')} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
-            <select style={s.select} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))}>
-              {ASSET_TYPES.map(t=><option key={t}>{t}</option>)}
-            </select>
-            <input type="number" style={s.input} placeholder={`Value (${settings.currency})`} value={form.value} onChange={e=>setForm(f=>({...f,value:e.target.value}))} />
-            <button style={s.btn()} onClick={add}>{t('add')}</button>
+          <div style={{fontWeight:'700',fontSize:'13px',color:T.accent,marginBottom:'12px'}}>Add Asset</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Asset Type</div>
+              <select style={s.select} value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value,name:'',ticker:'',qty:'',entryPrice:'',closePrice:''}))} >
+                {ASSET_TYPES.map(tp=><option key={tp}>{tp}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>{form.type==='Savings'?'Savings Account Name':'Asset Name'}</div>
+              <input style={s.input} placeholder={isMarketType(form.type)?'e.g. Apple Inc':'e.g. My Savings'} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} />
+            </div>
+          </div>
+          {form.type === 'Savings' && (
+            <div style={{background:T.success+'15',border:'1px solid '+T.success+'33',borderRadius:'8px',padding:'10px 14px',fontSize:'12px',color:T.textMuted}}>
+              💰 Savings balance is <strong>auto-calculated</strong> from all expenses you log under the <strong>"💰 Savings"</strong> category. Current total: <strong style={{color:T.success}}>{settings.currency}{fmtN(totalSavingsDeposits)}</strong>
+            </div>
+          )}
+          {isMarketType(form.type) && (
+            <>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                <div>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Ticker Symbol</div>
+                  <input style={s.input} placeholder='e.g. AAPL, BTC' value={form.ticker} onChange={e=>setForm(f=>({...f,ticker:e.target.value.toUpperCase()}))} />
+                </div>
+                <div>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Quantity / Units</div>
+                  <input type="number" style={s.input} placeholder='e.g. 10' min='0' value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Entry Price ({settings.currency})</div>
+                  <input type="number" style={s.input} placeholder='Price at buy' min='0' value={form.entryPrice} onChange={e=>setForm(f=>({...f,entryPrice:e.target.value}))} />
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'10px'}}>
+                <div>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Entry Date</div>
+                  <input type="date" style={s.input} value={form.entryDate} onChange={e=>setForm(f=>({...f,entryDate:e.target.value}))} />
+                </div>
+                <div style={{background:form.closePrice?T.danger+'10':'transparent',borderRadius:'8px',padding:form.closePrice?'6px':'0'}}>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Close Price ({settings.currency}) <span style={{color:T.textMuted,fontSize:'10px',fontStyle:'italic'}}>— optional, if position closed</span></div>
+                  <input type="number" style={s.input} placeholder='Leave empty if still open' min='0' value={form.closePrice} onChange={e=>setForm(f=>({...f,closePrice:e.target.value}))} />
+                </div>
+              </div>
+              {form.closePrice && (
+                <div style={{marginBottom:'10px'}}>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Close Date</div>
+                  <input type="date" style={s.input} value={form.closeDate} onChange={e=>setForm(f=>({...f,closeDate:e.target.value}))} />
+                </div>
+              )}
+              {form.qty && form.entryPrice && (
+                <div style={{background:T.surface,borderRadius:'8px',padding:'10px 14px',marginBottom:'10px',fontSize:'12px',display:'flex',gap:'24px',flexWrap:'wrap'}}>
+                  <span>Entry value: <strong style={{color:T.accent}}>{settings.currency}{fmtN(Number(form.qty)*Number(form.entryPrice))}</strong></span>
+                  {form.closePrice && <span>Close value: <strong style={{color:Number(form.closePrice)>=Number(form.entryPrice)?T.success:T.danger}}>{settings.currency}{fmtN(Number(form.qty)*Number(form.closePrice))}</strong></span>}
+                  {form.closePrice && <span>P&L: <strong style={{color:Number(form.closePrice)>=Number(form.entryPrice)?T.success:T.danger}}>{Number(form.closePrice)>=Number(form.entryPrice)?'+':''}{settings.currency}{fmtN(Number(form.qty)*(Number(form.closePrice)-Number(form.entryPrice)))}</strong></span>}
+                </div>
+              )}
+            </>
+          )}
+          {!isMarketType(form.type) && form.type !== 'Savings' && (
+            <div style={{marginBottom:'10px'}}>
+              <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Current Value ({settings.currency})</div>
+              <input type="number" style={s.input} placeholder='Current value' min='0' value={form.value} onChange={e=>setForm(f=>({...f,value:e.target.value}))} />
+            </div>
+          )}
+          <div style={{display:'flex',gap:'10px'}}>
+            <button style={s.btn()} onClick={add}>Add Asset</button>
+            <button style={s.btnGhost} onClick={()=>setShowAdd(false)}>Cancel</button>
           </div>
         </div>
       )}
@@ -4716,8 +4805,14 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
           {assets.map(a => (
             <div key={a.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'10px 0',borderBottom:`1px solid ${T.border}`}}>
               <span style={s.tag(COLORS_PIE[ASSET_TYPES.indexOf(a.type)%COLORS_PIE.length])}>{a.type}</span>
-              <span style={{flex:1,fontSize:'13px'}}>{a.name}</span>
-              <span style={{fontWeight:'700',color:T.success}}>{settings.currency}{fmtN(a.value)}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'13px'}}>{a.name}{a.ticker?' ('+a.ticker+')':''}</div>
+                {a.entryPrice && <div style={{fontSize:'10px',color:T.textMuted}}>Entry: {settings.currency}{fmtN(a.entryPrice)}{a.qty?' × '+a.qty:''} on {a.entryDate||''}{a.isClosed?' · Closed: '+settings.currency+fmtN(a.closePrice):' · Open'}</div>}
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontWeight:'700',color:a.isClosed&&a.closePrice&&a.entryPrice&&a.qty?(Number(a.closePrice)>=Number(a.entryPrice)?T.success:T.danger):T.success}}>{settings.currency}{fmtN(a.value)}</div>
+                {a.isClosed&&a.closePrice&&a.entryPrice&&a.qty&&<div style={{fontSize:'10px',color:Number(a.closePrice)>=Number(a.entryPrice)?T.success:T.danger}}>{Number(a.closePrice)>=Number(a.entryPrice)?'+':''}{settings.currency}{fmtN(Number(a.qty)*(Number(a.closePrice)-Number(a.entryPrice)))}</div>}
+              </div>
               <button style={{...s.btnGhost,padding:'2px 8px',color:T.textMuted}} onClick={()=>{ const nv=window.prompt('New value:',a.value); if(nv!==null&&!isNaN(Number(nv))) setAssets(as=>as.map(x=>x.id===a.id?{...x,value:Number(nv)}:x)); }}>✏️</button>
               <button style={{...s.btnGhost,padding:'2px 8px',color:T.danger}} onClick={()=>{ const removed=a; setAssets(as=>as.filter(x=>x.id!==a.id)); pushUndo?.(`Deleted "${a.name}"`, ()=>setAssets(as=>[...as,removed])); }}>✕</button>
             </div>
@@ -4747,7 +4842,18 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
               })}
             </>
           )}
-          {allAssets.length === 0 && <div style={{color:T.textMuted,fontSize:'13px'}}>{t('hoard_no_tracked')}</div>}
+          {/* Savings deposits auto-row */}
+          {totalSavingsDeposits > 0 && (
+            <div style={{display:'flex',alignItems:'center',gap:'10px',padding:'8px 0',borderBottom:'1px solid '+T.border}}>
+              <span style={{...s.tag(T.success),fontSize:'10px'}}>Savings</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:'13px',fontWeight:'600'}}>💰 Accumulated Savings</div>
+                <div style={{fontSize:'10px',color:T.textMuted}}>Auto-calculated from Savings category expenses</div>
+              </div>
+              <div style={{fontWeight:'700',color:T.success}}>{settings.currency}{fmtN(totalSavingsDeposits)}</div>
+            </div>
+          )}
+          {allAssets.length === 0 && totalSavingsDeposits === 0 && <div style={{color:T.textMuted,fontSize:'13px'}}>{t('hoard_no_tracked')}</div>}
           {allAssets.length > 0 && (
             <div style={{display:'flex',justifyContent:'space-between',padding:'12px 0 0',fontWeight:'800',fontSize:'15px'}}>
               <span style={{color:T.textMuted}}>{t('hoard_total_assets')}</span>
@@ -6017,7 +6123,7 @@ function MoneyHubTab({ logEvent, T, s, expenses, setExpenses, incomes, setIncome
         {[
           {id:'hoard',       label:'🏦 Hoard'},
           {id:'expenses',    label:'📊 Expenses'},
-          {id:'discipline',  label:'⚡ Discipline'},
+          {id:'discipline',  label:'🏦 Wealth Manager'},
           {id:'cashflow',    label:'📅 Cash Flow'},
           {id:'intelligence',label:'💡 Intelligence'},
           {id:'tools',       label:'🛠️ Tools'},
@@ -6029,7 +6135,7 @@ function MoneyHubTab({ logEvent, T, s, expenses, setExpenses, incomes, setIncome
       </div>
 
       {subTab==='hoard' && (
-        <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} assetDepreciation={assetDepreciation||{}} setAssetDepreciation={setAssetDepreciation||(() => {})} />
+        <HoardTab T={T} s={s} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} settings={settings} pushUndo={pushUndo} assetDepreciation={assetDepreciation||{}} setAssetDepreciation={setAssetDepreciation||(() => {})} expenses={expenses||[]} />
       )}
       {subTab==='expenses' && (
         <SpendingTab logEvent={logEvent} T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} goals={goals} setGoals={setGoals} bills={bills} expenseRegrets={expenseRegrets||{}} setExpenseRegrets={setExpenseRegrets||(() => {})} />
@@ -6038,7 +6144,7 @@ function MoneyHubTab({ logEvent, T, s, expenses, setExpenses, incomes, setIncome
         <FinanceTab T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} budgetTargets={budgetTargets} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} addXP={addXP} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} habits={[]} habitLogs={{}} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} investments={investments} goals={goals} />
       )}
       {subTab==='discipline' && (
-        <DisciplineView T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} savingsRate={savingsRate} budgetTargets={budgetTargets} />
+        <AIWealthManager T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} investments={investments||[]} goals={goals||[]} savingsRate={savingsRate} netWorth={netWorth} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorthHistory={netWorthHistory||[]} />
       )}
       {subTab==='cashflow' && (
         <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
@@ -7552,7 +7658,12 @@ Max 280 words.`
       </div>
 
       {showIncome && (
-        <div style={{...s.card,border:`1px solid ${T.success}44`}}>
+        <div style={{position:'fixed',inset:0,background:'#00000088',zIndex:9000,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'60px'}} onClick={()=>setShowIncome(false)}>
+          <div style={{background:T.card,borderRadius:'16px',padding:'24px',width:'min(92vw,580px)',maxHeight:'80vh',overflowY:'auto',boxShadow:'0 24px 80px #00000066',border:`1px solid ${T.success}44`}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'16px'}}>+ Log Income</div>
+              <button style={{...s.btnGhost,padding:'4px 10px',fontSize:'18px'}} onClick={()=>setShowIncome(false)}>✕</button>
+            </div>
           <div style={s.cardTitle}>{t('spending_income_label')}</div>
           <div style={{display:'grid',gridTemplateColumns:'160px 1fr 150px auto',gap:'10px',alignItems:'end'}}>
             <div>
@@ -7662,7 +7773,12 @@ Max 280 words.`
       )}
 
       {showBudgets && (
-        <div style={s.card}>
+        <div style={{position:'fixed',inset:0,background:'#00000088',zIndex:9000,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'60px'}} onClick={()=>setShowBudgets(false)}>
+          <div style={{background:T.card,borderRadius:'16px',padding:'24px',width:'min(92vw,560px)',maxHeight:'80vh',overflowY:'auto',boxShadow:'0 24px 80px #00000066',border:`1px solid ${T.accent}44`}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'16px'}}>🎯 Budget Targets</div>
+              <button style={{...s.btnGhost,padding:'4px 10px',fontSize:'18px'}} onClick={()=>setShowBudgets(false)}>✕</button>
+            </div>
           <div style={s.cardTitle}>Budget Targets per Category</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'}}>
             {allCategories.map(cat=>(
@@ -7671,6 +7787,14 @@ Max 280 words.`
                 <input type="number" style={{...s.input,width:'100px'}} placeholder="Max" value={budgetTargets[cat]||''} onChange={e=>setBudgetTargets(b=>({...b,[cat]:Number(e.target.value)||0}))} />
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+          </div>
+        </div>
+      )}
+
           </div>
         </div>
       )}
@@ -7710,7 +7834,12 @@ Max 280 words.`
 
       {/* SUBSCRIPTION TRACKER */}
       {showSubs && (
-        <div style={{...s.card,border:`1px solid ${T.accent}44`}}>
+        <div style={{position:'fixed',inset:0,background:'#00000088',zIndex:9000,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'60px'}} onClick={()=>setShowSubs(false)}>
+          <div style={{background:T.card,borderRadius:'16px',padding:'24px',width:'min(92vw,560px)',maxHeight:'80vh',overflowY:'auto',boxShadow:'0 24px 80px #00000066',border:`1px solid ${T.accent}44`}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'16px'}}>📦 Subscriptions</div>
+              <button style={{...s.btnGhost,padding:'4px 10px',fontSize:'18px'}} onClick={()=>setShowSubs(false)}>✕</button>
+            </div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
             <div style={s.cardTitle}>📦 Subscriptions</div>
             <div style={{fontSize:'13px',fontWeight:'700',color:T.danger}}>Total: {settings.currency}{fmtN((subscriptions||[]).reduce((s,x)=>s+Number(x.amount||0),0))}/mo</div>
@@ -7737,8 +7866,12 @@ Max 280 words.`
         </div>
       )}
 
+          </div>
+        </div>
+      )}
+
       {/* WEEKLY SPENDING VIEW */}
-      {(showWeekly || s.isMobile) && (()=>{
+      {showWeekly && (()=>{
         const days = [];
         for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(d.toISOString().slice(0,10));}
         const prevDays = [];
@@ -7753,6 +7886,12 @@ Max 280 words.`
           return {day:label,thisWeek:amount,lastWeek:prevAmt};
         });
         return (
+          <div style={{position:'fixed',inset:0,background:'#00000088',zIndex:9000,display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:'60px'}} onClick={()=>setShowWeekly(false)}>
+            <div style={{background:T.card,borderRadius:'16px',padding:'24px',width:'min(92vw,680px)',maxHeight:'85vh',overflowY:'auto',boxShadow:'0 24px 80px #00000066',border:`1px solid ${T.accent}44`}} onClick={e=>e.stopPropagation()}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:'900',fontSize:'16px'}}>📅 Weekly Spending</div>
+                <button style={{...s.btnGhost,padding:'4px 10px',fontSize:'18px'}} onClick={()=>setShowWeekly(false)}>✕</button>
+              </div>
           <div style={{...s.card,border:`1px solid ${T.accent}44`}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
               <div style={s.cardTitle}>📅 7-Day Rolling Spending</div>
@@ -7773,6 +7912,8 @@ Max 280 words.`
                 <Bar dataKey="lastWeek" fill={T.textDim} radius={[3,3,0,0]} name="Last Week" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+            </div>
           </div>
         );
       })()}
@@ -14929,9 +15070,6 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
       {/* F8 — AI FINANCIAL COACH */}
       <AIFinancialCoach T={T} s={s} settings={settings} coachHistory={coachHistory||[]} setCoachHistory={setCoachHistory||(() => {})} expenses={expenses} incomes={incomes} debts={debts} assets={assets} savingsRate={savingsRate} netWorth={netWorth} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} />
 
-      {/* AI WEALTH MANAGER */}
-      <AIWealthManager T={T} s={s} settings={settings} expenses={expenses} incomes={incomes} debts={debts} assets={assets} investments={investments||[]} goals={goals||[]} savingsRate={savingsRate} netWorth={netWorth} financialHealthScore={financialHealthScore} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} netWorthHistory={netWorthHistory||[]} />
-
       {/* F9 — RECURRING AUTO-DETECT */}
       <RecurringAutoDetect T={T} s={s} settings={settings} expenses={expenses} detectedRecurring={detectedRecurring||[]} setDetectedRecurring={setDetectedRecurring||(() => {})} recurringIncomes={recurringIncomes||[]} setRecurringIncomes={setRecurringIncomes||(() => {})} />
 
@@ -18071,19 +18209,24 @@ function AIFinancialCoach({ T, s, settings, coachHistory, setCoachHistory, expen
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef();
 
-  const systemPrompt = `You are an empathetic, data-driven personal financial coach integrated into LifeOS.
+  const topSpend = Object.entries(
+    expenses.filter(e=>e.date?.startsWith(today().slice(0,7)))
+      .reduce((acc,e)=>{acc[e.category]=(acc[e.category]||0)+Number(e.amount);return acc},{})
+  ).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,v])=>c+':'+settings.currency+fmtN(v)).join(' | ')||'None';
 
-User's current financial snapshot:
-- Net Worth: ${settings.currency}${fmtN(netWorth)}
-- Monthly Income: ${settings.currency}${fmtN(thisMonthIncome)}
-- Monthly Spend: ${settings.currency}${fmtN(thisMonthSpend)}
-- Savings Rate: ${savingsRate.toFixed(1)}%
-- Total Debt: ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}
-- Financial Health Score: ${financialHealthScore}/100
-- Assets: ${assets.length} tracked, Cash: ${settings.currency}${fmtN(assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0))}
-- Top 3 spending categories this month: ${Object.entries(expenses.filter(e=>e.date?.startsWith(today().slice(0,7))).reduce((acc,e)=>{acc[e.category]=(acc[e.category]||0)+Number(e.amount);return acc},{} )).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,v])=>`${c} ${settings.currency}${fmtN(v)}`).join(', ')||'No data'}
+  const systemPrompt = `You are an expert financial analyst coach in LifeOS. Always respond with STRUCTURED, DATA-RICH answers — never plain paragraphs.
 
-Rules: Be specific with their numbers. Give actionable advice. Keep replies under 150 words. Be encouraging but honest. This is educational, not regulated financial advice.`;
+USER DATA: Net Worth ${settings.currency}${fmtN(netWorth)} | Income ${settings.currency}${fmtN(thisMonthIncome)}/mo | Spend ${settings.currency}${fmtN(thisMonthSpend)}/mo | Savings ${savingsRate.toFixed(1)}% | Health ${financialHealthScore}/100 | Debt ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))} | Cash ${settings.currency}${fmtN(assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0))} | Top spend: ${topSpend}
+
+FORMAT RULES — choose the best format for each answer:
+- Spending/budget breakdown → markdown table: Category | Budget | Spent | Status
+- Action plan → numbered steps with exact ${settings.currency} amounts and dates
+- Debt strategy → table: Debt | Balance | Rate | Min Payment | Payoff Date
+- Projections → table: Year | Net Worth | Total Saved | Growth
+- Always start with the KEY NUMBER most relevant to the question in bold: **${settings.currency}X**
+- End every reply with: Next step: [one concrete action]
+- Max 200 words, dense with real numbers from user data
+- Educational only, not regulated financial advice.`;
 
   async function sendMessage(msg) {
     if (!msg.trim()) return;
@@ -18094,7 +18237,7 @@ Rules: Be specific with their numbers. Give actionable advice. Keep replies unde
     setLoading(true);
     try {
       const messages = [{ role:'system', content:systemPrompt }, ...history.slice(-10)];
-      const reply = await callAIChat(messages, settings, 300);
+      const reply = await callAIChat(messages, settings, 600);
       setCoachHistory([...history, { role:'assistant', content:reply }]);
     } catch(e) { setCoachHistory([...history, { role:'assistant', content:'⚠️ ' + (e.message || 'Connection error.') }]); }
     setLoading(false);
@@ -18136,13 +18279,66 @@ Rules: Be specific with their numbers. Give actionable advice. Keep replies unde
             {coachHistory.map((m,i)=>(
               <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
                 <div style={{
-                  maxWidth:'85%',padding:'10px 14px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',
+                  maxWidth:'92%',padding:'12px 16px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',
                   background:m.role==='user'?T.accentGrad:T.surface,
                   color:m.role==='user'?'#fff':T.text,
-                  fontSize:'13px',lineHeight:1.6,
+                  fontSize:'13px',lineHeight:1.7,
                   border:m.role==='assistant'?`1px solid ${T.border}`:'none',
                   boxShadow:`0 2px 8px #00000022`,
-                }}>{m.content}</div>
+                }}>
+                  {m.role==='assistant' ? (() => {
+                    const lines = m.content.split('\n');
+                    return lines.map((line, li) => {
+                      // Markdown table row
+                      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+                        const cells = line.split('|').slice(1,-1);
+                        if (cells.every(c=>c.trim().match(/^[-: ]+$/))) return null;
+                        const isHeader = li===0 || (lines[li-1]||'').trim().startsWith('|');
+                        return (
+                          <div key={li} style={{display:'flex',margin:'1px 0',borderRadius:'4px',overflow:'hidden'}}>
+                            {cells.map((c,ci)=>(
+                              <div key={ci} style={{flex:1,padding:'4px 8px',background:isHeader?T.accentSoft:ci%2===0?T.bg:'transparent',fontSize:'11px',fontWeight:isHeader?'700':'400',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                                {c.replace(/\*\*/g,'').trim()}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      // Bold spans **text**
+                      if (line.includes('**')) {
+                        const parts = line.split('**');
+                        return (
+                          <div key={li} style={{marginBottom:'3px'}}>
+                            {parts.map((p,pi)=> pi%2===1
+                              ? <strong key={pi} style={{color:T.accent}}>{p}</strong>
+                              : <span key={pi}>{p}</span>
+                            )}
+                          </div>
+                        );
+                      }
+                      // Numbered steps
+                      if (/^\d+\./.test(line)) {
+                        const num = line.match(/^\d+/)[0];
+                        return (
+                          <div key={li} style={{display:'flex',gap:'8px',marginBottom:'5px',alignItems:'flex-start'}}>
+                            <span style={{color:T.accent,fontWeight:'800',flexShrink:0,minWidth:'16px'}}>{num}.</span>
+                            <span>{line.replace(/^\d+\.\s*/,'')}</span>
+                          </div>
+                        );
+                      }
+                      // Next step callout
+                      if (line.startsWith('Next step:')) {
+                        return (
+                          <div key={li} style={{marginTop:'10px',padding:'8px 12px',background:T.accent+'18',borderRadius:'8px',border:`1px solid ${T.accent}33`,fontWeight:'700',fontSize:'12px',color:T.accent}}>
+                            {line}
+                          </div>
+                        );
+                      }
+                      if (!line.trim()) return <div key={li} style={{height:'5px'}}/>;
+                      return <div key={li} style={{marginBottom:'2px'}}>{line}</div>;
+                    });
+                  })() : m.content}
+                </div>
               </div>
             ))}
             {loading && (
