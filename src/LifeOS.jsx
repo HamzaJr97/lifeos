@@ -5570,202 +5570,385 @@ function CatManagerItem({ cat, isBuiltin, isCustom, subcats, newSub, role, displ
 // Barème 2024 — modèle quotient familial + décote
 // ─────────────────────────────────────────────
 function FrenchTaxCalculator({ T, s, settings }) {
+  const [year, setYear]         = useState('2024');
   const [gross, setGross]       = useState('');
-  const [status, setStatus]     = useState('single');   // single | married | pacs
+  const [status, setStatus]     = useState('single');
   const [parts, setParts]       = useState('1');
+  const [pensions, setPensions] = useState(''); // Pensions alimentaires (charges déductibles)
   const [donations, setDonations] = useState('');
+  const [pasWithheld, setPasWithheld] = useState(''); // Retenue à la source déjà prélevée
+  const [creditImpot, setCreditImpot] = useState(''); // Avance / crédits d'impôt
   const [result, setResult]     = useState(null);
+  // Tax history (saved results per year)
+  const [history, setHistory]   = useLocalStorage('los_tax_history', {});
 
-  // 2024 tax brackets (per part)
-  const TRANCHES = [
-    { min: 0,      max: 11294,  rate: 0.00 },
-    { min: 11294,  max: 28797,  rate: 0.11 },
-    { min: 28797,  max: 82341,  rate: 0.30 },
-    { min: 82341,  max: 177106, rate: 0.41 },
-    { min: 177106, max: Infinity, rate: 0.45 },
-  ];
+  // 2024 brackets — per part
+  const BAREME = {
+    '2024': [
+      { min:0,      max:11294,   rate:0.00 },
+      { min:11294,  max:28797,   rate:0.11 },
+      { min:28797,  max:82341,   rate:0.30 },
+      { min:82341,  max:177106,  rate:0.41 },
+      { min:177106, max:Infinity,rate:0.45 },
+    ],
+    '2023': [
+      { min:0,      max:10778,   rate:0.00 },
+      { min:10778,  max:27478,   rate:0.11 },
+      { min:27478,  max:78570,   rate:0.30 },
+      { min:78570,  max:168994,  rate:0.41 },
+      { min:168994, max:Infinity,rate:0.45 },
+    ],
+  };
 
-  function applyBareme(revenuParPart) {
+  function applyBareme(revenuParPart, tranches) {
     let tax = 0;
-    for (const t of TRANCHES) {
+    for (const t of tranches) {
       if (revenuParPart <= t.min) break;
-      const tranche = Math.min(revenuParPart, t.max) - t.min;
-      tax += tranche * t.rate;
+      tax += (Math.min(revenuParPart, t.max) - t.min) * t.rate;
     }
     return tax;
   }
 
   function calcTax() {
-    const G = parseFloat(gross) || 0;
-    const P = parseFloat(parts) || 1;
-    const D = parseFloat(donations) || 0;
-
-    // Step 1: Abattement 10%
-    const taxable = G * 0.9;
-
-    // Step 2: Quotient familial → tax per part × nb parts
-    const revenuParPart = taxable / P;
-    const taxBrut = applyBareme(revenuParPart) * P;
-
-    // Décote 2024: if tax < 1929 (single) or 3191 (couple)
+    const G       = parseFloat(gross)     || 0;
+    const P       = parseFloat(parts)     || 1;
+    const PENS    = parseFloat(pensions)  || 0;
+    const D       = parseFloat(donations) || 0;
+    const PAS     = parseFloat(pasWithheld) || 0;
+    const CRED    = parseFloat(creditImpot) || 0;
+    const tranches = BAREME[year] || BAREME['2024'];
     const isCouple = status === 'married' || status === 'pacs';
+
+    // ── Step 1: Revenu brut global ──────────────────
+    const abattement   = G * 0.10;               // 10% déduction frais pro
+    const salaireNet   = G - abattement;         // Salaires nets
+    const revenuBrut   = salaireNet;             // = Revenu brut global
+
+    // ── Charges déductibles (pensions alimentaires) ─
+    const revenuImposable = Math.max(0, revenuBrut - PENS);
+
+    // ── Step 2: Barème × quotient familial ──────────
+    const revenuParPart = revenuImposable / P;
+    const impotBrut     = applyBareme(revenuParPart, tranches) * P;
+
+    // ── Décote ──────────────────────────────────────
     const decoteSeuil = isCouple ? 3191 : 1929;
     const decoteBase  = isCouple ? 2120 : 1444;
     let decote = 0;
-    if (taxBrut > 0 && taxBrut < decoteSeuil) {
-      decote = Math.max(0, decoteBase - taxBrut * 0.4525);
+    if (impotBrut > 0 && impotBrut < decoteSeuil) {
+      decote = Math.max(0, decoteBase - impotBrut * 0.4525);
     }
+    const impotAvantReductions = Math.max(0, impotBrut - decote);
 
-    // Step 3: Réduction dons (66% for associations, 75% for humanitarian)
-    const reductionDons = D * 0.66;
+    // ── Step 3: Réductions d'impôt ──────────────────
+    const reductionDons = D * 0.66;   // 66% dons aux œuvres (75% for humanitarian — simplified)
+    const impotNet = Math.max(0, impotAvantReductions - reductionDons);
 
-    const taxFinal = Math.max(0, taxBrut - decote - reductionDons);
-    const tauxEffectif = G > 0 ? (taxFinal / G) * 100 : 0;
-    const tauxMarginal = TRANCHES.slice().reverse().find(t => taxable / P > t.min)?.rate || 0;
-    const netApresImpot = G - taxFinal;
+    // ── Solde à payer ────────────────────────────────
+    const soldeDu = Math.max(0, impotNet - PAS + CRED);  // + advance car crédit réduit
+    const soldeReel = impotNet - PAS + CRED; // can be negative (remboursement)
 
-    // Monthly breakdown
-    const mensualImpot = taxFinal / 12;
-    const mensualNet   = netApresImpot / 12;
+    const tauxEffectif = G > 0 ? (impotNet / G) * 100 : 0;
+    const tauxMarginal = tranches.slice().reverse().find(t => revenuParPart > t.min)?.rate || 0;
 
-    // Breakdown by tranche
-    const revenuParPartVal = taxable / P;
-    const breakdown = TRANCHES.map(t => {
-      if (revenuParPartVal <= t.min) return null;
-      const trancheAmt = (Math.min(revenuParPartVal, t.max) - t.min) * P;
-      const taxAmt     = trancheAmt * t.rate;
-      if (taxAmt === 0 && t.rate === 0) return { label: `0% (jusqu'à ${fmtN(t.max * P * 1.11)} €)`, amount: 0, rate: 0, base: trancheAmt };
-      return { label: `${(t.rate*100).toFixed(0)}%`, amount: taxAmt, rate: t.rate, base: trancheAmt };
-    }).filter(Boolean);
-
-    setResult({ taxable, taxBrut, decote, reductionDons, taxFinal, tauxEffectif, tauxMarginal, netApresImpot, mensualImpot, mensualNet, breakdown, G, P });
+    const res = {
+      G, P, PENS, D, PAS, CRED,
+      abattement, salaireNet, revenuBrut, revenuImposable,
+      impotBrut, decote, impotAvantReductions, reductionDons,
+      impotNet, soldeReel,
+      tauxEffectif, tauxMarginal,
+      mensuelNet: (G - impotNet) / 12,
+      mensuelImpot: impotNet / 12,
+    };
+    setResult(res);
   }
 
-  const cur = settings?.currency || '€';
+  function saveYear() {
+    if (!result) return;
+    setHistory(h => ({ ...h, [year]: { ...result, savedAt: new Date().toISOString() } }));
+  }
+
+  function loadYear(y) {
+    const saved = history[y];
+    if (!saved) return;
+    setGross(String(saved.G || ''));
+    setParts(String(saved.P || '1'));
+    setPensions(String(saved.PENS || ''));
+    setDonations(String(saved.D || ''));
+    setPasWithheld(String(saved.PAS || ''));
+    setCreditImpot(String(saved.CRED || ''));
+    setResult(saved);
+  }
+
+  const cur = '€';
+  const savedYears = Object.keys(history).sort((a,b) => b-a);
 
   return (
     <div style={{display:'flex', flexDirection:'column', gap:'20px'}}>
-      <div style={s.card}>
-        <div style={s.cardTitle}>🇫🇷 Simulateur Impôt sur le Revenu 2024</div>
-        <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'16px'}}>Barème officiel · Quotient familial · Décote · Réductions</div>
 
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'16px'}}>
+      {/* Year selector + saved history */}
+      <div style={{display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap'}}>
+        <div style={{fontSize:'13px', fontWeight:'700', color:T.textMuted}}>Année fiscale :</div>
+        {['2024','2023','2022'].map(y => (
+          <button key={y} onClick={() => { setYear(y); if(history[y]) loadYear(y); }}
+            style={{...s.btnGhost, padding:'6px 14px', fontSize:'13px',
+              background: year===y ? T.accentSoft : 'transparent',
+              color: year===y ? T.accent : T.textMuted,
+              borderColor: year===y ? T.accent+'55' : T.border,
+              fontWeight: year===y ? '700' : '400',
+            }}>
+            {y} {history[y] ? '✓' : ''}
+          </button>
+        ))}
+        {savedYears.length > 0 && (
+          <div style={{fontSize:'11px', color:T.textMuted}}>({savedYears.length} année(s) sauvegardée(s))</div>
+        )}
+      </div>
+
+      <div style={s.card}>
+        <div style={{fontFamily:"'Syne',sans-serif", fontSize:'17px', fontWeight:'900', marginBottom:'4px'}}>🇫🇷 Impôt sur le Revenu {year}</div>
+        <div style={{fontSize:'12px', color:T.textMuted, marginBottom:'20px'}}>Barème officiel · Quotient familial · Pensions alimentaires · Décote · Réductions</div>
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px'}}>
           {/* Salaire brut */}
           <div style={{gridColumn:'1/-1'}}>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Salaire brut annuel (€)</div>
-            <input type="number" placeholder="ex: 45000" style={{...s.input, width:'100%'}} value={gross} onChange={e=>setGross(e.target.value)} />
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Salaires bruts annuels (€)</div>
+            <input type="number" placeholder="ex: 31732" style={{...s.input, width:'100%', fontSize:'16px', padding:'12px'}} value={gross} onChange={e=>setGross(e.target.value)} />
           </div>
 
-          {/* Situation maritale */}
           <div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Situation familiale</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Situation familiale</div>
             <select style={{...s.select, width:'100%'}} value={status} onChange={e=>setStatus(e.target.value)}>
-              <option value="single">Célibataire / Divorcé</option>
+              <option value="single">Célibataire / Veuf(ve)</option>
               <option value="married">Marié(e)</option>
               <option value="pacs">Pacsé(e)</option>
             </select>
           </div>
 
-          {/* Nombre de parts */}
           <div>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Nombre de parts (QF)</div>
-            <input type="number" min="1" max="10" step="0.5" placeholder="ex: 2.5" style={{...s.input, width:'100%'}} value={parts} onChange={e=>setParts(e.target.value)} />
-            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>1 seul · +1 conjoint · +0.5 par enfant</div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Nombre de parts (QF)</div>
+            <input type="number" min="1" max="10" step="0.5" placeholder="1" style={{...s.input, width:'100%'}} value={parts} onChange={e=>setParts(e.target.value)} />
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>1 seul · +1 conjoint · +0.5/enfant</div>
+          </div>
+
+          {/* Pensions alimentaires — charge déductible */}
+          <div style={{gridColumn:'1/-1', background:`${T.warning}0a`, border:`1px solid ${T.warning}25`, borderRadius:'12px', padding:'14px'}}>
+            <div style={{fontSize:'11px', fontWeight:'700', color:T.warning, marginBottom:'4px', textTransform:'uppercase', letterSpacing:'0.8px'}}>
+              🇲🇦 Pensions alimentaires versées (€) — Charge déductible
+            </div>
+            <input type="number" placeholder="ex: 2972" style={{...s.input, width:'100%'}} value={pensions} onChange={e=>setPensions(e.target.value)} />
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'4px'}}>Déduit du revenu global avant calcul du barème (Art. 156 CGI)</div>
           </div>
 
           {/* Dons */}
           <div style={{gridColumn:'1/-1'}}>
-            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'600'}}>Dons & mécénat annuels (€) <span style={{color:T.accent}}>→ réduction 66%</span></div>
-            <input type="number" placeholder="0" style={{...s.input, width:'100%'}} value={donations} onChange={e=>setDonations(e.target.value)} />
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Dons aux œuvres (€) <span style={{color:T.accent, textTransform:'none'}}>→ réduction 66%</span></div>
+            <input type="number" placeholder="ex: 165" style={{...s.input, width:'100%'}} value={donations} onChange={e=>setDonations(e.target.value)} />
+          </div>
+
+          {/* PAS already withheld */}
+          <div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>PAS prélevé à la source (€)</div>
+            <input type="number" placeholder="ex: 437" style={{...s.input, width:'100%'}} value={pasWithheld} onChange={e=>setPasWithheld(e.target.value)} />
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>Retenu par votre employeur en {year}</div>
+          </div>
+
+          {/* Avance / crédits d'impôt */}
+          <div>
+            <div style={{fontSize:'11px', color:T.textMuted, marginBottom:'4px', fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px'}}>Avance / Crédits d'impôt (€)</div>
+            <input type="number" placeholder="ex: 65" style={{...s.input, width:'100%'}} value={creditImpot} onChange={e=>setCreditImpot(e.target.value)} />
+            <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>Versés par l'État en avance</div>
           </div>
         </div>
 
-        <button onClick={calcTax} style={{...s.btn, width:'100%', padding:'12px'}}>
-          Calculer mon impôt 2024
-        </button>
+        <div style={{display:'flex', gap:'10px', marginTop:'20px'}}>
+          <button onClick={calcTax} style={{...s.btn, flex:1, padding:'13px', fontSize:'14px', fontWeight:'800'}}>
+            Calculer l'impôt {year}
+          </button>
+          {result && (
+            <button onClick={saveYear} style={{...s.btnGhost, padding:'13px 18px', fontSize:'13px', fontWeight:'700', color:T.success, borderColor:T.success+'44'}}>
+              💾 Sauvegarder
+            </button>
+          )}
+        </div>
       </div>
 
-      {result && (
-        <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
+      {result && (() => {
+        const soldePositif = result.soldeReel >= 0;
+        return (
+          <div style={{display:'flex', flexDirection:'column', gap:'16px'}}>
 
-          {/* Summary cards */}
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px'}}>
-            {[
-              { label:'Impôt total', value:`${fmtN(Math.round(result.taxFinal))} €`, color:result.taxFinal > 0 ? T.danger : T.success, sub:'Net annuel à payer' },
-              { label:'Taux effectif', value:`${result.tauxEffectif.toFixed(2)}%`, color:T.warning, sub:`Tranche marginale ${(result.tauxMarginal*100).toFixed(0)}%` },
-              { label:'Revenu net/mois', value:`${fmtN(Math.round(result.mensualNet))} €`, color:T.success, sub:`−${fmtN(Math.round(result.mensualImpot))} € impôt/mois` },
-            ].map((c,i) => (
-              <div key={i} style={{...s.card, background:`${c.color}0e`, borderColor:`${c.color}30`, textAlign:'center'}}>
-                <div style={{fontSize:'10px', color:T.textMuted, fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'6px'}}>{c.label}</div>
-                <div style={{fontSize:'20px', fontWeight:'900', color:c.color, fontFamily:"'Syne',sans-serif"}}>{c.value}</div>
-                <div style={{fontSize:'10px', color:T.textMuted, marginTop:'4px'}}>{c.sub}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Step-by-step calculation */}
-          <div style={s.card}>
-            <div style={s.cardTitle}>📐 Détail du calcul</div>
-            <div style={{display:'flex', flexDirection:'column', gap:'0'}}>
+            {/* Top summary */}
+            <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px'}}>
               {[
-                { step:'1', label:'Salaire brut', val:`${fmtN(Math.round(result.G))} €`, note:'' },
-                { step:'', label:'Abattement 10% (frais professionnels)', val:`− ${fmtN(Math.round(result.G * 0.1))} €`, note:'', dim:true },
-                { step:'', label:'Revenu net imposable', val:`= ${fmtN(Math.round(result.taxable))} €`, note:'', bold:true },
-                { step:'2', label:`Quotient familial (÷ ${result.P} parts)`, val:`${fmtN(Math.round(result.taxable / result.P))} € / part`, note:'' },
-                { step:'', label:'Impôt brut (barème × parts)', val:`${fmtN(Math.round(result.taxBrut))} €`, note:'', bold:true },
-                ...(result.decote > 0 ? [{ step:'3a', label:'Décote', val:`− ${fmtN(Math.round(result.decote))} €`, note:'Allègement pour petits impôts', dim:true }] : []),
-                ...(result.reductionDons > 0 ? [{ step:'3b', label:'Réduction dons (66%)', val:`− ${fmtN(Math.round(result.reductionDons))} €`, note:'', dim:true }] : []),
-                { step:'=', label:'Impôt net à payer', val:`${fmtN(Math.round(result.taxFinal))} €`, note:'', bold:true, accent:true },
-              ].map((row, i) => (
-                <div key={i} style={{display:'flex', alignItems:'center', gap:'10px', padding:'9px 0', borderBottom:`1px solid ${T.border}44`}}>
-                  <div style={{width:'24px', height:'24px', borderRadius:'50%', background: row.accent ? T.accent : row.step ? T.accent+'22' : 'transparent', border: row.step ? `1px solid ${T.accent}44` : 'none', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
-                    <span style={{fontSize:'9px', fontWeight:'800', color: row.accent ? '#fff' : T.accent}}>{row.step}</span>
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:'12px', color: row.dim ? T.textMuted : T.text, fontWeight: row.bold ? '700' : '400'}}>{row.label}</div>
-                    {row.note && <div style={{fontSize:'10px', color:T.textMuted}}>{row.note}</div>}
-                  </div>
-                  <div style={{fontSize:'13px', fontWeight: row.bold ? '800' : '600', color: row.accent ? T.accent : row.dim ? T.textMuted : T.text, fontFamily:"'Syne',sans-serif"}}>{row.val}</div>
+                { label:'Impôt net', value:`${fmtN(Math.round(result.impotNet))} €`, color:T.danger, sub:`Taux effectif ${result.tauxEffectif.toFixed(2)}%` },
+                { label:'Solde à payer', value:`${soldePositif ? '' : '− '}${fmtN(Math.abs(Math.round(result.soldeReel)))} €`, color:soldePositif ? T.danger : T.success, sub: soldePositif ? 'Reste à régler' : '🎉 Remboursement' },
+                { label:'Revenu net/mois', value:`${fmtN(Math.round(result.mensuelNet))} €`, color:T.success, sub:`après ${fmtN(Math.round(result.mensuelImpot))} €/mois impôt` },
+              ].map((c,i) => (
+                <div key={i} style={{...s.card, background:`${c.color}0d`, borderColor:`${c.color}28`, textAlign:'center', padding:'16px 12px'}}>
+                  <div style={{fontSize:'10px', color:T.textMuted, fontWeight:'700', textTransform:'uppercase', letterSpacing:'1px', marginBottom:'6px'}}>{c.label}</div>
+                  <div style={{fontSize:'19px', fontWeight:'900', color:c.color, fontFamily:"'Syne',sans-serif", lineHeight:1}}>{c.value}</div>
+                  <div style={{fontSize:'10px', color:T.textMuted, marginTop:'5px'}}>{c.sub}</div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Tranche breakdown */}
-          <div style={s.card}>
-            <div style={s.cardTitle}>📊 Répartition par tranche</div>
-            {result.breakdown.map((b, i) => (
-              <div key={i} style={{marginBottom:'10px'}}>
-                <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'4px'}}>
-                  <span style={{color:T.text, fontWeight:'600'}}>Tranche {b.label}</span>
-                  <span style={{color: b.rate === 0 ? T.success : b.rate < 0.3 ? T.warning : T.danger, fontWeight:'700'}}>
-                    {fmtN(Math.round(b.amount))} €
-                  </span>
-                </div>
-                <div style={{height:'6px', borderRadius:'99px', background:T.textDim||T.border, overflow:'hidden'}}>
-                  <div style={{height:'100%', width: result.taxBrut > 0 ? `${(b.amount/result.taxBrut)*100}%` : '0%', background: b.rate === 0 ? T.success : b.rate < 0.3 ? T.warning : T.danger, borderRadius:'99px', transition:'width 0.6s'}} />
-                </div>
-                <div style={{fontSize:'10px', color:T.textMuted, marginTop:'2px'}}>Base imposable : {fmtN(Math.round(b.base))} €</div>
+            {/* Step-by-step — mirrors the real tax notice */}
+            <div style={s.card}>
+              <div style={{fontFamily:"'Syne',sans-serif", fontSize:'14px', fontWeight:'900', marginBottom:'16px', color:T.text}}>📄 Détail du calcul — Avis d'imposition {year}</div>
+
+              {/* Section: Revenus */}
+              <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Détail des revenus</div>
+                {[
+                  { label:'Salaires bruts',                    val:`${fmtN(Math.round(result.G))} €`,           bold:false },
+                  { label:'Déduction 10% (frais professionnels)',val:`− ${fmtN(Math.round(result.abattement))} €`, dim:true },
+                  { label:'Salaires, pensions, rentes nets',   val:`${fmtN(Math.round(result.salaireNet))} €`,  bold:true },
+                  { label:'Revenu brut global',                 val:`${fmtN(Math.round(result.revenuBrut))} €`, bold:true, separator:true },
+                ].map((r,i) => <TaxRow key={i} T={T} {...r} />)}
               </div>
-            ))}
-          </div>
 
-          {/* Prélèvement à la source */}
-          <div style={{...s.card, background:`${T.accent}0a`, borderColor:`${T.accent}25`}}>
-            <div style={{fontSize:'12px', color:T.accent, fontWeight:'700', marginBottom:'8px', display:'flex', alignItems:'center', gap:'6px'}}>
-              <Info size={13} color={T.accent} /> Prélèvement à la source (PAS)
+              {/* Section: Charges déductibles */}
+              {result.PENS > 0 && (
+                <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.warning}22`}}>
+                  <div style={{fontSize:'10px', fontWeight:'800', color:T.warning, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Charges déductibles du revenu global</div>
+                  <TaxRow T={T} label="Pensions alimentaires versées 🇲🇦" val={`− ${fmtN(Math.round(result.PENS))} €`} dim />
+                  <TaxRow T={T} label="Total des charges déduites" val={`− ${fmtN(Math.round(result.PENS))} €`} bold separator />
+                  <TaxRow T={T} label="Revenu imposable" val={`${fmtN(Math.round(result.revenuImposable))} €`} bold accent />
+                </div>
+              )}
+              {result.PENS === 0 && (
+                <div style={{marginBottom:'12px'}}>
+                  <TaxRow T={T} label="Revenu imposable" val={`${fmtN(Math.round(result.revenuImposable))} €`} bold accent />
+                </div>
+              )}
+
+              {/* Section: Barème */}
+              <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Impôt soumis au barème</div>
+                <TaxRow T={T} label={`Impôt brut (${result.P} part${result.P>1?'s':''})`} val={`${fmtN(Math.round(result.impotBrut))} €`} />
+                {result.decote > 0 && <TaxRow T={T} label="Décote" val={`− ${fmtN(Math.round(result.decote))} €`} dim />}
+                <TaxRow T={T} label="Impôt avant réductions" val={`${fmtN(Math.round(result.impotAvantReductions))} €`} bold separator />
+              </div>
+
+              {/* Section: Réductions */}
+              {result.D > 0 && (
+                <div style={{background:T.surface, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:'10px', fontWeight:'800', color:T.accent, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Réductions d'impôt</div>
+                  <TaxRow T={T} label={`Dons aux œuvres (${fmtN(result.D)} € × 66%)`} val={`− ${fmtN(Math.round(result.reductionDons))} €`} dim />
+                  <TaxRow T={T} label="Total réductions" val={`− ${fmtN(Math.round(result.reductionDons))} €`} bold separator />
+                </div>
+              )}
+
+              {/* IMPÔT NET */}
+              <div style={{background:`${T.danger}0e`, borderRadius:'10px', padding:'12px 14px', marginBottom:'12px', border:`1px solid ${T.danger}25`}}>
+                <div style={{fontSize:'10px', fontWeight:'800', color:T.danger, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Impôt net</div>
+                <TaxRow T={T} label="Total de l'impôt sur le revenu net" val={`${fmtN(Math.round(result.impotNet))} €`} bold accent />
+              </div>
+
+              {/* SOLDE */}
+              <div style={{background: soldePositif ? `${T.danger}0e` : `${T.success}0e`, borderRadius:'10px', padding:'12px 14px', border:`1px solid ${soldePositif ? T.danger : T.success}25`}}>
+                <div style={{fontSize:'10px', fontWeight:'800', color: soldePositif ? T.danger : T.success, textTransform:'uppercase', letterSpacing:'1.5px', marginBottom:'10px'}}>Calcul du solde {year}</div>
+                <TaxRow T={T} label={`Impôt sur le revenu dû`} val={`${fmtN(Math.round(result.impotNet))} €`} />
+                {result.PAS > 0 && <TaxRow T={T} label="Retenue à la source prélevée" val={`− ${fmtN(Math.round(result.PAS))} €`} dim />}
+                {result.CRED !== 0 && <TaxRow T={T} label="Avance perçue sur crédits d'impôt" val={`+ ${fmtN(Math.round(result.CRED))} €`} dim />}
+                <div style={{height:'1px', background:T.border, margin:'8px 0'}} />
+                <TaxRow T={T}
+                  label={soldePositif ? "SOLDE RESTANT À PAYER" : "MONTANT À REMBOURSER"}
+                  val={`${soldePositif?'':'− '}${fmtN(Math.abs(Math.round(result.soldeReel)))} €`}
+                  bold accent color={soldePositif ? T.danger : T.success} />
+              </div>
             </div>
-            <div style={{fontSize:'12px', color:T.text, lineHeight:1.7}}>
-              Taux personnalisé estimé : <strong style={{color:T.accent}}>{result.tauxEffectif.toFixed(1)}%</strong><br/>
-              Retenue mensuelle : <strong style={{color:T.accent}}>{fmtN(Math.round(result.mensualImpot))} €/mois</strong><br/>
-              Salaire net après impôt : <strong style={{color:T.success}}>{fmtN(Math.round(result.mensualNet))} €/mois</strong>
+
+            {/* Tranche breakdown bars */}
+            <div style={s.card}>
+              <div style={{fontFamily:"'Syne',sans-serif", fontSize:'14px', fontWeight:'900', marginBottom:'14px'}}>📊 Répartition par tranche d'imposition</div>
+              {(BAREME[year]||BAREME['2024']).map((t, i) => {
+                const base = Math.max(0, Math.min(result.revenuImposable / result.P, t.max) - t.min) * result.P;
+                const tax  = base * t.rate;
+                if (result.revenuImposable / result.P <= t.min) return null;
+                const pct  = result.impotBrut > 0 ? (tax / result.impotBrut) * 100 : (base / result.revenuImposable * 100);
+                const col  = t.rate === 0 ? T.success : t.rate < 0.3 ? T.warning : t.rate < 0.41 ? T.danger : '#ff2255';
+                return (
+                  <div key={i} style={{marginBottom:'12px'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginBottom:'5px'}}>
+                      <span style={{color:T.text, fontWeight:'600'}}>
+                        Tranche {(t.rate*100).toFixed(0)}%
+                        <span style={{fontSize:'10px', color:T.textMuted, fontWeight:'400', marginLeft:'8px'}}>
+                          ({fmtN(t.min * result.P)} — {t.max === Infinity ? '∞' : fmtN(t.max * result.P)} €)
+                        </span>
+                      </span>
+                      <span style={{color:col, fontWeight:'800', fontFamily:"'Syne',sans-serif"}}>{fmtN(Math.round(tax))} €</span>
+                    </div>
+                    <div style={{height:'8px', borderRadius:'99px', background:`${T.border}`, overflow:'hidden'}}>
+                      <div style={{height:'100%', width:`${Math.max(pct,tax>0?3:0)}%`, background:col, borderRadius:'99px', transition:'width 0.6s ease'}} />
+                    </div>
+                    <div style={{fontSize:'10px', color:T.textMuted, marginTop:'3px'}}>Base imposable dans cette tranche : {fmtN(Math.round(base))} €</div>
+                  </div>
+                );
+              }).filter(Boolean)}
+              <div style={{marginTop:'12px', padding:'10px 12px', background:`${T.accent}0a`, borderRadius:'10px', border:`1px solid ${T.accent}22`, display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
+                <span style={{color:T.textMuted}}>Taux marginal d'imposition</span>
+                <span style={{color:T.accent, fontWeight:'800'}}>{(result.tauxMarginal*100).toFixed(0)}%</span>
+              </div>
             </div>
+
+          </div>
+        );
+      })()}
+
+      {/* Year comparison table */}
+      {savedYears.length > 0 && (
+        <div style={s.card}>
+          <div style={{fontFamily:"'Syne',sans-serif", fontSize:'14px', fontWeight:'900', marginBottom:'14px'}}>📈 Historique par année</div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
+              <thead>
+                <tr style={{borderBottom:`2px solid ${T.border}`}}>
+                  {['Année','Revenu brut','Revenu imposable','Impôt net','Taux effectif','Solde'].map(h => (
+                    <th key={h} style={{padding:'8px 10px', textAlign:'right', color:T.textMuted, fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px', fontSize:'10px', whiteSpace:'nowrap'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {savedYears.map(y => {
+                  const r = history[y];
+                  const solde = r.soldeReel;
+                  return (
+                    <tr key={y} style={{borderBottom:`1px solid ${T.border}44`, cursor:'pointer'}} onClick={() => { setYear(y); loadYear(y); }}>
+                      <td style={{padding:'10px', fontWeight:'800', color:T.accent, fontFamily:"'Syne',sans-serif"}}>{y}</td>
+                      <td style={{padding:'10px', textAlign:'right', color:T.text}}>{fmtN(Math.round(r.G))} €</td>
+                      <td style={{padding:'10px', textAlign:'right', color:T.text}}>{fmtN(Math.round(r.revenuImposable))} €</td>
+                      <td style={{padding:'10px', textAlign:'right', fontWeight:'700', color:T.danger}}>{fmtN(Math.round(r.impotNet))} €</td>
+                      <td style={{padding:'10px', textAlign:'right', color:T.warning}}>{r.tauxEffectif.toFixed(2)}%</td>
+                      <td style={{padding:'10px', textAlign:'right', fontWeight:'800', color: solde >= 0 ? T.danger : T.success}}>
+                        {solde >= 0 ? '' : '− '}{fmtN(Math.abs(Math.round(solde)))} €
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
     </div>
   );
 }
+
+// ── TaxRow helper ──────────────────────────────
+function TaxRow({ T, label, val, bold, dim, separator, accent, color }) {
+  return (
+    <>
+      {separator && <div style={{height:'1px', background:T.border, margin:'6px 0'}} />}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 0'}}>
+        <span style={{fontSize:'12px', color: dim ? T.textMuted : T.text, fontWeight: bold ? '700' : '400', flex:1, paddingRight:'12px'}}>{label}</span>
+        <span style={{fontSize:'13px', fontWeight: bold ? '800' : '600', color: color || (accent ? T.accent : dim ? T.textMuted : T.text), fontFamily: bold ? "'Syne',sans-serif" : 'inherit', whiteSpace:'nowrap'}}>{val}</span>
+      </div>
+    </>
+  );
+}
+
 
 function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
   const [subTab, setSubTab] = useState('hoard');
@@ -17019,6 +17202,8 @@ function MoroccoFamilyTracker({ T, s, settings, expenses }) {
   const [transfers, setTransfers] = useLocalStorage('los_morocco_transfers', []);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), amount: '', note: '', method: 'Western Union' });
   const [showForm, setShowForm] = useState(false);
+  const thisYear = String(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(thisYear);
 
   const METHODS = ['Western Union', 'MoneyGram', 'Wise', 'Bank Transfer', 'Cash', 'Other'];
 
@@ -17033,24 +17218,26 @@ function MoroccoFamilyTracker({ T, s, settings, expenses }) {
     setTransfers(ts => ts.filter(t => t.id !== id));
   }
 
-  const currentYear = new Date().getFullYear();
-  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MONTH_NAMES = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
-  // Build monthly totals for current year
+  // All years with data (+ current year always present)
+  const allYears = [...new Set([thisYear, ...transfers.map(t => t.date?.slice(0,4)).filter(Boolean)])].sort((a,b) => b-a);
+
+  // Monthly totals for selectedYear
   const monthlyTotals = Array.from({ length: 12 }, (_, mi) => {
-    const key = `${currentYear}-${String(mi+1).padStart(2,'0')}`;
+    const key = `${selectedYear}-${String(mi+1).padStart(2,'0')}`;
     const total = transfers.filter(t => t.date?.startsWith(key)).reduce((s, t) => s + Number(t.amount||0), 0);
     return { month: MONTH_NAMES[mi], key, total };
   });
 
   const yearlyTotal = monthlyTotals.reduce((s, m) => s + m.total, 0);
-  const allYears = [...new Set(transfers.map(t => t.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
   const yearTotals = allYears.map(y => ({
     year: y,
     total: transfers.filter(t => t.date?.startsWith(y)).reduce((s,t) => s + Number(t.amount||0), 0)
   }));
 
-  const recentTransfers = [...transfers].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,10);
+  // Transfers for selected year, sorted
+  const yearTransfers = [...transfers].filter(t => t.date?.startsWith(selectedYear)).sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
   return (
     <div style={{...s.card}}>
@@ -17060,7 +17247,7 @@ function MoroccoFamilyTracker({ T, s, settings, expenses }) {
           <div style={{textAlign:'left'}}>
             <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
               <span style={{fontWeight:'700',fontSize:'14px',color:T.text}}>Family Transfers — Morocco</span>
-              <span style={{background:T.accent+'22',color:T.accent,fontSize:'10px',fontWeight:'800',padding:'2px 8px',borderRadius:'99px'}}>{currentYear}: {settings.currency}{fmtN(yearlyTotal)}</span>
+              <span style={{background:T.accent+'22',color:T.accent,fontSize:'10px',fontWeight:'800',padding:'2px 8px',borderRadius:'99px'}}>{selectedYear}: {settings.currency}{fmtN(yearlyTotal)}</span>
             </div>
             <div style={{fontSize:'11px',color:T.textMuted}}>Track money sent to family · Yearly totals by month</div>
           </div>
@@ -17073,9 +17260,23 @@ function MoroccoFamilyTracker({ T, s, settings, expenses }) {
 
           {/* Year summary bar chart */}
           <div style={{background:T.surface,borderRadius:'12px',padding:'14px',border:`1px solid ${T.border}`}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
-              <div style={{fontSize:'12px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px'}}>MONTHLY BREAKDOWN — {currentYear}</div>
-              <div style={{fontSize:'13px',fontWeight:'700',color:T.accent}}>Total: {settings.currency}{fmtN(yearlyTotal)}</div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',flexWrap:'wrap',gap:'8px'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                <div style={{fontSize:'11px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px'}}>VIREMENTS MENSUELS</div>
+                {/* Year selector */}
+                <div style={{display:'flex',gap:'4px'}}>
+                  {allYears.map(y => (
+                    <button key={y} onClick={()=>setSelectedYear(y)}
+                      style={{padding:'3px 10px',borderRadius:'99px',border:`1px solid ${selectedYear===y?T.accent+'66':T.border}`,
+                        background:selectedYear===y?T.accentSoft:'transparent',
+                        color:selectedYear===y?T.accent:T.textMuted,
+                        fontSize:'11px',fontWeight:selectedYear===y?'800':'500',cursor:'pointer'}}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{fontSize:'13px',fontWeight:'700',color:T.accent}}>Total {selectedYear}: {settings.currency}{fmtN(yearlyTotal)}</div>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(12,1fr)',gap:'4px',alignItems:'flex-end',height:'60px'}}>
               {monthlyTotals.map(m => {
@@ -17138,11 +17339,11 @@ function MoroccoFamilyTracker({ T, s, settings, expenses }) {
           )}
 
           {/* Recent transfers */}
-          {recentTransfers.length > 0 && (
+          {yearTransfers.length > 0 && (
             <div>
-              <div style={{fontSize:'11px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px',marginBottom:'8px'}}>RECENT TRANSFERS</div>
+              <div style={{fontSize:'11px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px',marginBottom:'8px'}}>VIREMENTS {selectedYear}</div>
               <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
-                {recentTransfers.map(t => (
+                {yearTransfers.map(t => (
                   <div key={t.id} style={{display:'flex',alignItems:'center',gap:'10px',background:T.surface,borderRadius:'10px',padding:'10px 12px',border:`1px solid ${T.border}`}}>
                     <span style={{fontSize:'16px'}}>🇲🇦</span>
                     <div style={{flex:1}}>
