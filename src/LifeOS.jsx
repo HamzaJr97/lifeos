@@ -1798,7 +1798,7 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
           {activeTab === 'character' && <CharacterTab T={T} s={s} settings={settings} totalXP={totalXP} level={level} xpProgress={xpProgress} heroClass={heroClass} xpForNext={xpForNext} xpForCurrent={xpForCurrent} habits={habits} setHabits={setHabits} habitLogs={habitLogs} setHabitLogs={setHabitLogs} vitals={vitals} savingsRate={savingsRate} netWorth={netWorth} expenses={expenses} achievements={achievements} setAchievements={setAchievements} chronicles={chronicles} setChronicles={setChronicles} getStreak={getStreak} addXP={addXP} setTotalXP={setTotalXP} setXpHistory={setXpHistory} pushUndo={pushUndo} goals={goals} setGoals={setGoals} debts={debts} thisMonthSpend={thisMonthSpend} customChallenges={customChallenges} setCustomChallenges={setCustomChallenges} thisMonthIncome={thisMonthIncome} />}
           {activeTab === 'goals' && <GoalsTab T={T} s={s} goals={goals} setGoals={setGoals} settings={settings} savingsRate={savingsRate} thisMonthIncome={thisMonthIncome} addXP={addXP} goalMilestones={goalMilestones} setGoalMilestones={setGoalMilestones} visionBoard={visionBoard} setVisionBoard={setVisionBoard} pushUndo={pushUndo} investments={investments} debts={debts} />}
           {activeTab === 'debts' && <DebtsTab T={T} s={s} debts={debts} setDebts={setDebts} settings={settings} expenses={expenses} setExpenses={setExpenses} addXP={addXP} pushUndo={pushUndo} goals={goals} setGoals={setGoals} />}
-          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} bondTracker={bondTracker} setBondTracker={setBondTracker} checkins={checkins} setCheckins={setCheckins} expenseRegrets={expenseRegrets} setExpenseRegrets={setExpenseRegrets} assetDepreciation={assetDepreciation} setAssetDepreciation={setAssetDepreciation} freelanceData={freelanceData} setFreelanceData={setFreelanceData} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} />}
+          {activeTab === 'moneyhub' && <MoneyHubTab T={T} s={s} expenses={expenses} setExpenses={setExpenses} incomes={incomes} setIncomes={setIncomes} budgetTargets={budgetTargets} setBudgetTargets={setBudgetTargets} settings={settings} debts={debts} setDebts={setDebts} savingsRate={savingsRate} thisMonthSpend={thisMonthSpend} thisMonthIncome={thisMonthIncome} thisMonthExpenses={thisMonthExpenses} addXP={addXP} recurringExpenses={recurringExpenses} setRecurringExpenses={setRecurringExpenses} subscriptions={subscriptions} setSubscriptions={setSubscriptions} customCategories={customCategories} pushUndo={pushUndo} assets={assets} setAssets={setAssets} investments={investments} netWorth={netWorth} financialHealthScore={financialHealthScore} bills={bills} setBills={setBills} netWorthHistory={netWorthHistory} nwMilestonesHit={nwMilestonesHit} setNwMilestonesHit={setNwMilestonesHit} emergencyFund={emergencyFund} setEmergencyFund={setEmergencyFund} goals={goals} setGoals={setGoals} recurringIncomes={recurringIncomes} setRecurringIncomes={setRecurringIncomes} splitExpenses={splitExpenses} setSplitExpenses={setSplitExpenses} bondTracker={bondTracker} setBondTracker={setBondTracker} checkins={checkins} setCheckins={setCheckins} expenseRegrets={expenseRegrets} setExpenseRegrets={setExpenseRegrets} assetDepreciation={assetDepreciation} setAssetDepreciation={setAssetDepreciation} freelanceData={freelanceData} setFreelanceData={setFreelanceData} weeklyBriefHistory={weeklyBriefHistory} setWeeklyBriefHistory={setWeeklyBriefHistory} vitals={vitals} scenarios={scenarios} setScenarios={setScenarios} coachHistory={coachHistory} setCoachHistory={setCoachHistory} detectedRecurring={detectedRecurring} setDetectedRecurring={setDetectedRecurring} socialChallenges={socialChallenges} setSocialChallenges={setSocialChallenges} reminderSettings={reminderSettings} setReminderSettings={setReminderSettings} />}
           {activeTab === 'portfolio' && <PortfolioHubTab T={T} s={s} investments={investments} setInvestments={setInvestments} settings={settings} expenses={expenses} addXP={addXP} assets={assets} setAssets={setAssets} thisMonthIncome={thisMonthIncome} thisMonthSpend={thisMonthSpend} savingsRate={savingsRate} debts={debts} tradeJournal={tradeJournal} setTradeJournal={setTradeJournal} priceAlerts={priceAlerts} setPriceAlerts={setPriceAlerts} goals={goals} setGoals={setGoals} thesisDates={thesisDates} setThesisDates={setThesisDates} />}
           {activeTab === 'notes' && <NotesTab T={T} s={s} notes={notes} setNotes={setNotes} settings={settings} addXP={addXP} />}
           {activeTab === 'capsule' && <TimeCapsuleTab T={T} s={s} settings={settings} addXP={addXP} />}
@@ -2206,7 +2206,11 @@ XP / LEVEL: Level ${Math.floor(Math.sqrt(totalXP / 100)) + 1}, ${totalXP} XP tot
 // AI ASSISTANT PANEL
 // ─────────────────────────────────────────────
 function AIAssistantPanel({ T, s, settings, onClose, context }) {
-  const [history, setHistory] = useState([]);
+  const todayKey = `los_ai_chat_${new Date().toISOString().slice(0,10)}`;
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(todayKey) || '[]'); } catch { return []; }
+  });
+  const saveHistory = (h) => { setHistory(h); try { localStorage.setItem(todayKey, JSON.stringify(h)); } catch {} };
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [status, setStatus] = useState('idle'); // idle | ok | error
@@ -2280,7 +2284,7 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
     setInput('');
     const userMsg = { role: 'user', content: msg };
     const newHistory = [...history, userMsg];
-    setHistory([...newHistory, { role: 'assistant', content: '', streaming: true }]);
+    saveHistory([...newHistory, { role: 'assistant', content: '', streaming: true }]);
     setStreaming(true);
 
     const controller = new AbortController();
@@ -2314,10 +2318,13 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
             } catch {}
           }
         }
+        // persist final state
+        saveHistory([...newHistory, { role:'assistant', content:assistantText, streaming:false }]);
       } else {
         // Groq / Anthropic: non-streaming
         assistantText = await callAIChat(messages, settings, 700);
-        setHistory(h => { const u = [...h]; u[u.length-1] = { role:'assistant', content:assistantText, streaming:false }; return u; });
+        const finalHistory = [...newHistory, { role:'assistant', content:assistantText, streaming:false }];
+        saveHistory(finalHistory);
       }
       setStatus('ok');
     } catch (err) {
@@ -2326,7 +2333,8 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
       } else {
         const errMsg = err.message?.startsWith('⚠️') ? err.message
           : `🔴 AI error: ${err.message}. Check ⚙️ Settings → AI to configure your provider.`;
-        setHistory(h => { const u=[...h]; u[u.length-1]={role:'assistant',content:errMsg,streaming:false,error:true}; return u; });
+        const errHistory = [...newHistory, {role:'assistant',content:errMsg,streaming:false,error:true}];
+        saveHistory(errHistory);
         setStatus('error');
       }
     } finally {
@@ -2354,7 +2362,7 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
             <div style={{ fontSize:11, color: status==='ok' ? T.success : status==='error' ? T.danger : T.textMuted }}>
               {(() => {
                 const provider = settings.aiProvider || 'groq';
-                if (status === 'ok') return `🟢 ${provider === 'ollama' ? 'Ollama connected' : provider === 'anthropic' ? 'Anthropic ready' : 'Groq ready'}`;
+                if (status === 'ok') return `🟢 ${provider === 'ollama' ? 'Ollama connected' : provider === 'anthropic' ? 'Anthropic ready' : 'Groq ready'} · Saved today`;
                 if (status === 'error') return provider === 'ollama' ? '🔴 Ollama offline' : `🔴 No ${provider === 'anthropic' ? 'Anthropic' : 'Groq'} key — check ⚙️ Settings`;
                 return '⏳ Connecting...';
               })()}
@@ -2432,8 +2440,8 @@ Respond in a warm, motivating tone. Use emojis sparingly. If data is sparse, ack
             }
           </div>
           {history.length > 0 && (
-            <button onClick={() => setHistory([])} style={{ marginTop:8, background:'none', border:'none', color:T.textMuted, cursor:'pointer', fontSize:11 }}>
-              🗑 Clear conversation
+            <button onClick={() => { saveHistory([]); try { localStorage.removeItem(todayKey); } catch {} }} style={{ marginTop:8, background:'none', border:'none', color:T.textMuted, cursor:'pointer', fontSize:11 }}>
+              🗑 Clear today's conversation
             </button>
           )}
         </div>
@@ -5069,7 +5077,7 @@ function CatManagerItem({ cat, isBuiltin, isCustom, subcats, newSub, role, displ
 // ─────────────────────────────────────────────
 // MONEY HUB TAB (Spending + Finance + Discipline + CashFlow)
 // ─────────────────────────────────────────────
-function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals }) {
+function MoneyHubTab({ T, s, expenses, setExpenses, incomes, setIncomes, budgetTargets, setBudgetTargets, settings, debts, setDebts, savingsRate, thisMonthSpend, thisMonthIncome, thisMonthExpenses, addXP, recurringExpenses, setRecurringExpenses, subscriptions, setSubscriptions, customCategories, pushUndo, assets, setAssets, investments, netWorth, financialHealthScore, bills, setBills, budgetTarget, netWorthHistory, nwMilestonesHit, setNwMilestonesHit, emergencyFund, setEmergencyFund, goals, setGoals, recurringIncomes, setRecurringIncomes, splitExpenses, setSplitExpenses, bondTracker, setBondTracker, checkins, setCheckins, expenseRegrets, setExpenseRegrets, assetDepreciation, setAssetDepreciation, freelanceData, setFreelanceData, weeklyBriefHistory, setWeeklyBriefHistory, debts: _d, vitals, scenarios, setScenarios, coachHistory, setCoachHistory, detectedRecurring, setDetectedRecurring, socialChallenges, setSocialChallenges, reminderSettings, setReminderSettings }) {
   const [subTab, setSubTab] = useState('hoard');
 
   return (
@@ -12980,6 +12988,9 @@ function FinanceTab({ T, s, settings, expenses, incomes, debts, assets, savingsR
       {/* F10 — SOCIAL CHALLENGES */}
       <SocialChallengesPanel T={T} s={s} settings={settings} socialChallenges={socialChallenges||[]} setSocialChallenges={setSocialChallenges||(() => {})} expenses={expenses} habits={habits||[]} habitLogs={habitLogs||{}} savingsRate={savingsRate} addXP={addXP} />
 
+      {/* MOROCCO FAMILY TRANSFERS */}
+      <MoroccoFamilyTracker T={T} s={s} settings={settings} expenses={expenses} />
+
       {/* F6 — SMART REMINDERS CONFIG */}
       <SmartRemindersPanel T={T} s={s} reminderSettings={reminderSettings||{}} setReminderSettings={setReminderSettings||(() => {})} expenses={expenses} habits={habits||[]} habitLogs={habitLogs||{}} bills={bills||[]} />
     </div>
@@ -13515,8 +13526,8 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
     },
   ];
 
-  // ── France Travail Auth (via proxy local port 3001) ──
-  const PROXY = 'http://localhost:3001';
+  // ── France Travail Auth (via proxy — local port 3001 or GitHub Codespaces URL) ──
+  const PROXY = (() => { try { return localStorage.getItem('los_ft_proxy_url') || 'http://localhost:3001'; } catch { return 'http://localhost:3001'; } })();
 
   async function getFranceTravailToken() {
     if (!ftClientId || !ftClientSecret) { setShowFtSetup(true); return null; }
@@ -13541,7 +13552,7 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
       setJobError('Authentification France Travail échouée. Vérifie ton Client ID et ta Clé secrète.');
       return null;
     } catch(e) {
-      setJobError('Proxy non joignable (port 3001). Lance "node ft-proxy.js" dans ton terminal.');
+      setJobError('Proxy non joignable. Lance le proxy via GitHub Codespaces (voir guide ci-dessous) ou localement avec "node ft-proxy.js".');
       return null;
     }
   }
@@ -13736,11 +13747,21 @@ function CareerTab({ T, s, settings, careerProfile, setCareerProfile, careerApps
             <strong style={{color:T.accent}}>Étape 1</strong> — Va sur <a href="https://francetravail.io" target="_blank" rel="noreferrer" style={{color:T.accent}}>francetravail.io</a> → <strong>Espace Partenaires → Créer un compte</strong> (gratuit)<br/>
             <strong style={{color:T.accent}}>Étape 2</strong> — Une fois connecté → <strong>Mes applications → Créer une application</strong><br/>
             <strong style={{color:T.accent}}>Étape 3</strong> — Nom : <code style={{background:T.surface,padding:'2px 6px',borderRadius:4}}>LifeOS</code> → Coche <strong>"Offres d'emploi v2"</strong> → Valide<br/>
-            <strong style={{color:T.accent}}>Étape 4</strong> — Copie ton <strong>Identifiant client</strong> et <strong>Clé secrète</strong> ci-dessous
+            <strong style={{color:T.accent}}>Étape 4</strong> — Copie ton <strong>Identifiant client</strong> et <strong>Clé secrète</strong> ci-dessous<br/>
+            <div style={{marginTop:8,padding:'10px 12px',background:T.accentSoft,borderRadius:8,border:`1px solid ${T.accent}33`}}>
+              <strong style={{color:T.accent}}>🚀 Lancer le proxy via GitHub Codespaces</strong><br/>
+              <span style={{fontSize:12,color:T.textMuted}}>
+                1. Ouvre le dépôt LifeOS sur <a href="https://github.com" target="_blank" rel="noreferrer" style={{color:T.accent}}>github.com</a> → clique <strong>Code → Codespaces → New codespace</strong><br/>
+                2. Dans le terminal Codespace : <code style={{background:T.surface,padding:'2px 6px',borderRadius:4}}>node ft-proxy.js</code><br/>
+                3. GitHub expose automatiquement le port 3001 → copie l'URL publique<br/>
+                4. Mets à jour <code style={{background:T.surface,padding:'2px 6px',borderRadius:4}}>const PROXY</code> dans le code avec ton URL Codespace (ex: <em>https://xxx-3001.app.github.dev</em>)
+              </span>
+            </div>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
             <input style={s.input} placeholder="Identifiant client (Client ID)" value={ftClientId} onChange={e=>setFtClientId(e.target.value)} />
             <input style={s.input} placeholder="Clé secrète (Client Secret)" type="password" value={ftClientSecret} onChange={e=>setFtClientSecret(e.target.value)} />
+            <input style={s.input} placeholder="URL Proxy (défaut: http://localhost:3001 ou URL GitHub Codespace)" defaultValue={(() => { try { return localStorage.getItem('los_ft_proxy_url') || ''; } catch { return ''; } })()} onChange={e=>{ try { if(e.target.value) localStorage.setItem('los_ft_proxy_url', e.target.value.trim()); else localStorage.removeItem('los_ft_proxy_url'); } catch {} }} />
           </div>
           <div style={{display:'flex',gap:8}}>
             <button style={s.btn()} onClick={saveFtCredentials}>Sauvegarder & Continuer</button>
@@ -16122,19 +16143,10 @@ Rules: Be specific with their numbers. Give actionable advice. Keep replies unde
     setInput('');
     setLoading(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:300,
-          system: systemPrompt,
-          messages: history.slice(-10)
-        })
-      });
-      const data = await res.json();
-      const reply = data.content?.[0]?.text || 'Sorry, I could not respond right now.';
+      const messages = [{ role:'system', content:systemPrompt }, ...history.slice(-10)];
+      const reply = await callAIChat(messages, settings, 300);
       setCoachHistory([...history, { role:'assistant', content:reply }]);
-    } catch { setCoachHistory([...history, { role:'assistant', content:'Connection error. Check your network.' }]); }
+    } catch(e) { setCoachHistory([...history, { role:'assistant', content:'⚠️ ' + (e.message || 'Connection error.') }]); }
     setLoading(false);
     setTimeout(()=>scrollRef.current?.scrollTo({top:9999,behavior:'smooth'}),100);
   }
@@ -16304,6 +16316,160 @@ const PRESET_CHALLENGES = [
   { id:'log_30',        icon:'📝', name:'30-Day Logger',       desc:'Log an expense every day for 30 days',   duration:30, unit:'days',   xp:120, goal:'log_every_day' },
   { id:'budget_month',  icon:'📊', name:'Stay on Budget',      desc:'Don\'t exceed your budget for a full month', duration:30, unit:'days', xp:150, goal:'budget_month' },
 ];
+
+// ═══════════════════════════════════════════════════════════════════
+// MOROCCO FAMILY TRANSFERS TRACKER
+// ═══════════════════════════════════════════════════════════════════
+function MoroccoFamilyTracker({ T, s, settings, expenses }) {
+  const [open, setOpen] = useState(false);
+  const [transfers, setTransfers] = useLocalStorage('los_morocco_transfers', []);
+  const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), amount: '', note: '', method: 'Western Union' });
+  const [showForm, setShowForm] = useState(false);
+
+  const METHODS = ['Western Union', 'MoneyGram', 'Wise', 'Bank Transfer', 'Cash', 'Other'];
+
+  function addTransfer() {
+    if (!form.amount || isNaN(Number(form.amount))) return;
+    setTransfers(ts => [...ts, { id: Date.now(), ...form, amount: Number(form.amount) }]);
+    setForm(f => ({ ...f, amount: '', note: '' }));
+    setShowForm(false);
+  }
+
+  function removeTransfer(id) {
+    setTransfers(ts => ts.filter(t => t.id !== id));
+  }
+
+  const currentYear = new Date().getFullYear();
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Build monthly totals for current year
+  const monthlyTotals = Array.from({ length: 12 }, (_, mi) => {
+    const key = `${currentYear}-${String(mi+1).padStart(2,'0')}`;
+    const total = transfers.filter(t => t.date?.startsWith(key)).reduce((s, t) => s + Number(t.amount||0), 0);
+    return { month: MONTH_NAMES[mi], key, total };
+  });
+
+  const yearlyTotal = monthlyTotals.reduce((s, m) => s + m.total, 0);
+  const allYears = [...new Set(transfers.map(t => t.date?.slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
+  const yearTotals = allYears.map(y => ({
+    year: y,
+    total: transfers.filter(t => t.date?.startsWith(y)).reduce((s,t) => s + Number(t.amount||0), 0)
+  }));
+
+  const recentTransfers = [...transfers].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,10);
+
+  return (
+    <div style={{...s.card}}>
+      <button onClick={() => setOpen(o => !o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',background:'none',border:'none',cursor:'pointer',padding:0,marginBottom:open?'16px':0}}>
+        <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+          <span style={{fontSize:'20px'}}>🇲🇦</span>
+          <div style={{textAlign:'left'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+              <span style={{fontWeight:'700',fontSize:'14px',color:T.text}}>Family Transfers — Morocco</span>
+              <span style={{background:T.accent+'22',color:T.accent,fontSize:'10px',fontWeight:'800',padding:'2px 8px',borderRadius:'99px'}}>{currentYear}: {settings.currency}{fmtN(yearlyTotal)}</span>
+            </div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Track money sent to family · Yearly totals by month</div>
+          </div>
+        </div>
+        <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{display:'flex',flexDirection:'column',gap:'16px'}}>
+
+          {/* Year summary bar chart */}
+          <div style={{background:T.surface,borderRadius:'12px',padding:'14px',border:`1px solid ${T.border}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px'}}>
+              <div style={{fontSize:'12px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px'}}>MONTHLY BREAKDOWN — {currentYear}</div>
+              <div style={{fontSize:'13px',fontWeight:'700',color:T.accent}}>Total: {settings.currency}{fmtN(yearlyTotal)}</div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(12,1fr)',gap:'4px',alignItems:'flex-end',height:'60px'}}>
+              {monthlyTotals.map(m => {
+                const maxVal = Math.max(...monthlyTotals.map(x=>x.total), 1);
+                const heightPct = maxVal > 0 ? (m.total / maxVal) * 100 : 0;
+                return (
+                  <div key={m.key} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',height:'100%',justifyContent:'flex-end'}}>
+                    <div title={`${m.month}: ${settings.currency}${fmtN(m.total)}`} style={{width:'100%',background:m.total>0?T.accentGrad:T.border,borderRadius:'3px 3px 0 0',height:`${Math.max(heightPct,m.total>0?8:2)}%`,transition:'height 0.4s',cursor:'default'}}/>
+                    <div style={{fontSize:'8px',color:T.textMuted,textAlign:'center'}}>{m.month}</div>
+                    {m.total > 0 && <div style={{fontSize:'8px',color:T.accent,fontWeight:'700',textAlign:'center'}}>{fmtN(m.total)}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Year-over-year totals */}
+          {yearTotals.length > 1 && (
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              {yearTotals.map(y => (
+                <div key={y.year} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:'10px',padding:'8px 14px',textAlign:'center'}}>
+                  <div style={{fontSize:'10px',color:T.textMuted}}>{y.year}</div>
+                  <div style={{fontSize:'15px',fontWeight:'800',color:T.text}}>{settings.currency}{fmtN(y.total)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add transfer */}
+          {showForm ? (
+            <div style={{background:T.surface,borderRadius:'12px',padding:'14px',border:`1px solid ${T.accent}33`,display:'flex',flexDirection:'column',gap:'8px'}}>
+              <div style={{fontSize:'12px',fontWeight:'700',color:T.text,marginBottom:'4px'}}>New Transfer</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>
+                <div>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Date</div>
+                  <input type="date" style={s.input} value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Amount ({settings.currency})</div>
+                  <input type="number" style={s.input} placeholder="150" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} />
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Method</div>
+                <select style={s.select} value={form.method} onChange={e=>setForm(f=>({...f,method:e.target.value}))}>
+                  {METHODS.map(m => <option key={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Note (optional)</div>
+                <input style={s.input} placeholder="Monthly support, Eid gift..." value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} />
+              </div>
+              <div style={{display:'flex',gap:'8px'}}>
+                <button style={s.btn()} onClick={addTransfer}>✓ Add Transfer</button>
+                <button style={s.btnGhost} onClick={()=>setShowForm(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button style={{...s.btn(T.accent),alignSelf:'flex-start'}} onClick={()=>setShowForm(true)}>+ Log Transfer</button>
+          )}
+
+          {/* Recent transfers */}
+          {recentTransfers.length > 0 && (
+            <div>
+              <div style={{fontSize:'11px',fontWeight:'800',color:T.textMuted,letterSpacing:'1px',marginBottom:'8px'}}>RECENT TRANSFERS</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+                {recentTransfers.map(t => (
+                  <div key={t.id} style={{display:'flex',alignItems:'center',gap:'10px',background:T.surface,borderRadius:'10px',padding:'10px 12px',border:`1px solid ${T.border}`}}>
+                    <span style={{fontSize:'16px'}}>🇲🇦</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:'13px',fontWeight:'700',color:T.text}}>{settings.currency}{fmtN(t.amount)} <span style={{fontWeight:'400',color:T.textMuted,fontSize:'11px'}}>via {t.method}</span></div>
+                      <div style={{fontSize:'11px',color:T.textMuted}}>{t.date}{t.note ? ` · ${t.note}` : ''}</div>
+                    </div>
+                    <button onClick={()=>removeTransfer(t.id)} style={{background:'none',border:'none',color:T.textMuted,cursor:'pointer',fontSize:'14px',padding:'2px 6px',borderRadius:'6px'}}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {transfers.length === 0 && (
+            <div style={{textAlign:'center',padding:'20px',color:T.textMuted,fontSize:'13px'}}>No transfers logged yet. Click "Log Transfer" to get started.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SocialChallengesPanel({ T, s, settings, socialChallenges, setSocialChallenges, expenses, habits, habitLogs, savingsRate, addXP }) {
   const [open, setOpen] = useState(false);
