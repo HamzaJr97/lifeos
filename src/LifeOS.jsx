@@ -5906,7 +5906,7 @@ function FrenchTaxCalculator({ T, s, settings }) {
             <table style={{width:'100%', borderCollapse:'collapse', fontSize:'12px'}}>
               <thead>
                 <tr style={{borderBottom:`2px solid ${T.border}`}}>
-                  {['Année','Revenu brut',{settings?.language==='en'?'Taxable income':'Revenu imposable'},'Impôt net','Taux effectif','Solde'].map(h => (
+                  {['Année','Revenu brut', settings?.language==='en'?'Taxable income':'Revenu imposable','Impôt net','Taux effectif','Solde'].map(h => (
                     <th key={h} style={{padding:'8px 10px', textAlign:'right', color:T.textMuted, fontWeight:'700', textTransform:'uppercase', letterSpacing:'0.8px', fontSize:'10px', whiteSpace:'nowrap'}}>{h}</th>
                   ))}
                 </tr>
