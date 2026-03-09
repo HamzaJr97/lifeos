@@ -28,6 +28,24 @@ import {
     @keyframes toastIn { from { opacity:0; transform:translateX(100%); } to { opacity:1; transform:translateX(0); } }
     @keyframes toastOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(100%); } }
     @keyframes countUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes slideRight { from { opacity:0; transform:translateX(100%); } to { opacity:1; transform:translateX(0); } }
+    @keyframes slideUp { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fabSpin { from { transform:rotate(-90deg) scale(0); opacity:0; } to { transform:rotate(0) scale(1); opacity:1; } }
+    @keyframes xpPop { 0%{transform:translateY(0) scale(1);opacity:1;} 60%{transform:translateY(-24px) scale(1.15);opacity:1;} 100%{transform:translateY(-40px) scale(0.9);opacity:0;} }
+    @keyframes pinBounce { 0%{transform:scale(1.3);} 100%{transform:scale(1);} }
+    @media (max-width:768px) {
+      .los-sidebar { display:none !important; }
+      .los-main { margin-left:0 !important; padding-bottom:72px !important; }
+      .los-mobile-nav { display:flex !important; }
+      .los-topbar { padding:0 14px !important; }
+      .los-page-content { padding:16px 14px !important; }
+      .los-grid-4 { grid-template-columns:1fr 1fr !important; }
+      .los-grid-2col { grid-template-columns:1fr !important; }
+      .los-hide-mobile { display:none !important; }
+      .los-status-bar { display:none !important; }
+    }
+    .los-mobile-nav { display:none; position:fixed; bottom:0; left:0; right:0; z-index:200; }
+    .los-fab-item { animation: fabSpin 0.2s ease both; }
     .los-btn:hover { filter:brightness(1.2); transform:translateY(-1px); }
     .los-card:hover { border-color:rgba(0,245,212,0.18) !important; }
     .los-nav:hover { background:rgba(0,245,212,0.08) !important; }
@@ -45,21 +63,36 @@ import {
   document.head.appendChild(style);
 })();
 
-// ── DESIGN TOKENS ──────────────────────────────────────────────────────────────
+// ── THEME SYSTEM ───────────────────────────────────────────────────────────────
+const THEME_DEFS = {
+  obsidian: { accent:'#00f5d4',accentDim:'rgba(0,245,212,0.12)',accentLo:'rgba(0,245,212,0.06)',violet:'#8b5cf6',violetDim:'rgba(139,92,246,0.12)',emerald:'#34d399',emeraldDim:'rgba(52,211,153,0.12)',sky:'#38bdf8',skyDim:'rgba(56,189,248,0.12)',rose:'#fb7185',roseDim:'rgba(251,113,133,0.12)',amber:'#fbbf24',amberDim:'rgba(251,191,36,0.12)' },
+  midnight: { accent:'#818cf8',accentDim:'rgba(129,140,248,0.12)',accentLo:'rgba(129,140,248,0.06)',violet:'#a78bfa',violetDim:'rgba(167,139,250,0.12)',emerald:'#34d399',emeraldDim:'rgba(52,211,153,0.12)',sky:'#60a5fa',skyDim:'rgba(96,165,250,0.12)',rose:'#f472b6',roseDim:'rgba(244,114,182,0.12)',amber:'#fbbf24',amberDim:'rgba(251,191,36,0.12)' },
+  forest:   { accent:'#4ade80',accentDim:'rgba(74,222,128,0.12)',accentLo:'rgba(74,222,128,0.06)',violet:'#a3e635',violetDim:'rgba(163,230,53,0.12)',emerald:'#86efac',emeraldDim:'rgba(134,239,172,0.12)',sky:'#38bdf8',skyDim:'rgba(56,189,248,0.12)',rose:'#fb7185',roseDim:'rgba(251,113,133,0.12)',amber:'#fbbf24',amberDim:'rgba(251,191,36,0.12)' },
+  sunset:   { accent:'#fb923c',accentDim:'rgba(251,146,60,0.12)',accentLo:'rgba(251,146,60,0.06)',violet:'#f472b6',violetDim:'rgba(244,114,182,0.12)',emerald:'#34d399',emeraldDim:'rgba(52,211,153,0.12)',sky:'#fbbf24',skyDim:'rgba(251,191,36,0.12)',rose:'#ef4444',roseDim:'rgba(239,68,68,0.12)',amber:'#fb923c',amberDim:'rgba(251,146,60,0.12)' },
+  ocean:    { accent:'#06b6d4',accentDim:'rgba(6,182,212,0.12)',accentLo:'rgba(6,182,212,0.06)',violet:'#818cf8',violetDim:'rgba(129,140,248,0.12)',emerald:'#34d399',emeraldDim:'rgba(52,211,153,0.12)',sky:'#7dd3fc',skyDim:'rgba(125,211,252,0.12)',rose:'#fb7185',roseDim:'rgba(251,113,133,0.12)',amber:'#fbbf24',amberDim:'rgba(251,191,36,0.12)' },
+  rose:     { accent:'#f472b6',accentDim:'rgba(244,114,182,0.12)',accentLo:'rgba(244,114,182,0.06)',violet:'#c084fc',violetDim:'rgba(192,132,252,0.12)',emerald:'#34d399',emeraldDim:'rgba(52,211,153,0.12)',sky:'#38bdf8',skyDim:'rgba(56,189,248,0.12)',rose:'#fb7185',roseDim:'rgba(251,113,133,0.12)',amber:'#fbbf24',amberDim:'rgba(251,191,36,0.12)' },
+};
 const T = {
   bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
   surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
   border:'rgba(255,255,255,0.07)', borderLit:'rgba(0,245,212,0.3)',
-  accent:'#00f5d4', accentDim:'rgba(0,245,212,0.12)', accentLo:'rgba(0,245,212,0.06)',
-  violet:'#8b5cf6', violetDim:'rgba(139,92,246,0.12)',
-  amber:'#fbbf24', amberDim:'rgba(251,191,36,0.12)',
-  rose:'#fb7185', roseDim:'rgba(251,113,133,0.12)',
-  emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
-  sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
   text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
   fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
   r:'10px', rL:'16px', sw:72,
+  ...THEME_DEFS.obsidian,
 };
+function applyTheme(name) {
+  const td = THEME_DEFS[name] || THEME_DEFS.obsidian;
+  Object.assign(T, td);
+  T.borderLit = T.accent + '4d';
+}
+
+// ── I18N ───────────────────────────────────────────────────────────────────────
+const LANG = {
+  en: { greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening', command_center:'Command Center', weekly_intentions:'Weekly Focus Intentions', budget_remaining:'Budget Remaining', daily_checkin:'Daily Check-In', how_feeling:'How are you feeling today?', weekly_brief:"This Week's Brief", activity_feed:'Live Activity Feed', quick_actions:'Quick Actions', log_expense:'Log Expense', log_income:'Log Income', log_habit:'Log Habit', log_vitals:'Log Vitals', add_note:'Add Note', add_goal:'Add Goal', set_intentions:'Set 3 intentions for this week…', mark_done:'Mark done', save:'Save', cancel:'Cancel', unlock:'Unlock', pin_title:'Life OS is locked', pin_hint:'Enter your 4-digit PIN', onboard_welcome:'Welcome to Life OS', onboard_sub:'Your personal operating system', step1_title:'Who are you?', step2_title:"What's your first goal?", step3_title:'Build a habit', get_started:'Get Started →', monthly_review:'Monthly Review', dismiss:'Dismiss', ai_panel_title:'Life Intelligence', checkin_saved:'Check-in saved' },
+  fr: { greeting_morning:'Bonjour', greeting_afternoon:'Bon après-midi', greeting_evening:'Bonsoir', command_center:'Centre de commande', weekly_intentions:'Intentions hebdomadaires', budget_remaining:'Budget restant', daily_checkin:'Bilan du jour', how_feeling:"Comment vous sentez-vous aujourd'hui?", weekly_brief:'Bilan de la semaine', activity_feed:"Flux d'activité", quick_actions:'Actions rapides', log_expense:'Dépense', log_income:'Revenu', log_habit:'Habitude', log_vitals:'Santé', add_note:'Note', add_goal:'Objectif', set_intentions:"Définir 3 intentions pour cette semaine…", mark_done:'Terminé', save:'Enregistrer', cancel:'Annuler', unlock:'Déverrouiller', pin_title:'Life OS est verrouillé', pin_hint:'Entrez votre code PIN à 4 chiffres', onboard_welcome:'Bienvenue sur Life OS', onboard_sub:'Votre système de vie personnel', step1_title:'Qui êtes-vous?', step2_title:'Quel est votre premier objectif?', step3_title:'Construire une habitude', get_started:'Commencer →', monthly_review:'Bilan mensuel', dismiss:'Ignorer', ai_panel_title:'Intelligence de vie', checkin_saved:'Bilan sauvegardé' },
+};
+const tr = (lang, key) => LANG[lang]?.[key] ?? LANG.en[key] ?? key;
 
 // ── TIMELINE ENGINE ────────────────────────────────────────────────────────────
 // Central event metadata registry
@@ -193,6 +226,11 @@ const IcoCheck    = (p) => <Ico {...p} d={<><path d="M22 11.08V12a10 10 0 1 1-5.
 const IcoSearch   = (p) => <Ico {...p} d={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} />;
 const IcoFilter   = (p) => <Ico {...p} d={<><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="18" x2="12" y2="18"/></>} />;
 const IcoZap      = (p) => <Ico {...p} d={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />;
+const IcoLock     = (p) => <Ico {...p} d={<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>} />;
+const IcoAI       = (p) => <Ico {...p} d={<><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24A2.5 2.5 0 0 0 14.5 2Z"/></>} />;
+const IcoTarget   = (p) => <Ico {...p} d={<><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>} />;
+const IcoCalendar = (p) => <Ico {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>} />;
+const IcoUndoZ    = (p) => <Ico {...p} d={<><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></>} />;
 
 // ── SHARED UI COMPONENTS ───────────────────────────────────────────────────────
 const GlassCard = ({children,style={},className='',onClick}) => (
@@ -384,11 +422,11 @@ const NAV = [
   {id:'intel',Icon:IcoBrain,label:'Intelligence'},{id:'archive',Icon:IcoArchive,label:'Archive'},
   {id:'settings',Icon:IcoSettings,label:'Settings'},
 ];
-function Sidebar({active,onNav,userName,onCmdPalette}) {
+function Sidebar({active,onNav,userName,onCmdPalette,onAIPanel,onLock,pinEnabled}) {
   const [hov,setHov]=useState(null);
   const init=userName?userName.charAt(0).toUpperCase():'U';
   return (
-    <div style={{width:T.sw,minHeight:'100vh',flexShrink:0,background:`linear-gradient(180deg,${T.bg} 0%,${T.bg1} 100%)`,borderRight:`1px solid ${T.border}`,display:'flex',flexDirection:'column',alignItems:'center',padding:'16px 0',gap:2,position:'fixed',top:0,left:0,bottom:0,zIndex:100}}>
+    <div className="los-sidebar" style={{width:T.sw,minHeight:'100vh',flexShrink:0,background:`linear-gradient(180deg,${T.bg} 0%,${T.bg1} 100%)`,borderRight:`1px solid ${T.border}`,display:'flex',flexDirection:'column',alignItems:'center',padding:'16px 0',gap:2,position:'fixed',top:0,left:0,bottom:0,zIndex:100}}>
       <div style={{width:36,height:36,borderRadius:10,marginBottom:6,background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`,border:`1px solid ${T.accent}44`,display:'flex',alignItems:'center',justifyContent:'center',animation:'glowPulse 3s infinite',fontSize:15}}>⬡</div>
       <button onClick={onCmdPalette} title="⌘K Command Palette" style={{width:36,height:28,borderRadius:8,marginBottom:10,background:T.accentLo,border:`1px solid ${T.accent}33`,display:'flex',alignItems:'center',justifyContent:'center',gap:4}} >
         <IcoSearch size={10} stroke={T.accent}/><span style={{fontSize:7,fontFamily:T.fM,color:T.accent}}>⌘K</span>
@@ -406,6 +444,12 @@ function Sidebar({active,onNav,userName,onCmdPalette}) {
         );
       })}
       <div style={{flex:1}}/>
+      <button onClick={onAIPanel} title="AI Assistant" className="los-nav" style={{width:36,height:32,borderRadius:8,marginBottom:6,background:'rgba(192,132,252,0.08)',border:'1px solid rgba(192,132,252,0.2)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <IcoAI size={13} stroke="#c084fc"/>
+      </button>
+      {pinEnabled&&<button onClick={onLock} title="Lock" className="los-nav" style={{width:36,height:28,borderRadius:8,marginBottom:6,background:T.surface,border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <IcoLock size={12} stroke={T.textSub}/>
+      </button>}
       <div style={{width:32,height:32,borderRadius:'50%',background:`linear-gradient(135deg,${T.violet}44,${T.accent}44)`,border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fD,fontWeight:700,color:T.text}}>{init}</div>
     </div>
   );
@@ -530,14 +574,388 @@ function AddAssetModal({open,onClose,onSave}) {
   );
 }
 
-// ── HOME PAGE ──────────────────────────────────────────────────────────────────
-function HomePage({data,actions,onNav}) {
-  const {expenses,incomes,assets,investments,debts,habits,habitLogs,goals,vitals,totalXP,settings,timeline}=data;
+// ── MOBILE BOTTOM NAV ──────────────────────────────────────────────────────────
+function MobileBottomNav({active, onNav}) {
+  const items=[{id:'home',Icon:IcoHome,label:'Home'},{id:'money',Icon:IcoMoney,label:'Money'},{id:'health',Icon:IcoHealth,label:'Health'},{id:'growth',Icon:IcoGrowth,label:'Growth'},{id:'knowledge',Icon:IcoBook,label:'Notes'},{id:'settings',Icon:IcoSettings,label:'More'}];
+  return (
+    <div className="los-mobile-nav" style={{height:64,background:`${T.bg1}f0`,backdropFilter:'blur(20px)',borderTop:`1px solid ${T.border}`,alignItems:'center',justifyContent:'space-around',padding:'0 4px'}}>
+      {items.map(({id,Icon,label})=>{const isA=active===id;return(
+        <button key={id} onClick={()=>onNav(id)} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3,padding:'8px 12px',borderRadius:T.r,background:isA?T.accentDim:'transparent',transition:'all 0.18s'}}>
+          <Icon size={18} stroke={isA?T.accent:T.textSub}/>
+          <span style={{fontSize:8,fontFamily:T.fM,color:isA?T.accent:T.textSub}}>{label}</span>
+        </button>
+      );})}
+    </div>
+  );
+}
+
+// ── ONBOARDING WIZARD ──────────────────────────────────────────────────────────
+function OnboardingWizard({onDone, lang='en'}) {
+  const [step,setStep]=useState(0);
+  const [name,setName]=useState(''); const [currency,setCurrency]=useState('$');
+  const [goalName,setGoalName]=useState(''); const [habitName,setHabitName]=useState('');
+  const steps=[tr(lang,'step1_title'),tr(lang,'step2_title'),tr(lang,'step3_title')];
+  const progress=((step+1)/3)*100;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(4,4,8,0.97)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:T.bg2,border:`1px solid ${T.accent}33`,borderRadius:24,padding:36,width:'100%',maxWidth:460,animation:'modalIn 0.4s ease'}}>
+        <div style={{textAlign:'center',marginBottom:28}}>
+          <div style={{fontSize:32,marginBottom:8}}>⬡</div>
+          <h1 style={{fontSize:22,fontFamily:T.fD,fontWeight:800,color:T.text}}>{tr(lang,'onboard_welcome')}</h1>
+          <p style={{fontSize:12,fontFamily:T.fM,color:T.textSub,marginTop:4}}>{tr(lang,'onboard_sub')}</p>
+        </div>
+        <div style={{display:'flex',gap:6,marginBottom:24}}>
+          {steps.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:99,background:i<=step?T.accent:T.border,transition:'background 0.3s'}}/>)}
+        </div>
+        <div style={{fontSize:11,fontFamily:T.fM,color:T.accent,marginBottom:16,letterSpacing:'0.1em'}}>STEP {step+1} / 3 · {steps[step].toUpperCase()}</div>
+        {step===0&&<div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"/>
+          <Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['$','€','£','¥','₹','₩','Fr','A$','C$'].map(c=><option key={c}>{c}</option>)}</Select>
+        </div>}
+        {step===1&&<div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <Input value={goalName} onChange={e=>setGoalName(e.target.value)} placeholder="e.g. Save $10,000 emergency fund"/>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>You can add more goals later. This one gets you started.</div>
+        </div>}
+        {step===2&&<div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <Input value={habitName} onChange={e=>setHabitName(e.target.value)} placeholder="e.g. Morning workout, Read 20 min…"/>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Habits tracked daily. Build streaks to earn XP.</div>
+        </div>}
+        <div style={{display:'flex',gap:10,marginTop:24}}>
+          {step>0&&<Btn onClick={()=>setStep(s=>s-1)} color={T.textSub} style={{flex:1}}>{tr(lang,'cancel')}</Btn>}
+          <Btn full={step===0} onClick={()=>{ if(step<2) setStep(s=>s+1); else onDone({name:name.trim(),currency,goalName:goalName.trim(),habitName:habitName.trim()}); }} color={T.accent} style={{flex:step>0?1:undefined}}>{step===2?tr(lang,'get_started'):'Continue →'}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PIN LOCK SCREEN ────────────────────────────────────────────────────────────
+function PINLockScreen({pinCode, onUnlock, lang='en'}) {
+  const [entered,setEntered]=useState('');
+  const [shaking,setShake]=useState(false);
+  const press=(d)=>{ if(entered.length>=4) return; const n=entered+d; setEntered(n); if(n.length===4){ if(n===String(pinCode)) onUnlock(); else{ setShake(true); setTimeout(()=>{setShake(false);setEntered('');},600); } } };
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:10001,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:32}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:40,marginBottom:12}}>🔒</div>
+        <h2 style={{fontSize:18,fontFamily:T.fD,fontWeight:700,color:T.text}}>{tr(lang,'pin_title')}</h2>
+        <p style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginTop:4}}>{tr(lang,'pin_hint')}</p>
+      </div>
+      <div style={{display:'flex',gap:16,animation:shaking?'pinBounce 0.1s ease 0s, pinBounce 0.1s ease 0.1s, pinBounce 0.1s ease 0.2s':'none'}}>
+        {[0,1,2,3].map(i=><div key={i} style={{width:16,height:16,borderRadius:'50%',background:i<entered.length?T.accent:T.border,boxShadow:i<entered.length?`0 0 8px ${T.accent}`:''transition:'all 0.15s'}}/>)}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,width:240}}>
+        {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((d,i)=>(
+          <button key={i} onClick={()=>{ if(d==='⌫') setEntered(p=>p.slice(0,-1)); else if(d!=='') press(String(d)); }} style={{height:60,borderRadius:T.r,background:d===''?'transparent':T.surface,border:d===''?'none':`1px solid ${T.border}`,fontSize:d==='⌫'?18:20,fontFamily:d==='⌫'?T.fM:T.fD,fontWeight:600,color:T.text,transition:'all 0.15s'}} className="los-btn">{d}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── MONTHLY REVIEW MODAL ───────────────────────────────────────────────────────
+function MonthlyReviewModal({data, onDismiss, lang='en'}) {
+  const [content,setContent]=useState(''); const [loading,setLoading]=useState(true);
+  const {expenses,incomes,habits,habitLogs,goals,vitals,settings}=data;
+  const cur=settings.currency||'$'; const m=today().slice(0,7);
+  useEffect(()=>{
+    (async()=>{
+      const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+      const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+      const bestHabit=habits.reduce((b,h)=>{const s=getStreak(h.id,habitLogs);return s>b.s?{n:h.name,s}:b},{n:'none',s:0});
+      const goalsDone=goals.filter(g=>(g.current||0)>=g.target).length;
+      try{
+        const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:`Generate a brief, warm monthly review for ${m}. Data: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${mInc>0?((mInc-mExp)/mInc*100).toFixed(0):0}%, best habit streak: ${bestHabit.n} at ${bestHabit.s} days, goals completed: ${goalsDone}. Keep it to 3 short encouraging paragraphs. No headers, just conversational prose.`}]})});
+        const d=await res.json(); setContent(d.content?.map(b=>b.text||'').join('')||'Great month! Keep going.');
+      } catch { setContent(`You logged ${expenses.length} expenses this month with a ${mInc>0?((mInc-mExp)/mInc*100).toFixed(0):0}% savings rate. Your best habit streak is ${bestHabit.s} days for "${bestHabit.n}". Keep up the momentum!`); }
+      setLoading(false);
+    })();
+  },[]);
+  return (
+    <div onClick={onDismiss} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:5000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,border:`1px solid ${T.violet}44`,borderRadius:20,padding:30,width:'100%',maxWidth:480,animation:'modalIn 0.3s ease'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <div><div style={{fontSize:9,fontFamily:T.fM,color:T.violet,letterSpacing:'0.1em'}}>{m.toUpperCase()}</div><h2 style={{fontSize:18,fontFamily:T.fD,fontWeight:700,color:T.text}}>{tr(lang,'monthly_review')}</h2></div>
+          <div style={{fontSize:28}}>📋</div>
+        </div>
+        {loading?(<div style={{display:'flex',gap:5,alignItems:'center',padding:'20px 0'}}>{[0,1,2].map(d=><div key={d} style={{width:8,height:8,borderRadius:'50%',background:'#c084fc',animation:`dotPulse 1.2s ease ${d*0.2}s infinite`}}/>)}</div>):(<div style={{fontSize:13,fontFamily:T.fM,color:T.text,lineHeight:1.7,whiteSpace:'pre-wrap'}}>{content}</div>)}
+        <Btn full onClick={onDismiss} color={T.violet} style={{marginTop:20}}>{tr(lang,'dismiss')}</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ── DAILY CHECK-IN MODAL ───────────────────────────────────────────────────────
+function CheckInModal({open, onClose, onSave, lang='en'}) {
+  const [mood,setMood]=useState(null); const [note,setNote]=useState('');
+  const MOODS=[{v:1,e:'😞'},{v:2,e:'😟'},{v:3,e:'😕'},{v:4,e:'😐'},{v:5,e:'🙂'},{v:6,e:'😊'},{v:7,e:'😄'},{v:8,e:'🤩'},{v:9,e:'🌟'},{v:10,e:'🔥'}];
+  if (!open) return null;
+  return (
+    <Modal open={open} onClose={onClose} title={`✨ ${tr(lang,'daily_checkin')}`}>
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        <div style={{fontSize:12,fontFamily:T.fM,color:T.textSub,textAlign:'center'}}>{tr(lang,'how_feeling')}</div>
+        <div style={{display:'flex',gap:6,justifyContent:'center',flexWrap:'wrap'}}>
+          {MOODS.map(m=>(
+            <button key={m.v} onClick={()=>setMood(m.v)} style={{width:38,height:38,borderRadius:T.r,fontSize:20,background:mood===m.v?T.accentDim:T.surface,border:`1px solid ${mood===m.v?T.accent:T.border}`,transition:'all 0.15s',transform:mood===m.v?'scale(1.15)':'scale(1)'}}>{m.e}</button>
+          ))}
+        </div>
+        {mood&&<div style={{textAlign:'center',fontSize:11,fontFamily:T.fM,color:T.accent}}>{mood}/10 · {MOODS.find(m=>m.v===mood)?.e}</div>}
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Any notes? (optional)"/>
+        <Btn full onClick={()=>{ if(!mood) return; onSave(mood,note); setMood(null); setNote(''); onClose(); }} disabled={!mood} color={T.accent}>{tr(lang,'save')} Check-In</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── AI SLIDE PANEL ─────────────────────────────────────────────────────────────
+function AISlidePanel({open, onClose, data, lang='en'}) {
+  const [messages,setMessages]=useState([{role:'assistant',content:"Hello! I'm your Life Intelligence Engine. I have a full view of your data. What would you like to explore?"}]);
+  const [input,setInput]=useState(''); const [loading,setLoading]=useState(false); const endRef=useRef(null);
+  const {expenses,incomes,habits,habitLogs,goals,vitals,assets,investments,debts,totalXP,settings}=data;
+  const cur=settings.currency||'$';
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
+  const buildCtx=()=>{
+    const m=today().slice(0,7);
+    const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+    const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+    const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)-debts.reduce((s,d)=>s+Number(d.balance||0),0);
+    return `Life OS data: NW=${cur}${fmtN(nw)}, income=${cur}${fmtN(mInc)}, expenses=${cur}${fmtN(mExp)}, habits=${habits.map(h=>`${h.name}(${getStreak(h.id,habitLogs)}d)`).join(',')}, goals=${goals.map(g=>`${g.name}:${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(',')}, XP=${totalXP}`;
+  };
+  const send=async()=>{
+    if(!input.trim()||loading) return;
+    const um={role:'user',content:input}; setMessages(p=>[...p,um]); setInput(''); setLoading(true);
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,system:`You are a Life Intelligence Engine. ${buildCtx()} Be concise and reference real data.`,messages:[...messages,um].map(m=>({role:m.role,content:m.content}))})});
+      const d=await res.json(); setMessages(p=>[...p,{role:'assistant',content:d.content?.map(b=>b.text||'').join('')||'Unable to respond.'}]);
+    } catch { setMessages(p=>[...p,{role:'assistant',content:'Connection error.'}]); }
+    finally { setLoading(false); }
+  };
+  return (
+    <>
+      {open&&<div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:1999,backdropFilter:'blur(4px)'}}/>}
+      <div style={{position:'fixed',top:0,right:0,bottom:0,width:380,background:T.bg2,borderLeft:`1px solid ${T.border}`,zIndex:2000,display:'flex',flexDirection:'column',transform:open?'translateX(0)':'translateX(100%)',transition:'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)',boxShadow:open?`-20px 0 60px rgba(0,0,0,0.5)`:''  }}>
+        <div style={{padding:'16px 18px',borderBottom:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:28,height:28,borderRadius:'50%',background:`linear-gradient(135deg,#c084fc,${T.sky})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>⬡</div><span style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>{tr(lang,'ai_panel_title')}</span></div>
+          <button onClick={onClose}><IcoX size={16} stroke={T.textSub}/></button>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'14px',display:'flex',flexDirection:'column',gap:10}}>
+          {messages.map((msg,i)=>(
+            <div key={i} style={{display:'flex',gap:8,flexDirection:msg.role==='user'?'row-reverse':'row',animation:'fadeUp 0.2s ease'}}>
+              <div style={{maxWidth:'85%',padding:'9px 12px',borderRadius:T.rL,background:msg.role==='user'?T.accentDim:T.surfaceHi,border:`1px solid ${msg.role==='user'?T.accent+'33':T.border}`,fontSize:12,fontFamily:T.fM,color:T.text,lineHeight:1.6,borderBottomRightRadius:msg.role==='user'?4:T.rL,borderBottomLeftRadius:msg.role==='assistant'?4:T.rL}}>{msg.content}</div>
+            </div>
+          ))}
+          {loading&&<div style={{display:'flex',gap:5,padding:'8px 12px'}}>{[0,1,2].map(d=><div key={d} style={{width:6,height:6,borderRadius:'50%',background:'#c084fc',animation:`dotPulse 1.2s ease ${d*0.2}s infinite`}}/>)}</div>}
+          <div ref={endRef}/>
+        </div>
+        <div style={{padding:'12px 14px',borderTop:`1px solid ${T.border}`,display:'flex',gap:8}}>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Ask anything…" style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.r,padding:'8px 12px',fontFamily:T.fM,fontSize:12,color:T.text}}/>
+          <button className="los-btn" onClick={send} disabled={!input.trim()||loading} style={{width:36,height:36,borderRadius:T.r,background:input.trim()?T.accentDim:T.surface,border:`1px solid ${input.trim()?T.accent+'44':T.border}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><IcoSend size={13} stroke={input.trim()?T.accent:T.textMuted}/></button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── QUICK CAPTURE FAB ──────────────────────────────────────────────────────────
+function QuickCaptureFAB({onAction, lang='en'}) {
+  const [open,setOpen]=useState(false);
+  const ACTIONS=[
+    {label:tr(lang,'log_expense'),emoji:'💳',color:T.rose,key:'expense'},
+    {label:tr(lang,'log_income'),emoji:'💰',color:T.emerald,key:'income'},
+    {label:tr(lang,'log_habit'),emoji:'🔥',color:T.accent,key:'habit'},
+    {label:tr(lang,'log_vitals'),emoji:'❤️',color:T.sky,key:'vitals'},
+    {label:tr(lang,'add_note'),emoji:'📝',color:T.amber,key:'note'},
+    {label:tr(lang,'add_goal'),emoji:'🎯',color:T.violet,key:'goal'},
+  ];
+  return (
+    <>
+      {open&&<div onClick={()=>setOpen(false)} style={{position:'fixed',inset:0,zIndex:1199}}/>}
+      <div style={{position:'fixed',bottom:84,right:24,zIndex:1200,display:'flex',flexDirection:'column-reverse',alignItems:'flex-end',gap:10}}>
+        {open&&ACTIONS.map((a,i)=>(
+          <div key={a.key} className="los-fab-item" style={{display:'flex',alignItems:'center',gap:10,animationDelay:`${i*0.04}s`}}>
+            <div style={{fontSize:10,fontFamily:T.fM,color:T.text,background:T.bg2,padding:'4px 10px',borderRadius:99,border:`1px solid ${T.border}`,whiteSpace:'nowrap'}}>{a.label}</div>
+            <button onClick={()=>{onAction(a.key);setOpen(false);}} style={{width:42,height:42,borderRadius:'50%',background:a.color+'22',border:`1px solid ${a.color}44`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,transition:'all 0.15s',flexShrink:0}} className="los-btn">{a.emoji}</button>
+          </div>
+        ))}
+        <button onClick={()=>setOpen(o=>!o)} className="los-btn" style={{width:52,height:52,borderRadius:'50%',background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`,border:`1px solid ${T.accent}55`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,boxShadow:open?`0 0 20px ${T.accent}33`:'',transition:'all 0.25s',transform:open?'rotate(45deg)':'rotate(0)'}}>
+          {open?'×':'⊕'}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ── UNDO BAR ───────────────────────────────────────────────────────────────────
+function UndoBar({undoItem, onUndo, onDismiss}) {
+  if (!undoItem) return null;
+  return (
+    <div style={{position:'fixed',bottom:80,left:'50%',transform:'translateX(-50%)',zIndex:1300,display:'flex',alignItems:'center',gap:12,padding:'10px 18px',background:T.bg2,border:`1px solid ${T.amber}44`,borderRadius:99,boxShadow:`0 4px 20px rgba(0,0,0,0.4)`,animation:'slideUp 0.25s ease',whiteSpace:'nowrap'}}>
+      <span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Deleted <b style={{color:T.amber}}>{undoItem.label}</b></span>
+      <button onClick={onUndo} className="los-btn" style={{padding:'4px 14px',borderRadius:99,background:T.amberDim,border:`1px solid ${T.amber}44`,fontSize:11,fontFamily:T.fM,color:T.amber,display:'flex',alignItems:'center',gap:5}}>
+        <IcoUndoZ size={11} stroke={T.amber}/> Undo
+      </button>
+      <button onClick={onDismiss} style={{color:T.textMuted}}><IcoX size={12} stroke={T.textMuted}/></button>
+    </div>
+  );
+}
+
+// ── SMART ALERTS BAR ───────────────────────────────────────────────────────────
+function SmartAlertsChip({alerts}) {
+  const [show,setShow]=useState(false);
+  if (!alerts.length) return null;
+  return (
+    <div style={{position:'relative'}}>
+      <button onClick={()=>setShow(o=>!o)} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:99,background:T.roseDim,border:`1px solid ${T.rose}33`,fontSize:9,fontFamily:T.fM,color:T.rose,transition:'all 0.15s'}}>
+        ⚠️ {alerts.length} alert{alerts.length>1?'s':''}
+      </button>
+      {show&&(
+        <div style={{position:'absolute',top:'calc(100% + 8px)',right:0,background:T.bg2,border:`1px solid ${T.border}`,borderRadius:T.r,padding:12,width:260,zIndex:300,animation:'fadeIn 0.15s ease'}}>
+          {alerts.map((a,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:i<alerts.length-1?`1px solid ${T.border}`:'none'}}>
+              <span style={{fontSize:14}}>{a.icon}</span>
+              <span style={{fontSize:11,fontFamily:T.fM,color:a.color||T.text}}>{a.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── WEEKLY INTENTIONS WIDGET ───────────────────────────────────────────────────
+function WeeklyIntentions({intentions, onSave, onToggle, lang='en'}) {
+  const [editing,setEditing]=useState(null); const [draft,setDraft]=useState('');
+  const weekStart=(()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); })();
+  const slots=[0,1,2];
+  return (
+    <GlassCard style={{padding:'18px 20px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div><SectionLabel>{tr(lang,'weekly_intentions')}</SectionLabel><div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>Week of {weekStart}</div></div>
+        <IcoTarget size={16} stroke={T.violet}/>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {slots.map(i=>{
+          const it=intentions?.[i]; const done=it?.done||false;
+          return editing===i?(
+            <div key={i} style={{display:'flex',gap:8}}>
+              <Input value={draft} onChange={e=>setDraft(e.target.value)} placeholder={tr(lang,'set_intentions')} style={{flex:1,fontSize:11}}/>
+              <Btn onClick={()=>{ onSave(draft,i); setEditing(null); setDraft(''); }} color={T.violet} style={{padding:'6px 12px',fontSize:10}}>✓</Btn>
+            </div>
+          ):(
+            <div key={i} onClick={()=>{ if(!it?.text) { setEditing(i); setDraft(''); } }} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:T.r,background:done?T.violetDim:T.surface,border:`1px solid ${done?T.violet+'44':T.border}`,cursor:it?.text?'default':'pointer',transition:'all 0.15s'}}>
+              <button onClick={e=>{e.stopPropagation();if(it?.text)onToggle(i);}} style={{width:16,height:16,borderRadius:4,border:`1px solid ${done?T.violet:T.border}`,background:done?T.violet:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,color:'white',fontSize:10,transition:'all 0.15s'}}>{done&&'✓'}</button>
+              <span style={{fontSize:11,fontFamily:T.fM,color:it?.text?(done?T.textSub:T.text):T.textMuted,textDecoration:done?'line-through':'none',flex:1}}>{it?.text||`Intention ${i+1} — click to set`}</span>
+              {it?.text&&<button onClick={e=>{e.stopPropagation();setEditing(i);setDraft(it.text||'');}} style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>edit</button>}
+            </div>
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+}
+
+// ── BUDGET WIDGET ──────────────────────────────────────────────────────────────
+function BudgetWidget({expenses, budgets, onSetBudget, currency, lang='en'}) {
+  const [editing,setEditing]=useState(null); const [draft,setDraft]=useState('');
+  const thisMonth=today().slice(0,7);
+  const topCats=useMemo(()=>{
+    const m={}; expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  },[expenses,thisMonth]);
+  if (!topCats.length) return null;
+  return (
+    <GlassCard style={{padding:'18px 20px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <SectionLabel>{tr(lang,'budget_remaining')}</SectionLabel>
+        <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>{thisMonth}</span>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {topCats.map(([cat,spent])=>{
+          const budget=budgets[cat]||0; const over=budget>0&&spent>budget; const pct=budget>0?Math.min(100,(spent/budget)*100):0;
+          const color=over?T.rose:pct>80?T.amber:T.emerald;
+          return (
+            <div key={cat}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                <span style={{fontSize:10,fontFamily:T.fM,color:T.text}}>{cat}</span>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:10,fontFamily:T.fM,color:color,fontWeight:600}}>{currency}{fmtN(spent)}</span>
+                  {editing===cat?(
+                    <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                      <input value={draft} onChange={e=>setDraft(e.target.value)} style={{width:60,padding:'2px 6px',background:T.surface,border:`1px solid ${T.border}`,borderRadius:4,fontFamily:T.fM,fontSize:10,color:T.text}} placeholder="budget"/>
+                      <button onClick={()=>{onSetBudget(cat,draft);setEditing(null);}} style={{fontSize:9,fontFamily:T.fM,color:T.accent}}>✓</button>
+                    </div>
+                  ):(
+                    <button onClick={()=>{setEditing(cat);setDraft(String(budget||''));}} style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>/ {budget?currency+fmtN(budget):'set'}</button>
+                  )}
+                </div>
+              </div>
+              {budget>0&&<ProgressBar pct={pct} color={color} height={3}/>}
+            </div>
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+}
+
+// ── WEEKLY AI BRIEF WIDGET ─────────────────────────────────────────────────────
+function WeeklyBriefWidget({data, weeklyBriefs, onSaveBrief, lang='en'}) {
+  const [loading,setLoading]=useState(false); const [expanded,setExpanded]=useState(false);
+  const {expenses,incomes,habits,habitLogs,goals,vitals,settings}=data;
+  const cur=settings.currency||'$';
+  const weekKey=(()=>{ const d=new Date(); const s=new Date(d); s.setDate(d.getDate()-d.getDay()); return s.toISOString().slice(0,10); })();
+  const currentBrief=weeklyBriefs?.find(b=>b.week===weekKey);
+  const generate=async()=>{
+    setLoading(true);
+    const mInc=incomes.filter(i=>i.date?.startsWith(today().slice(0,7))).reduce((s,i)=>s+Number(i.amount||0),0);
+    const mExp=expenses.filter(e=>e.date?.startsWith(today().slice(0,7))).reduce((s,e)=>s+Number(e.amount||0),0);
+    const bestStreak=habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+    const goalAvg=goals.length?Math.round(goals.reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/goals.length):0;
+    const lastVitals=vitals.length?[...vitals].sort((a,b)=>a.date<b.date?1:-1)[0]:null;
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:250,messages:[{role:'user',content:`Brief weekly life OS update. Income: ${cur}${fmtN(mInc)}, expenses: ${cur}${fmtN(mExp)}, savings rate: ${mInc>0?((mInc-mExp)/mInc*100).toFixed(0):0}%, best habit streak: ${bestStreak}d, avg goal progress: ${goalAvg}%, latest sleep: ${lastVitals?.sleep||'N/A'}h. Write 2-3 short sharp sentences. No bullet points.`}]})});
+      const d=await res.json(); const text=d.content?.map(b=>b.text||'').join('')||'Log more data for your AI brief.';
+      onSaveBrief({week:weekKey,text,generatedAt:today()});
+    } catch { onSaveBrief({week:weekKey,text:'Log expenses, habits and vitals to get your AI-powered weekly brief.',generatedAt:today()}); }
+    setLoading(false);
+  };
+  return (
+    <GlassCard style={{padding:'18px 20px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:7}}>
+          <div style={{width:5,height:5,borderRadius:'50%',background:'#c084fc',animation:'dotPulse 2s infinite'}}/>
+          <span style={{fontSize:9,fontFamily:T.fM,letterSpacing:'0.1em',color:'#c084fc',textTransform:'uppercase'}}>{tr(lang,'weekly_brief')}</span>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          {(weeklyBriefs?.length>1)&&<button onClick={()=>setExpanded(o=>!o)} style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>{expanded?'hide':'history'}</button>}
+          <button onClick={generate} disabled={loading} style={{fontSize:9,fontFamily:T.fM,color:T.accent,display:'flex',alignItems:'center',gap:4}}>{loading?'…':currentBrief?'↺ refresh':'✦ generate'}</button>
+        </div>
+      </div>
+      {loading?(<div style={{display:'flex',gap:5,padding:'8px 0'}}>{[0,1,2].map(d=><div key={d} style={{width:7,height:7,borderRadius:'50%',background:'#c084fc',animation:`dotPulse 1.2s ease ${d*0.2}s infinite`}}/>)}</div>):(
+        currentBrief?(<div style={{fontSize:12,fontFamily:T.fM,color:T.text,lineHeight:1.7}}>{currentBrief.text}</div>):(
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted,textAlign:'center',padding:'8px 0'}}>Click generate for your AI-powered weekly brief</div>
+        )
+      )}
+      {expanded&&weeklyBriefs?.filter(b=>b.week!==weekKey).slice(0,3).map((b,i)=>(
+        <div key={i} style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`}}>
+          <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginBottom:4}}>Week of {b.week}</div>
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,lineHeight:1.6}}>{b.text}</div>
+        </div>
+      ))}
+    </GlassCard>
+  );
+}
+
+
+
+function HomePage({data,actions,onNav,onCheckin,lang='en'}) {
+  const {expenses,incomes,assets,investments,debts,habits,habitLogs,goals,vitals,totalXP,settings,timeline,intentions,budgets,weeklyBriefs}=data;
   const [modal,setModal]=useState(null);
+  const [checkinDone,setCheckinDone]=useState(()=>localStorage.getItem('los_checkin_done')===today());
   const cur=settings.currency||'$';
   const thisMonth=today().slice(0,7);
   const hour=new Date().getHours();
-  const greeting=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  const greeting=hour<12?tr(lang,'greeting_morning'):hour<17?tr(lang,'greeting_afternoon'):tr(lang,'greeting_evening');
 
   const monthExp=useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
   const monthInc=useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
@@ -562,12 +980,10 @@ function HomePage({data,actions,onNav}) {
   const bestStreak=habits.reduce((max,h)=>{const s=getStreak(h.id,habitLogs);return s>max?s:max;},0);
   const lastVitals=vitals.length?[...vitals].sort((a,b)=>a.date<b.date?1:-1)[0]:null;
 
-  // Feed from timeline + derived events
   const recentFeed=useMemo(()=>{
     const evs=[];
-    if(timeline&&timeline.length>0) {
-      timeline.slice(0,8).forEach(e=>evs.push({id:e.id,ts:e.date,title:e.title,sub:e.description,value:'',cat:e.category,color:e.color,emoji:e.emoji}));
-    } else {
+    if(timeline&&timeline.length>0){timeline.slice(0,8).forEach(e=>evs.push({id:e.id,ts:e.date,title:e.title,sub:e.description,value:'',cat:e.category,color:e.color,emoji:e.emoji}));}
+    else{
       [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({id:'exp-'+e.id,ts:e.date,title:e.note||e.category,sub:e.category,value:`-${cur}${fmtN(e.amount)}`,cat:'money',color:T.rose,emoji:'💳'}));
       [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({id:'inc-'+e.id,ts:e.date,title:e.note||'Income received',sub:'Income',value:`+${cur}${fmtN(e.amount)}`,cat:'money',color:T.emerald,emoji:'💰'}));
     }
@@ -575,12 +991,12 @@ function HomePage({data,actions,onNav}) {
   },[timeline,expenses,incomes,cur]);
 
   const QUICK_ACTIONS=[
-    {label:'Log Expense',emoji:'💳',color:T.rose,modal:'expense'},
-    {label:'Log Income',emoji:'💰',color:T.emerald,modal:'income'},
-    {label:'Log Habit',emoji:'🔥',color:T.accent,modal:'habit'},
-    {label:'Log Vitals',emoji:'❤️',color:T.sky,modal:'vitals'},
-    {label:'Add Note',emoji:'📝',color:T.amber,modal:'note'},
-    {label:'Add Goal',emoji:'🎯',color:T.violet,modal:'goal'},
+    {label:tr(lang,'log_expense'),emoji:'💳',color:T.rose,modal:'expense'},
+    {label:tr(lang,'log_income'),emoji:'💰',color:T.emerald,modal:'income'},
+    {label:tr(lang,'log_habit'),emoji:'🔥',color:T.accent,modal:'habit'},
+    {label:tr(lang,'log_vitals'),emoji:'❤️',color:T.sky,modal:'vitals'},
+    {label:tr(lang,'add_note'),emoji:'📝',color:T.amber,modal:'note'},
+    {label:tr(lang,'add_goal'),emoji:'🎯',color:T.violet,modal:'goal'},
   ];
 
   return (
@@ -591,16 +1007,24 @@ function HomePage({data,actions,onNav}) {
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}}/>
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}}/>
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}}/>
+      <CheckInModal open={modal==='checkin'} onClose={()=>setModal(null)} onSave={(mood,note)=>{onCheckin(mood,note);setCheckinDone(true);localStorage.setItem('los_checkin_done',today());}} lang={lang}/>
 
-      <div style={{marginBottom:26}}>
-        <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',marginBottom:5,textTransform:'uppercase'}}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-        <h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Command Center</h1>
-        <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginTop:4}}>
-          {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{color:T.emerald}}>●</span> {habits.length} habits · <span style={{color:T.accent}}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{color:T.violet}}>●</span> {(timeline||[]).length} timeline events
+      <div style={{marginBottom:20,display:'flex',justifyContent:'space-between',alignItems:'flex-end',flexWrap:'wrap',gap:12}}>
+        <div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',marginBottom:5,textTransform:'uppercase'}}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+          <h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>{tr(lang,'command_center')}</h1>
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginTop:4}}>
+            {settings.name?`${settings.name} · `:''}<span style={{color:T.emerald}}>●</span> {habits.length} habits · <span style={{color:T.accent}}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{color:T.violet}}>●</span> {(timeline||[]).length} events
+          </div>
         </div>
+        {!checkinDone&&(
+          <button onClick={()=>setModal('checkin')} className="los-btn" style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:99,background:`linear-gradient(135deg,${T.accent}18,${T.violet}18)`,border:`1px solid ${T.accent}44`,fontSize:11,fontFamily:T.fM,color:T.accent,animation:'glowPulse 3s infinite'}}>
+            ✨ {tr(lang,'daily_checkin')}
+          </button>
+        )}
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
+      <div className="los-grid-4" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
         {[
           {label:'Net Worth',value:`${cur}${fmtN(netWorth)}`,sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`,color:T.accent,icon:'💎',pct:null},
           {label:'Financial Health',value:`${fhs}/100`,sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention',color:T.emerald,icon:'📊',pct:fhs},
@@ -619,29 +1043,12 @@ function HomePage({data,actions,onNav}) {
         ))}
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:16}}>
+      <div className="los-grid-2col" style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:16}}>
         <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <WeeklyBriefWidget data={data} weeklyBriefs={weeklyBriefs} onSaveBrief={actions.saveWeeklyBrief} lang={lang}/>
+          <WeeklyIntentions intentions={intentions} onSave={actions.saveIntention} onToggle={actions.toggleIntention} lang={lang}/>
           <GlassCard style={{padding:'20px 22px'}}>
-            <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
-              <div style={{width:5,height:5,borderRadius:'50%',background:'#c084fc',animation:'dotPulse 2s infinite'}}/>
-              <span style={{fontSize:9,fontFamily:T.fM,letterSpacing:'0.1em',color:'#c084fc',textTransform:'uppercase'}}>AI Daily Brief</span>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
-              {[
-                {icon:'💰',label:'Finance',msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent!`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Rate: ${savRate.toFixed(1)}%.`},
-                {icon:'❤️',label:'Health',msg:lastVitals?`Last: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10, energy ${lastVitals.energy}/10.`:'Log your vitals today to track health trends.'},
-                {icon:'🔥',label:'Habits',msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak}d 🔥`:''} `},
-              ].map((item,i)=>(
-                <div key={i} style={{background:T.accentLo,borderRadius:T.r,padding:'12px 14px',border:`1px solid ${T.border}`,animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both`}}>
-                  <div style={{fontSize:16,marginBottom:5}}>{item.icon}</div>
-                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',marginBottom:3}}>{item.label.toUpperCase()}</div>
-                  <div style={{fontSize:11,fontFamily:T.fM,color:T.text,lineHeight:1.5}}>{item.msg}</div>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-          <GlassCard style={{padding:'20px 22px'}}>
-            <SectionLabel>Quick Actions</SectionLabel>
+            <SectionLabel>{tr(lang,'quick_actions')}</SectionLabel>
             <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8}}>
               {QUICK_ACTIONS.map((a,i)=>(
                 <button key={i} className="los-qa" onClick={()=>setModal(a.modal)} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,padding:'10px 6px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,transition:'all 0.18s',animation:`fadeUp 0.3s ease ${i*0.06}s both`}}>
@@ -651,6 +1058,7 @@ function HomePage({data,actions,onNav}) {
               ))}
             </div>
           </GlassCard>
+          <BudgetWidget expenses={expenses} budgets={budgets} onSetBudget={actions.setBudget} currency={cur} lang={lang}/>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:14}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
@@ -668,7 +1076,7 @@ function HomePage({data,actions,onNav}) {
           </div>
           <GlassCard style={{padding:'18px',flex:1}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <SectionLabel>Live Activity Feed</SectionLabel>
+              <SectionLabel>{tr(lang,'activity_feed')}</SectionLabel>
               <button onClick={()=>onNav('timeline')} style={{fontSize:9,fontFamily:T.fM,color:T.accent,display:'flex',alignItems:'center',gap:2}}>All <IcoChevR size={9} stroke={T.accent}/></button>
             </div>
             {recentFeed.length===0?(
@@ -693,6 +1101,8 @@ function HomePage({data,actions,onNav}) {
     </div>
   );
 }
+
+
 
 // ── TIMELINE PAGE V2 — FULL FEATURED ──────────────────────────────────────────
 function TimelinePage({data,onNav}) {
@@ -1543,6 +1953,31 @@ function SettingsPage({data,actions}) {
           </div>
         </GlassCard>
         <GlassCard style={{padding:'24px'}}>
+          <SectionLabel>Appearance & Language</SectionLabel>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:4}}>Theme</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+              {Object.entries({obsidian:{label:'Obsidian',color:'#00f5d4'},midnight:{label:'Midnight',color:'#818cf8'},forest:{label:'Forest',color:'#4ade80'},sunset:{label:'Sunset',color:'#fb923c'},ocean:{label:'Ocean',color:'#06b6d4'},rose:{label:'Rose',color:'#f472b6'}}).map(([key,{label,color}])=>(
+                <button key={key} onClick={()=>actions.updateSettings({...settings,theme:key})} className="los-btn" style={{padding:'8px 6px',borderRadius:T.r,background:(settings.theme||'obsidian')===key?color+'22':T.surface,border:`1px solid ${(settings.theme||'obsidian')===key?color+'66':T.border}`,display:'flex',alignItems:'center',gap:6,transition:'all 0.15s'}}>
+                  <div style={{width:10,height:10,borderRadius:'50%',background:color,flexShrink:0}}/>
+                  <span style={{fontSize:9,fontFamily:T.fM,color:(settings.theme||'obsidian')===key?color:T.textSub}}>{label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:8}}>Language</div>
+            <div style={{display:'flex',gap:8}}>
+              {[{code:'en',label:'English 🇬🇧'},{code:'fr',label:'Français 🇫🇷'}].map(({code,label})=>(
+                <button key={code} onClick={()=>actions.updateSettings({...settings,language:code})} className="los-btn" style={{flex:1,padding:'8px 12px',borderRadius:T.r,background:settings.language===code?T.accentDim:T.surface,border:`1px solid ${settings.language===code?T.accent+'44':T.border}`,fontSize:10,fontFamily:T.fM,color:settings.language===code?T.accent:T.textSub,transition:'all 0.15s'}}>{label}</button>
+              ))}
+            </div>
+            <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:8}}>PIN Lock</div>
+            <div style={{display:'flex',gap:8}}>
+              <Input value={''} onChange={()=>{}} placeholder={settings.pin?'PIN set — enter new to change':'Set 4-digit PIN (optional)'} type="password" style={{flex:1}} id="pinInput"/>
+              <Btn onClick={()=>{const v=document.getElementById('pinInput')?.value;if(v&&v.length===4&&!isNaN(v)){actions.updateSettings({...settings,pin:v});addToast&&addToast('PIN set','success','App will lock on next visit','🔒');}else if(v===''){actions.updateSettings({...settings,pin:null});}}} color={T.violet} style={{padding:'9px 14px'}}>Set</Btn>
+            </div>
+          </div>
+        </GlassCard>
+        <GlassCard style={{padding:'24px'}}>
           <SectionLabel>Data</SectionLabel>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {[{label:'Timeline Events',val:((data.timeline||[]).length).toString(),color:T.accent},{label:'Expenses logged',val:data.expenses.length.toString(),color:T.rose},{label:'Habits tracked',val:data.habits.length.toString(),color:T.amber},{label:'Goals set',val:data.goals.length.toString(),color:T.violet}].map((s,i)=>(
@@ -1575,10 +2010,15 @@ export default function LifeOS() {
   const [page,setPage]=useState('home');
   const [cmdOpen,setCmdOpen]=useState(false);
   const [toasts,setToasts]=useState([]);
+  const [aiPanelOpen,setAiPanelOpen]=useState(false);
+  const [undoItem,setUndoItem]=useState(null);
+  const [undoTimer,setUndoTimer]=useState(null);
+  const [themeKey,setThemeKey]=useState(0);
+  const [globalModal,setGlobalModal]=useState(null);
 
   // Toast system
   const addToast=useCallback((title,type='success',body='',icon='')=>{
-    const META={success:{color:T.emerald,icon:'✅'},error:{color:T.rose,icon:'❌'},info:{color:T.sky,icon:'ℹ️'},achievement:{color:T.amber,icon:'🏅'},timeline:{color:T.accent,icon:'⚡'}};
+    const META={success:{color:T.emerald,icon:'✅'},error:{color:T.rose,icon:'❌'},info:{color:T.sky,icon:'ℹ️'},achievement:{color:T.amber,icon:'🏅'},timeline:{color:T.accent,icon:'⚡'},xp:{color:T.violet,icon:'⚡'}};
     const m=META[type]||META.success;
     const id=Date.now()+Math.random();
     setToasts(p=>[...p,{id,title,body,color:m.color,icon:icon||m.icon}]);
@@ -1586,15 +2026,17 @@ export default function LifeOS() {
   },[]);
   const removeToast=useCallback((id)=>setToasts(p=>p.filter(t=>t.id!==id)),[]);
 
-  // ⌘K shortcut
-  useEffect(()=>{
-    const handler=(e)=>{ if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setCmdOpen(o=>!o);} };
-    window.addEventListener('keydown',handler);
-    return()=>window.removeEventListener('keydown',handler);
-  },[]);
+  // Undo system
+  const triggerUndo=useCallback((label,undoFn)=>{
+    if(undoTimer) clearTimeout(undoTimer);
+    setUndoItem({label,fn:undoFn});
+    const t=setTimeout(()=>setUndoItem(null),6000);
+    setUndoTimer(t);
+  },[undoTimer]);
+  const executeUndo=useCallback(()=>{ if(undoItem){undoItem.fn();setUndoItem(null);if(undoTimer)clearTimeout(undoTimer);} },[undoItem,undoTimer]);
 
   // State stores
-  const [settings,setSettings]=useLocalStorage('los_settings',{name:'',currency:'$',language:'en',incomeTarget:0,savingsTarget:30});
+  const [settings,setSettings]=useLocalStorage('los_settings',{name:'',currency:'$',language:'en',incomeTarget:0,savingsTarget:30,theme:'obsidian',pin:null});
   const [habits,setHabits]=useLocalStorage('los_habits',[]);
   const [habitLogs,setHabitLogs]=useLocalStorage('los_habitlogs',{});
   const [expenses,setExpenses]=useLocalStorage('los_expenses',[]);
@@ -1612,32 +2054,85 @@ export default function LifeOS() {
   const [quickNotes,setQuickNotes]=useLocalStorage('los_qnotes',[]);
   const [subscriptions]=useLocalStorage('los_subs',[]);
   const [bills]=useLocalStorage('los_bills',[]);
+  const [intentions,setIntentions]=useLocalStorage('los_intentions',[]);
+  const [budgets,setBudgets]=useLocalStorage('los_budgets',{});
+  const [weeklyBriefs,setWeeklyBriefs]=useLocalStorage('los_briefs',[]);
+  const [onboarded,setOnboarded]=useLocalStorage('los_onboarded',false);
+  const [lastReview,setLastReview]=useLocalStorage('los_lastReview',null);
+  const [pinLocked,setPinLocked]=useState(()=>{
+    try{const s=JSON.parse(localStorage.getItem('los_settings')||'{}');return !!(s.pin);}catch{return false;}
+  });
 
-  // TIMELINE ENGINE — central event store
+  // TIMELINE ENGINE
   const [timeline,setTimeline]=useLocalStorage('los_timeline',[]);
-
-  // createTimelineEvent — called by all modules
   const addTLEvent=useCallback((params)=>{
     const event=buildTLEvent(params);
-    setTimeline(prev=>[event,...prev].slice(0,2000)); // max 2000 events
+    setTimeline(prev=>[event,...prev].slice(0,2000));
     return event;
   },[setTimeline]);
 
+  const lang=settings.language||'en';
   const cur=settings.currency||'$';
 
-  // ── ACTIONS (all wired to timeline) ────────────────────────────────────────
+  // Apply theme on settings change
+  useEffect(()=>{ applyTheme(settings.theme||'obsidian'); setThemeKey(k=>k+1); },[settings.theme]);
+
+  // Monthly review: show once per month
+  const [showReview,setShowReview]=useState(()=>{
+    const m=today().slice(0,7);
+    try{const lr=JSON.parse(localStorage.getItem('los_lastReview'));return lr!==m&&new Date().getDate()>3;}catch{return false;}
+  });
+
+  // Keyboard shortcuts
+  useEffect(()=>{
+    const handler=(e)=>{
+      const tag=e.target.tagName;
+      if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+      if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setCmdOpen(o=>!o);return;}
+      if(e.key==='e'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();setGlobalModal('expense');}
+      if(e.key==='n'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();setGlobalModal('note');}
+      if(e.key==='f'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();setGlobalModal('habit');}
+      if(e.key==='Escape'){setAiPanelOpen(false);setCmdOpen(false);}
+    };
+    window.addEventListener('keydown',handler);
+    return()=>window.removeEventListener('keydown',handler);
+  },[]);
+
+  // Smart alerts
+  const thisMonth=today().slice(0,7);
+  const monthInc=incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const monthExp=expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const savRate=monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  const smartAlerts=useMemo(()=>{
+    const alerts=[];
+    Object.entries(budgets).forEach(([cat,budget])=>{
+      if(!budget) return;
+      const spent=expenses.filter(e=>e.date?.startsWith(thisMonth)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+      if(spent>Number(budget)) alerts.push({type:'budget',msg:`${cat.split(' ').slice(1).join(' ')} over budget`,color:T.rose,icon:'⚠️'});
+    });
+    if(monthInc>0&&savRate<10) alerts.push({type:'savings',msg:'Savings rate below 10%',color:T.amber,icon:'📉'});
+    bills.forEach(b=>{
+      if(!b.dueDay) return;
+      const now=new Date(); const dueDate=new Date(now.getFullYear(),now.getMonth(),b.dueDay);
+      const daysUntil=Math.round((dueDate-now)/86400000);
+      if(daysUntil>=0&&daysUntil<=3) alerts.push({type:'bill',msg:`${b.name} due in ${daysUntil}d`,color:T.amber,icon:'📅'});
+    });
+    return alerts.slice(0,4);
+  },[budgets,expenses,bills,monthInc,savRate,thisMonth]);
+
+  // ── ACTIONS ────────────────────────────────────────────────────────────────
   const addExpense=useCallback((e)=>{
     setExpenses(p=>[e,...p]);
-    setTotalXP(x=>Number(x)+5);
+    const xp=5; setTotalXP(x=>Number(x)+xp);
     addTLEvent({type:'expense',title:`Expense: ${e.note||e.category}`,description:`${cur}${fmtN(e.amount)} — ${e.category}`,category:'money',metadata:{amount:e.amount,category:e.category,note:e.note},date:e.date});
-    addToast(`Expense logged`,`timeline`,`${e.category} · ${cur}${fmtN(e.amount)}`,'💳');
+    addToast(`+${xp} XP · Expense logged`,'timeline',`${e.category} · ${cur}${fmtN(e.amount)}`,'💳');
   },[cur,addTLEvent,addToast]);
 
   const addIncome=useCallback((i)=>{
     setIncomes(p=>[i,...p]);
-    setTotalXP(x=>Number(x)+10);
+    const xp=10; setTotalXP(x=>Number(x)+xp);
     addTLEvent({type:'income',title:`Income: ${i.note||i.source||'Received'}`,description:`+${cur}${fmtN(i.amount)} — ${i.source||'Income'}`,category:'money',metadata:{amount:i.amount,source:i.source},date:i.date});
-    addToast(`Income logged`,`success`,`+${cur}${fmtN(i.amount)}`,'💰');
+    addToast(`+${xp} XP · Income logged`,'success',`+${cur}${fmtN(i.amount)}`,'💰');
   },[cur,addTLEvent,addToast]);
 
   const addHabit=useCallback((name)=>{
@@ -1653,15 +2148,15 @@ export default function LifeOS() {
       if(logs.includes(d)) return prev;
       return{...prev,[habitId]:[...logs,d]};
     });
-    setTotalXP(x=>Number(x)+10);
+    const xp=10; setTotalXP(x=>Number(x)+xp);
     const hab=habits.find(h=>h.id===habitId);
     const streak=getStreak(habitId,habitLogs)+1;
     addTLEvent({type:'habit_completed',title:`${hab?.name||'Habit'} completed`,description:`🔥 ${streak}d streak`,category:'growth',metadata:{habitId,habitName:hab?.name,streak}});
     if(streak===7||streak===30||streak===100){
       addTLEvent({type:'streak_milestone',title:`🏆 ${streak}-day streak milestone!`,description:`${hab?.name} — ${streak} days`,category:'growth',metadata:{habitId,streak}});
-      addToast(`${streak}-day streak!`,'achievement',hab?.name||'Habit','🏆');
+      addToast(`🏆 ${streak}-day streak!`,'achievement',hab?.name||'Habit','🏆');
     } else {
-      addToast(`Habit logged`,'timeline',`${hab?.name} · 🔥 ${streak}d`,'🔥');
+      addToast(`+${xp} XP · Habit logged`,'timeline',`${hab?.name} · 🔥 ${streak}d`,'🔥');
     }
   },[habits,habitLogs,addTLEvent,addToast]);
 
@@ -1671,30 +2166,30 @@ export default function LifeOS() {
       if(existing>=0){const n=[...p];n[existing]={...n[existing],...v};return n;}
       return[v,...p];
     });
-    setTotalXP(x=>Number(x)+8);
+    const xp=8; setTotalXP(x=>Number(x)+xp);
     addTLEvent({type:'vitals_logged',title:'Vitals Logged',description:`Sleep ${v.sleep}h · Mood ${v.mood}/10 · Energy ${v.energy}/10`,category:'health',metadata:v,date:v.date});
-    addToast('Vitals logged','info',`Sleep ${v.sleep}h · Mood ${v.mood}/10`,'❤️');
+    addToast(`+${xp} XP · Vitals logged`,'info',`Sleep ${v.sleep}h · Mood ${v.mood}/10`,'❤️');
   },[addTLEvent,addToast]);
 
   const addNote=useCallback((n)=>{
     setNotes(p=>[n,...p]);
-    setTotalXP(x=>Number(x)+5);
+    const xp=5; setTotalXP(x=>Number(x)+xp);
     addTLEvent({type:'note_created',title:`Note: ${n.title}`,description:n.tag||'Knowledge',category:'knowledge',metadata:{title:n.title,tag:n.tag},date:n.date});
-    addToast('Note created','info',n.title,'📝');
+    addToast(`+${xp} XP · Note created`,'info',n.title,'📝');
   },[addTLEvent,addToast]);
 
   const addGoal=useCallback((g)=>{
     setGoals(p=>[...p,g]);
-    setTotalXP(x=>Number(x)+20);
+    const xp=20; setTotalXP(x=>Number(x)+xp);
     addTLEvent({type:'goal_created',title:`New goal: ${g.name}`,description:`Target: ${cur}${fmtN(g.target)} · Category: ${g.cat}`,category:'growth',metadata:{name:g.name,target:g.target,cat:g.cat}});
-    addToast('Goal created','success',g.name,'🎯');
+    addToast(`+${xp} XP · Goal created`,'success',g.name,'🎯');
   },[cur,addTLEvent,addToast]);
 
   const addAsset=useCallback((a)=>{
     setAssets(p=>[...p,a]);
-    setTotalXP(x=>Number(x)+15);
+    const xp=15; setTotalXP(x=>Number(x)+xp);
     addTLEvent({type:'asset_added',title:`Asset added: ${a.name}`,description:`${a.type} · ${cur}${fmtN(a.value)}`,category:'money',metadata:{name:a.name,value:a.value,type:a.type}});
-    addToast('Asset added','success',`${a.name} · ${cur}${fmtN(a.value)}`,'💎');
+    addToast(`+${xp} XP · Asset added`,'success',`${a.name} · ${cur}${fmtN(a.value)}`,'💎');
   },[cur,addTLEvent,addToast]);
 
   const updateGoalProgress=useCallback((goalId,amount)=>{
@@ -1704,7 +2199,7 @@ export default function LifeOS() {
       const completed=newCurrent>=g.target&&(g.current||0)<g.target;
       if(completed){
         addTLEvent({type:'goal_completed',title:`🏁 Goal completed: ${g.name}`,description:`Reached ${cur}${fmtN(g.target)} target`,category:'growth',metadata:{goalName:g.name,target:g.target}});
-        addToast(`Goal completed!`,'achievement',g.name,'🏁');
+        addToast(`🏁 Goal completed!`,'achievement',g.name,'🏁');
       } else {
         addTLEvent({type:'goal_milestone',title:`Goal progress: ${g.name}`,description:`+${cur}${fmtN(amount)} → ${Math.round((newCurrent/g.target)*100)}%`,category:'growth',metadata:{goalName:g.name,added:amount,newPct:Math.round((newCurrent/g.target)*100)}});
       }
@@ -1716,28 +2211,42 @@ export default function LifeOS() {
   const logFocusSession=useCallback((seconds)=>{
     const session={id:Date.now(),duration:seconds,date:today()};
     setFocusSessions(p=>[session,...p]);
-    setTotalXP(x=>Number(x)+15);
-    addTLEvent({type:'focus_completed',title:`Focus session: ${Math.round(seconds/60)}m`,description:`Deep work completed · +15 XP`,category:'growth',metadata:{duration:seconds}});
-    addToast(`Focus session complete`,'success',`${Math.round(seconds/60)} minutes`,'⏱️');
+    const xp=15; setTotalXP(x=>Number(x)+xp);
+    addTLEvent({type:'focus_completed',title:`Focus session: ${Math.round(seconds/60)}m`,description:`Deep work · +${xp} XP`,category:'growth',metadata:{duration:seconds}});
+    addToast(`+${xp} XP · Focus complete`,'success',`${Math.round(seconds/60)} minutes`,'⏱️');
   },[addTLEvent,addToast]);
 
-  const updateSettings=useCallback((s)=>{setSettings(s);},[]);
+  const updateSettings=useCallback((s)=>{ setSettings(s); },[]);
 
-  const actions={addExpense,addIncome,addHabit,logHabit,addVitals,addNote,addGoal,addAsset,updateGoalProgress,updateSettings,logFocusSession,addTLEvent};
+  // New actions: intentions, budgets, weekly brief, check-in
+  const saveIntention=useCallback((text,idx)=>{
+    setIntentions(p=>{const n=[...p];n[idx]={text,done:false};return n;});
+  },[]);
+  const toggleIntention=useCallback((idx)=>{
+    setIntentions(p=>p.map((it,i)=>i===idx?{...it,done:!it.done}:it));
+  },[]);
+  const setBudget=useCallback((cat,amount)=>{
+    setBudgets(p=>({...p,[cat]:Number(amount)||0}));
+  },[]);
+  const saveWeeklyBrief=useCallback((brief)=>{
+    setWeeklyBriefs(p=>{const filtered=p.filter(b=>b.week!==brief.week);return[brief,...filtered].slice(0,12);});
+  },[]);
+  const logCheckin=useCallback((mood,note)=>{
+    addVitals({id:Date.now(),sleep:0,mood,energy:mood,weight:0,date:today(),note,isCheckin:true});
+    addToast(tr(lang,'checkin_saved'),'success',`Mood: ${mood}/10 ✨`,'✨');
+  },[addVitals,addToast,lang]);
 
-  const data={expenses,incomes,assets,investments,debts,goals,habits,habitLogs,vitals,notes,totalXP,settings,netWorthHistory,eventLog,focusSessions,quickNotes,subscriptions,bills,timeline};
+  const actions={addExpense,addIncome,addHabit,logHabit,addVitals,addNote,addGoal,addAsset,updateGoalProgress,updateSettings,logFocusSession,addTLEvent,saveIntention,toggleIntention,setBudget,saveWeeklyBrief,logCheckin};
+
+  const data={expenses,incomes,assets,investments,debts,goals,habits,habitLogs,vitals,notes,totalXP,settings,netWorthHistory,eventLog,focusSessions,quickNotes,subscriptions,bills,timeline,intentions,budgets,weeklyBriefs};
 
   const level=Math.floor(Math.sqrt(Number(totalXP)/100))+1;
   const bestStreak=habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
-  const thisMonth=today().slice(0,7);
-  const monthInc=incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const monthExp=expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
   const invVal=investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
   const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const savRate=monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
 
   const VIEW={
-    home:<HomePage data={data} actions={actions} onNav={setPage}/>,
+    home:<HomePage data={data} actions={actions} onNav={setPage} onCheckin={logCheckin} lang={lang}/>,
     timeline:<TimelinePage data={data} onNav={setPage}/>,
     money:<MoneyPage data={data} actions={actions}/>,
     health:<HealthPage data={data} actions={actions}/>,
@@ -1748,8 +2257,31 @@ export default function LifeOS() {
     settings:<SettingsPage data={data} actions={actions}/>,
   };
 
+  // Onboarding handler
+  const handleOnboarding=useCallback((result)=>{
+    const newSettings={...settings,name:result.name||settings.name,currency:result.currency||settings.currency};
+    setSettings(newSettings);
+    if(result.goalName) addGoal({id:Date.now(),name:result.goalName,target:10000,current:0,cat:'finance',emoji:'💰',createdAt:today()});
+    if(result.habitName) addHabit(result.habitName);
+    setOnboarded(true);
+  },[settings,addGoal,addHabit]);
+
   return (
-    <div style={{minHeight:'100vh',background:T.bg,color:T.text,fontFamily:T.fD,display:'flex'}}>
+    <div key={themeKey} style={{minHeight:'100vh',background:T.bg,color:T.text,fontFamily:T.fD,display:'flex'}}>
+      {/* Onboarding */}
+      {!onboarded&&<OnboardingWizard onDone={handleOnboarding} lang={lang}/>}
+
+      {/* PIN Lock */}
+      {pinLocked&&settings.pin&&<PINLockScreen pinCode={settings.pin} onUnlock={()=>setPinLocked(false)} lang={lang}/>}
+
+      {/* Monthly Review */}
+      {showReview&&onboarded&&<MonthlyReviewModal data={data} onDismiss={()=>{setShowReview(false);setLastReview(today().slice(0,7));}} lang={lang}/>}
+
+      {/* Global keyboard shortcut modals */}
+      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpense(e);setGlobalModal(null);}}/>
+      <AddNoteModal open={globalModal==='note'} onClose={()=>setGlobalModal(null)} onSave={e=>{addNote(e);setGlobalModal(null);}}/>
+      <LogHabitModal open={globalModal==='habit'} onClose={()=>setGlobalModal(null)} habits={habits} habitLogs={habitLogs} onLog={logHabit} onAddHabit={addHabit}/>
+
       {/* Ambient glow */}
       <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,overflow:'hidden'}}>
         <div style={{position:'absolute',top:-200,left:T.sw,width:600,height:600,borderRadius:'50%',background:`radial-gradient(circle,${T.accent}05 0%,transparent 70%)`}}/>
@@ -1759,39 +2291,55 @@ export default function LifeOS() {
       {/* Toast system */}
       <ToastContainer toasts={toasts} removeToast={removeToast}/>
 
+      {/* Undo bar */}
+      <UndoBar undoItem={undoItem} onUndo={executeUndo} onDismiss={()=>setUndoItem(null)}/>
+
       {/* Command Palette */}
       <CommandPalette open={cmdOpen} onClose={()=>setCmdOpen(false)} data={data} onNav={(p)=>{setPage(p);setCmdOpen(false);}}/>
 
-      <Sidebar active={page} onNav={setPage} userName={settings.name} onCmdPalette={()=>setCmdOpen(true)}/>
+      {/* AI Slide Panel */}
+      <AISlidePanel open={aiPanelOpen} onClose={()=>setAiPanelOpen(false)} data={data} lang={lang}/>
 
-      <div style={{flex:1,marginLeft:T.sw,minHeight:'100vh',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
+      {/* Sidebar (desktop) */}
+      <Sidebar active={page} onNav={setPage} userName={settings.name} onCmdPalette={()=>setCmdOpen(true)} onAIPanel={()=>setAiPanelOpen(o=>!o)} onLock={()=>setPinLocked(true)} pinEnabled={!!settings.pin}/>
+
+      {/* Mobile bottom nav */}
+      <MobileBottomNav active={page} onNav={setPage}/>
+
+      {/* Quick Capture FAB */}
+      <QuickCaptureFAB onAction={(key)=>setGlobalModal(key)} lang={lang}/>
+
+      <div className="los-main" style={{flex:1,marginLeft:T.sw,minHeight:'100vh',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
         {/* Topbar */}
-        <div style={{height:50,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',justifyContent:'space-between',background:`${T.bg}dd`,backdropFilter:'blur(20px)',position:'sticky',top:0,zIndex:50}}>
+        <div className="los-topbar" style={{height:50,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',justifyContent:'space-between',background:`${T.bg}dd`,backdropFilter:'blur(20px)',position:'sticky',top:0,zIndex:50}}>
           <div style={{display:'flex',alignItems:'center',gap:7}}>
             <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,letterSpacing:'0.15em'}}>LIFE OS</span>
             <span style={{color:T.textMuted,fontSize:11}}>›</span>
             <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase'}}>{page}</span>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:16}}>
-            {/* ⌘K trigger */}
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
+            <SmartAlertsChip alerts={smartAlerts}/>
             <button onClick={()=>setCmdOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontSize:9,fontFamily:T.fM,color:T.textSub,transition:'all 0.15s'}}>
-              <IcoSearch size={9} stroke={T.textSub}/> Search <kbd style={{fontSize:8,color:T.textMuted,padding:'1px 4px',borderRadius:3,border:`1px solid ${T.border}`}}>⌘K</kbd>
+              <IcoSearch size={9} stroke={T.textSub}/> <span className="los-hide-mobile">Search</span> <kbd style={{fontSize:8,color:T.textMuted,padding:'1px 4px',borderRadius:3,border:`1px solid ${T.border}`}}>⌘K</kbd>
             </button>
-            <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,display:'flex',alignItems:'center',gap:5}}>
+            <button onClick={()=>setAiPanelOpen(o=>!o)} style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:T.r,background:'rgba(192,132,252,0.08)',border:'1px solid rgba(192,132,252,0.2)',fontSize:9,fontFamily:T.fM,color:'#c084fc'}}>
+              ⬡ <span className="los-hide-mobile">AI</span>
+            </button>
+            <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,display:'flex',alignItems:'center',gap:5}} className="los-hide-mobile">
               <div style={{width:4,height:4,borderRadius:'50%',background:T.emerald,animation:'dotPulse 2.5s infinite'}}/>
               {(timeline||[]).length} events
             </div>
-            <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+            <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}} className="los-hide-mobile">{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
           </div>
         </div>
 
         {/* Page */}
-        <div key={page} style={{flex:1,padding:'26px 30px',overflowY:'auto',maxWidth:1180}}>
+        <div className="los-page-content" key={page} style={{flex:1,padding:'26px 30px',overflowY:'auto',maxWidth:1180}}>
           {VIEW[page]}
         </div>
 
         {/* Status bar */}
-        <div style={{height:26,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:18,background:T.bg}}>
+        <div className="los-status-bar" style={{height:26,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:18,background:T.bg}}>
           {[
             {label:'NW',val:`${cur}${fmtN(nw)}`,color:T.accent},
             {label:'LV',val:`${level}`,color:T.violet},
