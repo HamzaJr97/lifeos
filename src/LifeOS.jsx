@@ -12,193 +12,104 @@ import {
   link.rel = 'stylesheet';
   link.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap';
   document.head.appendChild(link);
-
   const style = document.createElement('style');
   style.textContent = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
     ::-webkit-scrollbar { width: 2px; height: 2px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,245,212,0.18); border-radius: 2px; }
-    @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-    @keyframes slideR { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:translateX(0); } }
-    @keyframes glowPulse { 0%,100% { box-shadow:0 0 8px rgba(0,245,212,0.25); } 50% { box-shadow:0 0 28px rgba(0,245,212,0.65),0 0 50px rgba(0,245,212,0.15); } }
-    @keyframes dotPulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.5); opacity:0.6; } }
-    @keyframes scan { 0% { transform:translateY(-100%); opacity:0.05; } 100% { transform:translateY(200%); opacity:0; } }
-    @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-    @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
-    @keyframes countUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes borderGlow { 0%,100% { border-color:rgba(0,245,212,0.2); } 50% { border-color:rgba(0,245,212,0.55); } }
-    @keyframes barFill { from { width:0; } to { width:var(--w); } }
-    @keyframes radarSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    @keyframes nodeEnter { from { opacity:0; transform:scale(0.7) translateX(-10px); } to { opacity:1; transform:scale(1) translateX(0); } }
-    .lifeos-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
-    .lifeos-card:hover { border-color: rgba(0,245,212,0.2) !important; }
-    .lifeos-nav-item:hover { background: rgba(0,245,212,0.08) !important; }
-    .lifeos-quick-action:hover { background: rgba(255,255,255,0.07) !important; transform: translateY(-2px); }
-    .lifeos-tl-event:hover { background: rgba(255,255,255,0.04) !important; }
-    .lifeos-tab:hover { background: rgba(255,255,255,0.05) !important; }
-    input, textarea { outline: none; }
-    input:focus, textarea:focus { border-color: rgba(0,245,212,0.5) !important; }
-    button { cursor: pointer; border: none; background: none; font-family: inherit; transition: all 0.18s ease; }
+    @keyframes glowPulse { 0%,100% { box-shadow:0 0 8px rgba(0,245,212,0.25); } 50% { box-shadow:0 0 28px rgba(0,245,212,0.65),0 0 50px rgba(0,245,212,0.12); } }
+    @keyframes dotPulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.6); opacity:0.5; } }
+    @keyframes nodeEnter { from { opacity:0; transform:scale(0.8) translateX(-8px); } to { opacity:1; transform:scale(1) translateX(0); } }
+    @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    @keyframes countUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    .los-btn:hover { filter:brightness(1.2); transform:translateY(-1px); }
+    .los-card:hover { border-color:rgba(0,245,212,0.18) !important; }
+    .los-nav:hover { background:rgba(0,245,212,0.08) !important; }
+    .los-qa:hover { background:rgba(255,255,255,0.07) !important; transform:translateY(-2px); }
+    .los-ev:hover { background:rgba(255,255,255,0.04) !important; }
+    .los-tab:hover { background:rgba(255,255,255,0.05) !important; }
+    .los-row:hover { background:rgba(255,255,255,0.03) !important; }
+    input, textarea, select { outline:none; font-family:inherit; }
+    input:focus, textarea:focus, select:focus { border-color:rgba(0,245,212,0.5) !important; }
+    button { cursor:pointer; border:none; background:none; font-family:inherit; transition:all 0.18s ease; }
+    select option { background:#0b0b1a; color:#dde0f2; }
   `;
   document.head.appendChild(style);
 })();
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
 const T = {
-  bg:       '#040408',
-  bg1:      '#070710',
-  bg2:      '#0b0b1a',
-  surface:  'rgba(255,255,255,0.028)',
-  surfaceHi:'rgba(255,255,255,0.055)',
-  glass:    'rgba(8,8,18,0.92)',
-  border:   'rgba(255,255,255,0.07)',
-  borderLit:'rgba(0,245,212,0.3)',
-
-  accent:   '#00f5d4',
-  accentDim:'rgba(0,245,212,0.12)',
-  accentLo: 'rgba(0,245,212,0.06)',
-
-  violet:   '#8b5cf6',
-  violetDim:'rgba(139,92,246,0.12)',
-
-  amber:    '#fbbf24',
-  amberDim: 'rgba(251,191,36,0.12)',
-
-  rose:     '#fb7185',
-  roseDim:  'rgba(251,113,133,0.12)',
-
-  emerald:  '#34d399',
-  emeraldDim:'rgba(52,211,153,0.12)',
-
-  sky:      '#38bdf8',
-  skyDim:   'rgba(56,189,248,0.12)',
-
-  text:     '#dde0f2',
-  textSub:  '#6b6b90',
-  textMuted:'#36364e',
-
-  fD: 'Syne, sans-serif',
-  fM: '"IBM Plex Mono", monospace',
-  r:  '10px',
-  rL: '16px',
-  rX: '24px',
-  sw: 72,
+  bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
+  surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
+  border:'rgba(255,255,255,0.07)', borderLit:'rgba(0,245,212,0.3)',
+  accent:'#00f5d4', accentDim:'rgba(0,245,212,0.12)', accentLo:'rgba(0,245,212,0.06)',
+  violet:'#8b5cf6', violetDim:'rgba(139,92,246,0.12)',
+  amber:'#fbbf24', amberDim:'rgba(251,191,36,0.12)',
+  rose:'#fb7185', roseDim:'rgba(251,113,133,0.12)',
+  emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
+  sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
+  text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
+  fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
+  r:'10px', rL:'16px', sw:72,
 };
 
-const CAT = {
-  expense:    { color:T.rose,    dim:T.roseDim,    label:'Expense',    icon:'💳', emoji:'💳' },
-  income:     { color:T.emerald, dim:T.emeraldDim, label:'Income',     icon:'💰', emoji:'💰' },
-  investment: { color:T.violet,  dim:T.violetDim,  label:'Investment', icon:'📈', emoji:'📈' },
-  habit:      { color:T.accent,  dim:T.accentDim,  label:'Habit',      icon:'🔥', emoji:'🔥' },
-  health:     { color:T.sky,     dim:T.skyDim,     label:'Health',     icon:'❤️', emoji:'❤️' },
-  goal:       { color:T.amber,   dim:T.amberDim,   label:'Goal',       icon:'🎯', emoji:'🎯' },
-  insight:    { color:'#c084fc', dim:'rgba(192,132,252,0.1)', label:'AI Insight', icon:'✨', emoji:'✨' },
-  career:     { color:T.amber,   dim:T.amberDim,   label:'Career',     icon:'🚀', emoji:'🚀' },
-  workout:    { color:T.sky,     dim:T.skyDim,     label:'Workout',    icon:'💪', emoji:'💪' },
-  note:       { color:T.textSub, dim:'rgba(107,107,144,0.1)', label:'Note', icon:'📝', emoji:'📝' },
+// ── LOCAL STORAGE HOOK (same keys as old app) ──────────────────────────────────
+function useLocalStorage(key, defaultVal) {
+  const [val, setVal] = useState(() => {
+    try {
+      const s = localStorage.getItem(key);
+      return s !== null ? JSON.parse(s) : defaultVal;
+    } catch { return defaultVal; }
+  });
+  const setter = useCallback((v) => {
+    setVal(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [key]);
+  return [val, setter];
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────────
+const today = () => new Date().toISOString().slice(0, 10);
+const fmtN = (n) => {
+  if (n === undefined || n === null) return '0';
+  const num = Number(n);
+  if (isNaN(num)) return '0';
+  return num >= 1000000 ? `${(num/1000000).toFixed(2)}M`
+    : num >= 1000 ? num.toLocaleString('en-US', {maximumFractionDigits:0})
+    : num.toFixed(num % 1 ? 2 : 0);
 };
 
-// ── MOCK DATA ─────────────────────────────────────────────────────────────────
-const TIMELINE_EVENTS = [
-  { id:1,  ts:'2026-03-09 09:14', type:'habit',      title:'Morning Meditation', sub:'21-day streak 🔥', value:'+12 XP', cat:'habit'      },
-  { id:2,  ts:'2026-03-09 08:52', type:'health',     title:'Sleep Logged',       sub:'7h 42m · 94% quality', value:'⚡ High Energy', cat:'health' },
-  { id:3,  ts:'2026-03-09 08:30', type:'expense',    title:'Whole Foods',        sub:'Groceries', value:'-$87.40', cat:'expense'   },
-  { id:4,  ts:'2026-03-08 22:10', type:'insight',    title:'AI Insight Generated',sub:'Spending 18% above avg', value:'⚠️ Alert', cat:'insight'  },
-  { id:5,  ts:'2026-03-08 18:00', type:'workout',    title:'Strength Training',  sub:'45 min · 380 cal', value:'+25 XP', cat:'workout'  },
-  { id:6,  ts:'2026-03-08 15:30', type:'investment', title:'NVDA — BUY 3 shares',sub:'Portfolio +2.4%', value:'+$184', cat:'investment'},
-  { id:7,  ts:'2026-03-08 12:00', type:'income',     title:'Salary Deposited',   sub:'March 2026', value:'+$6,200', cat:'income'    },
-  { id:8,  ts:'2026-03-07 20:00', type:'goal',       title:'Emergency Fund 80%', sub:'Goal milestone reached', value:'🏆 +50 XP', cat:'goal'     },
-  { id:9,  ts:'2026-03-07 10:00', type:'career',     title:'Project APEX Shipped',sub:'Q1 delivery', value:'🚀 Milestone', cat:'career'   },
-  { id:10, ts:'2026-03-06 19:15', type:'habit',      title:'Reading — 30 min',   sub:'48-day streak', value:'+8 XP', cat:'habit'     },
-  { id:11, ts:'2026-03-06 14:00', type:'expense',    title:'Netflix / Spotify',  sub:'Subscriptions', value:'-$29.98', cat:'expense'  },
-  { id:12, ts:'2026-03-05 09:00', type:'health',     title:'Weight Logged',      sub:'173 lbs (-0.4)', value:'↓ Trending', cat:'health'   },
-  { id:13, ts:'2026-03-04 16:30', type:'investment', title:'ETF Auto-Invest',    sub:'VTI $500', value:'+$12.50', cat:'investment'},
-  { id:14, ts:'2026-03-03 11:00', type:'note',       title:'Saved Research',     sub:'AI Investment thesis', value:'📝 Saved', cat:'note'     },
-  { id:15, ts:'2026-03-01 00:00', type:'income',     title:'Freelance Payment',  sub:'UX Audit — Acme Co.', value:'+$1,400', cat:'income'   },
-];
+const getStreak = (habitId, habitLogs) => {
+  const logs = habitLogs[habitId] || [];
+  let streak = 0;
+  let d = new Date();
+  while (true) {
+    const s = d.toISOString().slice(0, 10);
+    if (logs.includes(s)) { streak++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  return streak;
+};
 
-const NETWORTH_TREND = [
-  { m:'Sep', v:187000 }, { m:'Oct', v:192000 }, { m:'Nov', v:195500 },
-  { m:'Dec', v:188000 }, { m:'Jan', v:201000 }, { m:'Feb', v:208400 },
-  { m:'Mar', v:214700 },
-];
-
-const SPENDING_DATA = [
-  { name:'Housing',    value:1800, color:'#8b5cf6' },
-  { name:'Food',       value:620,  color:'#34d399' },
-  { name:'Transport',  value:280,  color:'#38bdf8' },
-  { name:'Health',     value:150,  color:'#fb7185' },
-  { name:'Subs',       value:95,   color:'#fbbf24' },
-  { name:'Other',      value:310,  color:'#6b6b90' },
-];
-
-const CASHFLOW_DATA = [
-  { m:'Oct', inc:7400, exp:3200 }, { m:'Nov', inc:7400, exp:3600 },
-  { m:'Dec', inc:8800, exp:4100 }, { m:'Jan', inc:7400, exp:2900 },
-  { m:'Feb', inc:7400, exp:3400 }, { m:'Mar', inc:7600, exp:3255 },
-];
-
-const PORTFOLIO_DATA = [
-  { name:'US Equities', pct:52, val:64200, color:'#8b5cf6', change:2.4 },
-  { name:'Intl Stocks',  pct:18, val:22100, color:'#38bdf8', change:-0.8 },
-  { name:'Bonds',        pct:12, val:14800, color:'#34d399', change:0.2 },
-  { name:'Real Estate',  pct:10, val:12300, color:'#fbbf24', change:1.1 },
-  { name:'Crypto',       pct:5,  val:6150,  color:'#fb7185', change:8.4 },
-  { name:'Cash',         pct:3,  val:3690,  color:'#6b6b90', change:0 },
-];
-
-const SLEEP_DATA = [
-  { d:'Mon', h:6.8 }, { d:'Tue', h:7.5 }, { d:'Wed', h:8.1 },
-  { d:'Thu', h:6.2 }, { d:'Fri', h:7.9 }, { d:'Sat', h:8.8 }, { d:'Sun', h:7.7 },
-];
-
-const HABITS = [
-  { id:1, name:'Meditation',  streak:21, goal:30, done:true,  color:T.accent,  emoji:'🧘' },
-  { id:2, name:'Reading',     streak:48, goal:60, done:true,  color:T.violet,  emoji:'📚' },
-  { id:3, name:'Exercise',    streak:12, goal:30, done:false, color:T.sky,     emoji:'💪' },
-  { id:4, name:'Journaling',  streak:7,  goal:21, done:false, color:T.amber,   emoji:'✍️' },
-  { id:5, name:'Cold Shower', streak:3,  goal:14, done:true,  color:T.rose,    emoji:'🚿' },
-  { id:6, name:'No Alcohol',  streak:18, goal:30, done:true,  color:T.emerald, emoji:'🌿' },
-];
-
-const LIFE_STATS = [
-  { label:'Financial',  val:82, color:T.emerald },
-  { label:'Health',     val:74, color:T.sky     },
-  { label:'Growth',     val:68, color:T.violet  },
-  { label:'Focus',      val:91, color:T.accent  },
-  { label:'Social',     val:55, color:T.amber   },
-  { label:'Purpose',    val:78, color:T.rose    },
-];
-
-const RADAR_DATA = LIFE_STATS.map(s => ({ subject: s.label, A: s.val }));
-
-const GOALS = [
-  { id:1, name:'Emergency Fund',      target:15000, current:12000, cat:'finance', color:T.emerald, emoji:'🛡️' },
-  { id:2, name:'Run Half-Marathon',   target:100,   current:68,    cat:'health',  color:T.sky,     emoji:'🏃' },
-  { id:3, name:'Invest $20k by Q3',   target:20000, current:12400, cat:'finance', color:T.violet,  emoji:'📊' },
-  { id:4, name:'Finish Online Course',target:40,    current:28,    cat:'growth',  color:T.amber,   emoji:'🎓' },
-];
-
-const INSIGHTS_DATA = [
-  { id:1, type:'warning',  title:'Spending Spike Detected',       body:'Restaurant spending +44% vs last month. Trending $180 over budget.', color:T.amber,   icon:'⚠️', time:'2h ago' },
-  { id:2, type:'positive', title:'Investment Momentum',           body:'Portfolio up 6.2% YTD. Your ETF allocation is outperforming SP500 by 1.4%.', color:T.emerald, icon:'📈', time:'6h ago' },
-  { id:3, type:'insight',  title:'Habit-Energy Correlation',      body:'You sleep 22% better on days you exercise. 3 missed workouts this week.', color:T.sky,     icon:'🔗', time:'1d ago' },
-  { id:4, type:'coach',    title:'Wealth Coach Recommendation',   body:'Increase savings rate to 35% to hit $500k net worth by 2031 (3 yrs ahead of plan).', color:'#c084fc', icon:'🧠', time:'2d ago' },
-  { id:5, type:'positive', title:'21-Day Meditation Milestone',   body:'Consistent practice correlates with your highest-focus workdays. Keep going.', color:T.accent,  icon:'✨', time:'3d ago' },
-];
-
-const NOTES = [
-  { id:1, title:'Investment Thesis — AI Infra',  preview:'Key players: NVDA, MSFT Azure, AWS. Moat analysis...', tag:'Finance', ts:'Mar 8', color:T.violet },
-  { id:2, title:'Q2 Career Goals',               preview:'1. Ship APEX v2. 2. Lead system design review. 3...', tag:'Career',  ts:'Mar 6', color:T.amber  },
-  { id:3, title:'Morning Routine Optimization',  preview:'5:30 wake, 10 min cold, 20 min meditate, journal...', tag:'Health',  ts:'Mar 4', color:T.sky    },
-  { id:4, title:'Books Reading List 2026',        preview:'- The Almanack of Naval (done) - Poor Charlies...', tag:'Growth',  ts:'Mar 1', color:T.emerald},
-];
-
-const AI_MESSAGES = [
-  { role:'assistant', content:'Hello. I\'m your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you optimize your life today?' },
-];
+const EXPENSE_COLORS = {
+  '🍽️ Food':T.emerald,'🍔 Fast Food':T.amber,'🚗 Transport':T.sky,
+  '❤️ Health':T.rose,'🏠 Housing':T.violet,'💳 Debts':T.rose,
+  '💰 Savings':T.accent,'🎮 Leisure':T.amber,'👕 Shopping':T.violet,
+  '🔧 Other':T.textSub,'✈️ Travel':T.sky,'🚬 Tobacco':T.textMuted,
+};
+const getCatColor = (cat) => {
+  if (!cat) return T.textSub;
+  for (const [k, v] of Object.entries(EXPENSE_COLORS)) {
+    if (cat.includes(k.split(' ')[1] || k)) return v;
+  }
+  return T.textSub;
+};
 
 // ── ICON COMPONENTS ────────────────────────────────────────────────────────────
 const Ico = ({ d, size=18, stroke='currentColor', fill='none', sw=1.8, style={}, vb='0 0 24 24' }) => (
@@ -208,179 +119,168 @@ const Ico = ({ d, size=18, stroke='currentColor', fill='none', sw=1.8, style={},
     {d}
   </svg>
 );
+const IcoHome     = (p) => <Ico {...p} d={<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>} />;
+const IcoTimeline = (p) => <Ico {...p} d={<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>} />;
+const IcoMoney    = (p) => <Ico {...p} d={<><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>} />;
+const IcoHealth   = (p) => <Ico {...p} d={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />;
+const IcoGrowth   = (p) => <Ico {...p} d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />;
+const IcoBook     = (p) => <Ico {...p} d={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>} />;
+const IcoBrain    = (p) => <Ico {...p} d={<><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24A2.5 2.5 0 0 0 14.5 2Z"/></>} />;
+const IcoArchive  = (p) => <Ico {...p} d={<><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></>} />;
+const IcoSettings = (p) => <Ico {...p} d={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>} />;
+const IcoPlus     = (p) => <Ico {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />;
+const IcoX        = (p) => <Ico {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />;
+const IcoChevR    = (p) => <Ico {...p} d={<polyline points="9 18 15 12 9 6"/>} />;
+const IcoSend     = (p) => <Ico {...p} d={<><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>} />;
+const IcoCheck    = (p) => <Ico {...p} d={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />;
 
-const IconHome      = (p) => <Ico {...p} d={<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>} />;
-const IconTimeline  = (p) => <Ico {...p} d={<><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>} />;
-const IconMoney     = (p) => <Ico {...p} d={<><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></>} />;
-const IconHealth    = (p) => <Ico {...p} d={<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>} />;
-const IconGrowth    = (p) => <Ico {...p} d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />;
-const IconKnowledge = (p) => <Ico {...p} d={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>} />;
-const IconBrain     = (p) => <Ico {...p} d={<><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24A2.5 2.5 0 0 0 14.5 2Z"/></>} />;
-const IconArchive   = (p) => <Ico {...p} d={<><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></>} />;
-const IconSettings  = (p) => <Ico {...p} d={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>} />;
-const IconPlus      = (p) => <Ico {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} />;
-const IconChevR     = (p) => <Ico {...p} d={<polyline points="9 18 15 12 9 6"/>} />;
-const IconFilter    = (p) => <Ico {...p} d={<><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></>} />;
-const IconSend      = (p) => <Ico {...p} d={<><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>} />;
-const IconZap       = (p) => <Ico {...p} d={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />;
-const IconTarget    = (p) => <Ico {...p} d={<><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></>} />;
-const IconStar      = (p) => <Ico {...p} d={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>} />;
-const IconX         = (p) => <Ico {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />;
+// ── SHARED UI COMPONENTS ───────────────────────────────────────────────────────
+const GlassCard = ({ children, style={}, className='', onClick }) => (
+  <div className={`los-card ${className}`} onClick={onClick} style={{
+    background:T.surface, border:`1px solid ${T.border}`,
+    borderRadius:T.rL, backdropFilter:'blur(20px)',
+    transition:'border-color 0.2s, box-shadow 0.2s', ...style
+  }}>{children}</div>
+);
 
-// ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
+const Badge = ({ children, color=T.accent }) => (
+  <span style={{
+    display:'inline-flex', alignItems:'center', gap:3,
+    padding:'2px 8px', borderRadius:99,
+    background:color+'18', color,
+    fontSize:9, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.06em',
+    border:`1px solid ${color}28`,
+  }}>{children}</span>
+);
 
-function GlassCard({ children, style={}, className='', onClick }) {
-  return (
-    <div className={`lifeos-card ${className}`} onClick={onClick} style={{
-      background: T.surface,
-      border: `1px solid ${T.border}`,
-      borderRadius: T.rL,
-      backdropFilter: 'blur(20px)',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
-      ...style
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function Badge({ children, color = T.accent, bg }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: '2px 8px', borderRadius: 99,
-      background: bg || color + '18',
-      color: color,
-      fontSize: 10, fontFamily: T.fM, fontWeight: 600, letterSpacing: '0.05em',
-      border: `1px solid ${color}28`,
-    }}>
-      {children}
-    </span>
-  );
-}
-
-function ProgressBar({ pct, color = T.accent, height = 4, animated = false }) {
-  return (
+const ProgressBar = ({ pct, color=T.accent, height=4 }) => (
+  <div style={{ width:'100%', height, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
     <div style={{
-      width: '100%', height, borderRadius: 99,
-      background: 'rgba(255,255,255,0.06)', overflow: 'hidden',
-    }}>
-      <div style={{
-        height: '100%', width: `${Math.min(pct, 100)}%`, borderRadius: 99,
-        background: `linear-gradient(90deg, ${color}aa, ${color})`,
-        boxShadow: `0 0 8px ${color}55`,
-        transition: 'width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        animation: animated ? 'glowPulse 2.5s infinite' : 'none',
-      }} />
-    </div>
-  );
-}
+      height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99,
+      background:`linear-gradient(90deg, ${color}aa, ${color})`,
+      boxShadow:`0 0 6px ${color}44`,
+      transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)',
+    }} />
+  </div>
+);
 
-function StatCard({ label, value, sub, color = T.text, trend, icon, style = {} }) {
-  return (
-    <GlassCard style={{ padding: '18px 20px', ...style }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
-          <div style={{ fontSize: 22, fontFamily: T.fD, fontWeight: 700, color, animation: 'countUp 0.5s ease forwards', lineHeight: 1 }}>{value}</div>
-          {sub && <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, marginTop: 6 }}>{sub}</div>}
-        </div>
-        {icon && <div style={{ fontSize: 20, opacity: 0.7 }}>{icon}</div>}
-      </div>
-      {trend !== undefined && (
-        <div style={{ marginTop: 12 }}>
-          <ProgressBar pct={trend} color={color} />
-        </div>
-      )}
-    </GlassCard>
-  );
-}
+const Input = ({ value, onChange, placeholder, type='text', style={} }) => (
+  <input type={type} value={value} onChange={onChange} placeholder={placeholder}
+    style={{
+      width:'100%', padding:'9px 12px',
+      background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`,
+      borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text,
+      transition:'border-color 0.2s', ...style
+    }} />
+);
 
-const CHART_TOOLTIP = ({ active, payload, label, prefix = '', suffix = '' }) => {
+const Select = ({ value, onChange, children, style={} }) => (
+  <select value={value} onChange={onChange} style={{
+    width:'100%', padding:'9px 12px',
+    background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`,
+    borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text,
+    transition:'border-color 0.2s', ...style
+  }}>{children}</select>
+);
+
+const SectionLabel = ({ children }) => (
+  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:12 }}>{children}</div>
+);
+
+const ChartTooltip = ({ active, payload, label, prefix='', suffix='' }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: T.bg2, border: `1px solid ${T.border}`,
-      borderRadius: 8, padding: '8px 12px',
-      fontFamily: T.fM, fontSize: 11, color: T.text,
-    }}>
-      {label && <div style={{ color: T.textSub, marginBottom: 4 }}>{label}</div>}
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color || T.accent }}>
-          {p.name}: <strong>{prefix}{typeof p.value === 'number' ? p.value.toLocaleString() : p.value}{suffix}</strong>
-        </div>
-      ))}
+    <div style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:8, padding:'8px 12px', fontFamily:T.fM, fontSize:11, color:T.text }}>
+      {label && <div style={{ color:T.textSub, marginBottom:3 }}>{label}</div>}
+      {payload.map((p,i) => <div key={i} style={{ color:p.color||T.accent }}>{p.name}: <b>{prefix}{typeof p.value==='number'?p.value.toLocaleString():p.value}{suffix}</b></div>)}
     </div>
   );
 };
 
+// ── MODAL WRAPPER ──────────────────────────────────────────────────────────────
+const Modal = ({ open, onClose, title, children }) => {
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,0.7)',
+      zIndex:999, display:'flex', alignItems:'center', justifyContent:'center',
+      backdropFilter:'blur(6px)', padding:16,
+    }}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        background:T.bg2, border:`1px solid ${T.border}`,
+        borderRadius:20, padding:24, width:'100%', maxWidth:420,
+        animation:'modalIn 0.25s ease',
+      }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+          <h2 style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
+          <button onClick={onClose}><IcoX size={16} stroke={T.textSub} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, style={} }) => (
+  <button className="los-btn" onClick={onClick} disabled={disabled} style={{
+    padding:'10px 20px', borderRadius:T.r,
+    background:disabled?T.surface:(color+'18'),
+    color:disabled?T.textMuted:color,
+    border:`1px solid ${disabled?T.border:(color+'44')}`,
+    fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em',
+    width:full?'100%':'auto', transition:'all 0.18s', ...style
+  }}>{children}</button>
+);
+
 // ── SIDEBAR ────────────────────────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { id: 'home',         label: 'Home',         Icon: IconHome      },
-  { id: 'timeline',     label: 'Timeline',     Icon: IconTimeline  },
-  { id: 'money',        label: 'Money',        Icon: IconMoney     },
-  { id: 'health',       label: 'Health',       Icon: IconHealth    },
-  { id: 'growth',       label: 'Growth',       Icon: IconGrowth    },
-  { id: 'knowledge',    label: 'Knowledge',    Icon: IconKnowledge },
-  { id: 'intelligence', label: 'Intelligence', Icon: IconBrain     },
-  { id: 'archive',      label: 'Archive',      Icon: IconArchive   },
-  { id: 'settings',     label: 'Settings',     Icon: IconSettings  },
+const NAV = [
+  { id:'home',      Icon:IcoHome,     label:'Home'         },
+  { id:'timeline',  Icon:IcoTimeline, label:'Timeline'     },
+  { id:'money',     Icon:IcoMoney,    label:'Money'        },
+  { id:'health',    Icon:IcoHealth,   label:'Health'       },
+  { id:'growth',    Icon:IcoGrowth,   label:'Growth'       },
+  { id:'knowledge', Icon:IcoBook,     label:'Knowledge'    },
+  { id:'intel',     Icon:IcoBrain,    label:'Intelligence' },
+  { id:'archive',   Icon:IcoArchive,  label:'Archive'      },
+  { id:'settings',  Icon:IcoSettings, label:'Settings'     },
 ];
 
-function Sidebar({ active, onNav }) {
-  const [hovered, setHovered] = useState(null);
+function Sidebar({ active, onNav, userName }) {
+  const [hov, setHov] = useState(null);
+  const init = userName ? userName.charAt(0).toUpperCase() : 'U';
   return (
     <div style={{
-      width: T.sw, minHeight: '100vh', flexShrink: 0,
-      background: `linear-gradient(180deg, ${T.bg} 0%, ${T.bg1} 100%)`,
-      borderRight: `1px solid ${T.border}`,
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      padding: '16px 0', gap: 4, position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 100,
+      width:T.sw, minHeight:'100vh', flexShrink:0,
+      background:`linear-gradient(180deg, ${T.bg} 0%, ${T.bg1} 100%)`,
+      borderRight:`1px solid ${T.border}`,
+      display:'flex', flexDirection:'column', alignItems:'center',
+      padding:'16px 0', gap:2,
+      position:'fixed', top:0, left:0, bottom:0, zIndex:100,
     }}>
-      {/* Logo */}
       <div style={{
-        width: 38, height: 38, borderRadius: 10, marginBottom: 16,
-        background: `linear-gradient(135deg, ${T.accent}22, ${T.violet}22)`,
-        border: `1px solid ${T.accent}44`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        animation: 'glowPulse 3s infinite',
-      }}>
-        <span style={{ fontSize: 16 }}>⬡</span>
-      </div>
+        width:36, height:36, borderRadius:10, marginBottom:14,
+        background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`,
+        border:`1px solid ${T.accent}44`,
+        display:'flex', alignItems:'center', justifyContent:'center',
+        animation:'glowPulse 3s infinite', fontSize:15,
+      }}>⬡</div>
 
-      {/* Nav items */}
-      {NAV_ITEMS.map(({ id, label, Icon }) => {
-        const isActive = active === id;
+      {NAV.map(({ id, Icon, label }) => {
+        const isA = active===id;
         return (
-          <div key={id} style={{ position: 'relative', width: '100%' }}
-            onMouseEnter={() => setHovered(id)} onMouseLeave={() => setHovered(null)}>
-            <button className="lifeos-nav-item" onClick={() => onNav(id)} style={{
-              width: '100%', height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 0,
-              background: isActive ? T.accentDim : 'transparent',
-              color: isActive ? T.accent : T.textSub,
-              position: 'relative', transition: 'all 0.18s',
-              borderLeft: `2px solid ${isActive ? T.accent : 'transparent'}`,
+          <div key={id} style={{ position:'relative', width:'100%' }}
+            onMouseEnter={()=>setHov(id)} onMouseLeave={()=>setHov(null)}>
+            <button className="los-nav" onClick={()=>onNav(id)} style={{
+              width:'100%', height:42, display:'flex', alignItems:'center', justifyContent:'center',
+              background:isA?T.accentDim:'transparent', color:isA?T.accent:T.textSub,
+              borderLeft:`2px solid ${isA?T.accent:'transparent'}`,
+              transition:'all 0.18s', position:'relative',
             }}>
-              {isActive && (
-                <div style={{
-                  position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-                  width: 2, height: 20, background: T.accent,
-                  boxShadow: `0 0 8px ${T.accent}`,
-                  borderRadius: '0 2px 2px 0',
-                }} />
-              )}
-              <Icon size={16} stroke={isActive ? T.accent : T.textSub} />
+              {isA && <div style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)', width:2, height:18, background:T.accent, boxShadow:`0 0 8px ${T.accent}`, borderRadius:'0 2px 2px 0' }} />}
+              <Icon size={15} stroke={isA?T.accent:T.textSub} />
             </button>
-            {hovered === id && (
-              <div style={{
-                position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
-                background: T.bg2, border: `1px solid ${T.border}`,
-                borderRadius: 6, padding: '5px 10px', zIndex: 200,
-                fontSize: 11, fontFamily: T.fM, color: T.text, whiteSpace: 'nowrap',
-                marginLeft: 6, pointerEvents: 'none',
-                animation: 'fadeIn 0.15s ease',
-              }}>
+            {hov===id && (
+              <div style={{ position:'absolute', left:'100%', top:'50%', transform:'translateY(-50%)', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', zIndex:200, fontSize:10, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', marginLeft:6, pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>
                 {label}
               </div>
             )}
@@ -388,191 +288,424 @@ function Sidebar({ active, onNav }) {
         );
       })}
 
-      <div style={{ flex: 1 }} />
-
-      {/* User avatar */}
-      <div style={{
-        width: 34, height: 34, borderRadius: '50%',
-        background: `linear-gradient(135deg, ${T.violet}, ${T.accent})`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 13, fontWeight: 700, color: T.bg, fontFamily: T.fD,
-        border: `2px solid ${T.border}`, marginBottom: 8,
-      }}>A</div>
-
-      {/* Online dot */}
-      <div style={{
-        width: 6, height: 6, borderRadius: '50%', background: T.emerald,
-        boxShadow: `0 0 6px ${T.emerald}`, animation: 'dotPulse 2s infinite',
-        marginBottom: 8,
-      }} />
+      <div style={{ flex:1 }} />
+      <div style={{ width:32, height:32, borderRadius:'50%', background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:T.bg, fontFamily:T.fD, border:`2px solid ${T.border}`, marginBottom:6 }}>{init}</div>
+      <div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, boxShadow:`0 0 6px ${T.emerald}`, animation:'dotPulse 2s infinite', marginBottom:8 }} />
     </div>
   );
 }
 
+// ── LOG EXPENSE MODAL ──────────────────────────────────────────────────────────
+const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel'];
+
+function LogExpenseModal({ open, onClose, onSave }) {
+  const [amt, setAmt] = useState('');
+  const [cat, setCat] = useState('🍽️ Food');
+  const [note, setNote] = useState('');
+  const [date, setDate] = useState(today());
+  const save = () => {
+    if (!amt) return;
+    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date });
+    setAmt(''); setNote(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="💳 Log Expense">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>{CATS.map(c=><option key={c}>{c}</option>)}</Select>
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
+        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <Btn full onClick={save} color={T.rose}>Save Expense</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── LOG INCOME MODAL ───────────────────────────────────────────────────────────
+function LogIncomeModal({ open, onClose, onSave }) {
+  const [amt, setAmt] = useState('');
+  const [note, setNote] = useState('');
+  const [date, setDate] = useState(today());
+  const save = () => {
+    if (!amt) return;
+    onSave({ id:Date.now(), amount:Number(amt), note, date });
+    setAmt(''); setNote(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="💰 Log Income">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Source (Salary, Freelance...)" />
+        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <Btn full onClick={save} color={T.emerald}>Save Income</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── LOG HABIT MODAL ────────────────────────────────────────────────────────────
+function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) {
+  const [newName, setNewName] = useState('');
+  const d = today();
+  return (
+    <Modal open={open} onClose={onClose} title="🔥 Log Habit">
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {habits.length === 0 && <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:16 }}>No habits yet. Create your first one below.</div>}
+        {habits.map(h => {
+          const done = (habitLogs[h.id]||[]).includes(d);
+          const streak = getStreak(h.id, habitLogs);
+          return (
+            <div key={h.id} className="los-row" style={{
+              display:'flex', justifyContent:'space-between', alignItems:'center',
+              padding:'10px 12px', borderRadius:T.r,
+              background:done?T.accentDim:T.surface,
+              border:`1px solid ${done?T.accent+'33':T.border}`,
+              transition:'all 0.15s',
+            }}>
+              <div>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{h.name}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>🔥 {streak} day streak</div>
+              </div>
+              {done
+                ? <Badge color={T.accent}>✓ Done</Badge>
+                : <Btn onClick={()=>onLog(h.id)} color={T.accent} style={{ padding:'5px 14px' }}>Log</Btn>
+              }
+            </div>
+          );
+        })}
+        <div style={{ marginTop:8, display:'flex', gap:8 }}>
+          <Input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New habit name..." style={{ flex:1 }} />
+          <Btn onClick={()=>{ if(newName.trim()){ onAddHabit(newName.trim()); setNewName(''); } }} color={T.violet} style={{ whiteSpace:'nowrap' }}>Add</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── LOG VITALS MODAL ───────────────────────────────────────────────────────────
+function LogVitalsModal({ open, onClose, onSave }) {
+  const [sleep, setSleep] = useState('');
+  const [mood, setMood] = useState('');
+  const [energy, setEnergy] = useState('');
+  const [weight, setWeight] = useState('');
+  const [note, setNote] = useState('');
+  const save = () => {
+    onSave({ id:Date.now(), date:today(), sleep:Number(sleep)||0, mood:Number(mood)||0, energy:Number(energy)||0, weight:Number(weight)||0, note });
+    setSleep(''); setMood(''); setEnergy(''); setWeight(''); setNote(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="❤️ Log Vitals">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input type="number" value={sleep} onChange={e=>setSleep(e.target.value)} placeholder="Sleep (hours)" />
+        <Input type="number" value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood (1–10)" />
+        <Input type="number" value={energy} onChange={e=>setEnergy(e.target.value)} placeholder="Energy (1–10)" />
+        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="Weight (lbs/kg, optional)" />
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
+        <Btn full onClick={save} color={T.sky}>Save Vitals</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── ADD NOTE MODAL ─────────────────────────────────────────────────────────────
+function AddNoteModal({ open, onClose, onSave }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [tag, setTag] = useState('General');
+  const save = () => {
+    if (!title.trim()) return;
+    onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, date:today() });
+    setTitle(''); setBody(''); setTag('General'); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="📝 Add Note">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" />
+        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." style={{ width:'100%', minHeight:80, padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical', transition:'border-color 0.2s' }} />
+        <Select value={tag} onChange={e=>setTag(e.target.value)}>
+          {['General','Finance','Health','Career','Growth','Ideas'].map(t=><option key={t}>{t}</option>)}
+        </Select>
+        <Btn full onClick={save} color={T.amber}>Save Note</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── ADD GOAL MODAL ─────────────────────────────────────────────────────────────
+function AddGoalModal({ open, onClose, onSave }) {
+  const [name, setName] = useState('');
+  const [target, setTarget] = useState('');
+  const [cat, setCat] = useState('finance');
+  const [deadline, setDeadline] = useState('');
+  const save = () => {
+    if (!name.trim() || !target) return;
+    const emojiMap = { finance:'💰', health:'🏃', growth:'🎓', career:'💼', other:'🎯' };
+    onSave({ id:Date.now(), name:name.trim(), target:Number(target), current:0, cat, deadline, emoji:emojiMap[cat]||'🎯', color:T.accent });
+    setName(''); setTarget(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="🎯 New Goal">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Goal name" />
+        <Input type="number" value={target} onChange={e=>setTarget(e.target.value)} placeholder="Target amount / value" />
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>
+          {['finance','health','growth','career','other'].map(c=><option key={c}>{c}</option>)}
+        </Select>
+        <Input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} placeholder="Deadline (optional)" />
+        <Btn full onClick={save} color={T.amber}>Create Goal</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── ADD ASSET MODAL ────────────────────────────────────────────────────────────
+function AddAssetModal({ open, onClose, onSave }) {
+  const [name, setName] = useState('');
+  const [val, setVal] = useState('');
+  const [type, setType] = useState('Cash');
+  const save = () => {
+    if (!name || !val) return;
+    onSave({ id:Date.now(), name:name.trim(), value:Number(val), type });
+    setName(''); setVal(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="💎 Add Asset">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Asset name (e.g. Savings Account)" />
+        <Input type="number" value={val} onChange={e=>setVal(e.target.value)} placeholder="Current value" />
+        <Select value={type} onChange={e=>setType(e.target.value)}>
+          {['Cash','Real Estate','Vehicle','Other'].map(t=><option key={t}>{t}</option>)}
+        </Select>
+        <Btn full onClick={save} color={T.accent}>Add Asset</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // ── HOME PAGE ──────────────────────────────────────────────────────────────────
-function HomePage({ onNav }) {
-  const todayEvents = TIMELINE_EVENTS.slice(0, 5);
+function HomePage({ data, actions, onNav }) {
+  const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, eventLog, notes } = data;
+  const [modal, setModal] = useState(null);
+  const cur = settings.currency || '$';
+  const thisMonth = today().slice(0,7);
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+
+  const monthExp = useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
+  const monthInc = useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
+  const invVal   = useMemo(()=>investments.reduce((s,i)=>s+(Number(i.currentPrice??i.buyPrice||0))*Number(i.quantity||0),0),[investments]);
+  const assetVal = useMemo(()=>assets.reduce((s,a)=>s+Number(a.value||0),0),[assets]);
+  const debtVal  = useMemo(()=>debts.reduce((s,d)=>s+Number(d.balance||0),0),[debts]);
+  const netWorth = assetVal + invVal - debtVal;
+  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+
+  // Financial Health Score
+  const fhs = useMemo(()=>{
+    let s=0;
+    s+=Math.min(30,savRate*1.5);
+    const mdp=debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
+    const dti=monthInc>0?(mdp/monthInc)*100:50;
+    s+=Math.max(0,25-dti*0.5);
+    const cash=assets.filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
+    const ef=monthExp>0?cash/monthExp:0;
+    s+=Math.min(25,ef*4.2);
+    if(netWorth>0)s+=Math.min(20,10+(netWorth/10000)*5);
+    return Math.round(Math.max(0,Math.min(100,s)));
+  },[savRate,debts,assets,monthInc,monthExp,netWorth]);
+
+  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const xpForNext = Math.pow(level,2)*100;
+  const xpForCurrent = Math.pow(level-1,2)*100;
+  const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
+
+  const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak = habits.reduce((max,h)=>{ const s=getStreak(h.id,habitLogs); return s>max?s:max; },0);
+
+  const lastVitals = vitals.length ? [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0] : null;
+
+  // Recent timeline events
+  const recentEvents = useMemo(()=>{
+    const evs = [];
+    [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({ id:'exp-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose }));
+    [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({ id:'inc-'+e.id, ts:e.date, title:e.note||'Income', sub:'Income logged', value:`+${cur}${fmtN(e.amount)}`, cat:'income', color:T.emerald }));
+    habits.forEach(h=>{
+      const logs=(habitLogs[h.id]||[]);
+      const d=logs.includes(today())?today():logs[logs.length-1];
+      if(d) evs.push({ id:'hab-'+h.id, ts:d, title:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)} day streak`, value:'+XP', cat:'habit', color:T.accent });
+    });
+    if(lastVitals) evs.push({ id:'vit-0', ts:lastVitals.date, title:'Vitals Logged', sub:`Sleep ${lastVitals.sleep}h · Mood ${lastVitals.mood}/10`, value:'❤️', cat:'health', color:T.sky });
+    return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,6);
+  },[expenses,incomes,habits,habitLogs,lastVitals,cur]);
 
   const QUICK_ACTIONS = [
-    { label:'Log Expense',       emoji:'💳', color:T.rose    },
-    { label:'Add Investment',    emoji:'📈', color:T.violet  },
-    { label:'Log Habit',         emoji:'🔥', color:T.accent  },
-    { label:'Start Focus',       emoji:'⏱️', color:T.sky     },
-    { label:'Add Note',          emoji:'📝', color:T.amber   },
-    { label:'Log Workout',       emoji:'💪', color:T.emerald },
+    { label:'Log Expense',    emoji:'💳', color:T.rose,    modal:'expense'    },
+    { label:'Log Income',     emoji:'💰', color:T.emerald, modal:'income'     },
+    { label:'Log Habit',      emoji:'🔥', color:T.accent,  modal:'habit'      },
+    { label:'Log Vitals',     emoji:'❤️', color:T.sky,     modal:'vitals'     },
+    { label:'Add Note',       emoji:'📝', color:T.amber,   modal:'note'       },
+    { label:'Add Goal',       emoji:'🎯', color:T.violet,  modal:'goal'       },
   ];
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6 }}>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      {/* Modals */}
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
+      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
+      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+
+      <div style={{ marginBottom:26 }}>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginBottom:5, textTransform:'uppercase' }}>
           {greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}
         </div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text, lineHeight: 1.1 }}>
-          Command Center
-        </h1>
-        <div style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub, marginTop: 4 }}>
-          All systems nominal · <span style={{ color: T.emerald }}>●</span> 6 habits active · <span style={{ color: T.accent }}>●</span> Portfolio up 2.4%
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
+          {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{ color:T.emerald }}>●</span> {habits.length} habits active · <span style={{ color:T.accent }}>●</span> NW {cur}{fmtN(netWorth)}
         </div>
       </div>
 
       {/* Hero Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
-        <StatCard label="Net Worth" value="$214,700" sub="↑ $6,300 this month" color={T.accent} icon="💎" style={{ gridColumn: 'span 1' }} />
-        <StatCard label="Financial Health" value="82/100" sub="Top 15% of peers" color={T.emerald} trend={82} icon="📊" />
-        <StatCard label="Life XP Level" value="Lv 34 · 2,840 XP" sub="360 XP to next level" color={T.violet} trend={72} icon="⚡" />
-        <StatCard label="Savings Rate" value="38%" sub="Goal: 35% · +3% ahead" color={T.sky} trend={76} icon="🎯" />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+        {[
+          { label:'Net Worth',       value:`${cur}${fmtN(netWorth)}`,    sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent,  icon:'💎',  pct:null },
+          { label:'Financial Health',value:`${fhs}/100`,                 sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention',  color:T.emerald, icon:'📊',  pct:fhs  },
+          { label:`Life XP — Lv ${level}`,value:`${Number(totalXP).toLocaleString()} XP`, sub:`${Math.round(xpForNext-Number(totalXP))} to Lv ${level+1}`, color:T.violet,  icon:'⚡',  pct:xpPct},
+          { label:'Savings Rate',    value:`${savRate.toFixed(1)}%`,     sub:`${cur}${fmtN(monthInc-monthExp)} saved this month`,                    color:T.sky,     icon:'🎯',  pct:savRate },
+        ].map((m,i)=>(
+          <GlassCard key={i} style={{ padding:'18px 20px', animation:`fadeUp 0.4s ease ${i*0.08}s both` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
+              <span style={{ fontSize:16, opacity:0.7 }}>{m.icon}</span>
+            </div>
+            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1, marginBottom:6 }}>{m.value}</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:m.pct!=null?10:0 }}>{m.sub}</div>
+            {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
+          </GlassCard>
+        ))}
       </div>
 
-      {/* Main Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 16 }}>
-        {/* Left Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* AI Daily Brief */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c084fc', animation: 'dotPulse 2s infinite' }} />
-              <span style={{ fontSize: 10, fontFamily: T.fM, letterSpacing: '0.1em', color: '#c084fc', textTransform: 'uppercase' }}>AI Daily Brief</span>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:16 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Daily Brief */}
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:14 }}>
+              <div style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:'dotPulse 2s infinite' }} />
+              <span style={{ fontSize:9, fontFamily:T.fM, letterSpacing:'0.1em', color:'#c084fc', textTransform:'uppercase' }}>AI Daily Brief</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
               {[
-                { icon:'💰', label:'Finance', msg:'Savings rate hit 38% — best month since October. Review restaurant spend.' },
-                { icon:'❤️', label:'Health',  msg:'Sleep consistency improved. Aim for 3 workouts this week to maintain streak.' },
-                { icon:'🔥', label:'Habits',  msg:'Meditation on 21-day streak. Don\'t break it — 9 days to personal best.' },
-              ].map((item, i) => (
-                <div key={i} style={{
-                  background: T.accentLo, borderRadius: T.r, padding: '14px 16px',
-                  border: `1px solid ${T.border}`,
-                  animation: `fadeUp 0.4s ease ${i * 0.1 + 0.2}s both`,
-                }}>
-                  <div style={{ fontSize: 18, marginBottom: 6 }}>{item.icon}</div>
-                  <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.08em', marginBottom: 4 }}>{item.label.toUpperCase()}</div>
-                  <div style={{ fontSize: 12, fontFamily: T.fM, color: T.text, lineHeight: 1.5 }}>{item.msg}</div>
+                { icon:'💰', label:'Finance',  msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent! You're ${cur}${fmtN(monthInc*0.35-monthExp+monthInc*0.35>=0?monthInc-monthExp:0)} above your target.`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Savings rate: ${savRate.toFixed(1)}%.` },
+                { icon:'❤️', label:'Health',   msg:lastVitals?`Last logged: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10, energy ${lastVitals.energy}/10. ${lastVitals.sleep>=7?'Great rest!':'Aim for 7–8h sleep.'}`:'Log your vitals today to track health trends over time.' },
+                { icon:'🔥', label:'Habits',   msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start logging habits to build streaks.'} ${habits.length===0?'Add your first habit!':''}` },
+              ].map((item,i)=>(
+                <div key={i} style={{ background:T.accentLo, borderRadius:T.r, padding:'12px 14px', border:`1px solid ${T.border}`, animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both` }}>
+                  <div style={{ fontSize:16, marginBottom:5 }}>{item.icon}</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:3 }}>{item.label.toUpperCase()}</div>
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{item.msg}</div>
                 </div>
               ))}
             </div>
           </GlassCard>
 
           {/* Net Worth Chart */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
               <div>
-                <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>Net Worth Trajectory</div>
-                <div style={{ fontSize: 20, fontFamily: T.fD, fontWeight: 700, color: T.accent }}>$214,700</div>
+                <SectionLabel>Net Worth History</SectionLabel>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(netWorth)}</div>
               </div>
-              <Badge color={T.emerald}>+14.8% YTD</Badge>
+              {data.netWorthHistory.length>1 && (
+                <Badge color={T.emerald}>
+                  {(((data.netWorthHistory[data.netWorthHistory.length-1]?.value||netWorth)-data.netWorthHistory[0].value)/Math.max(1,data.netWorthHistory[0].value)*100).toFixed(1)}% trend
+                </Badge>
+              )}
             </div>
-            <ResponsiveContainer width="100%" height={120}>
-              <AreaChart data={NETWORTH_TREND} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={T.accent} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={T.accent} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="m" tick={{ fill: T.textSub, fontSize: 10, fontFamily: T.fM }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip content={<CHART_TOOLTIP prefix="$" />} />
-                <Area type="monotone" dataKey="v" stroke={T.accent} strokeWidth={2} fill="url(#nwGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+            {data.netWorthHistory.length > 1 ? (
+              <ResponsiveContainer width="100%" height={110}>
+                <AreaChart data={data.netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <defs><linearGradient id="nwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient></defs>
+                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<ChartTooltip prefix={cur} />} />
+                  <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#nwg)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>
+                Add assets & track expenses to see your net worth chart grow here.
+              </div>
+            )}
           </GlassCard>
 
           {/* Quick Actions */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Quick Actions</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
-              {QUICK_ACTIONS.map((a, i) => (
-                <button key={i} className="lifeos-quick-action" style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                  padding: '12px 8px', borderRadius: T.r,
-                  background: T.surface, border: `1px solid ${T.border}`,
-                  color: T.textSub, transition: 'all 0.18s',
-                  animation: `fadeUp 0.3s ease ${i * 0.06}s both`,
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Quick Actions</SectionLabel>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8 }}>
+              {QUICK_ACTIONS.map((a,i)=>(
+                <button key={i} className="los-qa" onClick={()=>setModal(a.modal)} style={{
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:5,
+                  padding:'10px 6px', borderRadius:T.r,
+                  background:T.surface, border:`1px solid ${T.border}`,
+                  transition:'all 0.18s', animation:`fadeUp 0.3s ease ${i*0.06}s both`,
                 }}>
-                  <span style={{ fontSize: 20 }}>{a.emoji}</span>
-                  <span style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, textAlign: 'center', lineHeight: 1.3 }}>{a.label}</span>
+                  <span style={{ fontSize:18 }}>{a.emoji}</span>
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'center', lineHeight:1.3 }}>{a.label}</span>
                 </button>
               ))}
             </div>
           </GlassCard>
         </div>
 
-        {/* Right Column — Today's Timeline */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Life Radar */}
-          <GlassCard style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Life Score</div>
-              <Badge color={T.accent}>74.7 avg</Badge>
-            </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <RadarChart data={RADAR_DATA} margin={{ top: 0, right: 20, bottom: 0, left: 20 }}>
-                <PolarGrid stroke={T.border} />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: T.textSub, fontSize: 9, fontFamily: T.fM }} />
-                <Radar dataKey="A" stroke={T.accent} fill={T.accent} fillOpacity={0.12} strokeWidth={1.5} dot={{ fill: T.accent, r: 2 }} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </GlassCard>
+        {/* Right Col */}
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Stats bubbles */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            {[
+              { label:'This Month', sub:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald },
+              { label:'This Month', sub:'Spent',  val:`${cur}${fmtN(monthExp)}`, color:T.rose    },
+              { label:'Habits',     sub:`${todayDone}/${habits.length} today`, val:bestStreak?`🔥 ${bestStreak}d`:habits.length===0?'None yet':'0d', color:T.accent },
+              { label:'Goals',      sub:`${goals.length} active`, val:goals.length>0?`${Math.round(goals.reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/Math.max(1,goals.length))}% avg`:'Set goals', color:T.violet },
+            ].map((s,i)=>(
+              <GlassCard key={i} style={{ padding:'14px 16px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.label} · {s.sub}</div>
+                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+              </GlassCard>
+            ))}
+          </div>
 
-          {/* Today Feed */}
-          <GlassCard style={{ padding: '20px', flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Today's Feed</div>
-              <button onClick={() => onNav('timeline')} style={{ fontSize: 10, fontFamily: T.fM, color: T.accent, display: 'flex', alignItems: 'center', gap: 2 }}>
-                All <IconChevR size={10} stroke={T.accent} />
+          {/* Today's Feed */}
+          <GlassCard style={{ padding:'18px', flex:1 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <SectionLabel>Today's Feed</SectionLabel>
+              <button onClick={()=>onNav('timeline')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>
+                All <IcoChevR size={9} stroke={T.accent} />
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {todayEvents.map((ev, i) => {
-                const c = CAT[ev.cat] || CAT.note;
-                return (
-                  <div key={ev.id} className="lifeos-tl-event" style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
-                    transition: 'background 0.15s',
-                    animation: `fadeUp 0.3s ease ${i * 0.07}s both`,
-                    borderBottom: i < todayEvents.length - 1 ? `1px solid ${T.border}` : 'none',
-                  }}>
-                    <div style={{
-                      width: 7, height: 7, borderRadius: '50%', marginTop: 5, flexShrink: 0,
-                      background: c.color, boxShadow: `0 0 6px ${c.color}`,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontSize: 12, fontFamily: T.fD, fontWeight: 600, color: T.text, truncate: true }}>{ev.title}</div>
-                        <div style={{ fontSize: 10, fontFamily: T.fM, color: c.color, whiteSpace: 'nowrap', marginLeft: 8 }}>{ev.value}</div>
-                      </div>
-                      <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginTop: 2 }}>{ev.sub}</div>
+            {recentEvents.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'20px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>
+                Start logging expenses, habits, or vitals<br/>to see your activity feed here.
+              </div>
+            ) : (
+              recentEvents.map((ev,i)=>(
+                <div key={ev.id} className="los-ev" style={{
+                  display:'flex', alignItems:'flex-start', gap:9,
+                  padding:'9px 7px', borderRadius:7, cursor:'pointer',
+                  transition:'background 0.15s',
+                  borderBottom:i<recentEvents.length-1?`1px solid ${T.border}`:'none',
+                }}>
+                  <div style={{ width:6, height:6, borderRadius:'50%', marginTop:5, flexShrink:0, background:ev.color, boxShadow:`0 0 5px ${ev.color}` }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:160 }}>{ev.title}</div>
+                      <div style={{ fontSize:10, fontFamily:T.fM, color:ev.color, whiteSpace:'nowrap', marginLeft:6 }}>{ev.value}</div>
                     </div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{ev.sub} · {ev.ts}</div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              ))
+            )}
           </GlassCard>
         </div>
       </div>
@@ -581,325 +714,410 @@ function HomePage({ onNav }) {
 }
 
 // ── TIMELINE PAGE ──────────────────────────────────────────────────────────────
-function TimelinePage() {
+function TimelinePage({ data }) {
+  const { expenses, incomes, habits, habitLogs, vitals, goals, investments, settings } = data;
   const [filter, setFilter] = useState('all');
-  const [zoom, setZoom] = useState('week');
-  const categories = ['all', 'expense', 'income', 'investment', 'habit', 'health', 'goal', 'career', 'insight'];
+  const cur = settings.currency || '$';
 
-  const filtered = useMemo(() =>
-    filter === 'all' ? TIMELINE_EVENTS : TIMELINE_EVENTS.filter(e => e.cat === filter),
-    [filter]
-  );
-
-  const groupByDate = useMemo(() => {
-    const groups = {};
-    filtered.forEach(ev => {
-      const date = ev.ts.split(' ')[0];
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(ev);
+  const allEvents = useMemo(() => {
+    const evs = [];
+    expenses.forEach(e => evs.push({ id:'e-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose, emoji:'💳' }));
+    incomes.forEach(i => evs.push({ id:'i-'+i.id, ts:i.date, title:i.note||'Income received', sub:'Income', value:`+${cur}${fmtN(i.amount)}`, cat:'income', color:T.emerald, emoji:'💰' }));
+    habits.forEach(h => {
+      (habitLogs[h.id]||[]).forEach(d => {
+        evs.push({ id:'h-'+h.id+d, ts:d, title:h.name+' completed', sub:`Habit · 🔥 streak`, value:'+XP', cat:'habit', color:T.accent, emoji:'🔥' });
+      });
     });
-    return groups;
-  }, [filtered]);
+    vitals.forEach(v => evs.push({ id:'v-'+v.id, ts:v.date, title:'Vitals Logged', sub:`Sleep ${v.sleep}h · Mood ${v.mood}/10`, value:'❤️', cat:'health', color:T.sky, emoji:'❤️' }));
+    goals.filter(g=>g.current>=g.target).forEach(g => evs.push({ id:'g-'+g.id, ts:g.updatedAt||today(), title:`Goal completed: ${g.name}`, sub:'Goal milestone', value:'🏆 +50XP', cat:'goal', color:T.amber, emoji:'🎯' }));
+    investments.forEach(inv => evs.push({ id:'inv-'+inv.id, ts:inv.date||today(), title:`${inv.symbol||inv.name} position`, sub:'Investment', value:`${cur}${fmtN(Number(inv.currentPrice??inv.buyPrice)*Number(inv.quantity))}`, cat:'investment', color:T.violet, emoji:'📈' }));
+    return evs.sort((a,b)=>a.ts<b.ts?1:-1);
+  }, [expenses,incomes,habits,habitLogs,vitals,goals,investments,cur]);
+
+  const cats = ['all','expense','income','investment','habit','health','goal'];
+  const filtered = filter==='all'?allEvents:allEvents.filter(e=>e.cat===filter);
+
+  const groups = useMemo(()=>{
+    const g={};
+    filtered.forEach(ev=>{
+      const d=ev.ts?.slice(0,10)||'Unknown';
+      if(!g[d])g[d]=[];
+      g[d].push(ev);
+    });
+    return Object.entries(g).sort((a,b)=>a[0]<b[0]?1:-1);
+  },[filtered]);
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Core System</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Life Timeline</h1>
-        <div style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub, marginTop: 4 }}>
-          Every action. Every moment. Your complete life history.
-        </div>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Core System</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Timeline</h1>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>{allEvents.length} events recorded across your life domains</div>
       </div>
 
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Zoom */}
-        <div style={{ display: 'flex', gap: 2, background: T.surface, borderRadius: T.r, padding: 3, border: `1px solid ${T.border}` }}>
-          {['day','week','month','year'].map(z => (
-            <button key={z} className="lifeos-tab" onClick={() => setZoom(z)} style={{
-              padding: '5px 12px', borderRadius: 7, fontSize: 10, fontFamily: T.fM,
-              background: zoom === z ? T.accentDim : 'transparent',
-              color: zoom === z ? T.accent : T.textSub,
-              border: `1px solid ${zoom === z ? T.accent + '33' : 'transparent'}`,
-              transition: 'all 0.15s',
-            }}>{z.toUpperCase()}</button>
-          ))}
-        </div>
-
-        {/* Category Filter */}
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {categories.map(cat => {
-            const c = cat === 'all' ? { color: T.textSub, dim: T.surface } : CAT[cat];
-            const active = filter === cat;
-            return (
-              <button key={cat} onClick={() => setFilter(cat)} style={{
-                padding: '4px 10px', borderRadius: 99, fontSize: 10, fontFamily: T.fM,
-                background: active ? (c?.dim || T.accentDim) : 'transparent',
-                color: active ? (c?.color || T.accent) : T.textSub,
-                border: `1px solid ${active ? (c?.color || T.accent) + '44' : T.border}`,
-                transition: 'all 0.15s',
-              }}>
-                {cat === 'all' ? '⬡ ALL' : `${CAT[cat]?.emoji || ''} ${cat.toUpperCase()}`}
-              </button>
-            );
-          })}
-        </div>
+      {/* Filters */}
+      <div style={{ display:'flex', gap:6, marginBottom:22, flexWrap:'wrap' }}>
+        {cats.map(cat=>{
+          const colorMap={expense:T.rose,income:T.emerald,investment:T.violet,habit:T.accent,health:T.sky,goal:T.amber};
+          const c=colorMap[cat]||T.textSub;
+          return (
+            <button key={cat} onClick={()=>setFilter(cat)} style={{
+              padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em',
+              background:filter===cat?(c+'18'):'transparent',
+              color:filter===cat?c:T.textSub,
+              border:`1px solid ${filter===cat?c+'44':T.border}`,
+              transition:'all 0.15s',
+            }}>{cat==='all'?'⬡ All':cat}</button>
+          );
+        })}
       </div>
 
       {/* Timeline */}
-      <div style={{ position: 'relative' }}>
-        {/* Vertical line */}
-        <div style={{
-          position: 'absolute', left: 20, top: 0, bottom: 0, width: 1,
-          background: `linear-gradient(180deg, ${T.accent}44 0%, ${T.border} 40%, transparent 100%)`,
-        }} />
-
-        {Object.entries(groupByDate).map(([date, events], gi) => (
-          <div key={date} style={{ marginBottom: 28, animation: `fadeUp 0.4s ease ${gi * 0.1}s both` }}>
-            {/* Date label */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, paddingLeft: 40 }}>
-              <div style={{
-                fontSize: 11, fontFamily: T.fM, fontWeight: 600, color: T.textSub,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
-              }}>
-                {new Date(date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+      {groups.length===0 ? (
+        <GlassCard style={{ padding:40, textAlign:'center' }}>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No events yet. Start logging expenses, habits, and vitals to build your life timeline.</div>
+        </GlassCard>
+      ) : (
+        <div style={{ position:'relative' }}>
+          <div style={{ position:'absolute', left:18, top:0, bottom:0, width:1, background:`linear-gradient(180deg,${T.accent}44 0%,${T.border} 40%,transparent 100%)` }} />
+          {groups.map(([date,events],gi)=>(
+            <div key={date} style={{ marginBottom:24, animation:`fadeUp 0.4s ease ${gi*0.06}s both` }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, paddingLeft:36 }}>
+                <div style={{ fontSize:10, fontFamily:T.fM, fontWeight:600, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase' }}>
+                  {date==='Unknown'?'Unknown date':new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+                </div>
+                <div style={{ flex:1, height:1, background:T.border }} />
               </div>
-              <div style={{ flex: 1, height: 1, background: T.border }} />
-            </div>
-
-            {/* Events */}
-            {events.map((ev, i) => {
-              const c = CAT[ev.cat] || CAT.note;
-              const time = ev.ts.split(' ')[1];
-              return (
-                <div key={ev.id} className="lifeos-tl-event" style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 16,
-                  paddingLeft: 40, paddingRight: 4, paddingBottom: 14,
-                  cursor: 'pointer', borderRadius: 10, transition: 'background 0.15s',
-                  animation: `nodeEnter 0.3s ease ${i * 0.06}s both`,
-                }}>
-                  {/* Node */}
-                  <div style={{
-                    position: 'absolute', left: 14, width: 13, height: 13,
-                    borderRadius: '50%', background: T.bg,
-                    border: `2px solid ${c.color}`,
-                    boxShadow: `0 0 8px ${c.color}66`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    marginTop: 14,
-                  }} />
-
-                  {/* Card */}
-                  <GlassCard style={{
-                    flex: 1, padding: '14px 18px',
-                    borderLeft: `3px solid ${c.color}66`,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: 14 }}>{c.emoji}</span>
-                          <span style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 700, color: T.text }}>{ev.title}</span>
-                          <Badge color={c.color}>{c.label}</Badge>
+              {events.map((ev,i)=>(
+                <div key={ev.id} className="los-ev" style={{ display:'flex', alignItems:'flex-start', gap:14, paddingLeft:36, paddingBottom:12, cursor:'pointer', borderRadius:9, transition:'background 0.15s', animation:`nodeEnter 0.25s ease ${i*0.05}s both` }}>
+                  <div style={{ position:'absolute', left:12, width:12, height:12, borderRadius:'50%', background:T.bg, border:`2px solid ${ev.color}`, boxShadow:`0 0 7px ${ev.color}55`, marginTop:12 }} />
+                  <GlassCard style={{ flex:1, padding:'12px 16px', borderLeft:`3px solid ${ev.color}55` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
+                      <div>
+                        <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
+                          <span style={{ fontSize:13 }}>{ev.emoji}</span>
+                          <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ev.title}</span>
+                          <Badge color={ev.color}>{ev.cat}</Badge>
                         </div>
-                        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub }}>{ev.sub}</div>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{ev.sub}</div>
                       </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, fontFamily: T.fM, fontWeight: 600, color: c.color }}>{ev.value}</div>
-                        <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textMuted, marginTop: 2 }}>{time}</div>
-                      </div>
+                      <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:ev.color, whiteSpace:'nowrap' }}>{ev.value}</div>
                     </div>
                   </GlassCard>
                 </div>
-              );
-            })}
-          </div>
-        ))}
-
-        {/* Load more */}
-        <div style={{ paddingLeft: 40, paddingBottom: 20 }}>
-          <button style={{
-            padding: '8px 20px', borderRadius: 99, fontSize: 11, fontFamily: T.fM,
-            background: T.surface, border: `1px solid ${T.border}`, color: T.textSub,
-            transition: 'all 0.15s',
-          }}>Load more history →</button>
+              ))}
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 // ── MONEY PAGE ─────────────────────────────────────────────────────────────────
-function MoneyPage() {
+function MoneyPage({ data, actions }) {
   const [tab, setTab] = useState('overview');
-  const tabs = ['overview', 'spending', 'investments', 'strategy'];
+  const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory } = data;
+  const [modal, setModal] = useState(null);
+  const [goalAmt, setGoalAmt] = useState('');
+  const [goalIdx, setGoalIdx] = useState(null);
+  const cur = settings.currency || '$';
+  const thisMonth = today().slice(0,7);
+
+  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const invVal   = investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+  const assetVal = assets.reduce((s,a)=>s+Number(a.value||0),0);
+  const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const netWorth = assetVal + invVal - debtVal;
+  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+
+  const spendByCat = useMemo(()=>{
+    const m={};
+    expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); });
+    return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value);
+  },[expenses,thisMonth]);
+
+  const cashflowMonths = useMemo(()=>{
+    const months={};
+    [...expenses,...incomes].forEach(item=>{
+      const m=item.date?.slice(0,7);
+      if(!m)return;
+      if(!months[m])months[m]={m,inc:0,exp:0};
+      if(item.amount&&('note' in item||'category' in item)){
+        if('category' in item)months[m].exp+=Number(item.amount||0);
+        else months[m].inc+=Number(item.amount||0);
+      }
+    });
+    incomes.forEach(i=>{ const m=i.date?.slice(0,7); if(m&&months[m])months[m].inc+=Number(i.amount||0); });
+    expenses.forEach(e=>{ const m=e.date?.slice(0,7); if(m&&months[m])months[m].exp+=Number(e.amount||0); });
+    return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6);
+  },[expenses,incomes]);
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Financial Domain</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Money Hub</h1>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
+      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
+      <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}} />
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Financial Domain</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Money Hub</h1>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, marginBottom: 24, background: T.surface, borderRadius: T.r, padding: 3, width: 'fit-content', border: `1px solid ${T.border}` }}>
-        {tabs.map(t => (
-          <button key={t} className="lifeos-tab" onClick={() => setTab(t)} style={{
-            padding: '6px 16px', borderRadius: 8, fontSize: 10, fontFamily: T.fM, textTransform: 'uppercase',
-            background: tab === t ? T.accentDim : 'transparent',
-            color: tab === t ? T.accent : T.textSub,
-            border: `1px solid ${tab === t ? T.accent + '33' : 'transparent'}`,
-            transition: 'all 0.15s', letterSpacing: '0.06em',
+      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
+        {['overview','spending','investments','goals','assets'].map(t=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{
+            padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em',
+            background:tab===t?T.accentDim:'transparent',
+            color:tab===t?T.accent:T.textSub,
+            border:`1px solid ${tab===t?T.accent+'33':'transparent'}`,
+            transition:'all 0.15s',
           }}>{t}</button>
         ))}
       </div>
 
-      {tab === 'overview' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Top metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            <StatCard label="Net Worth" value="$214,700" sub="↑ $6,300 this month" color={T.accent} icon="💎" />
-            <StatCard label="Monthly Income" value="$7,600" sub="Base + Freelance" color={T.emerald} icon="💰" />
-            <StatCard label="Monthly Spend" value="$3,255" sub="-$145 vs budget" color={T.rose} icon="💳" />
-            <StatCard label="Savings" value="$4,345" sub="38% savings rate" color={T.violet} icon="🏦" />
+      {tab==='overview' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+            {[
+              { label:'Net Worth',    val:`${cur}${fmtN(netWorth)}`,   sub:`Assets ${cur}${fmtN(assetVal+invVal)} - Debts ${cur}${fmtN(debtVal)}`, color:T.accent  },
+              { label:'Monthly Income', val:`${cur}${fmtN(monthInc)}`, sub:'This month total',                                                      color:T.emerald },
+              { label:'Monthly Spend',  val:`${cur}${fmtN(monthExp)}`, sub:`${monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'Track income to compare'}`, color:T.rose },
+              { label:'Savings Rate',   val:`${savRate.toFixed(1)}%`,  sub:`${cur}${fmtN(monthInc-monthExp)} saved`,                               color:T.sky     },
+            ].map((m,i)=>(
+              <GlassCard key={i} style={{ padding:'16px 18px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+              </GlassCard>
+            ))}
           </div>
 
-          {/* Cash Flow Chart */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Cash Flow — 6 Months</div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={CASHFLOW_DATA} barGap={4} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                <XAxis dataKey="m" tick={{ fill: T.textSub, fontSize: 10, fontFamily: T.fM }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip content={<CHART_TOOLTIP prefix="$" />} />
-                <Bar dataKey="inc" name="Income" fill={T.emerald} opacity={0.85} radius={[4,4,0,0]} />
-                <Bar dataKey="exp" name="Expenses" fill={T.rose} opacity={0.7} radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div style={{ display:'flex', gap:12 }}>
+            <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
+            <Btn onClick={()=>setModal('income')} color={T.emerald}>+ Log Income</Btn>
+            <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
+          </div>
+
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Cash Flow — Last 6 Months</SectionLabel>
+            {cashflowMonths.length > 0 ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={cashflowMonths} barGap={3} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="m" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<ChartTooltip prefix={cur} />} />
+                  <Bar dataKey="inc" name="Income" fill={T.emerald} opacity={0.85} radius={[4,4,0,0]} />
+                  <Bar dataKey="exp" name="Expenses" fill={T.rose} opacity={0.7} radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ):(
+              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow trends.</div>
+            )}
           </GlassCard>
 
-          {/* Goals progress */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Financial Goals</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {GOALS.filter(g => g.cat === 'finance').map(goal => {
-                const pct = Math.round((goal.current / goal.target) * 100);
+          {/* Debts */}
+          {debts.length>0 && (
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Debts</SectionLabel>
+              {debts.map((d,i)=>{
+                const origBal=Number(d.originalBalance||d.balance||0);
+                const curBal=Number(d.balance||0);
+                const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0;
                 return (
-                  <div key={goal.id}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span>{goal.emoji}</span>
-                        <span style={{ fontSize: 12, fontFamily: T.fD, fontWeight: 600, color: T.text }}>{goal.name}</span>
-                      </div>
-                      <div style={{ fontSize: 11, fontFamily: T.fM, color: goal.color }}>
-                        ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} · {pct}%
-                      </div>
+                  <div key={d.id||i} style={{ marginBottom:14 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                      <span style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{d.name||d.creditor}</span>
+                      <span style={{ fontSize:11, fontFamily:T.fM, color:T.rose }}>{cur}{fmtN(curBal)} remaining</span>
                     </div>
-                    <ProgressBar pct={pct} color={goal.color} height={6} />
+                    <ProgressBar pct={paidPct} color={T.emerald} height={5} />
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>{paidPct.toFixed(0)}% paid off · {d.rate||0}% APR</div>
                   </div>
                 );
               })}
-            </div>
-          </GlassCard>
+            </GlassCard>
+          )}
         </div>
       )}
 
-      {tab === 'spending' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Spending Breakdown</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={SPENDING_DATA} cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} dataKey="value">
-                  {SPENDING_DATA.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Tooltip content={<CHART_TOOLTIP prefix="$" />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </GlassCard>
-
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Categories</div>
-            {SPENDING_DATA.map((cat, i) => (
-              <div key={i} style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontFamily: T.fM, color: T.text }}>{cat.name}</span>
-                  <span style={{ fontSize: 12, fontFamily: T.fM, color: cat.color, fontWeight: 600 }}>${cat.value}</span>
-                </div>
-                <ProgressBar pct={(cat.value / 3255) * 100} color={cat.color} height={4} />
-              </div>
-            ))}
-          </GlassCard>
-        </div>
-      )}
-
-      {tab === 'investments' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            <StatCard label="Portfolio Value" value="$123,240" sub="All assets" color={T.violet} icon="📊" />
-            <StatCard label="Total Return" value="+$18,400" sub="+17.6% lifetime" color={T.emerald} icon="📈" />
-            <StatCard label="YTD Return" value="+$6,200" sub="+6.2% vs 4.8% SP500" color={T.accent} icon="⚡" />
+      {tab==='spending' && (
+        <div>
+          <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+            <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
           </div>
+          {spendByCat.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No expenses logged this month yet.</div>
+            </GlassCard>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <GlassCard style={{ padding:'20px 22px' }}>
+                <SectionLabel>Breakdown — {today().slice(0,7)}</SectionLabel>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={spendByCat} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">
+                      {spendByCat.map((e,i)=><Cell key={i} fill={e.color} />)}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip prefix={cur} />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </GlassCard>
+              <GlassCard style={{ padding:'20px 22px' }}>
+                <SectionLabel>Categories</SectionLabel>
+                {spendByCat.map((c,i)=>(
+                  <div key={i} style={{ marginBottom:12 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                      <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{c.name}</span>
+                      <span style={{ fontSize:11, fontFamily:T.fM, color:c.color, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
+                    </div>
+                    <ProgressBar pct={(c.value/Math.max(1,monthExp))*100} color={c.color} height={4} />
+                  </div>
+                ))}
+              </GlassCard>
+            </div>
+          )}
 
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Asset Allocation</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {PORTFOLIO_DATA.map((asset, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 3, background: asset.color, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, fontFamily: T.fM, color: T.text }}>{asset.name}</span>
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <span style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub }}>${asset.val.toLocaleString()}</span>
-                        <span style={{ fontSize: 11, fontFamily: T.fM, color: asset.change >= 0 ? T.emerald : T.rose }}>
-                          {asset.change >= 0 ? '↑' : '↓'} {Math.abs(asset.change)}%
-                        </span>
+          {/* Recent expenses list */}
+          <GlassCard style={{ padding:'20px 22px', marginTop:14 }}>
+            <SectionLabel>Recent Expenses</SectionLabel>
+            {expenses.length===0 ? (
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>No expenses yet.</div>
+            ) : (
+              [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,20).map((e,i)=>(
+                <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:i<19?`1px solid ${T.border}`:'none', transition:'background 0.15s' }}>
+                  <div>
+                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{e.note||e.category}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category} · {e.date}</div>
+                  </div>
+                  <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</div>
+                </div>
+              ))
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {tab==='investments' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {investments.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add them in the original LifeOS app — they'll appear here automatically.</div>
+            </GlassCard>
+          ) : (
+            <>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+                {[
+                  { label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`, color:T.violet },
+                  { label:'Total Invested',  val:`${cur}${fmtN(investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:T.text },
+                  { label:'P&L',             val:`${invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:invVal>=investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)?T.emerald:T.rose },
+                ].map((m,i)=>(
+                  <GlassCard key={i} style={{ padding:'16px 18px' }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                    <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+                  </GlassCard>
+                ))}
+              </div>
+              <GlassCard style={{ padding:'20px 22px' }}>
+                <SectionLabel>Positions</SectionLabel>
+                {investments.map((inv,i)=>{
+                  const cur_ = inv.currentPrice??inv.buyPrice??0;
+                  const val=Number(cur_)*Number(inv.quantity||0);
+                  const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);
+                  const pnl=val-cost;
+                  const pnlPct=cost>0?(pnl/cost)*100:0;
+                  return (
+                    <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<investments.length-1?`1px solid ${T.border}`:'none' }}>
+                      <div>
+                        <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</div>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}</div>
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.text }}>{cur}{fmtN(val)}</div>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:pnl>=0?T.emerald:T.rose }}>{pnl>=0?'+':''}{cur}{fmtN(pnl)} ({pnlPct.toFixed(1)}%)</div>
                       </div>
                     </div>
-                    <ProgressBar pct={asset.pct} color={asset.color} height={5} />
-                  </div>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, width: 32, textAlign: 'right' }}>{asset.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
+                  );
+                })}
+              </GlassCard>
+            </>
+          )}
         </div>
       )}
 
-      {tab === 'strategy' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <GlassCard style={{ padding: '24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Wealth Projection</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[
-                { yr:'2027', val:'$285,000', color:T.text },
-                { yr:'2028', val:'$362,000', color:T.text },
-                { yr:'2029', val:'$448,000', color:T.textSub },
-                { yr:'2030', val:'$545,000', color:T.textSub },
-                { yr:'2031', val:'$655,000', color:T.accent },
-              ].map((proj, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 13, fontFamily: T.fM, color: T.textSub }}>{proj.yr}</div>
-                  <div style={{ fontSize: 15, fontFamily: T.fD, fontWeight: 700, color: proj.color }}>{proj.val}</div>
+      {tab==='goals' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'flex', justifyContent:'flex-end' }}>
+            <Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn>
+          </div>
+          {goals.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first financial goal.</div>
+            </GlassCard>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {goals.map((goal,i)=>{
+                const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));
+                const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};
+                const c=catColors[goal.cat]||T.accent;
+                return (
+                  <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+                      <div>
+                        <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
+                        <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{goal.name}</div>
+                        <Badge color={c} style={{ marginTop:4 }}>{goal.cat||'goal'}</Badge>
+                      </div>
+                      <div style={{ width:46, height:46, borderRadius:'50%', background:`conic-gradient(${c} ${pct*3.6}deg,${T.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 12px ${c}33` }}>
+                        <div style={{ width:34, height:34, borderRadius:'50%', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontFamily:T.fM, fontWeight:600, color:c }}>{pct}%</div>
+                      </div>
+                    </div>
+                    <ProgressBar pct={pct} color={c} height={5} />
+                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                      <span>{cur}{fmtN(goal.current||0)}</span>
+                      <span>{cur}{fmtN(goal.target)}</span>
+                    </div>
+                    {goalIdx===i ? (
+                      <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                        <Input type="number" value={goalAmt} onChange={e=>setGoalAmt(e.target.value)} placeholder="Add amount" style={{ flex:1 }} />
+                        <Btn onClick={()=>{ actions.updateGoalProgress(goal.id,Number(goalAmt)); setGoalAmt(''); setGoalIdx(null); }} color={c} style={{ padding:'6px 12px' }}>+</Btn>
+                      </div>
+                    ) : (
+                      <button onClick={()=>setGoalIdx(i)} style={{ marginTop:10, fontSize:10, fontFamily:T.fM, color:c }}>+ Add Progress</button>
+                    )}
+                  </GlassCard>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab==='assets' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'flex', gap:10 }}>
+            <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
+          </div>
+          {assets.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets yet. Add your cash, property, and other assets.</div>
+            </GlassCard>
+          ) : (
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Assets · Total {cur}{fmtN(assetVal)}</SectionLabel>
+              {assets.map((a,i)=>(
+                <div key={a.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<assets.length-1?`1px solid ${T.border}`:'none' }}>
+                  <div>
+                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{a.name}</div>
+                    <Badge color={T.textSub}>{a.type||'Other'}</Badge>
+                  </div>
+                  <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(a.value)}</div>
                 </div>
               ))}
-            </div>
-          </GlassCard>
-          <GlassCard style={{ padding: '24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Scenarios</div>
-            {[
-              { label:'Conservative (5%)',  val:'$510k', color:T.textSub },
-              { label:'Base Case (8%)',      val:'$655k', color:T.text },
-              { label:'Optimistic (12%)',    val:'$830k', color:T.emerald },
-              { label:'Aggressive (15%)',    val:'$1.02M', color:T.accent },
-            ].map((s, i) => (
-              <div key={i} style={{ padding: '12px', borderRadius: T.r, background: T.surface, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub }}>{s.label}</span>
-                <span style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 700, color: s.color }}>{s.val}</span>
-              </div>
-            ))}
-          </GlassCard>
+            </GlassCard>
+          )}
         </div>
       )}
     </div>
@@ -907,311 +1125,293 @@ function MoneyPage() {
 }
 
 // ── HEALTH PAGE ────────────────────────────────────────────────────────────────
-function HealthPage() {
+function HealthPage({ data, actions }) {
+  const [modal, setModal] = useState(null);
   const [focusActive, setFocusActive] = useState(false);
-  const [focusTime, setFocusTime] = useState(25 * 60);
+  const [focusTime, setFocusTime] = useState(25*60);
   const [elapsed, setElapsed] = useState(0);
+  const { vitals } = data;
 
   useEffect(() => {
     if (!focusActive) return;
-    const interval = setInterval(() => setElapsed(e => {
-      if (e >= focusTime) { setFocusActive(false); return 0; }
-      return e + 1;
-    }), 1000);
-    return () => clearInterval(interval);
+    const iv = setInterval(() => setElapsed(e => { if(e>=focusTime){setFocusActive(false);return 0;} return e+1; }), 1000);
+    return () => clearInterval(iv);
   }, [focusActive, focusTime]);
 
-  const fmtTime = (s) => `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`;
-  const remaining = focusTime - elapsed;
-  const pct = (elapsed / focusTime) * 100;
+  const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const remaining = focusTime-elapsed;
+  const fpct = (elapsed/focusTime)*100;
+
+  const sorted = [...vitals].sort((a,b)=>a.date<b.date?1:-1);
+  const recent7 = sorted.slice(0,7).reverse();
+  const avgSleep = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.sleep||0),0)/recent7.length).toFixed(1) : '—';
+  const avgMood  = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.mood||0),0)/recent7.length).toFixed(1) : '—';
+  const avgEnergy= recent7.length ? (recent7.reduce((s,v)=>s+Number(v.energy||0),0)/recent7.length).toFixed(1) : '—';
+  const latestWeight = sorted.find(v=>v.weight>0);
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Health Domain</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Health & Vitals</h1>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
+
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Health Domain</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
-        <StatCard label="Sleep Score" value="94%" sub="7h 42m last night" color={T.sky} icon="🌙" trend={94} />
-        <StatCard label="Energy Level" value="High" sub="Top 20% for today" color={T.accent} icon="⚡" trend={80} />
-        <StatCard label="Weight" value="173 lbs" sub="-2.4 lbs this month" color={T.emerald} icon="⚖️" trend={60} />
-        <StatCard label="Steps Today" value="8,240" sub="Goal: 10,000" color={T.amber} icon="👟" trend={82} />
+      <div style={{ display:'flex', gap:10, marginBottom:18 }}>
+        <Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Sleep Chart */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Sleep — This Week</div>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={SLEEP_DATA} barSize={32} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                <XAxis dataKey="d" tick={{ fill: T.textSub, fontSize: 10, fontFamily: T.fM }} axisLine={false} tickLine={false} />
-                <YAxis domain={[4,10]} hide />
-                <Tooltip content={<CHART_TOOLTIP suffix="h" />} />
-                <Bar dataKey="h" name="Hours" fill={T.sky} opacity={0.8} radius={[6,6,0,0]}
-                  label={{ fill: T.textSub, fontSize: 9, fontFamily: T.fM, position: 'top' }} />
-              </BarChart>
-            </ResponsiveContainer>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+        {[
+          { label:'Avg Sleep (7d)',  val:`${avgSleep}h`,       sub:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h',    color:T.sky     },
+          { label:'Avg Mood (7d)',   val:`${avgMood}/10`,      sub:'Emotional wellbeing',                               color:T.violet  },
+          { label:'Avg Energy (7d)', val:`${avgEnergy}/10`,    sub:'Vitality level',                                    color:T.accent  },
+          { label:'Current Weight',  val:latestWeight?`${latestWeight.weight} lbs`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
+        ].map((m,i)=>(
+          <GlassCard key={i} style={{ padding:'16px 18px' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+          </GlassCard>
+        ))}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Sleep chart */}
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Sleep History</SectionLabel>
+            {recent7.length>0 ? (
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={recent7} barSize={28} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0,12]} hide />
+                  <Tooltip content={<ChartTooltip suffix="h" />} />
+                  <Bar dataKey="sleep" name="Sleep" fill={T.sky} opacity={0.85} radius={[5,5,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see your sleep chart.</div>
+            )}
           </GlassCard>
 
-          {/* Health metrics grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {[
-              { label:'Heart Rate',   value:'68 bpm',   sub:'Resting — optimal', color:T.rose,    icon:'❤️' },
-              { label:'VO2 Max',      value:'48.2',     sub:'Good fitness level', color:T.sky,     icon:'🫁' },
-              { label:'HRV',          value:'62 ms',    sub:'Good recovery',     color:T.emerald, icon:'📡' },
-              { label:'Hydration',    value:'2.4L',     sub:'Goal: 3L',          color:T.accent,  icon:'💧' },
-              { label:'Calories',     value:'2,180',    sub:'Target: 2,400',     color:T.amber,   icon:'🍎' },
-              { label:'Active Min',   value:'38 min',   sub:'Goal: 30 min ✓',    color:T.violet,  icon:'🏃' },
-            ].map((m, i) => (
-              <StatCard key={i} {...m} />
+          {/* Mood + Energy */}
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Mood & Energy Trends</SectionLabel>
+            {recent7.length>0 ? (
+              <ResponsiveContainer width="100%" height={130}>
+                <LineChart data={recent7} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0,10]} hide />
+                  <Tooltip content={<ChartTooltip suffix="/10" />} />
+                  <Line type="monotone" dataKey="mood" name="Mood" stroke={T.violet} strokeWidth={2} dot={{fill:T.violet,r:3}} />
+                  <Line type="monotone" dataKey="energy" name="Energy" stroke={T.accent} strokeWidth={2} dot={{fill:T.accent,r:3}} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see mood & energy trends.</div>
+            )}
+          </GlassCard>
+
+          {/* Vitals log */}
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Recent Vitals</SectionLabel>
+            {sorted.slice(0,8).map((v,i)=>(
+              <div key={v.id||i} style={{ display:'flex', gap:14, justifyContent:'space-between', padding:'8px 0', borderBottom:i<7?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
+                <span style={{ color:T.textSub }}>{v.date}</span>
+                <div style={{ display:'flex', gap:14 }}>
+                  {v.sleep>0&&<span style={{ color:T.sky }}>😴 {v.sleep}h</span>}
+                  {v.mood>0&&<span style={{ color:T.violet }}>😊 {v.mood}/10</span>}
+                  {v.energy>0&&<span style={{ color:T.accent }}>⚡ {v.energy}/10</span>}
+                  {v.weight>0&&<span style={{ color:T.emerald }}>⚖️ {v.weight}</span>}
+                </div>
+              </div>
             ))}
-          </div>
+            {sorted.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No vitals logged yet.</div>}
+          </GlassCard>
         </div>
 
         {/* Focus Timer */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <GlassCard style={{ padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 20 }}>Focus Session</div>
-            
-            {/* Circular timer */}
-            <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 20px' }}>
-              <svg width={160} height={160} style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx={80} cy={80} r={68} fill="none" stroke={T.border} strokeWidth={6} />
-                <circle cx={80} cy={80} r={68} fill="none" stroke={T.accent} strokeWidth={6}
-                  strokeDasharray={`${2 * Math.PI * 68 * (pct / 100)} ${2 * Math.PI * 68 * (1 - pct / 100)}`}
-                  strokeLinecap="round"
-                  style={{ filter: `drop-shadow(0 0 6px ${T.accent})`, transition: 'stroke-dasharray 1s linear' }}
-                />
-              </svg>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: 28, fontFamily: T.fM, fontWeight: 600, color: T.text }}>{fmtTime(remaining)}</div>
-                <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub }}>remaining</div>
-              </div>
+        <GlassCard style={{ padding:'22px', display:'flex', flexDirection:'column', alignItems:'center' }}>
+          <SectionLabel>Focus Session</SectionLabel>
+          <div style={{ position:'relative', width:150, height:150, margin:'0 auto 16px' }}>
+            <svg width={150} height={150} style={{ transform:'rotate(-90deg)' }}>
+              <circle cx={75} cy={75} r={64} fill="none" stroke={T.border} strokeWidth={5} />
+              <circle cx={75} cy={75} r={64} fill="none" stroke={T.accent} strokeWidth={5}
+                strokeDasharray={`${2*Math.PI*64*(fpct/100)} ${2*Math.PI*64*(1-fpct/100)}`}
+                strokeLinecap="round"
+                style={{ filter:`drop-shadow(0 0 5px ${T.accent})`, transition:'stroke-dasharray 1s linear' }}
+              />
+            </svg>
+            <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ fontSize:26, fontFamily:T.fM, fontWeight:600, color:T.text }}>{fmtTime(remaining)}</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>remaining</div>
             </div>
-
-            {/* Duration selector */}
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 16 }}>
-              {[25*60, 45*60, 60*60, 90*60].map(s => (
-                <button key={s} onClick={() => { setFocusTime(s); setElapsed(0); setFocusActive(false); }} style={{
-                  padding: '4px 10px', borderRadius: 99, fontSize: 10, fontFamily: T.fM,
-                  background: focusTime === s ? T.accentDim : T.surface,
-                  color: focusTime === s ? T.accent : T.textSub,
-                  border: `1px solid ${focusTime === s ? T.accent + '44' : T.border}`,
-                }}>{s/60}m</button>
-              ))}
-            </div>
-
-            <button className="lifeos-btn" onClick={() => setFocusActive(!focusActive)} style={{
-              width: '100%', padding: '12px', borderRadius: T.r,
-              background: focusActive ? T.roseDim : T.accentDim,
-              color: focusActive ? T.rose : T.accent,
-              border: `1px solid ${focusActive ? T.rose + '44' : T.accent + '44'}`,
-              fontSize: 12, fontFamily: T.fM, fontWeight: 600,
-              animation: focusActive ? 'glowPulse 2s infinite' : 'none',
-            }}>
-              {focusActive ? '⏸ PAUSE SESSION' : '▶ START FOCUS'}
-            </button>
-          </GlassCard>
-
-          {/* AI Health Coach */}
-          <GlassCard style={{ padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.sky, animation: 'dotPulse 2s infinite' }} />
-              <span style={{ fontSize: 10, fontFamily: T.fM, color: T.sky, textTransform: 'uppercase', letterSpacing: '0.1em' }}>AI Health Coach</span>
-            </div>
-            {[
-              'Sleep score 94% — excellent! Consistent bedtime routine detected.',
-              'You have 3 missed workouts this week. Schedule one today?',
-              'HRV trending up +8% over 2 weeks. Recovery improving significantly.',
-            ].map((msg, i) => (
-              <div key={i} style={{
-                padding: '10px 12px', borderRadius: T.r, background: T.surface,
-                marginBottom: 8, fontSize: 11, fontFamily: T.fM, color: T.text, lineHeight: 1.5,
-                borderLeft: `2px solid ${T.sky}66`,
-              }}>{msg}</div>
+          </div>
+          <div style={{ display:'flex', gap:5, marginBottom:14 }}>
+            {[15*60,25*60,45*60,60*60].map(s=>(
+              <button key={s} onClick={()=>{setFocusTime(s);setElapsed(0);setFocusActive(false);}} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:focusTime===s?T.accentDim:T.surface, color:focusTime===s?T.accent:T.textSub, border:`1px solid ${focusTime===s?T.accent+'44':T.border}` }}>{s/60}m</button>
             ))}
-          </GlassCard>
-        </div>
+          </div>
+          <button className="los-btn" onClick={()=>setFocusActive(!focusActive)} style={{ width:'100%', padding:'11px', borderRadius:T.r, background:focusActive?T.roseDim:T.accentDim, color:focusActive?T.rose:T.accent, border:`1px solid ${focusActive?T.rose+'44':T.accent+'44'}`, fontSize:11, fontFamily:T.fM, fontWeight:600, animation:focusActive?'glowPulse 2s infinite':'none' }}>
+            {focusActive?'⏸ PAUSE':'▶ START FOCUS'}
+          </button>
+        </GlassCard>
       </div>
     </div>
   );
 }
 
 // ── GROWTH PAGE ────────────────────────────────────────────────────────────────
-function GrowthPage() {
+function GrowthPage({ data, actions }) {
   const [tab, setTab] = useState('character');
-  const totalXP = 2840;
-  const xpToNext = 360;
-  const level = 34;
+  const [modal, setModal] = useState(null);
+  const { habits, habitLogs, goals, totalXP, settings } = data;
+  const cur = settings.currency||'$';
+
+  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const xpForNext = Math.pow(level,2)*100;
+  const xpForCurrent = Math.pow(level-1,2)*100;
+  const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
+  const CLASSES = ['Apprentice','Seeker','Wanderer','Scholar','Artisan','Champion','Sage','Master','Grandmaster','Legend'];
+  const heroClass = CLASSES[Math.min(level-1,CLASSES.length-1)];
+  const d = today();
+
+  const LIFE_STATS = [
+    { label:'Financial',  val:Math.min(100,Math.round(goals.filter(g=>g.cat==='finance').length*25)), color:T.emerald },
+    { label:'Health',     val:Math.min(100,data.vitals.length*8), color:T.sky    },
+    { label:'Habits',     val:Math.min(100,habits.length*12), color:T.accent  },
+    { label:'Growth',     val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet  },
+    { label:'Focus',      val:Math.min(100,data.focusSessions.length*5), color:T.rose    },
+    { label:'Knowledge',  val:Math.min(100,data.notes.length*10), color:T.amber   },
+  ];
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Growth Domain</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Character · Career · Goals</h1>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Growth Domain</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1>
       </div>
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: 24, background: T.surface, borderRadius: T.r, padding: 3, width: 'fit-content', border: `1px solid ${T.border}` }}>
-        {['character','habits','goals','career'].map(t => (
-          <button key={t} className="lifeos-tab" onClick={() => setTab(t)} style={{
-            padding: '6px 16px', borderRadius: 8, fontSize: 10, fontFamily: T.fM, textTransform: 'uppercase',
-            background: tab === t ? T.violetDim : 'transparent',
-            color: tab === t ? T.violet : T.textSub,
-            border: `1px solid ${tab === t ? T.violet + '33' : 'transparent'}`,
-            transition: 'all 0.15s', letterSpacing: '0.06em',
-          }}>{t}</button>
+      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
+        {['character','habits','goals'].map(t=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
 
-      {tab === 'character' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          {/* XP Card */}
-          <GlassCard style={{ padding: '24px', gridColumn: 'span 2' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-              <div style={{
-                width: 80, height: 80, borderRadius: '50%', flexShrink: 0,
-                background: `linear-gradient(135deg, ${T.violet}, ${T.accent})`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.bg,
-                boxShadow: `0 0 24px ${T.violet}44`,
-              }}>{level}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Life Level</div>
-                <div style={{ fontSize: 22, fontFamily: T.fD, fontWeight: 800, color: T.text, marginBottom: 8 }}>Level {level} — Achiever</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub }}>{totalXP.toLocaleString()} XP</span>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.violet }}>{xpToNext} to Level {level+1}</span>
+      {tab==='character' && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+          <GlassCard style={{ padding:'22px', gridColumn:'span 2' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:20 }}>
+              <div style={{ width:76, height:76, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.bg, boxShadow:`0 0 24px ${T.violet}44` }}>{level}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>Life Level · {heroClass}</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:T.text, marginBottom:8 }}>Level {level} — {heroClass}</div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                  <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{Number(totalXP).toLocaleString()} XP</span>
+                  <span style={{ fontSize:10, fontFamily:T.fM, color:T.violet }}>{(xpForNext-Number(totalXP)).toLocaleString()} to Lv {level+1}</span>
                 </div>
-                <ProgressBar pct={(totalXP / (totalXP + xpToNext)) * 100} color={T.violet} height={8} animated />
+                <ProgressBar pct={xpPct} color={T.violet} height={8} />
               </div>
             </div>
           </GlassCard>
-
-          {/* Life Stats */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Life Stats</div>
-            {LIFE_STATS.map((stat, i) => (
-              <div key={i} style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontFamily: T.fM, color: T.text }}>{stat.label}</span>
-                  <span style={{ fontSize: 12, fontFamily: T.fM, color: stat.color, fontWeight: 600 }}>{stat.val}</span>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Life Dimensions</SectionLabel>
+            {LIFE_STATS.map((s,i)=>(
+              <div key={i} style={{ marginBottom:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}</span>
                 </div>
-                <ProgressBar pct={stat.val} color={stat.color} height={5} />
+                <ProgressBar pct={s.val} color={s.color} height={5} />
               </div>
             ))}
           </GlassCard>
-
-          {/* Radar */}
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Life Balance</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={RADAR_DATA} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Life Balance Radar</SectionLabel>
+            <ResponsiveContainer width="100%" height={200}>
+              <RadarChart data={LIFE_STATS.map(s=>({subject:s.label,A:s.val}))} margin={{top:8,right:20,bottom:8,left:20}}>
                 <PolarGrid stroke={T.border} />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: T.textSub, fontSize: 9, fontFamily: T.fM }} />
+                <PolarAngleAxis dataKey="subject" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} />
                 <PolarRadiusAxis domain={[0,100]} tick={false} axisLine={false} />
-                <Radar dataKey="A" stroke={T.violet} fill={T.violet} fillOpacity={0.15} strokeWidth={1.5} dot={{ fill: T.violet, r: 3 }} />
+                <Radar dataKey="A" stroke={T.violet} fill={T.violet} fillOpacity={0.15} strokeWidth={1.5} dot={{fill:T.violet,r:3}} />
               </RadarChart>
             </ResponsiveContainer>
           </GlassCard>
         </div>
       )}
 
-      {tab === 'habits' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {HABITS.map((habit, i) => {
-            const pct = (habit.streak / habit.goal) * 100;
-            return (
-              <GlassCard key={habit.id} style={{ padding: '16px 20px', animation: `fadeUp 0.3s ease ${i*0.06}s both` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: T.r, flexShrink: 0,
-                    background: habit.color + '18', border: `1px solid ${habit.color}33`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-                  }}>{habit.emoji}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 600, color: T.text }}>{habit.name}</span>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, fontFamily: T.fM, color: habit.color }}>🔥 {habit.streak} day streak</span>
-                        {habit.done && <Badge color={habit.color}>✓ Done today</Badge>}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <ProgressBar pct={pct} color={habit.color} height={5} />
-                      <span style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, whiteSpace: 'nowrap' }}>{habit.streak}/{habit.goal}</span>
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            );
-          })}
-        </div>
-      )}
-
-      {tab === 'goals' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          {GOALS.map((goal, i) => {
-            const pct = Math.round((goal.current / goal.target) * 100);
-            return (
-              <GlassCard key={goal.id} style={{ padding: '20px 24px', animation: `fadeUp 0.3s ease ${i*0.1}s both` }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontSize: 22, marginBottom: 8 }}>{goal.emoji}</div>
-                    <div style={{ fontSize: 14, fontFamily: T.fD, fontWeight: 700, color: T.text }}>{goal.name}</div>
-                    <Badge color={goal.color} style={{ marginTop: 4 }}>{goal.cat.toUpperCase()}</Badge>
-                  </div>
-                  <div style={{
-                    width: 48, height: 48, borderRadius: '50%',
-                    background: `conic-gradient(${goal.color} ${pct * 3.6}deg, ${T.border} 0deg)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: `0 0 12px ${goal.color}33`,
-                  }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', background: T.bg,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontFamily: T.fM, fontWeight: 600, color: goal.color,
-                    }}>{pct}%</div>
-                  </div>
-                </div>
-                <ProgressBar pct={pct} color={goal.color} height={6} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub }}>{goal.current.toLocaleString()}</span>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub }}>{goal.target.toLocaleString()}</span>
-                </div>
-              </GlassCard>
-            );
-          })}
-        </div>
-      )}
-
-      {tab === 'career' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            <StatCard label="Current Role" value="Sr. Engineer" sub="TechCorp Inc." color={T.amber} icon="💼" />
-            <StatCard label="Base Salary" value="$148,000" sub="+22% vs 2 yrs ago" color={T.emerald} icon="💰" />
-            <StatCard label="Career Score" value="78/100" sub="Top 25% trajectory" color={T.violet} icon="📈" trend={78} />
+      {tab==='habits' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'flex', justifyContent:'flex-end' }}>
+            <Btn onClick={()=>setModal('habit')} color={T.accent}>+ Log / Add Habit</Btn>
           </div>
+          {habits.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits yet. Create your first habit to start building streaks.</div>
+            </GlassCard>
+          ) : (
+            habits.map((habit,i)=>{
+              const streak = getStreak(habit.id, habitLogs);
+              const done = (habitLogs[habit.id]||[]).includes(d);
+              const HCOLORS = [T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+              const hc = HCOLORS[i%HCOLORS.length];
+              const best = Math.max(30, (habitLogs[habit.id]||[]).length);
+              return (
+                <GlassCard key={habit.id||i} style={{ padding:'16px 20px', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                    <div style={{ width:40, height:40, borderRadius:T.r, flexShrink:0, background:hc+'18', border:`1px solid ${hc}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{habit.emoji||'🔥'}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                        <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text }}>{habit.name}</span>
+                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                          <span style={{ fontSize:11, fontFamily:T.fM, color:hc }}>🔥 {streak}d streak</span>
+                          {done ? <Badge color={hc}>✓ Done</Badge> : <Btn onClick={()=>actions.logHabit(habit.id)} color={hc} style={{ padding:'4px 12px' }}>Log</Btn>}
+                        </div>
+                      </div>
+                      <ProgressBar pct={(streak/Math.max(streak,30))*100} color={hc} height={4} />
+                    </div>
+                  </div>
+                </GlassCard>
+              );
+            })
+          )}
+        </div>
+      )}
 
-          <GlassCard style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Career Timeline</div>
-            {[
-              { yr:'Mar 2026', event:'Project APEX shipped — on time delivery', type:'milestone', color:T.accent },
-              { yr:'Jan 2026', event:'Promoted to Senior Engineer', type:'promotion', color:T.emerald },
-              { yr:'Oct 2025', event:'Led team of 4 for Platform Redesign', type:'achievement', color:T.violet },
-              { yr:'Jun 2025', event:'Completed System Design certification', type:'growth', color:T.sky },
-            ].map((ev, i) => (
-              <div key={i} style={{ display: 'flex', gap: 14, paddingBottom: 14, borderBottom: i < 3 ? `1px solid ${T.border}` : 'none', marginBottom: i < 3 ? 14 : 0 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: ev.color, flexShrink: 0, marginTop: 5, boxShadow: `0 0 6px ${ev.color}` }} />
-                <div>
-                  <div style={{ fontSize: 12, fontFamily: T.fD, fontWeight: 600, color: T.text }}>{ev.event}</div>
-                  <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginTop: 2 }}>{ev.yr}</div>
-                </div>
-              </div>
-            ))}
-          </GlassCard>
+      {tab==='goals' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'flex', justifyContent:'flex-end' }}>
+            <Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn>
+          </div>
+          {goals.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first goal to start tracking progress.</div>
+            </GlassCard>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {goals.map((goal,i)=>{
+                const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));
+                const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};
+                const c=catColors[goal.cat]||T.violet;
+                return (
+                  <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
+                    <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{goal.name}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>{cur}{fmtN(goal.current||0)} / {cur}{fmtN(goal.target)} · {pct}%</div>
+                    <ProgressBar pct={pct} color={c} height={6} />
+                    {pct>=100 && <div style={{ marginTop:8, fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Completed!</div>}
+                  </GlassCard>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1219,164 +1419,113 @@ function GrowthPage() {
 }
 
 // ── KNOWLEDGE PAGE ─────────────────────────────────────────────────────────────
-function KnowledgePage() {
+function KnowledgePage({ data, actions }) {
   const [tab, setTab] = useState('notes');
-  const [messages, setMessages] = useState(AI_MESSAGES);
+  const [modal, setModal] = useState(null);
+  const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const endRef = useRef(null);
+  const { notes, expenses, incomes, habits, habitLogs, goals, vitals, totalXP, assets, investments, debts, settings } = data;
+  const cur = settings.currency||'$';
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
-    setLoading(true);
-
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: `You are a Life Intelligence Engine for a next-generation Life OS app. You have access to the user's life data:
-- Net Worth: $214,700 (up $6,300 this month)
-- Monthly income: $7,600, expenses: $3,255, savings rate: 38%
-- Portfolio: $123,240 (up 6.2% YTD)
-- Life XP Level: 34 with 2,840 XP
-- Active habits: Meditation (21-day streak), Reading (48-day), No Alcohol (18-day)
-- Sleep: 7h 42m, score 94%
-- Goals: Emergency Fund at 80%, Half-Marathon training at 68%
-Give insightful, data-driven advice as a brilliant life coach and financial advisor. Be concise and direct. Reference the user's data when relevant.`,
-          messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
-        }),
-      });
-      const data = await res.json();
-      const text = data.content?.map(b => b.text || '').join('') || 'Unable to get response.';
-      setMessages(prev => [...prev, { role: 'assistant', content: text }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Connection error. Please try again.' }]);
-    } finally {
-      setLoading(false);
-    }
+  const buildContext = () => {
+    const m=today().slice(0,7);
+    const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+    const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+    const invVal=investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+    const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
+    const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0;
+    const habitSum=habits.map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none';
+    const goalSum=goals.map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ')||'none';
+    const v7=vitals.slice(-7);
+    const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
+    return `USER'S REAL LIFE DATA:\nNet Worth: ${cur}${fmtN(nw)}\nThis Month: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${sr}%\nInvestments: ${cur}${fmtN(invVal)}\nLevel: ${Math.floor(Math.sqrt(Number(totalXP)/100))+1}, ${totalXP} XP\nHabits: ${habitSum}\nGoals: ${goalSum}\nAvg Sleep (7d): ${avgSlp}h\nDebts: ${debts.length} totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`;
   };
 
-  return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Knowledge Domain</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Knowledge Base</h1>
-      </div>
+  const send = async () => {
+    if (!input.trim()||loading) return;
+    const um={role:'user',content:input};
+    setMessages(p=>[...p,um]); setInput(''); setLoading(true);
+    try {
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000,
+          system:`You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,
+          messages:[...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content})),
+        }),
+      });
+      const d=await res.json();
+      const text=d.content?.map(b=>b.text||'').join('')||'Unable to respond.';
+      setMessages(p=>[...p,{role:'assistant',content:text}]);
+    } catch { setMessages(p=>[...p,{role:'assistant',content:'Connection error. Please try again.'}]); }
+    finally { setLoading(false); }
+  };
 
-      <div style={{ display: 'flex', gap: 2, marginBottom: 24, background: T.surface, borderRadius: T.r, padding: 3, width: 'fit-content', border: `1px solid ${T.border}` }}>
-        {['notes','ai assistant'].map(t => (
-          <button key={t} className="lifeos-tab" onClick={() => setTab(t)} style={{
-            padding: '6px 16px', borderRadius: 8, fontSize: 10, fontFamily: T.fM, textTransform: 'uppercase',
-            background: tab === t ? T.amberDim : 'transparent',
-            color: tab === t ? T.amber : T.textSub,
-            border: `1px solid ${tab === t ? T.amber + '33' : 'transparent'}`,
-            transition: 'all 0.15s', letterSpacing: '0.06em',
-          }}>{t}</button>
+  const TAG_COLORS = { Finance:T.violet, Health:T.sky, Career:T.amber, Growth:T.emerald, Ideas:'#c084fc', General:T.textSub };
+
+  return (
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Knowledge Domain</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1>
+      </div>
+      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
+        {['notes','ai assistant'].map(t=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
 
-      {tab === 'notes' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          {NOTES.map((note, i) => (
-            <GlassCard key={note.id} className="lifeos-card" style={{
-              padding: '20px', cursor: 'pointer', transition: 'all 0.2s',
-              animation: `fadeUp 0.3s ease ${i * 0.08}s both`,
-              borderLeft: `3px solid ${note.color}66`,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <Badge color={note.color}>{note.tag}</Badge>
-                <span style={{ fontSize: 10, fontFamily: T.fM, color: T.textMuted }}>{note.ts}</span>
-              </div>
-              <div style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 700, color: T.text, marginBottom: 8 }}>{note.title}</div>
-              <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, lineHeight: 1.6 }}>{note.preview}</div>
+      {tab==='notes' && (
+        <div>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
+            <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn>
+          </div>
+          {notes.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No notes yet. Create your first note to build your knowledge base.</div>
             </GlassCard>
-          ))}
-          {/* Add note */}
-          <GlassCard style={{
-            padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 8, border: `1px dashed ${T.border}`, background: 'transparent',
-            animation: `fadeUp 0.3s ease ${NOTES.length * 0.08}s both`,
-          }}>
-            <IconPlus size={16} stroke={T.textMuted} />
-            <span style={{ fontSize: 12, fontFamily: T.fM, color: T.textMuted }}>New Note</span>
-          </GlassCard>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {[...notes].sort((a,b)=>a.date<b.date?1:-1).map((note,i)=>{
+                const tc=TAG_COLORS[note.tag]||T.textSub;
+                return (
+                  <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                      <Badge color={tc}>{note.tag||'General'}</Badge>
+                      <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt}</span>
+                    </div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7 }}>{note.title}</div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body||note.content||note.text||''}</div>
+                  </GlassCard>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {tab === 'ai assistant' && (
-        <GlassCard style={{ display: 'flex', flexDirection: 'column', height: 540 }}>
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {messages.map((msg, i) => (
-              <div key={i} style={{
-                display: 'flex', gap: 10,
-                flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-                animation: 'fadeUp 0.25s ease',
-              }}>
-                {msg.role === 'assistant' && (
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                    background: `linear-gradient(135deg, #c084fc, ${T.sky})`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                  }}>⬡</div>
-                )}
-                <div style={{
-                  maxWidth: '72%', padding: '12px 16px', borderRadius: T.rL,
-                  background: msg.role === 'user' ? T.accentDim : T.surfaceHi,
-                  border: `1px solid ${msg.role === 'user' ? T.accent + '33' : T.border}`,
-                  fontSize: 12, fontFamily: T.fM, color: T.text, lineHeight: 1.6,
-                  borderBottomRightRadius: msg.role === 'user' ? 4 : T.rL,
-                  borderBottomLeftRadius: msg.role === 'assistant' ? 4 : T.rL,
-                }}>
+      {tab==='ai assistant' && (
+        <GlassCard style={{ display:'flex', flexDirection:'column', height:540 }}>
+          <div style={{ flex:1, overflowY:'auto', padding:'18px', display:'flex', flexDirection:'column', gap:12 }}>
+            {messages.map((msg,i)=>(
+              <div key={i} style={{ display:'flex', gap:9, flexDirection:msg.role==='user'?'row-reverse':'row', animation:'fadeUp 0.25s ease' }}>
+                {msg.role==='assistant' && <div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,#c084fc,${T.sky})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div>}
+                <div style={{ maxWidth:'72%', padding:'10px 14px', borderRadius:T.rL, background:msg.role==='user'?T.accentDim:T.surfaceHi, border:`1px solid ${msg.role==='user'?T.accent+'33':T.border}`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, borderBottomRightRadius:msg.role==='user'?4:T.rL, borderBottomLeftRadius:msg.role==='assistant'?4:T.rL }}>
                   {msg.content}
                 </div>
               </div>
             ))}
-            {loading && (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: `linear-gradient(135deg, #c084fc, ${T.sky})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>⬡</div>
-                <div style={{ padding: '12px 16px', borderRadius: T.rL, borderBottomLeftRadius: 4, background: T.surfaceHi, border: `1px solid ${T.border}`, display: 'flex', gap: 4, alignItems: 'center' }}>
-                  {[0,1,2].map(d => (
-                    <div key={d} style={{ width: 5, height: 5, borderRadius: '50%', background: '#c084fc', animation: `dotPulse 1.2s ease ${d*0.2}s infinite` }} />
-                  ))}
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
+            {loading && <div style={{ display:'flex', gap:9 }}><div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,#c084fc,${T.sky})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div><div style={{ padding:'10px 14px', borderRadius:T.rL, borderBottomLeftRadius:4, background:T.surfaceHi, border:`1px solid ${T.border}`, display:'flex', gap:4, alignItems:'center' }}>{[0,1,2].map(d=><div key={d} style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:`dotPulse 1.2s ease ${d*0.2}s infinite` }} />)}</div></div>}
+            <div ref={endRef} />
           </div>
-
-          {/* Input */}
-          <div style={{ padding: '16px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 10 }}>
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder="Ask your Life Intelligence Engine..."
-              style={{
-                flex: 1, background: T.surface, border: `1px solid ${T.border}`,
-                borderRadius: T.r, padding: '10px 16px',
-                fontFamily: T.fM, fontSize: 12, color: T.text,
-                transition: 'border-color 0.2s',
-              }}
-            />
-            <button className="lifeos-btn" onClick={sendMessage} disabled={!input.trim() || loading} style={{
-              width: 40, height: 40, borderRadius: T.r, flexShrink: 0,
-              background: input.trim() ? T.accentDim : T.surface,
-              border: `1px solid ${input.trim() ? T.accent + '44' : T.border}`,
-              color: input.trim() ? T.accent : T.textMuted,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <IconSend size={14} stroke={input.trim() ? T.accent : T.textMuted} />
+          <div style={{ padding:'14px 18px', borderTop:`1px solid ${T.border}`, display:'flex', gap:9 }}>
+            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Ask about your finances, habits, goals..." style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, padding:'9px 14px', fontFamily:T.fM, fontSize:12, color:T.text }} />
+            <button className="los-btn" onClick={send} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:T.r, flexShrink:0, background:input.trim()?T.accentDim:T.surface, border:`1px solid ${input.trim()?T.accent+'44':T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <IcoSend size={13} stroke={input.trim()?T.accent:T.textMuted} />
             </button>
           </div>
         </GlassCard>
@@ -1386,76 +1535,114 @@ Give insightful, data-driven advice as a brilliant life coach and financial advi
 }
 
 // ── INTELLIGENCE PAGE ──────────────────────────────────────────────────────────
-function IntelligencePage() {
+function IntelligencePage({ data }) {
+  const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings } = data;
+  const cur = settings.currency||'$';
+  const thisMonth = today().slice(0,7);
+
+  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  const invVal   = investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+  const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
+
+  const topCat = useMemo(()=>{
+    const m={};
+    expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1])[0];
+  },[expenses,thisMonth]);
+
+  const avgSleep7 = useMemo(()=>{
+    const v=vitals.slice(-7);
+    return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?';
+  },[vitals]);
+
+  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+
+  const insights = [
+    monthInc>0&&savRate<20 && { title:'Low Savings Rate', body:`You're saving ${savRate.toFixed(0)}% this month. Target 20-35% to build long-term wealth. Reduce spending by ${cur}${fmtN((0.2*monthInc-monthInc+monthExp))} to hit 20%.`, color:T.amber, icon:'⚠️', type:'warning' },
+    monthInc>0&&savRate>=35 && { title:'Excellent Savings Rate', body:`${savRate.toFixed(0)}% savings rate — you're outperforming most. ${cur}${fmtN(monthInc-monthExp)} saved this month. On track for financial independence.`, color:T.emerald, icon:'📈', type:'positive' },
+    topCat && { title:`Top Spending: ${topCat[0]}`, body:`${topCat[0]} is your largest expense at ${cur}${fmtN(topCat[1])} this month (${monthInc>0?((topCat[1]/monthInc)*100).toFixed(0):0}% of income). Review if this aligns with your priorities.`, color:T.violet, icon:'💳', type:'insight' },
+    Number(avgSleep7)>0&&Number(avgSleep7)<7 && { title:'Sleep Deficit Detected', body:`Average sleep of ${avgSleep7}h is below optimal 7-8h. Poor sleep correlates with reduced productivity and worse financial decisions.`, color:T.sky, icon:'😴', type:'insight' },
+    Number(avgSleep7)>=7 && { title:'Sleep Health Strong', body:`${avgSleep7}h average sleep over 7 days — within optimal range. Research shows well-rested individuals make 34% better financial decisions.`, color:T.sky, icon:'🌙', type:'positive' },
+    bestStreak>=7 && { title:`Habit Momentum — ${bestStreak} Day Streak`, body:`Your longest active streak is ${bestStreak} days. Habits compound like investments — you're building powerful life capital.`, color:T.accent, icon:'🔥', type:'positive' },
+    habits.length>0&&todayDone===0 && { title:'No Habits Logged Today', body:`You have ${habits.length} habits but haven't logged any today. Consistency is the key driver of your XP and life score.`, color:T.amber, icon:'🎯', type:'warning' },
+    debts.length>0 && { title:'Active Debt Tracking', body:`${debts.length} debt(s) totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}. Consider avalanche method (highest rate first) to minimize interest.`, color:T.rose, icon:'💳', type:'insight' },
+    goals.length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
+    goals.length>0 && { title:'Goal Progress', body:`${goals.filter(g=>(g.current||0)>=g.target).length} of ${goals.length} goals completed. Average progress: ${Math.round(goals.reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,goals.length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
+  ].filter(Boolean).slice(0,6);
+
+  const LIFE_STATS = [
+    { label:'Financial', val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+(debts.length===0?20:0))), color:T.emerald },
+    { label:'Health',    val:Math.min(100,vitals.length*8), color:T.sky    },
+    { label:'Habits',    val:Math.min(100,habits.length*15+bestStreak*2), color:T.accent  },
+    { label:'Growth',    val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet  },
+    { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose    },
+    { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber  },
+  ];
+
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Intelligence Layer</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Life Intelligence</h1>
-        <div style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub, marginTop: 4 }}>
-          AI-powered insights across all life domains · <span style={{ color: '#c084fc' }}>●</span> 5 new insights today
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Intelligence Layer</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
+          AI-powered insights built from your real data · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights
         </div>
       </div>
 
-      {/* Insights Feed */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-        {INSIGHTS_DATA.map((insight, i) => (
-          <GlassCard key={insight.id} style={{
-            padding: '20px 24px', borderLeft: `3px solid ${insight.color}66`,
-            animation: `fadeUp 0.3s ease ${i * 0.08}s both`,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-              <div style={{ fontSize: 24, flexShrink: 0 }}>{insight.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 700, color: T.text }}>{insight.title}</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                    <Badge color={insight.color}>{insight.type.toUpperCase()}</Badge>
-                    <span style={{ fontSize: 10, fontFamily: T.fM, color: T.textMuted }}>{insight.time}</span>
-                  </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
+        {insights.map((ins,i)=>(
+          <GlassCard key={i} style={{ padding:'18px 22px', borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.3s ease ${i*0.07}s both` }}>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+              <div style={{ fontSize:22, flexShrink:0 }}>{ins.icon}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</div>
+                  <Badge color={ins.color}>{ins.type}</Badge>
                 </div>
-                <div style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub, lineHeight: 1.6 }}>{insight.body}</div>
+                <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{ins.body}</div>
               </div>
             </div>
           </GlassCard>
         ))}
+        {insights.length===0 && (
+          <GlassCard style={{ padding:40, textAlign:'center' }}>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses, habits and vitals to generate your personalized insights.</div>
+          </GlassCard>
+        )}
       </div>
 
-      {/* Life Analytics */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <GlassCard style={{ padding: '20px 24px' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Habit-Productivity Correlation</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { habit:'Meditation', impact:'+34% focus score', color:T.accent, val:34 },
-              { habit:'Exercise',   impact:'+28% energy level', color:T.sky,   val:28 },
-              { habit:'Sleep 8h+',  impact:'+22% productivity', color:T.violet, val:22 },
-              { habit:'Reading',    impact:'+18% decision quality', color:T.emerald, val:18 },
-            ].map((item, i) => (
-              <div key={i}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.text }}>{item.habit}</span>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: item.color }}>{item.impact}</span>
-                </div>
-                <ProgressBar pct={item.val * 2.5} color={item.color} height={4} />
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <GlassCard style={{ padding:'20px 22px' }}>
+          <SectionLabel>Life Domain Scores</SectionLabel>
+          {LIFE_STATS.map((s,i)=>(
+            <div key={i} style={{ marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span>
+                <span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}/100</span>
               </div>
-            ))}
-          </div>
+              <ProgressBar pct={s.val} color={s.color} height={5} />
+            </div>
+          ))}
         </GlassCard>
-
-        <GlassCard style={{ padding: '20px 24px' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Life Domain Scores</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {LIFE_STATS.map((stat, i) => (
-              <div key={i}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: T.text }}>{stat.label}</span>
-                  <span style={{ fontSize: 11, fontFamily: T.fM, color: stat.color, fontWeight: 600 }}>{stat.val}/100</span>
-                </div>
-                <ProgressBar pct={stat.val} color={stat.color} height={5} />
-              </div>
-            ))}
-          </div>
+        <GlassCard style={{ padding:'20px 22px' }}>
+          <SectionLabel>This Month Summary</SectionLabel>
+          {[
+            { label:'Income',       val:`${cur}${fmtN(monthInc)}`,    color:T.emerald },
+            { label:'Expenses',     val:`${cur}${fmtN(monthExp)}`,    color:T.rose    },
+            { label:'Saved',        val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent },
+            { label:'Savings Rate', val:`${savRate.toFixed(1)}%`,     color:T.sky     },
+            { label:'Net Worth',    val:`${cur}${fmtN(nw)}`,          color:T.violet  },
+            { label:'Habit Streak', val:`🔥 ${bestStreak}d`,          color:T.amber   },
+          ].map((item,i)=>(
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
+              <span style={{ color:T.textSub }}>{item.label}</span>
+              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
+            </div>
+          ))}
         </GlassCard>
       </div>
     </div>
@@ -1463,156 +1650,168 @@ function IntelligencePage() {
 }
 
 // ── ARCHIVE PAGE ───────────────────────────────────────────────────────────────
-function ArchivePage() {
+function ArchivePage({ data }) {
+  const { netWorthHistory, expenses, incomes, habits, habitLogs, vitals, settings } = data;
+  const cur = settings.currency||'$';
+  const thisMonth = today().slice(0,7);
+  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>Archive</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Life History</h1>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Archive</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1>
       </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <GlassCard style={{ padding: '20px 24px' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Net Worth History</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={NETWORTH_TREND} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="archGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={T.accent} stopOpacity={0.3} />
-                  <stop offset="100%" stopColor={T.accent} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-              <XAxis dataKey="m" tick={{ fill: T.textSub, fontSize: 10, fontFamily: T.fM }} axisLine={false} tickLine={false} />
-              <YAxis hide />
-              <Tooltip content={<CHART_TOOLTIP prefix="$" />} />
-              <Area type="monotone" dataKey="v" stroke={T.accent} strokeWidth={2} fill="url(#archGrad)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <GlassCard style={{ padding:'20px 22px' }}>
+          <SectionLabel>Net Worth History</SectionLabel>
+          {netWorthHistory.length>1 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}>
+                <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient></defs>
+                <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip content={<ChartTooltip prefix={cur} />} />
+                <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#ag)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ height:100, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Net worth history builds automatically each month.</div>
+          )}
         </GlassCard>
-
-        <GlassCard style={{ padding: '20px 24px' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Monthly Summary — March 2026</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[
-              { label:'Total Income',   val:'$7,600',  color:T.emerald },
-              { label:'Total Expenses', val:'$3,255',  color:T.rose    },
-              { label:'Net Saved',      val:'$4,345',  color:T.accent  },
-              { label:'Habits Logged',  val:'38 days', color:T.violet  },
-              { label:'Workouts',       val:'9 sessions', color:T.sky  },
-              { label:'XP Earned',      val:'+380 XP', color:T.amber   },
-            ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 5 ? `1px solid ${T.border}` : 'none' }}>
-                <span style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub }}>{item.label}</span>
-                <span style={{ fontSize: 12, fontFamily: T.fM, color: item.color, fontWeight: 600 }}>{item.val}</span>
+        <GlassCard style={{ padding:'20px 22px' }}>
+          <SectionLabel>This Month — {thisMonth}</SectionLabel>
+          {[
+            { label:'Income logged',      val:`${cur}${fmtN(monthInc)}`,    color:T.emerald },
+            { label:'Expenses logged',    val:`${cur}${fmtN(monthExp)}`,    color:T.rose    },
+            { label:'Net saved',          val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent },
+            { label:'Vitals logged',      val:`${vitals.filter(v=>v.date?.startsWith(thisMonth)).length} days`, color:T.sky },
+            { label:'Habits tracked',     val:`${habits.length} habits`, color:T.violet  },
+            { label:'Best streak',        val:`🔥 ${bestStreak} days`, color:T.amber   },
+          ].map((item,i)=>(
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
+              <span style={{ color:T.textSub }}>{item.label}</span>
+              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
+            </div>
+          ))}
+        </GlassCard>
+        {expenses.length>0 && (
+          <GlassCard style={{ padding:'20px 22px', gridColumn:'span 2' }}>
+            <SectionLabel>All-Time Expenses ({expenses.length} entries)</SectionLabel>
+            <div style={{ display:'flex', gap:20 }}>
+              <div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>TOTAL LOGGED</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{cur}{fmtN(expenses.reduce((s,e)=>s+Number(e.amount||0),0))}</div>
               </div>
-            ))}
-          </div>
-        </GlassCard>
+              <div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>TOTAL INCOME</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>{cur}{fmtN(incomes.reduce((s,i)=>s+Number(i.amount||0),0))}</div>
+              </div>
+              <div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>HABIT LOGS</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{Object.values(habitLogs).flat().length}</div>
+              </div>
+              <div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>VITALS DAYS</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.sky }}>{vitals.length}</div>
+              </div>
+            </div>
+          </GlassCard>
+        )}
       </div>
     </div>
   );
 }
 
 // ── SETTINGS PAGE ──────────────────────────────────────────────────────────────
-function SettingsPage() {
-  const [notifications, setNotifications] = useState(true);
-  const [aiCoach, setAiCoach] = useState(true);
-  const [weekStart, setWeekStart] = useState('monday');
+function SettingsPage({ data, actions }) {
+  const { settings } = data;
+  const [name, setName] = useState(settings.name||'');
+  const [currency, setCurrency] = useState(settings.currency||'$');
+  const [incomeTarget, setIncomeTarget] = useState(settings.incomeTarget||'');
+  const [savingsTarget, setSavingsTarget] = useState(settings.savingsTarget||'');
 
-  const Toggle = ({ val, onChange }) => (
-    <button onClick={() => onChange(!val)} style={{
-      width: 40, height: 22, borderRadius: 99, position: 'relative',
-      background: val ? T.accentDim : T.surface,
-      border: `1px solid ${val ? T.accent + '44' : T.border}`,
-      transition: 'all 0.2s',
-    }}>
-      <div style={{
-        position: 'absolute', top: 3, left: val ? 20 : 3,
-        width: 14, height: 14, borderRadius: '50%',
-        background: val ? T.accent : T.textMuted,
-        transition: 'all 0.2s',
-        boxShadow: val ? `0 0 6px ${T.accent}` : 'none',
-      }} />
-    </button>
-  );
+  const save = () => {
+    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget) });
+  };
+
+  const exportData = () => {
+    const d = {
+      los_habits:data.habits, los_habitlogs:data.habitLogs,
+      los_expenses:data.expenses, los_incomes:data.incomes,
+      los_debts:data.debts, los_goals:data.goals,
+      los_assets:data.assets, los_investments:data.investments,
+      los_vitals:data.vitals, los_notes:data.notes,
+      los_xp:data.totalXP, los_nwhistory:data.netWorthHistory,
+      los_settings:settings, los_focus:data.focusSessions,
+    };
+    const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`lifeos_backup_${today()}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', marginBottom: 6, textTransform: 'uppercase' }}>System</div>
-        <h1 style={{ fontSize: 28, fontFamily: T.fD, fontWeight: 800, color: T.text }}>Settings</h1>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>System</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Settings</h1>
       </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <GlassCard style={{ padding:'24px' }}>
+          <SectionLabel>Profile</SectionLabel>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" />
+            <Select value={currency} onChange={e=>setCurrency(e.target.value)}>
+              {['$','€','£','¥','₹','₩','Fr','A$','C$'].map(c=><option key={c}>{c}</option>)}
+            </Select>
+            <Input type="number" value={incomeTarget} onChange={e=>setIncomeTarget(e.target.value)} placeholder="Monthly income target" />
+            <Input type="number" value={savingsTarget} onChange={e=>setSavingsTarget(e.target.value)} placeholder="Savings rate target (%)" />
+            <Btn full onClick={save} color={T.accent}>Save Settings</Btn>
+          </div>
+        </GlassCard>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Profile */}
-        <GlassCard style={{ padding: '24px' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Profile</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%',
-              background: `linear-gradient(135deg, ${T.violet}, ${T.accent})`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, fontWeight: 800, color: T.bg, fontFamily: T.fD,
-            }}>A</div>
-            <div>
-              <div style={{ fontSize: 16, fontFamily: T.fD, fontWeight: 700, color: T.text }}>Alex Johnson</div>
-              <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, marginTop: 2 }}>alex@example.com</div>
-              <Badge color={T.violet} style={{ marginTop: 4 }}>Level 34 · Achiever</Badge>
+        <GlassCard style={{ padding:'24px' }}>
+          <SectionLabel>Data</SectionLabel>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ padding:'14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, marginBottom:2 }}>Expenses logged</div>
+              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{data.expenses.length}</div>
             </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['Display Name','Email','Currency','Timezone'].map((f, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < 3 ? `1px solid ${T.border}` : 'none' }}>
-                <span style={{ fontSize: 12, fontFamily: T.fM, color: T.textSub }}>{f}</span>
-                <span style={{ fontSize: 12, fontFamily: T.fM, color: T.text }}>
-                  {['Alex Johnson', 'alex@example.com', 'USD', 'Pacific (PT)'][i]}
-                </span>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-
-        {/* Preferences */}
-        <GlassCard style={{ padding: '24px' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>Preferences</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {[
-              { label:'AI Daily Brief', sub:'Personalized morning insights', val:true },
-              { label:'AI Coach Alerts', sub:'Proactive life optimization tips', val:aiCoach, set:setAiCoach },
-              { label:'Push Notifications', sub:'Habit reminders & alerts', val:notifications, set:setNotifications },
-              { label:'Timeline Auto-log', sub:'Auto-detect financial events', val:true },
-            ].map((pref, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 12, fontFamily: T.fM, color: T.text }}>{pref.label}</div>
-                  <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginTop: 2 }}>{pref.sub}</div>
-                </div>
-                <Toggle val={pref.val} onChange={pref.set || (() => {})} />
-              </div>
-            ))}
+            <div style={{ padding:'14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, marginBottom:2 }}>Habits tracked</div>
+              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{data.habits.length}</div>
+            </div>
+            <div style={{ padding:'14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, marginBottom:2 }}>Goals set</div>
+              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{data.goals.length}</div>
+            </div>
+            <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
           </div>
         </GlassCard>
 
-        {/* System Status */}
-        <GlassCard style={{ padding: '24px', gridColumn: 'span 2' }}>
-          <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>System Status</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-            {[
-              { module:'Finance Engine', status:'Online', color:T.emerald },
-              { module:'Health Sync',    status:'Online', color:T.emerald },
-              { module:'AI Coach',       status:'Online', color:T.emerald },
-              { module:'Timeline',       status:'Online', color:T.emerald },
-              { module:'Intelligence',   status:'Online', color:T.emerald },
-            ].map((sys, i) => (
-              <div key={i} style={{ padding: '12px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: sys.color, animation: 'dotPulse 2s infinite' }} />
-                  <span style={{ fontSize: 10, fontFamily: T.fM, color: sys.color }}>{sys.status}</span>
+        <GlassCard style={{ padding:'24px', gridColumn:'span 2' }}>
+          <SectionLabel>System Status</SectionLabel>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
+            {['Finance Engine','Health Sync','AI Coach','Timeline','Intelligence'].map((sys,i)=>(
+              <div key={i} style={{ padding:'12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}>
+                  <div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2s infinite' }} />
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.emerald }}>Online</span>
                 </div>
-                <div style={{ fontSize: 11, fontFamily: T.fM, color: T.text }}>{sys.module}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.text }}>{sys}</div>
               </div>
             ))}
+          </div>
+          <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Data Continuity</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>
+              All your data from the original LifeOS app is automatically loaded here via shared localStorage. Any changes you make are instantly saved and visible in both apps.
+            </div>
           </div>
         </GlassCard>
       </div>
@@ -1624,97 +1823,154 @@ function SettingsPage() {
 export default function LifeOS() {
   const [page, setPage] = useState('home');
 
-  const VIEW_MAP = {
-    home:         <HomePage onNav={setPage} />,
-    timeline:     <TimelinePage />,
-    money:        <MoneyPage />,
-    health:       <HealthPage />,
-    growth:       <GrowthPage />,
-    knowledge:    <KnowledgePage />,
-    intelligence: <IntelligencePage />,
-    archive:      <ArchivePage />,
-    settings:     <SettingsPage />,
+  // ── ALL STATE — same localStorage keys as original app ──────────────────────
+  const [settings,    setSettings   ] = useLocalStorage('los_settings',   { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
+  const [habits,      setHabits     ] = useLocalStorage('los_habits',      []);
+  const [habitLogs,   setHabitLogs  ] = useLocalStorage('los_habitlogs',   {});
+  const [expenses,    setExpenses   ] = useLocalStorage('los_expenses',    []);
+  const [incomes,     setIncomes    ] = useLocalStorage('los_incomes',     []);
+  const [debts,       setDebts      ] = useLocalStorage('los_debts',       []);
+  const [goals,       setGoals      ] = useLocalStorage('los_goals',       []);
+  const [assets,      setAssets     ] = useLocalStorage('los_assets',      []);
+  const [investments, setInvestments] = useLocalStorage('los_investments', []);
+  const [vitals,      setVitals     ] = useLocalStorage('los_vitals',      []);
+  const [notes,       setNotes      ] = useLocalStorage('los_notes',       []);
+  const [focusSessions,setFocusSessions]=useLocalStorage('los_focus',      []);
+  const [totalXP,     setTotalXP    ] = useLocalStorage('los_xp',          0);
+  const [netWorthHistory,setNetWorthHistory]=useLocalStorage('los_nwhistory',[]);
+  const [eventLog,    setEventLog   ] = useLocalStorage('los_eventlog',    []);
+  const [quickNotes,  setQuickNotes ] = useLocalStorage('los_qnotes',      []);
+  const [subscriptions,setSubscriptions]=useLocalStorage('los_subs',       []);
+  const [bills,       setBills      ] = useLocalStorage('los_bills',       []);
+
+  // ── ACTIONS ────────────────────────────────────────────────────────────────
+  const addExpense = useCallback((e) => {
+    setExpenses(p => [e, ...p]);
+    setTotalXP(x => Number(x) + 5);
+  }, []);
+
+  const addIncome = useCallback((i) => {
+    setIncomes(p => [i, ...p]);
+    setTotalXP(x => Number(x) + 10);
+  }, []);
+
+  const addHabit = useCallback((name) => {
+    const h = { id: Date.now(), name, frequency:'daily', emoji:'🔥', xp:10 };
+    setHabits(p => [...p, h]);
+  }, []);
+
+  const logHabit = useCallback((habitId) => {
+    const d = today();
+    setHabitLogs(prev => {
+      const logs = prev[habitId] || [];
+      if (logs.includes(d)) return prev;
+      return { ...prev, [habitId]: [...logs, d] };
+    });
+    setTotalXP(x => Number(x) + 10);
+  }, []);
+
+  const addVitals = useCallback((v) => {
+    setVitals(p => {
+      const existing = p.findIndex(x => x.date === v.date);
+      if (existing >= 0) { const n=[...p]; n[existing]={...n[existing],...v}; return n; }
+      return [v, ...p];
+    });
+    setTotalXP(x => Number(x) + 8);
+  }, []);
+
+  const addNote = useCallback((n) => {
+    setNotes(p => [n, ...p]);
+    setTotalXP(x => Number(x) + 5);
+  }, []);
+
+  const addGoal = useCallback((g) => {
+    setGoals(p => [...p, g]);
+    setTotalXP(x => Number(x) + 20);
+  }, []);
+
+  const addAsset = useCallback((a) => {
+    setAssets(p => [...p, a]);
+    setTotalXP(x => Number(x) + 15);
+  }, []);
+
+  const updateGoalProgress = useCallback((goalId, amount) => {
+    setGoals(p => p.map(g => g.id === goalId ? { ...g, current: Number(g.current||0) + amount, updatedAt: today() } : g));
+    setTotalXP(x => Number(x) + 25);
+  }, []);
+
+  const updateSettings = useCallback((s) => { setSettings(s); }, []);
+
+  const actions = { addExpense, addIncome, addHabit, logHabit, addVitals, addNote, addGoal, addAsset, updateGoalProgress, updateSettings };
+
+  const data = { expenses, incomes, assets, investments, debts, goals, habits, habitLogs, vitals, notes, totalXP, settings, netWorthHistory, eventLog, focusSessions, quickNotes, subscriptions, bills };
+
+  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+  const cur = settings.currency||'$';
+  const thisMonth = today().slice(0,7);
+  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const invVal   = investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+  const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+
+  const VIEW = {
+    home:         <HomePage         data={data} actions={actions} onNav={setPage} />,
+    timeline:     <TimelinePage     data={data} />,
+    money:        <MoneyPage        data={data} actions={actions} />,
+    health:       <HealthPage       data={data} actions={actions} />,
+    growth:       <GrowthPage       data={data} actions={actions} />,
+    knowledge:    <KnowledgePage    data={data} actions={actions} />,
+    intel:        <IntelligencePage data={data} />,
+    archive:      <ArchivePage      data={data} />,
+    settings:     <SettingsPage     data={data} actions={actions} />,
   };
 
   return (
-    <div style={{
-      minHeight: '100vh', background: T.bg, color: T.text,
-      fontFamily: T.fD, display: 'flex',
-    }}>
-      {/* Ambient background */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden',
-      }}>
-        <div style={{
-          position: 'absolute', top: -200, left: T.sw - 100, width: 600, height: 600,
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${T.accent}06 0%, transparent 70%)`,
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: -200, right: 100, width: 500, height: 500,
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${T.violet}05 0%, transparent 70%)`,
-          pointerEvents: 'none',
-        }} />
+    <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
+      {/* Ambient glow */}
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:-200, left:T.sw, width:600, height:600, borderRadius:'50%', background:`radial-gradient(circle,${T.accent}05 0%,transparent 70%)` }} />
+        <div style={{ position:'absolute', bottom:-200, right:100, width:500, height:500, borderRadius:'50%', background:`radial-gradient(circle,${T.violet}04 0%,transparent 70%)` }} />
       </div>
 
-      <Sidebar active={page} onNav={setPage} />
+      <Sidebar active={page} onNav={setPage} userName={settings.name} />
 
-      {/* Main content */}
-      <div style={{
-        flex: 1, marginLeft: T.sw, minHeight: '100vh',
-        display: 'flex', flexDirection: 'column',
-        position: 'relative', zIndex: 1,
-      }}>
-        {/* Top bar */}
-        <div style={{
-          height: 54, borderBottom: `1px solid ${T.border}`,
-          display: 'flex', alignItems: 'center', padding: '0 28px',
-          justifyContent: 'space-between',
-          background: `${T.bg}dd`,
-          backdropFilter: 'blur(20px)',
-          position: 'sticky', top: 0, zIndex: 50,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 10, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.15em' }}>LIFE OS</span>
-            <span style={{ color: T.textMuted, fontSize: 12 }}>›</span>
-            <span style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{page}</span>
+      <div style={{ flex:1, marginLeft:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
+        {/* Topbar */}
+        <div style={{ height:50, borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.15em' }}>LIFE OS</span>
+            <span style={{ color:T.textMuted, fontSize:11 }}>›</span>
+            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{page}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: T.emerald, animation: 'dotPulse 2.5s infinite' }} />
+          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'flex', alignItems:'center', gap:5 }}>
+              <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
               All Systems Online
             </div>
-            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textMuted }}>
-              {new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}
-            </div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
           </div>
         </div>
 
-        {/* Page content */}
-        <div key={page} style={{
-          flex: 1, padding: '28px 32px', overflowY: 'auto', maxWidth: 1200,
-        }}>
-          {VIEW_MAP[page] || <HomePage onNav={setPage} />}
+        {/* Page */}
+        <div key={page} style={{ flex:1, padding:'26px 30px', overflowY:'auto', maxWidth:1180 }}>
+          {VIEW[page]}
         </div>
 
-        {/* Bottom status bar */}
-        <div style={{
-          height: 28, borderTop: `1px solid ${T.border}`,
-          display: 'flex', alignItems: 'center', padding: '0 28px', gap: 20,
-          background: T.bg,
-        }}>
+        {/* Status bar */}
+        <div style={{ height:26, borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', gap:18, background:T.bg }}>
           {[
-            { label:'NW', val:'$214,700', color:T.accent },
-            { label:'XP', val:'Lv 34 · 2,840', color:T.violet },
-            { label:'SAVINGS', val:'38%', color:T.emerald },
-            { label:'STREAK', val:'21d Meditation 🔥', color:T.amber },
-          ].map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, fontFamily: T.fM }}>
-              <span style={{ color: T.textMuted, letterSpacing: '0.08em' }}>{item.label}</span>
-              <span style={{ color: item.color, fontWeight: 600 }}>{item.val}</span>
-              {i < 3 && <span style={{ color: T.textMuted, marginLeft: 8 }}>·</span>}
+            { label:'NW',      val:`${cur}${fmtN(nw)}`,             color:T.accent  },
+            { label:'LV',      val:`${level}`,                       color:T.violet  },
+            { label:'SAVINGS', val:`${savRate.toFixed(0)}%`,         color:T.emerald },
+            { label:'STREAK',  val:`🔥 ${bestStreak}d`,             color:T.amber   },
+            { label:'HABITS',  val:`${habits.length} tracked`,      color:T.sky     },
+          ].map((item,i)=>(
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM }}>
+              <span style={{ color:T.textMuted, letterSpacing:'0.08em' }}>{item.label}</span>
+              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
+              {i<4&&<span style={{ color:T.textMuted, marginLeft:6 }}>·</span>}
             </div>
           ))}
         </div>
