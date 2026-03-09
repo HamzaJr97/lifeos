@@ -4632,7 +4632,29 @@ function QuestsTab({ logEvent, T, s, habits, setHabits, habitLogs, setHabitLogs,
 function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pushUndo, assetDepreciation, setAssetDepreciation, expenses }) {
   const [form, setForm] = useState({ name:'', type:'Stocks', value:'', ticker:'', qty:'', entryPrice:'', entryDate:today(), closePrice:'', closeDate:'', currency: settings.currency });
   const [showAdd, setShowAdd] = useState(false);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState('');
   const isMarketType = (t) => ['Stocks','ETF','Crypto'].includes(t);
+
+  async function fetchLivePrice(ticker) {
+    if (!ticker) return;
+    setPriceLoading(true); setPriceError('');
+    try {
+      // Use Yahoo Finance v8 endpoint (no auth needed, works in browser)
+      const sym = ticker.trim().toUpperCase();
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=1d`;
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      const name  = data?.chart?.result?.[0]?.meta?.shortName || data?.chart?.result?.[0]?.meta?.symbol;
+      if (!price) throw new Error('Price not found. Check the ticker symbol.');
+      setForm(f => ({ ...f, entryPrice: price.toFixed(2), name: f.name || name || sym }));
+      setPriceError('');
+    } catch(e) {
+      setPriceError(e.message || 'Could not fetch price. Enter manually.');
+    }
+    setPriceLoading(false);
+  }
 
   function add() {
     if (!form.name) return;
@@ -4679,12 +4701,17 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
   const allAssets = [...assets, ...investmentAssets];
   const totalInvestmentsValue = investmentAssets.reduce((s,a)=>s+a.value,0);
 
-  const byType = ASSET_TYPES.map(t => ({
+  const byTypeRaw = ASSET_TYPES.map(t => ({
     name: t,
     value: allAssets.filter(a=>a.type===t).reduce((s,a)=>s+Number(a.value),0)
   })).filter(t=>t.value>0);
+  // Include savings as its own slice
+  const byType = totalSavingsDeposits > 0
+    ? [...byTypeRaw.filter(t=>t.name!=='Savings'), {name:'💰 Savings', value:totalSavingsDeposits}]
+    : byTypeRaw;
 
-  const COLORS_PIE = ['#6c63ff','#00e5ff','#22d3a0','#f5a623','#ff4d6d','#a78bfa','#34d399'];
+  const COLORS_PIE = ['#6c63ff','#00e5ff','#22d3a0','#f5a623','#ff4d6d','#a78bfa','#34d399','#10b981'];
+  const totalPortfolio = byType.reduce((s,t)=>s+t.value,0);
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'20px'}}>
@@ -4732,7 +4759,14 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'10px',marginBottom:'10px'}}>
                 <div>
                   <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Ticker Symbol</div>
-                  <input style={s.input} placeholder='e.g. AAPL, BTC' value={form.ticker} onChange={e=>setForm(f=>({...f,ticker:e.target.value.toUpperCase()}))} />
+                  <div style={{display:'flex',gap:'6px'}}>
+                    <input style={{...s.input,flex:1}} placeholder='e.g. AAPL, BTC' value={form.ticker} onChange={e=>setForm(f=>({...f,ticker:e.target.value.toUpperCase()}))} onKeyDown={e=>e.key==='Enter'&&fetchLivePrice(form.ticker)} />
+                    <button style={{...s.btn(T.accent),padding:'6px 10px',fontSize:'11px',flexShrink:0,whiteSpace:'nowrap'}} onClick={()=>fetchLivePrice(form.ticker)} disabled={priceLoading||!form.ticker}>
+                      {priceLoading?'..':'📡 Live'}
+                    </button>
+                  </div>
+                  {priceError && <div style={{fontSize:'10px',color:T.danger,marginTop:'3px'}}>{priceError}</div>}
+                  {!priceError && form.entryPrice && form.ticker && <div style={{fontSize:'10px',color:T.success,marginTop:'3px'}}>Live price fetched ✓</div>}
                 </div>
                 <div>
                   <div style={{fontSize:'11px',color:T.textMuted,marginBottom:'4px'}}>Quantity / Units</div>
@@ -4786,15 +4820,33 @@ function HoardTab({ T, s, assets, setAssets, investments, netWorth, settings, pu
         <div style={s.card}>
           <div style={s.cardTitle}>{t('hoard_allocation')}</div>
           {byType.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={byType} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3}>
-                  {byType.map((_, i) => <Cell key={i} fill={COLORS_PIE[i % COLORS_PIE.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v)=>`${settings.currency}${fmtN(v)}`} contentStyle={{background:T.card,border:`1px solid ${T.border}`,color:T.text,fontSize:'12px'}} />
-                <Legend iconType="circle" wrapperStyle={{fontSize:'12px',color:T.textMuted}} />
-              </PieChart>
-            </ResponsiveContainer>
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={byType} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                    {byType.map((_, i) => <Cell key={i} fill={COLORS_PIE[i % COLORS_PIE.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v)=>`${settings.currency}${fmtN(v)}`} contentStyle={{background:T.card,border:`1px solid ${T.border}`,color:T.text,fontSize:'12px'}} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{display:'flex',flexDirection:'column',gap:'5px',marginTop:'8px'}}>
+                {byType.map((t2,i)=>{
+                  const pct = totalPortfolio>0?((t2.value/totalPortfolio)*100).toFixed(1):0;
+                  return (
+                    <div key={i} style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                      <div style={{width:'10px',height:'10px',borderRadius:'2px',background:COLORS_PIE[i%COLORS_PIE.length],flexShrink:0}}/>
+                      <span style={{flex:1,fontSize:'11px',color:T.textMuted}}>{t2.name}</span>
+                      <span style={{fontSize:'11px',fontWeight:'700',color:T.text}}>{settings.currency}{fmtN(t2.value)}</span>
+                      <span style={{fontSize:'10px',color:T.textMuted,minWidth:'36px',textAlign:'right'}}>{pct}%</span>
+                    </div>
+                  );
+                })}
+                <div style={{display:'flex',justifyContent:'space-between',paddingTop:'6px',borderTop:'1px solid '+T.border,fontSize:'12px',fontWeight:'800'}}>
+                  <span style={{color:T.textMuted}}>Total</span>
+                  <span style={{color:T.success}}>{settings.currency}{fmtN(totalPortfolio)}</span>
+                </div>
+              </div>
+            </>
           ) : <div style={{color:T.textMuted,textAlign:'center',padding:'40px'}}>{t('hoard_add_to_see')}</div>}
         </div>
 
@@ -18199,47 +18251,179 @@ function AIFinancialCoach({ T, s, settings, coachHistory, setCoachHistory, expen
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef();
+  const cur = settings.currency || '€';
 
-  const topSpend = Object.entries(
-    expenses.filter(e=>e.date?.startsWith(today().slice(0,7)))
-      .reduce((acc,e)=>{acc[e.category]=(acc[e.category]||0)+Number(e.amount);return acc},{})
-  ).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c,v])=>c+':'+settings.currency+fmtN(v)).join(' | ')||'None';
+  // Build rich user context
+  const catSpend = expenses.filter(e=>e.date?.startsWith(today().slice(0,7)))
+    .reduce((acc,e)=>{acc[e.category]=(acc[e.category]||0)+Number(e.amount);return acc},{});
+  const topCats = Object.entries(catSpend).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const totalDebt = debts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const cashAmt  = assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
 
-  const systemPrompt = `You are an expert financial analyst coach in LifeOS. Always respond with STRUCTURED, DATA-RICH answers — never plain paragraphs.
+  // JSON schema the AI must return
+  const JSON_SCHEMA = `{
+  "summary":"<1 sentence headline with the most important number>",
+  "keyNumber":{"label":"<e.g. Monthly surplus>","value":"<e.g. €450>","color":"success|warning|danger"},
+  "responseType":"table|steps|chart|mixed",
+  "table":{"headers":["Col1","Col2","Col3"],"rows":[["v1","v2","v3"]],"highlight":0},
+  "steps":[{"n":1,"title":"<short>","detail":"<detail with exact amounts>","amount":"<€X>"}],
+  "chart":{"type":"bar|progress","title":"<title>","items":[{"label":"<cat>","value":<number>,"max":<number>,"color":"<hex>"}]},
+  "insight":"<1 concrete insight from the data>",
+  "nextStep":"<one concrete action with exact amount and timeline>"
+}`;
 
-USER DATA: Net Worth ${settings.currency}${fmtN(netWorth)} | Income ${settings.currency}${fmtN(thisMonthIncome)}/mo | Spend ${settings.currency}${fmtN(thisMonthSpend)}/mo | Savings ${savingsRate.toFixed(1)}% | Health ${financialHealthScore}/100 | Debt ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))} | Cash ${settings.currency}${fmtN(assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0))} | Top spend: ${topSpend}
+  const systemPrompt = `You are an expert financial analyst embedded in LifeOS. You MUST return ONLY valid JSON — no prose, no markdown fences, just a raw JSON object matching the schema below.
 
-FORMAT RULES — choose the best format for each answer:
-- Spending/budget breakdown → markdown table: Category | Budget | Spent | Status
-- Action plan → numbered steps with exact ${settings.currency} amounts and dates
-- Debt strategy → table: Debt | Balance | Rate | Min Payment | Payoff Date
-- Projections → table: Year | Net Worth | Total Saved | Growth
-- Always start with the KEY NUMBER most relevant to the question in bold: **${settings.currency}X**
-- End every reply with: Next step: [one concrete action]
-- Max 200 words, dense with real numbers from user data
-- Educational only, not regulated financial advice.`;
+USER DATA:
+- Net worth: ${cur}${fmtN(netWorth)} | Income: ${cur}${fmtN(thisMonthIncome)}/mo | Expenses: ${cur}${fmtN(thisMonthSpend)}/mo
+- Savings rate: ${savingsRate.toFixed(1)}% | Health score: ${financialHealthScore}/100
+- Total debt: ${cur}${fmtN(totalDebt)} | Cash: ${cur}${fmtN(cashAmt)}
+- Monthly surplus: ${cur}${fmtN(Math.max(0,thisMonthIncome-thisMonthSpend))}
+- Top spending: ${topCats.map(([c,v])=>`${c.split(' ').slice(1).join(' ')}=${cur}${fmtN(v)}`).join(', ')||'None'}
+- Debts: ${debts.map(d=>`${d.name}@${d.rate||0}%(${cur}${fmtN(d.balance)})`).join(', ')||'None'}
+
+JSON SCHEMA (choose the most useful responseType for the question):
+${JSON_SCHEMA}
+
+RULES:
+- For spending questions → use "table" type with Category|Budgeted|Spent|Status columns, use real spend numbers
+- For action plans → use "steps" type with exact ${cur} amounts in each step
+- For debt/savings → use "chart" type with progress bars showing balance vs paid
+- Fill ALL fields with real numbers derived from user data
+- nextStep must be specific: "Transfer ${cur}X to savings on [day]" not vague advice
+- Educational only, not regulated financial advice`;
 
   async function sendMessage(msg) {
     if (!msg.trim()) return;
-    const userMsg = { role:'user', content:msg };
+    const userMsg = { role:'user', content: msg };
     const history = [...coachHistory, userMsg];
     setCoachHistory(history);
     setInput('');
     setLoading(true);
     try {
-      const messages = [{ role:'system', content:systemPrompt }, ...history.slice(-10)];
-      const reply = await callAIChat(messages, settings, 600);
-      setCoachHistory([...history, { role:'assistant', content:reply }]);
-    } catch(e) { setCoachHistory([...history, { role:'assistant', content:'⚠️ ' + (e.message || 'Connection error.') }]); }
+      // Only send last 6 msgs to stay focused
+      const messages = [{ role:'system', content:systemPrompt }, ...history.slice(-6)];
+      const raw = await callAIChat(messages, settings, 900);
+      // Try parse JSON; fallback to plain text
+      let parsed = null;
+      try {
+        const j0 = raw.indexOf('{'); const j1 = raw.lastIndexOf('}');
+        if (j0 !== -1) parsed = JSON.parse(raw.slice(j0, j1+1));
+      } catch(_) {}
+      const content = parsed ? { type:'structured', data:parsed } : { type:'text', data:raw };
+      setCoachHistory([...history, { role:'assistant', content: JSON.stringify(content) }]);
+    } catch(e) {
+      setCoachHistory([...history, { role:'assistant', content: JSON.stringify({type:'text',data:'⚠️ '+(e.message||'Connection error.')}) }]);
+    }
     setLoading(false);
     setTimeout(()=>scrollRef.current?.scrollTo({top:9999,behavior:'smooth'}),100);
+  }
+
+  function renderAssistantMsg(rawContent) {
+    let parsed = null;
+    try { parsed = JSON.parse(rawContent); } catch(_) {}
+    if (!parsed || parsed.type === 'text') {
+      const text = parsed?.data || rawContent;
+      return <div style={{fontSize:'13px',lineHeight:1.7,color:T.text}}>{text}</div>;
+    }
+    const d = parsed.data;
+    const KN_COLOR = d.keyNumber?.color==='success'?T.success:d.keyNumber?.color==='danger'?T.danger:T.warning;
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+        {/* Summary headline */}
+        {d.summary && <div style={{fontWeight:'700',fontSize:'13px',lineHeight:1.5,color:T.text}}>{d.summary}</div>}
+
+        {/* Key number hero */}
+        {d.keyNumber?.value && (
+          <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 14px',background:KN_COLOR+'15',borderRadius:'10px',border:'1px solid '+KN_COLOR+'33'}}>
+            <div>
+              <div style={{fontSize:'22px',fontWeight:'900',color:KN_COLOR}}>{d.keyNumber.value}</div>
+              <div style={{fontSize:'11px',color:T.textMuted}}>{d.keyNumber.label}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Table */}
+        {d.table?.headers?.length > 0 && (
+          <div style={{borderRadius:'8px',overflow:'hidden',border:'1px solid '+T.border}}>
+            <div style={{display:'flex',background:T.accentSoft}}>
+              {d.table.headers.map((h,i)=>(
+                <div key={i} style={{flex:1,padding:'6px 8px',fontSize:'11px',fontWeight:'700',color:T.accent,minWidth:0}}>{h}</div>
+              ))}
+            </div>
+            {(d.table.rows||[]).map((row,ri)=>(
+              <div key={ri} style={{display:'flex',background:ri===d.table.highlight?T.accent+'15':ri%2===0?T.bg:'transparent',borderTop:'1px solid '+T.border+'55'}}>
+                {row.map((cell,ci)=>(
+                  <div key={ci} style={{flex:1,padding:'6px 8px',fontSize:'11px',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',
+                    color: cell?.toString().startsWith('✅')||cell?.toString().startsWith('✓')?T.success:cell?.toString().startsWith('⚠️')||cell?.toString().startsWith('❌')?T.danger:T.text,
+                    fontWeight: ci===0?'600':'400'
+                  }}>{cell}</div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Steps */}
+        {d.steps?.length > 0 && (
+          <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
+            {d.steps.map((step,i)=>(
+              <div key={i} style={{display:'flex',gap:'10px',padding:'8px 10px',background:T.bg,borderRadius:'8px',border:'1px solid '+T.border,alignItems:'flex-start'}}>
+                <div style={{width:'22px',height:'22px',borderRadius:'50%',background:T.accentGrad,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:'11px',fontWeight:'800',color:'#fff'}}>{step.n}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:'700',fontSize:'12px',marginBottom:'2px'}}>{step.title}</div>
+                  <div style={{fontSize:'11px',color:T.textMuted,lineHeight:1.5}}>{step.detail}</div>
+                </div>
+                {step.amount && <div style={{fontWeight:'800',fontSize:'13px',color:T.accent,flexShrink:0}}>{step.amount}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chart: bar or progress */}
+        {d.chart?.items?.length > 0 && (
+          <div style={{background:T.bg,borderRadius:'8px',padding:'10px 12px',border:'1px solid '+T.border}}>
+            {d.chart.title && <div style={{fontSize:'11px',fontWeight:'700',color:T.textMuted,marginBottom:'8px'}}>{d.chart.title}</div>}
+            {d.chart.items.map((item,i)=>{
+              const pct = item.max>0 ? Math.min(100,(item.value/item.max)*100) : Math.min(100,item.value);
+              const barColor = item.color || (i%2===0?T.accent:T.success);
+              return (
+                <div key={i} style={{marginBottom:'8px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}>
+                    <span style={{fontSize:'11px',fontWeight:'600'}}>{item.label}</span>
+                    <span style={{fontSize:'11px',fontWeight:'700',color:barColor}}>{cur}{fmtN(item.value)}{item.max?` / ${cur}${fmtN(item.max)}`:''}</span>
+                  </div>
+                  <div style={{height:'7px',background:T.surface,borderRadius:'4px',overflow:'hidden',border:'1px solid '+T.border}}>
+                    <div style={{height:'100%',width:pct+'%',background:barColor,borderRadius:'4px',transition:'width 0.4s'}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Insight callout */}
+        {d.insight && (
+          <div style={{padding:'8px 12px',background:T.surface,borderRadius:'8px',border:'1px solid '+T.border,fontSize:'12px',color:T.textMuted,fontStyle:'italic'}}>
+            💡 {d.insight}
+          </div>
+        )}
+
+        {/* Next step CTA */}
+        {d.nextStep && (
+          <div style={{padding:'8px 12px',background:T.accent+'18',borderRadius:'8px',border:'1px solid '+T.accent+'33',fontWeight:'700',fontSize:'12px',color:T.accent}}>
+            → {d.nextStep}
+          </div>
+        )}
+      </div>
+    );
   }
 
   const suggestions = [
     `How can I improve my ${savingsRate.toFixed(0)}% savings rate?`,
     'Where should I cut spending first?',
-    debts.length>0 ? `Best strategy to clear ${settings.currency}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))} debt?` : 'How should I start investing?',
-    'Am I on track for retirement?',
+    debts.length>0 ? `Best strategy to clear ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))} debt?` : 'How should I start investing?',
+    'Show me a 12-month wealth plan',
   ];
 
   return (
@@ -18251,7 +18435,7 @@ FORMAT RULES — choose the best format for each answer:
           </div>
           <div style={{textAlign:'left'}}>
             <div style={{fontWeight:'700',fontSize:'14px',color:T.text}}>AI Financial Coach</div>
-            <div style={{fontSize:'11px',color:T.textMuted}}>Personalized advice based on your real data</div>
+            <div style={{fontSize:'11px',color:T.textMuted}}>Charts · tables · action plans — powered by your real data</div>
           </div>
         </div>
         <span style={{color:T.textMuted,fontSize:'12px'}}>{open?'▲':'▼'}</span>
@@ -18259,77 +18443,24 @@ FORMAT RULES — choose the best format for each answer:
 
       {open && (
         <div>
-          {/* Chat messages */}
-          <div ref={scrollRef} style={{maxHeight:'320px',overflowY:'auto',display:'flex',flexDirection:'column',gap:'10px',marginBottom:'12px',paddingRight:'4px'}}>
+          <div ref={scrollRef} style={{maxHeight:'520px',overflowY:'auto',display:'flex',flexDirection:'column',gap:'12px',marginBottom:'12px',paddingRight:'4px'}}>
             {coachHistory.length===0 && (
               <div style={{background:T.accent+'18',borderRadius:'12px',padding:'14px 16px',border:`1px solid ${T.accent}22`}}>
                 <div style={{fontWeight:'700',fontSize:'13px',color:T.accent,marginBottom:'6px'}}>👋 Hi {settings.name}! I'm your AI Financial Coach.</div>
-                <div style={{fontSize:'12px',color:T.textMuted,lineHeight:1.6}}>I know your numbers — your {savingsRate.toFixed(0)}% savings rate, your {settings.currency}{fmtN(netWorth)} net worth, and where your money is going. Ask me anything about your financial health.</div>
+                <div style={{fontSize:'12px',color:T.textMuted,lineHeight:1.6}}>I know your real numbers — ask me for spending breakdowns, debt strategies, savings plans, or wealth projections and I'll show you visual charts and action steps.</div>
               </div>
             )}
             {coachHistory.map((m,i)=>(
               <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
-                <div style={{
-                  maxWidth:'92%',padding:'12px 16px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',
-                  background:m.role==='user'?T.accentGrad:T.surface,
-                  color:m.role==='user'?'#fff':T.text,
-                  fontSize:'13px',lineHeight:1.7,
-                  border:m.role==='assistant'?`1px solid ${T.border}`:'none',
-                  boxShadow:`0 2px 8px #00000022`,
-                }}>
-                  {m.role==='assistant' ? (() => {
-                    const lines = m.content.split('\n');
-                    return lines.map((line, li) => {
-                      // Markdown table row
-                      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-                        const cells = line.split('|').slice(1,-1);
-                        if (cells.every(c=>c.trim().match(/^[-: ]+$/))) return null;
-                        const isHeader = li===0 || (lines[li-1]||'').trim().startsWith('|');
-                        return (
-                          <div key={li} style={{display:'flex',margin:'1px 0',borderRadius:'4px',overflow:'hidden'}}>
-                            {cells.map((c,ci)=>(
-                              <div key={ci} style={{flex:1,padding:'4px 8px',background:isHeader?T.accentSoft:ci%2===0?T.bg:'transparent',fontSize:'11px',fontWeight:isHeader?'700':'400',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                                {c.replace(/\*\*/g,'').trim()}
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }
-                      // Bold spans **text**
-                      if (line.includes('**')) {
-                        const parts = line.split('**');
-                        return (
-                          <div key={li} style={{marginBottom:'3px'}}>
-                            {parts.map((p,pi)=> pi%2===1
-                              ? <strong key={pi} style={{color:T.accent}}>{p}</strong>
-                              : <span key={pi}>{p}</span>
-                            )}
-                          </div>
-                        );
-                      }
-                      // Numbered steps
-                      if (/^\d+\./.test(line)) {
-                        const num = line.match(/^\d+/)[0];
-                        return (
-                          <div key={li} style={{display:'flex',gap:'8px',marginBottom:'5px',alignItems:'flex-start'}}>
-                            <span style={{color:T.accent,fontWeight:'800',flexShrink:0,minWidth:'16px'}}>{num}.</span>
-                            <span>{line.replace(/^\d+\.\s*/,'')}</span>
-                          </div>
-                        );
-                      }
-                      // Next step callout
-                      if (line.startsWith('Next step:')) {
-                        return (
-                          <div key={li} style={{marginTop:'10px',padding:'8px 12px',background:T.accent+'18',borderRadius:'8px',border:`1px solid ${T.accent}33`,fontWeight:'700',fontSize:'12px',color:T.accent}}>
-                            {line}
-                          </div>
-                        );
-                      }
-                      if (!line.trim()) return <div key={li} style={{height:'5px'}}/>;
-                      return <div key={li} style={{marginBottom:'2px'}}>{line}</div>;
-                    });
-                  })() : m.content}
-                </div>
+                {m.role==='user' ? (
+                  <div style={{maxWidth:'80%',padding:'10px 14px',borderRadius:'16px 16px 4px 16px',background:T.accentGrad,color:'#fff',fontSize:'13px',boxShadow:'0 2px 8px #00000022'}}>
+                    {m.content}
+                  </div>
+                ) : (
+                  <div style={{maxWidth:'96%',padding:'14px 16px',borderRadius:'16px 16px 16px 4px',background:T.surface,border:`1px solid ${T.border}`,boxShadow:'0 2px 8px #00000022',width:'100%'}}>
+                    {renderAssistantMsg(m.content)}
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
@@ -18343,7 +18474,6 @@ FORMAT RULES — choose the best format for each answer:
             )}
           </div>
 
-          {/* Quick suggestions */}
           {coachHistory.length<2 && (
             <div style={{display:'flex',flexWrap:'wrap',gap:'6px',marginBottom:'10px'}}>
               {suggestions.map((sug,i)=>(
@@ -18352,9 +18482,8 @@ FORMAT RULES — choose the best format for each answer:
             </div>
           )}
 
-          {/* Input */}
           <div style={{display:'flex',gap:'8px'}}>
-            <input style={{...s.input,flex:1,fontSize:'13px'}} placeholder="Ask your coach anything..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!loading&&sendMessage(input)} />
+            <input style={{...s.input,flex:1,fontSize:'13px'}} placeholder="Ask for a spending chart, debt plan, savings strategy..." value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!loading&&sendMessage(input)} />
             <button style={{...s.btn(T.accent),padding:'10px 16px',fontSize:'16px',flexShrink:0}} onClick={()=>!loading&&sendMessage(input)} disabled={loading}>➤</button>
           </div>
           {coachHistory.length>0 && (
@@ -18366,6 +18495,7 @@ FORMAT RULES — choose the best format for each answer:
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI WEALTH MANAGER — 12-Step Investment Strategy Dashboard
@@ -18393,27 +18523,54 @@ function AIWealthManager({ T, s, settings, expenses, incomes, debts, assets, inv
   function buildContext() {
     const monthlySavings = Math.max(0, thisMonthIncome - thisMonthSpend);
     const cashAssets = (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+    const savingsDeposits = (expenses||[]).filter(e=>e.category==='💰 Savings').reduce((s,e)=>s+Number(e.amount||0),0);
     const invValue = (investments||[]).reduce((s,i)=>s+(i.currentPrice!=null?i.currentPrice:i.buyPrice)*i.quantity,0);
     const totalDebt = (debts||[]).reduce((s,d)=>s+Number(d.balance||0),0);
     const efMonths = thisMonthSpend>0 ? (cashAssets/thisMonthSpend).toFixed(1) : '0';
-    const invList = (investments||[]).slice(0,6).map(i=>`${i.symbol||i.name}(${cur}${fmtN((i.currentPrice!=null?i.currentPrice:i.buyPrice)*i.quantity)})`).join(', ')||'None';
+    const invList = (investments||[]).slice(0,8).map(i=>`${i.symbol||i.name}(${cur}${fmtN((i.currentPrice!=null?i.currentPrice:i.buyPrice)*i.quantity)})`).join(', ')||'None';
     const debtList = (debts||[]).map(d=>`${d.name}@${d.rate||0}%(${cur}${fmtN(d.balance)})`).join(', ')||'None';
+    const goalList = (goals||[]).slice(0,4).map(g=>`${g.name}(target:${cur}${fmtN(g.target||0)})`).join(', ')||'None';
     const sorted = [...(netWorthHistory||[])].sort((a,b)=>a.month>b.month?1:-1);
     const nwTrend = sorted.length>=2 ? `NW trend: ${cur}${fmtN(sorted[sorted.length-2].value)}->${cur}${fmtN(sorted[sorted.length-1].value)}` : '';
-    return `Monthly income:${cur}${fmtN(thisMonthIncome)} | Expenses:${cur}${fmtN(thisMonthSpend)} | Savings:${cur}${fmtN(monthlySavings)} | Cash:${cur}${fmtN(cashAssets)} | Net worth:${cur}${fmtN(netWorth)} | Investments:${invList} total ${cur}${fmtN(invValue)} | Debts:${debtList} total ${cur}${fmtN(totalDebt)} | EF:${efMonths}mo | Savings rate:${savingsRate.toFixed(0)}% | FHS:${financialHealthScore}/100 | ${age?'Age:'+age+' |':''} Goals:${userGoals.join(',')} | Horizon:${horizon}yr | ${nwTrend}`;
+    const assetsBreakdown = (assets||[]).map(a=>`${a.name}(${a.type}:${cur}${fmtN(a.value||0)})`).join(', ')||'None';
+    return `Monthly income:${cur}${fmtN(thisMonthIncome)} | Monthly expenses:${cur}${fmtN(thisMonthSpend)} | Monthly savings:${cur}${fmtN(monthlySavings)} | Savings rate:${savingsRate.toFixed(1)}% | Net worth:${cur}${fmtN(netWorth)} | Cash assets:${cur}${fmtN(cashAssets)} | Accumulated savings deposits:${cur}${fmtN(savingsDeposits)} | Investments:${invList} (total ${cur}${fmtN(invValue)}) | Manual assets:${assetsBreakdown} | Debts:${debtList} (total ${cur}${fmtN(totalDebt)}) | Emergency fund coverage:${efMonths} months | Financial health score:${financialHealthScore}/100 | ${age?'Age:'+age+' |':''} Goals:${goalList} | Investment horizon:${horizon} years | ${nwTrend}`;
+  }
+
+  // Pre-compute input data for display panel
+  function getInputData() {
+    const monthlySavings = Math.max(0, thisMonthIncome - thisMonthSpend);
+    const cashAssets = (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+    const savingsDeposits = (expenses||[]).filter(e=>e.category==='💰 Savings').reduce((s,e)=>s+Number(e.amount||0),0);
+    const invValue = (investments||[]).reduce((s,i)=>s+(i.currentPrice!=null?i.currentPrice:i.buyPrice)*i.quantity,0);
+    const totalDebt = (debts||[]).reduce((s,d)=>s+Number(d.balance||0),0);
+    const totalAssets = (assets||[]).reduce((s,a)=>s+Number(a.value||0),0);
+    return [
+      { label:'Monthly Income',     value:cur+fmtN(thisMonthIncome),      color:'success' },
+      { label:'Monthly Expenses',   value:cur+fmtN(thisMonthSpend),       color:'danger'  },
+      { label:'Monthly Savings',    value:cur+fmtN(monthlySavings),       color:'accent'  },
+      { label:'Savings Rate',       value:savingsRate.toFixed(1)+'%',     color:'accent'  },
+      { label:'Net Worth',          value:cur+fmtN(netWorth),             color:netWorth>=0?'success':'danger' },
+      { label:'Cash / Liquid',      value:cur+fmtN(cashAssets),           color:'text'    },
+      { label:'Savings Deposits',   value:cur+fmtN(savingsDeposits),      color:'success' },
+      { label:'Investment Portfolio',value:cur+fmtN(invValue),            color:'accent'  },
+      { label:'Manual Assets',      value:cur+fmtN(totalAssets),          color:'text'    },
+      { label:'Total Debt',         value:cur+fmtN(totalDebt),            color:totalDebt>0?'danger':'success' },
+      { label:'Health Score',       value:financialHealthScore+'/100',    color:financialHealthScore>=70?'success':financialHealthScore>=40?'warning':'danger' },
+      { label:'Goals Tracked',      value:(goals||[]).length+' goals',    color:'text'    },
+    ];
   }
 
   async function runAnalysis() {
     setLoading(true); setWealthError('');
     const context = buildContext();
-    const schema = `{"profile":"Conservative|Balanced|Growth|Aggressive|Opportunistic","riskScore":<0-100>,"capacityScore":<0-100>,"maturityScore":<0-100>,"profileReason":"<2 sentences>","healthScore":<0-100>,"healthIssues":["<i1>","<i2>","<i3>"],"behaviorPatterns":["<p1>","<p2>"],"allocation":[{"asset":"<n>","pct":<int>,"returnRange":"<e.g.7-10%>","risk":"Low|Medium|High"}],"monthlySplit":[{"asset":"<n>","pct":<int>,"why":"<reason>"}],"rotation":[{"asset":"<n>","action":"Hold|Take Partial Profits|Exit","reason":"<why>"}],"roadmap":[{"period":"3M","targetValue":<int>,"actions":["<a>"]},{"period":"6M","targetValue":<int>,"actions":["<a>"]},{"period":"1Y","targetValue":<int>,"actions":["<a>"]},{"period":"3Y","targetValue":<int>,"actions":["<a>"]},{"period":"5Y","targetValue":<int>,"actions":["<a>"]}],"projections":{"conservative":[<y1>,<y2>,<y3>,<y4>,<y5>],"moderate":[<y1>,<y2>,<y3>,<y4>,<y5>],"aggressive":[<y1>,<y2>,<y3>,<y4>,<y5>]},"opportunities":["<o1>","<o2>","<o3>"],"nextAction":"<single most impactful action>"}`;
+    const schema = `{"profile":"Conservative|Balanced|Growth|Aggressive|Opportunistic","riskScore":<0-100>,"capacityScore":<0-100>,"maturityScore":<0-100>,"profileReason":"<2 sentences>","healthScore":<0-100>,"healthIssues":["<i1>","<i2>","<i3>"],"behaviorPatterns":["<p1>","<p2>"],"allocation":[{"asset":"<n>","pct":<int>,"amount":<int>,"returnRange":"<e.g.7-10%>","risk":"Low|Medium|High"}],"monthlySplit":[{"asset":"<n>","pct":<int>,"amount":<int>,"why":"<reason>"}],"rotation":[{"asset":"<n>","action":"Hold|Take Partial Profits|Exit","reason":"<why>"}],"roadmap":[{"period":"3M","targetValue":<int>,"monthlySavings":<int>,"portfolioValue":<int>,"netWorthTarget":<int>,"actions":["<a>"],"monthlyDetail":[{"m":1,"wealth":<int>},{"m":2,"wealth":<int>},{"m":3,"wealth":<int>}]},{"period":"6M","targetValue":<int>,"monthlySavings":<int>,"portfolioValue":<int>,"netWorthTarget":<int>,"actions":["<a>"],"monthlyDetail":[{"m":1,"wealth":<int>},{"m":2,"wealth":<int>},{"m":3,"wealth":<int>},{"m":4,"wealth":<int>},{"m":5,"wealth":<int>},{"m":6,"wealth":<int>}]},{"period":"1Y","targetValue":<int>,"monthlySavings":<int>,"portfolioValue":<int>,"netWorthTarget":<int>,"actions":["<a>"],"monthlyDetail":[{"m":1,"wealth":<int>},{"m":3,"wealth":<int>},{"m":6,"wealth":<int>},{"m":9,"wealth":<int>},{"m":12,"wealth":<int>}]},{"period":"3Y","targetValue":<int>,"monthlySavings":<int>,"portfolioValue":<int>,"netWorthTarget":<int>,"actions":["<a>"],"monthlyDetail":[{"m":12,"wealth":<int>},{"m":18,"wealth":<int>},{"m":24,"wealth":<int>},{"m":30,"wealth":<int>},{"m":36,"wealth":<int>}]},{"period":"5Y","targetValue":<int>,"monthlySavings":<int>,"portfolioValue":<int>,"netWorthTarget":<int>,"actions":["<a>"],"monthlyDetail":[{"m":12,"wealth":<int>},{"m":24,"wealth":<int>},{"m":36,"wealth":<int>},{"m":48,"wealth":<int>},{"m":60,"wealth":<int>}]}],"projections":{"conservative":[<y1>,<y2>,<y3>,<y4>,<y5>],"moderate":[<y1>,<y2>,<y3>,<y4>,<y5>],"aggressive":[<y1>,<y2>,<y3>,<y4>,<y5>]},"opportunities":["<o1>","<o2>","<o3>"],"nextAction":"<single most impactful action>"}`;
     const prompt = `You are an Advanced AI Wealth Manager acting as a professional robo-advisor. Analyze the user data and return ONLY valid JSON matching the schema. No markdown fences, no explanation outside JSON.
 
 USER DATA: ${context}
 
 JSON SCHEMA: ${schema}
 
-Fill every numeric field with realistic values derived from the user data. Make monthlySplit percentages sum to 100. Make allocation percentages sum to 100. Project portfolio values realistically over 5 years given their current trajectory.`;
+Fill every numeric field with realistic values derived from the user data. Make monthlySplit percentages sum to 100 and ALWAYS include the actual amount in the "amount" field. Make allocation percentages sum to 100 and include the actual currency amount per asset class. Project portfolio values realistically over 5 years. For roadmap, ALWAYS fill monthlyDetail with realistic month-by-month wealth values — this is critical. monthlySavings should show how much they save per month at each stage.`;
 
     try {
       const provider = settings.aiProvider || 'groq';
@@ -18475,6 +18632,39 @@ Fill every numeric field with realistic values derived from the user data. Make 
 
       {open && (
         <div>
+          {/* INPUT DATA PANEL — always visible */}
+          {(()=>{
+            const inputData = getInputData();
+            return (
+              <div style={{background:T.surface,borderRadius:'12px',padding:'14px 16px',border:'1px solid '+T.border,marginBottom:'14px'}}>
+                <div style={{fontWeight:'700',fontSize:'12px',marginBottom:'10px',color:T.textMuted,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span>📊 Data being analyzed</span>
+                  <span style={{fontSize:'10px',color:T.textMuted}}>These are the real numbers sent to the AI</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px'}}>
+                  {inputData.map((d,i)=>(
+                    <div key={i} style={{background:T.bg,borderRadius:'8px',padding:'8px 10px',border:'1px solid '+T.border}}>
+                      <div style={{fontSize:'10px',color:T.textMuted,marginBottom:'2px'}}>{d.label}</div>
+                      <div style={{fontSize:'13px',fontWeight:'800',color:T[d.color]||T.text}}>{d.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* EMERGENCY FUND CALLOUT */}
+          <div style={{background:T.warning+'15',border:'1px solid '+T.warning+'44',borderRadius:'10px',padding:'10px 14px',marginBottom:'14px',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
+            <div>
+              <div style={{fontWeight:'700',fontSize:'12px',color:T.warning}}>🛡️ Emergency Fund</div>
+              <div style={{fontSize:'11px',color:T.textMuted,marginTop:'2px'}}>Find & edit your emergency fund: Money Hub → 💡 Intelligence tab → scroll to <strong>🛡️ Emergency Fund</strong> section</div>
+            </div>
+            <div style={{fontSize:'11px',color:T.textMuted,textAlign:'right'}}>
+              <div style={{fontWeight:'700',color:T.text}}>Current: {(()=>{const c=(assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);const mo=thisMonthSpend>0?(c/thisMonthSpend).toFixed(1):'0';return mo;})()}mo covered</div>
+              <div>Target: 3–6 months</div>
+            </div>
+          </div>
+
           <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border,marginBottom:'16px'}}>
             <div style={{fontWeight:'700',fontSize:'13px',marginBottom:'12px',color:'#6366f1'}}>Configure Analysis</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'12px'}}>
@@ -18585,15 +18775,18 @@ Fill every numeric field with realistic values derived from the user data. Make 
                   <div style={{background:T.surface,borderRadius:'12px',padding:'16px',border:'1px solid '+T.border}}>
                     <div style={{fontWeight:'800',fontSize:'13px',marginBottom:'14px'}}>Recommended Portfolio Allocation</div>
                     {(a.allocation||[]).map((item,i)=>(
-                      <div key={i} style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'8px'}}>
-                        <div style={{width:'12px',height:'12px',borderRadius:'3px',background:ALLOC_COLORS[i%ALLOC_COLORS.length],flexShrink:0}}/>
-                        <div style={{flex:1,fontSize:'12px',fontWeight:'600'}}>{item.asset}</div>
-                        <div style={{flex:2,height:'8px',background:T.bg,borderRadius:'4px',overflow:'hidden',border:'1px solid '+T.border}}>
+                      <div key={i} style={{marginBottom:'10px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'4px'}}>
+                          <div style={{width:'10px',height:'10px',borderRadius:'3px',background:ALLOC_COLORS[i%ALLOC_COLORS.length],flexShrink:0}}/>
+                          <div style={{flex:1,fontSize:'12px',fontWeight:'700'}}>{item.asset}</div>
+                          <div style={{fontWeight:'800',fontSize:'13px',color:ALLOC_COLORS[i%ALLOC_COLORS.length]}}>{item.pct}%</div>
+                          <div style={{fontWeight:'800',fontSize:'13px',color:T.text,minWidth:'70px',textAlign:'right'}}>{cur}{fmtN(item.amount||Math.round(netWorth*(item.pct||0)/100))}</div>
+                          <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'99px',fontWeight:'700',flexShrink:0,background:item.risk==='High'?T.danger+'22':item.risk==='Medium'?T.warning+'22':T.success+'22',color:item.risk==='High'?T.danger:item.risk==='Medium'?T.warning:T.success}}>{item.risk}</span>
+                        </div>
+                        <div style={{height:'6px',background:T.bg,borderRadius:'4px',overflow:'hidden',border:'1px solid '+T.border}}>
                           <div style={{height:'100%',width:(item.pct||0)+'%',background:ALLOC_COLORS[i%ALLOC_COLORS.length],borderRadius:'4px'}}/>
                         </div>
-                        <div style={{fontWeight:'800',fontSize:'13px',minWidth:'36px',textAlign:'right',color:ALLOC_COLORS[i%ALLOC_COLORS.length]}}>{item.pct}%</div>
-                        <div style={{fontSize:'10px',color:T.textMuted,minWidth:'56px',textAlign:'right'}}>{item.returnRange}</div>
-                        <span style={{fontSize:'10px',padding:'2px 7px',borderRadius:'99px',fontWeight:'700',flexShrink:0,background:item.risk==='High'?T.danger+'22':item.risk==='Medium'?T.warning+'22':T.success+'22',color:item.risk==='High'?T.danger:item.risk==='Medium'?T.warning:T.success}}>{item.risk}</span>
+                        <div style={{fontSize:'10px',color:T.textMuted,marginTop:'2px',textAlign:'right'}}>{item.returnRange}</div>
                       </div>
                     ))}
                   </div>
@@ -18669,18 +18862,52 @@ Fill every numeric field with realistic values derived from the user data. Make 
                     <div style={{position:'relative',paddingLeft:'20px'}}>
                       <div style={{position:'absolute',left:'7px',top:'8px',bottom:'8px',width:'2px',background:'linear-gradient(to bottom,'+T.accent+','+T.border+')',borderRadius:'2px'}}/>
                       {(a.roadmap||[]).map((m,i)=>(
-                        <div key={i} style={{display:'flex',gap:'12px',marginBottom:'14px',position:'relative'}}>
+                        <div key={i} style={{display:'flex',gap:'12px',marginBottom:'16px',position:'relative'}}>
                           <div style={{width:'14px',height:'14px',borderRadius:'50%',background:i===0?T.accent:T.surface,border:'2px solid '+T.accent,flexShrink:0,marginTop:'2px',position:'relative',zIndex:1,marginLeft:'-21px'}}/>
-                          <div style={{flex:1,padding:'10px 12px',borderRadius:'8px',background:T.bg,border:'1px solid '+T.border}}>
-                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}>
-                              <span style={{fontWeight:'800',fontSize:'12px',color:T.accent}}>{m.period}</span>
-                              <span style={{fontWeight:'700',fontSize:'13px'}}>{cur}{fmtN(m.targetValue)}</span>
-                            </div>
-                            {(m.actions||[]).map((act,j)=>(
-                              <div key={j} style={{fontSize:'11px',color:T.textMuted,display:'flex',gap:'5px',marginBottom:'2px'}}>
-                                <span style={{color:T.success,flexShrink:0}}>•</span>{act}
+                          <div style={{flex:1,borderRadius:'10px',background:T.bg,border:'1px solid '+T.border,overflow:'hidden'}}>
+                            {/* Header */}
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:T.accentSoft,borderBottom:'1px solid '+T.border}}>
+                              <span style={{fontWeight:'900',fontSize:'13px',color:T.accent}}>{m.period}</span>
+                              <div style={{textAlign:'right'}}>
+                                <div style={{fontWeight:'800',fontSize:'15px',color:T.text}}>{cur}{fmtN(m.targetValue||m.netWorthTarget||0)}</div>
+                                <div style={{fontSize:'10px',color:T.textMuted}}>target net worth</div>
                               </div>
-                            ))}
+                            </div>
+                            {/* Key money metrics */}
+                            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'0',borderBottom:'1px solid '+T.border}}>
+                              {[
+                                {label:'Monthly Savings', val:m.monthlySavings},
+                                {label:'Portfolio Value',  val:m.portfolioValue},
+                                {label:'Net Worth Target', val:m.netWorthTarget||m.targetValue},
+                              ].map((kpi,ki)=>(
+                                <div key={ki} style={{padding:'8px 10px',borderRight:ki<2?'1px solid '+T.border:'none'}}>
+                                  <div style={{fontSize:'10px',color:T.textMuted,marginBottom:'2px'}}>{kpi.label}</div>
+                                  <div style={{fontWeight:'800',fontSize:'13px',color:T.accent}}>{kpi.val?cur+fmtN(kpi.val):'—'}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {/* Monthly wealth progression */}
+                            {(m.monthlyDetail||[]).length > 0 && (
+                              <div style={{padding:'8px 12px',borderBottom:'1px solid '+T.border}}>
+                                <div style={{fontSize:'10px',color:T.textMuted,marginBottom:'6px',fontWeight:'600'}}>WEALTH PROGRESSION</div>
+                                <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                                  {(m.monthlyDetail||[]).map((md,mi)=>(
+                                    <div key={mi} style={{textAlign:'center',padding:'4px 8px',background:T.surface,borderRadius:'6px',border:'1px solid '+T.border,minWidth:'52px'}}>
+                                      <div style={{fontSize:'10px',color:T.textMuted}}>M{md.m}</div>
+                                      <div style={{fontSize:'11px',fontWeight:'700',color:T.text}}>{cur}{fmtN(md.wealth)}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {/* Actions */}
+                            <div style={{padding:'8px 12px'}}>
+                              {(m.actions||[]).map((act,j)=>(
+                                <div key={j} style={{fontSize:'11px',color:T.textMuted,display:'flex',gap:'5px',marginBottom:'3px'}}>
+                                  <span style={{color:T.success,flexShrink:0}}>•</span>{act}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       ))}
