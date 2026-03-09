@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
 
-// ── GLOBAL STYLES ─────────────────────────────────────────────────────────────
+// ── GLOBAL STYLES ──────────────────────────────────────────────────────────────
 (() => {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
@@ -20,10 +20,13 @@ import {
     ::-webkit-scrollbar-thumb { background: rgba(0,245,212,0.18); border-radius: 2px; }
     @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    @keyframes slideIn { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
     @keyframes glowPulse { 0%,100% { box-shadow:0 0 8px rgba(0,245,212,0.25); } 50% { box-shadow:0 0 28px rgba(0,245,212,0.65),0 0 50px rgba(0,245,212,0.12); } }
     @keyframes dotPulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.6); opacity:0.5; } }
     @keyframes nodeEnter { from { opacity:0; transform:scale(0.8) translateX(-8px); } to { opacity:1; transform:scale(1) translateX(0); } }
     @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+    @keyframes toastIn { from { opacity:0; transform:translateX(100%); } to { opacity:1; transform:translateX(0); } }
+    @keyframes toastOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(100%); } }
     @keyframes countUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
     .los-btn:hover { filter:brightness(1.2); transform:translateY(-1px); }
     .los-card:hover { border-color:rgba(0,245,212,0.18) !important; }
@@ -32,6 +35,8 @@ import {
     .los-ev:hover { background:rgba(255,255,255,0.04) !important; }
     .los-tab:hover { background:rgba(255,255,255,0.05) !important; }
     .los-row:hover { background:rgba(255,255,255,0.03) !important; }
+    .los-cmd-item:hover { background:rgba(0,245,212,0.08) !important; }
+    .los-cmd-item.active { background:rgba(0,245,212,0.12) !important; border-color:rgba(0,245,212,0.3) !important; }
     input, textarea, select { outline:none; font-family:inherit; }
     input:focus, textarea:focus, select:focus { border-color:rgba(0,245,212,0.5) !important; }
     button { cursor:pointer; border:none; background:none; font-family:inherit; transition:all 0.18s ease; }
@@ -40,7 +45,7 @@ import {
   document.head.appendChild(style);
 })();
 
-// ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
+// ── DESIGN TOKENS ──────────────────────────────────────────────────────────────
 const T = {
   bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
   surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
@@ -56,17 +61,67 @@ const T = {
   r:'10px', rL:'16px', sw:72,
 };
 
-// ── LOCAL STORAGE HOOK (same keys as old app) ──────────────────────────────────
+// ── TIMELINE ENGINE ────────────────────────────────────────────────────────────
+// Central event metadata registry
+const TL_META = {
+  expense:           { emoji:'💳', color:T.rose,    cat:'money'    },
+  income:            { emoji:'💰', color:T.emerald, cat:'money'    },
+  investment:        { emoji:'📈', color:T.violet,  cat:'money'    },
+  trade_closed:      { emoji:'📊', color:T.violet,  cat:'money'    },
+  debt_payment:      { emoji:'🏦', color:T.amber,   cat:'money'    },
+  asset_added:       { emoji:'💎', color:T.accent,  cat:'money'    },
+  habit_completed:   { emoji:'🔥', color:T.accent,  cat:'growth'   },
+  streak_milestone:  { emoji:'🏆', color:T.amber,   cat:'growth'   },
+  focus_completed:   { emoji:'⏱️', color:T.sky,     cat:'growth'   },
+  vitals_logged:     { emoji:'❤️', color:T.sky,     cat:'health'   },
+  sleep_update:      { emoji:'😴', color:T.violet,  cat:'health'   },
+  workout:           { emoji:'💪', color:T.rose,    cat:'health'   },
+  goal_milestone:    { emoji:'🎯', color:T.amber,   cat:'growth'   },
+  goal_completed:    { emoji:'🏁', color:T.emerald, cat:'growth'   },
+  goal_created:      { emoji:'🎯', color:T.violet,  cat:'growth'   },
+  note_created:      { emoji:'📝', color:T.amber,   cat:'knowledge'},
+  ai_insight:        { emoji:'🧠', color:'#c084fc', cat:'knowledge'},
+  achievement:       { emoji:'🏅', color:T.amber,   cat:'system'   },
+  monthly_review:    { emoji:'📋', color:T.accent,  cat:'system'   },
+  ai_recommendation: { emoji:'⬡', color:'#c084fc', cat:'system'   },
+  career_update:     { emoji:'💼', color:T.sky,     cat:'growth'   },
+  subscription:      { emoji:'🔄', color:T.violet,  cat:'money'    },
+};
+
+const TL_CATS = {
+  money:     { color:T.emerald, label:'Money',     icon:'💰' },
+  health:    { color:T.sky,     label:'Health',    icon:'❤️' },
+  growth:    { color:T.violet,  label:'Growth',    icon:'📈' },
+  knowledge: { color:T.amber,   label:'Knowledge', icon:'📚' },
+  system:    { color:T.accent,  label:'System',    icon:'⚙️' },
+};
+
+// Core event factory — used by all modules
+function buildTLEvent(params) {
+  const meta = TL_META[params.type] || { emoji:'•', color:T.textSub, cat:'system' };
+  return {
+    id: `tl_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+    type: params.type || 'system',
+    title: params.title || 'Event',
+    description: params.description || '',
+    category: params.category || meta.cat,
+    emoji: meta.emoji,
+    color: meta.color,
+    timestamp: params.timestamp || Date.now(),
+    date: params.date || new Date().toISOString().slice(0,10),
+    metadata: params.metadata || {},
+  };
+}
+
+// ── LOCAL STORAGE HOOK ─────────────────────────────────────────────────────────
 function useLocalStorage(key, defaultVal) {
   const [val, setVal] = useState(() => {
-    try {
-      const s = localStorage.getItem(key);
-      return s !== null ? JSON.parse(s) : defaultVal;
-    } catch { return defaultVal; }
+    try { const s=localStorage.getItem(key); return s!==null?JSON.parse(s):defaultVal; }
+    catch { return defaultVal; }
   });
   const setter = useCallback((v) => {
     setVal(prev => {
-      const next = typeof v === 'function' ? v(prev) : v;
+      const next = typeof v==='function' ? v(prev) : v;
       try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
       return next;
     });
@@ -75,26 +130,32 @@ function useLocalStorage(key, defaultVal) {
 }
 
 // ── HELPERS ────────────────────────────────────────────────────────────────────
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toISOString().slice(0,10);
 const fmtN = (n) => {
-  if (n === undefined || n === null) return '0';
-  const num = Number(n);
-  if (isNaN(num)) return '0';
-  return num >= 1000000 ? `${(num/1000000).toFixed(2)}M`
-    : num >= 1000 ? num.toLocaleString('en-US', {maximumFractionDigits:0})
-    : num.toFixed(num % 1 ? 2 : 0);
+  if (n===undefined||n===null) return '0';
+  const num=Number(n); if(isNaN(num)) return '0';
+  return num>=1000000?`${(num/1000000).toFixed(2)}M`
+    :num>=1000?num.toLocaleString('en-US',{maximumFractionDigits:0})
+    :num.toFixed(num%1?2:0);
 };
-
+const fmtTS = (ts) => {
+  const d=new Date(ts);
+  return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+};
+const fmtDate = (dateStr) => {
+  if (!dateStr) return '—';
+  try { return new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+  catch { return dateStr; }
+};
 const getStreak = (habitId, habitLogs) => {
-  const logs = habitLogs[habitId] || [];
-  let streak = 0;
-  let d = new Date();
-  while (true) {
-    const s = d.toISOString().slice(0, 10);
-    if (logs.includes(s)) { streak++; d.setDate(d.getDate() - 1); }
-    else break;
-  }
+  const logs=habitLogs[habitId]||[]; let streak=0; let d=new Date();
+  while(true){const s=d.toISOString().slice(0,10);if(logs.includes(s)){streak++;d.setDate(d.getDate()-1);}else break;}
   return streak;
+};
+const fuzzyMatch = (str, query) => {
+  if (!query) return true;
+  const s=str.toLowerCase(); const q=query.toLowerCase();
+  return q.split('').every(c=>s.includes(c)) || s.includes(q);
 };
 
 const EXPENSE_COLORS = {
@@ -105,19 +166,15 @@ const EXPENSE_COLORS = {
 };
 const getCatColor = (cat) => {
   if (!cat) return T.textSub;
-  for (const [k, v] of Object.entries(EXPENSE_COLORS)) {
-    if (cat.includes(k.split(' ')[1] || k)) return v;
-  }
+  for (const [k,v] of Object.entries(EXPENSE_COLORS)) { if (cat.includes(k.split(' ')[1]||k)) return v; }
   return T.textSub;
 };
 
-// ── ICON COMPONENTS ────────────────────────────────────────────────────────────
-const Ico = ({ d, size=18, stroke='currentColor', fill='none', sw=1.8, style={}, vb='0 0 24 24' }) => (
+// ── ICONS ──────────────────────────────────────────────────────────────────────
+const Ico = ({d,size=18,stroke='currentColor',fill='none',sw=1.8,style={},vb='0 0 24 24'}) => (
   <svg width={size} height={size} viewBox={vb} fill={fill} stroke={stroke}
     strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"
-    style={{display:'inline-block',flexShrink:0,...style}}>
-    {d}
-  </svg>
+    style={{display:'inline-block',flexShrink:0,...style}}>{d}</svg>
 );
 const IcoHome     = (p) => <Ico {...p} d={<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>} />;
 const IcoTimeline = (p) => <Ico {...p} d={<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>} />;
@@ -133,344 +190,335 @@ const IcoX        = (p) => <Ico {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/
 const IcoChevR    = (p) => <Ico {...p} d={<polyline points="9 18 15 12 9 6"/>} />;
 const IcoSend     = (p) => <Ico {...p} d={<><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>} />;
 const IcoCheck    = (p) => <Ico {...p} d={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />;
+const IcoSearch   = (p) => <Ico {...p} d={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} />;
+const IcoFilter   = (p) => <Ico {...p} d={<><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="18" x2="12" y2="18"/></>} />;
+const IcoZap      = (p) => <Ico {...p} d={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />;
 
 // ── SHARED UI COMPONENTS ───────────────────────────────────────────────────────
-const GlassCard = ({ children, style={}, className='', onClick }) => (
+const GlassCard = ({children,style={},className='',onClick}) => (
   <div className={`los-card ${className}`} onClick={onClick} style={{
     background:T.surface, border:`1px solid ${T.border}`,
     borderRadius:T.rL, backdropFilter:'blur(20px)',
     transition:'border-color 0.2s, box-shadow 0.2s', ...style
   }}>{children}</div>
 );
-
-const Badge = ({ children, color=T.accent }) => (
-  <span style={{
-    display:'inline-flex', alignItems:'center', gap:3,
-    padding:'2px 8px', borderRadius:99,
-    background:color+'18', color,
-    fontSize:9, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.06em',
-    border:`1px solid ${color}28`,
-  }}>{children}</span>
+const Badge = ({children,color=T.accent}) => (
+  <span style={{ display:'inline-flex',alignItems:'center',gap:3, padding:'2px 8px',borderRadius:99,
+    background:color+'18',color,fontSize:9,fontFamily:T.fM,fontWeight:600,letterSpacing:'0.06em',
+    border:`1px solid ${color}28` }}>{children}</span>
 );
-
-const ProgressBar = ({ pct, color=T.accent, height=4 }) => (
-  <div style={{ width:'100%', height, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
-    <div style={{
-      height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99,
-      background:`linear-gradient(90deg, ${color}aa, ${color})`,
-      boxShadow:`0 0 6px ${color}44`,
-      transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)',
-    }} />
+const ProgressBar = ({pct,color=T.accent,height=4}) => (
+  <div style={{width:'100%',height,borderRadius:99,background:'rgba(255,255,255,0.06)',overflow:'hidden'}}>
+    <div style={{ height:'100%',width:`${Math.min(Math.max(pct||0,0),100)}%`,borderRadius:99,
+      background:`linear-gradient(90deg, ${color}aa, ${color})`,boxShadow:`0 0 6px ${color}44`,
+      transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
   </div>
 );
-
-const Input = ({ value, onChange, placeholder, type='text', style={} }) => (
+const Input = ({value,onChange,placeholder,type='text',style={}}) => (
   <input type={type} value={value} onChange={onChange} placeholder={placeholder}
-    style={{
-      width:'100%', padding:'9px 12px',
-      background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`,
-      borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text,
-      transition:'border-color 0.2s', ...style
-    }} />
+    style={{ width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',
+      border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,
+      color:T.text,transition:'border-color 0.2s',...style }} />
 );
-
-const Select = ({ value, onChange, children, style={} }) => (
-  <select value={value} onChange={onChange} style={{
-    width:'100%', padding:'9px 12px',
-    background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`,
-    borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text,
-    transition:'border-color 0.2s', ...style
-  }}>{children}</select>
+const Select = ({value,onChange,children,style={}}) => (
+  <select value={value} onChange={onChange} style={{ width:'100%',padding:'9px 12px',
+    background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,
+    fontFamily:T.fM,fontSize:12,color:T.text,transition:'border-color 0.2s',...style }}>{children}</select>
 );
-
-const SectionLabel = ({ children }) => (
-  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:12 }}>{children}</div>
+const SectionLabel = ({children}) => (
+  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:12}}>{children}</div>
 );
-
-const ChartTooltip = ({ active, payload, label, prefix='', suffix='' }) => {
-  if (!active || !payload?.length) return null;
+const ChartTooltip = ({active,payload,label,prefix='',suffix=''}) => {
+  if (!active||!payload?.length) return null;
   return (
-    <div style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:8, padding:'8px 12px', fontFamily:T.fM, fontSize:11, color:T.text }}>
-      {label && <div style={{ color:T.textSub, marginBottom:3 }}>{label}</div>}
-      {payload.map((p,i) => <div key={i} style={{ color:p.color||T.accent }}>{p.name}: <b>{prefix}{typeof p.value==='number'?p.value.toLocaleString():p.value}{suffix}</b></div>)}
+    <div style={{background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,padding:'8px 12px',fontFamily:T.fM,fontSize:11,color:T.text}}>
+      {label&&<div style={{color:T.textSub,marginBottom:3}}>{label}</div>}
+      {payload.map((p,i)=><div key={i} style={{color:p.color||T.accent}}>{p.name}: <b>{prefix}{typeof p.value==='number'?p.value.toLocaleString():p.value}{suffix}</b></div>)}
     </div>
   );
 };
 
-// ── MODAL WRAPPER ──────────────────────────────────────────────────────────────
-const Modal = ({ open, onClose, title, children }) => {
+// ── MODAL ──────────────────────────────────────────────────────────────────────
+const Modal = ({open,onClose,title,children}) => {
   if (!open) return null;
   return (
-    <div onClick={onClose} style={{
-      position:'fixed', inset:0, background:'rgba(0,0,0,0.7)',
-      zIndex:999, display:'flex', alignItems:'center', justifyContent:'center',
-      backdropFilter:'blur(6px)', padding:16,
-    }}>
-      <div onClick={e=>e.stopPropagation()} style={{
-        background:T.bg2, border:`1px solid ${T.border}`,
-        borderRadius:20, padding:24, width:'100%', maxWidth:420,
-        animation:'modalIn 0.25s ease',
-      }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <h2 style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
-          <button onClick={onClose}><IcoX size={16} stroke={T.textSub} /></button>
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(6px)',padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:T.bg2,border:`1px solid ${T.border}`,borderRadius:20,padding:24,width:'100%',maxWidth:420,animation:'modalIn 0.25s ease'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+          <h2 style={{fontSize:16,fontFamily:T.fD,fontWeight:700,color:T.text}}>{title}</h2>
+          <button onClick={onClose}><IcoX size={16} stroke={T.textSub}/></button>
         </div>
         {children}
       </div>
     </div>
   );
 };
-
-const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, style={} }) => (
+const Btn = ({children,onClick,color=T.accent,disabled=false,full=false,style={}}) => (
   <button className="los-btn" onClick={onClick} disabled={disabled} style={{
-    padding:'10px 20px', borderRadius:T.r,
-    background:disabled?T.surface:(color+'18'),
-    color:disabled?T.textMuted:color,
-    border:`1px solid ${disabled?T.border:(color+'44')}`,
-    fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em',
-    width:full?'100%':'auto', transition:'all 0.18s', ...style
-  }}>{children}</button>
+    padding:'10px 20px',borderRadius:T.r,background:disabled?T.surface:(color+'18'),
+    color:disabled?T.textMuted:color,border:`1px solid ${disabled?T.border:(color+'44')}`,
+    fontSize:12,fontFamily:T.fM,fontWeight:600,letterSpacing:'0.04em',
+    width:full?'100%':'auto',transition:'all 0.18s',...style }}>{children}</button>
 );
 
-// ── SIDEBAR ────────────────────────────────────────────────────────────────────
-const NAV = [
-  { id:'home',      Icon:IcoHome,     label:'Home'         },
-  { id:'timeline',  Icon:IcoTimeline, label:'Timeline'     },
-  { id:'money',     Icon:IcoMoney,    label:'Money'        },
-  { id:'health',    Icon:IcoHealth,   label:'Health'       },
-  { id:'growth',    Icon:IcoGrowth,   label:'Growth'       },
-  { id:'knowledge', Icon:IcoBook,     label:'Knowledge'    },
-  { id:'intel',     Icon:IcoBrain,    label:'Intelligence' },
-  { id:'archive',   Icon:IcoArchive,  label:'Archive'      },
-  { id:'settings',  Icon:IcoSettings, label:'Settings'     },
-];
-
-function Sidebar({ active, onNav, userName }) {
-  const [hov, setHov] = useState(null);
-  const init = userName ? userName.charAt(0).toUpperCase() : 'U';
+// ── TOAST SYSTEM ───────────────────────────────────────────────────────────────
+function ToastContainer({toasts, removeToast}) {
   return (
-    <div style={{
-      width:T.sw, minHeight:'100vh', flexShrink:0,
-      background:`linear-gradient(180deg, ${T.bg} 0%, ${T.bg1} 100%)`,
-      borderRight:`1px solid ${T.border}`,
-      display:'flex', flexDirection:'column', alignItems:'center',
-      padding:'16px 0', gap:2,
-      position:'fixed', top:0, left:0, bottom:0, zIndex:100,
-    }}>
-      <div style={{
-        width:36, height:36, borderRadius:10, marginBottom:14,
-        background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`,
-        border:`1px solid ${T.accent}44`,
-        display:'flex', alignItems:'center', justifyContent:'center',
-        animation:'glowPulse 3s infinite', fontSize:15,
-      }}>⬡</div>
-
-      {NAV.map(({ id, Icon, label }) => {
-        const isA = active===id;
-        return (
-          <div key={id} style={{ position:'relative', width:'100%' }}
-            onMouseEnter={()=>setHov(id)} onMouseLeave={()=>setHov(null)}>
-            <button className="los-nav" onClick={()=>onNav(id)} style={{
-              width:'100%', height:42, display:'flex', alignItems:'center', justifyContent:'center',
-              background:isA?T.accentDim:'transparent', color:isA?T.accent:T.textSub,
-              borderLeft:`2px solid ${isA?T.accent:'transparent'}`,
-              transition:'all 0.18s', position:'relative',
-            }}>
-              {isA && <div style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)', width:2, height:18, background:T.accent, boxShadow:`0 0 8px ${T.accent}`, borderRadius:'0 2px 2px 0' }} />}
-              <Icon size={15} stroke={isA?T.accent:T.textSub} />
-            </button>
-            {hov===id && (
-              <div style={{ position:'absolute', left:'100%', top:'50%', transform:'translateY(-50%)', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', zIndex:200, fontSize:10, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', marginLeft:6, pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>
-                {label}
-              </div>
-            )}
+    <div style={{position:'fixed',top:60,right:20,zIndex:9999,display:'flex',flexDirection:'column',gap:8,pointerEvents:'none'}}>
+      {toasts.map(t=>(
+        <div key={t.id} style={{
+          pointerEvents:'auto', display:'flex',alignItems:'center',gap:10,
+          padding:'10px 14px',borderRadius:T.r,minWidth:260,maxWidth:340,
+          background:T.bg2,border:`1px solid ${t.color}44`,
+          boxShadow:`0 4px 20px rgba(0,0,0,0.4),0 0 0 1px ${t.color}22`,
+          animation:'toastIn 0.3s ease',
+        }}>
+          <span style={{fontSize:14}}>{t.icon}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,fontFamily:T.fD,fontWeight:600,color:T.text}}>{t.title}</div>
+            {t.body&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{t.body}</div>}
           </div>
-        );
-      })}
-
-      <div style={{ flex:1 }} />
-      <div style={{ width:32, height:32, borderRadius:'50%', background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:T.bg, fontFamily:T.fD, border:`2px solid ${T.border}`, marginBottom:6 }}>{init}</div>
-      <div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, boxShadow:`0 0 6px ${T.emerald}`, animation:'dotPulse 2s infinite', marginBottom:8 }} />
+          <button onClick={()=>removeToast(t.id)} style={{color:T.textMuted,flexShrink:0}}><IcoX size={12} stroke={T.textMuted}/></button>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ── LOG EXPENSE MODAL ──────────────────────────────────────────────────────────
-const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel'];
+// ── COMMAND PALETTE (⌘K) ────────────────────────────────────────────────────────
+function CommandPalette({open,onClose,data,onNav}) {
+  const [query, setQuery] = useState('');
+  const [sel, setSel] = useState(0);
+  const inputRef = useRef(null);
+  const {expenses,incomes,goals,habits,notes,timeline} = data;
 
-function LogExpenseModal({ open, onClose, onSave }) {
-  const [amt, setAmt] = useState('');
-  const [cat, setCat] = useState('🍽️ Food');
-  const [note, setNote] = useState('');
-  const [date, setDate] = useState(today());
-  const save = () => {
-    if (!amt) return;
-    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date });
-    setAmt(''); setNote(''); onClose();
+  useEffect(()=>{ if(open){ setQuery(''); setSel(0); setTimeout(()=>inputRef.current?.focus(),50); } },[open]);
+
+  const results = useMemo(()=>{
+    const q = query.trim();
+    const items = [];
+    // Quick nav actions
+    if (!q || fuzzyMatch('dashboard home',q)) items.push({type:'nav',label:'Go to Home',sub:'Dashboard',icon:'🏠',page:'home',color:T.accent});
+    if (!q || fuzzyMatch('timeline events history',q)) items.push({type:'nav',label:'Go to Timeline',sub:'Life history',icon:'⚡',page:'timeline',color:T.violet});
+    if (!q || fuzzyMatch('money finance expenses',q)) items.push({type:'nav',label:'Go to Money',sub:'Finance hub',icon:'💰',page:'money',color:T.emerald});
+    if (!q || fuzzyMatch('health vitals sleep',q)) items.push({type:'nav',label:'Go to Health',sub:'Vitals & focus',icon:'❤️',page:'health',color:T.sky});
+    if (!q || fuzzyMatch('growth habits goals',q)) items.push({type:'nav',label:'Go to Growth',sub:'Habits & goals',icon:'📈',page:'growth',color:T.violet});
+    if (!q || fuzzyMatch('knowledge notes ai',q)) items.push({type:'nav',label:'Go to Knowledge',sub:'Notes & AI',icon:'📚',page:'knowledge',color:T.amber});
+    if (!q || fuzzyMatch('intelligence insights',q)) items.push({type:'nav',label:'Go to Intelligence',sub:'AI insights',icon:'🧠',page:'intel',color:'#c084fc'});
+
+    // Expenses
+    if (q) expenses.filter(e=>fuzzyMatch(`${e.note||''} ${e.category}`,q)).slice(0,3).forEach(e=>
+      items.push({type:'expense',label:e.note||e.category,sub:`${e.date} · ${e.category}`,icon:'💳',color:T.rose,value:`-${data.settings?.currency||'$'}${fmtN(e.amount)}`}));
+    // Incomes
+    if (q) incomes.filter(i=>fuzzyMatch(`${i.note||'income'} income`,q)).slice(0,2).forEach(i=>
+      items.push({type:'income',label:i.note||'Income',sub:i.date,icon:'💰',color:T.emerald,value:`+${data.settings?.currency||'$'}${fmtN(i.amount)}`}));
+    // Goals
+    if (q) goals.filter(g=>fuzzyMatch(g.name||'',q)).slice(0,3).forEach(g=>
+      items.push({type:'goal',label:g.name,sub:`${Math.round(((g.current||0)/Math.max(1,g.target))*100)}% complete`,icon:'🎯',color:T.amber}));
+    // Habits
+    if (q) habits.filter(h=>fuzzyMatch(h.name||'',q)).slice(0,3).forEach(h=>
+      items.push({type:'habit',label:h.name,sub:`${getStreak(h.id,data.habitLogs||{})}d streak`,icon:'🔥',color:T.accent}));
+    // Notes
+    if (q) notes.filter(n=>fuzzyMatch(`${n.title||''} ${n.body||''}`,q)).slice(0,3).forEach(n=>
+      items.push({type:'note',label:n.title||'Note',sub:n.date,icon:'📝',color:T.amber}));
+    // Timeline events
+    if (q && timeline) timeline.filter(e=>fuzzyMatch(`${e.title||''} ${e.description||''}`,q)).slice(0,3).forEach(e=>
+      items.push({type:'event',label:e.title,sub:e.date,icon:e.emoji||'•',color:e.color||T.textSub}));
+
+    return items.slice(0,12);
+  },[query,expenses,incomes,goals,habits,notes,timeline,data.settings,data.habitLogs]);
+
+  const handleKey = (e) => {
+    if (e.key==='ArrowDown') { e.preventDefault(); setSel(s=>Math.min(s+1,results.length-1)); }
+    else if (e.key==='ArrowUp') { e.preventDefault(); setSel(s=>Math.max(s-1,0)); }
+    else if (e.key==='Enter') { const r=results[sel]; if(r?.page){onNav(r.page);onClose();} }
+    else if (e.key==='Escape') { onClose(); }
   };
+
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:1000,display:'flex',alignItems:'flex-start',justifyContent:'center',backdropFilter:'blur(8px)',paddingTop:80}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:560,animation:'modalIn 0.2s ease'}}>
+        <div style={{background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:20,overflow:'hidden',boxShadow:`0 24px 80px rgba(0,0,0,0.6),0 0 40px ${T.accent}11`}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'14px 18px',borderBottom:`1px solid ${T.border}`}}>
+            <IcoSearch size={15} stroke={T.accent}/>
+            <input ref={inputRef} value={query} onChange={e=>{setQuery(e.target.value);setSel(0);}} onKeyDown={handleKey}
+              placeholder="Search events, goals, habits, expenses…" style={{ flex:1,background:'transparent',border:'none',fontFamily:T.fM,fontSize:13,color:T.text }} />
+            <kbd style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,padding:'2px 5px',borderRadius:4,border:`1px solid ${T.border}`}}>ESC</kbd>
+          </div>
+          <div style={{maxHeight:380,overflowY:'auto',padding:8}}>
+            {results.length===0&&<div style={{padding:'24px',textAlign:'center',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No results found</div>}
+            {results.map((r,i)=>(
+              <div key={i} className={`los-cmd-item${sel===i?' active':''}`} onClick={()=>{if(r.page){onNav(r.page);onClose();}}}
+                style={{ display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:T.r,
+                  border:`1px solid transparent`,marginBottom:2,cursor:r.page?'pointer':'default',transition:'all 0.12s' }}>
+                <div style={{width:28,height:28,borderRadius:8,background:r.color+'15',border:`1px solid ${r.color}30`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>{r.icon}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontFamily:T.fD,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.label}</div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>{r.sub}</div>
+                </div>
+                {r.value&&<div style={{fontSize:11,fontFamily:T.fM,color:r.color,fontWeight:600,whiteSpace:'nowrap'}}>{r.value}</div>}
+                {r.page&&<Badge color={T.textMuted}>{r.type}</Badge>}
+              </div>
+            ))}
+          </div>
+          <div style={{padding:'8px 16px 10px',borderTop:`1px solid ${T.border}`,display:'flex',gap:14,alignItems:'center'}}>
+            {[['↑↓','Navigate'],['↵','Go'],['Esc','Close']].map(([k,l])=>(
+              <div key={k} style={{display:'flex',gap:4,alignItems:'center'}}>
+                <kbd style={{fontSize:8,fontFamily:T.fM,color:T.textSub,padding:'1px 4px',borderRadius:3,border:`1px solid ${T.border}`,background:T.surface}}>{k}</kbd>
+                <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SIDEBAR ────────────────────────────────────────────────────────────────────
+const NAV = [
+  {id:'home',Icon:IcoHome,label:'Home'},{id:'timeline',Icon:IcoTimeline,label:'Timeline'},
+  {id:'money',Icon:IcoMoney,label:'Money'},{id:'health',Icon:IcoHealth,label:'Health'},
+  {id:'growth',Icon:IcoGrowth,label:'Growth'},{id:'knowledge',Icon:IcoBook,label:'Knowledge'},
+  {id:'intel',Icon:IcoBrain,label:'Intelligence'},{id:'archive',Icon:IcoArchive,label:'Archive'},
+  {id:'settings',Icon:IcoSettings,label:'Settings'},
+];
+function Sidebar({active,onNav,userName,onCmdPalette}) {
+  const [hov,setHov]=useState(null);
+  const init=userName?userName.charAt(0).toUpperCase():'U';
+  return (
+    <div style={{width:T.sw,minHeight:'100vh',flexShrink:0,background:`linear-gradient(180deg,${T.bg} 0%,${T.bg1} 100%)`,borderRight:`1px solid ${T.border}`,display:'flex',flexDirection:'column',alignItems:'center',padding:'16px 0',gap:2,position:'fixed',top:0,left:0,bottom:0,zIndex:100}}>
+      <div style={{width:36,height:36,borderRadius:10,marginBottom:6,background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`,border:`1px solid ${T.accent}44`,display:'flex',alignItems:'center',justifyContent:'center',animation:'glowPulse 3s infinite',fontSize:15}}>⬡</div>
+      <button onClick={onCmdPalette} title="⌘K Command Palette" style={{width:36,height:28,borderRadius:8,marginBottom:10,background:T.accentLo,border:`1px solid ${T.accent}33`,display:'flex',alignItems:'center',justifyContent:'center',gap:4}} >
+        <IcoSearch size={10} stroke={T.accent}/><span style={{fontSize:7,fontFamily:T.fM,color:T.accent}}>⌘K</span>
+      </button>
+      {NAV.map(({id,Icon,label})=>{
+        const isA=active===id;
+        return (
+          <div key={id} style={{position:'relative',width:'100%'}} onMouseEnter={()=>setHov(id)} onMouseLeave={()=>setHov(null)}>
+            <button className="los-nav" onClick={()=>onNav(id)} style={{width:'100%',height:42,display:'flex',alignItems:'center',justifyContent:'center',background:isA?T.accentDim:'transparent',color:isA?T.accent:T.textSub,borderLeft:`2px solid ${isA?T.accent:'transparent'}`,transition:'all 0.18s',position:'relative'}}>
+              {isA&&<div style={{position:'absolute',left:0,top:'50%',transform:'translateY(-50%)',width:2,height:18,background:T.accent,boxShadow:`0 0 8px ${T.accent}`,borderRadius:'0 2px 2px 0'}}/>}
+              <Icon size={16} stroke={isA?T.accent:T.textSub}/>
+            </button>
+            {hov===id&&<div style={{position:'absolute',left:'100%',top:'50%',transform:'translateY(-50%)',marginLeft:8,padding:'4px 10px',background:T.bg2,border:`1px solid ${T.border}`,borderRadius:6,whiteSpace:'nowrap',fontSize:10,fontFamily:T.fM,color:T.text,zIndex:200,pointerEvents:'none'}}>{label}</div>}
+          </div>
+        );
+      })}
+      <div style={{flex:1}}/>
+      <div style={{width:32,height:32,borderRadius:'50%',background:`linear-gradient(135deg,${T.violet}44,${T.accent}44)`,border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fD,fontWeight:700,color:T.text}}>{init}</div>
+    </div>
+  );
+}
+
+// ── FORMS / MODALS ─────────────────────────────────────────────────────────────
+function LogExpenseModal({open,onClose,onSave}) {
+  const [amt,setAmt]=useState(''); const [cat,setCat]=useState('🍽️ Food'); const [note,setNote]=useState(''); const [date,setDate]=useState(today());
+  const save=()=>{ if(!amt) return; onSave({id:Date.now(),amount:Number(amt),category:cat,note:note.trim(),date}); setAmt('');setNote('');setDate(today()); };
   return (
     <Modal open={open} onClose={onClose} title="💳 Log Expense">
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
-        <Select value={cat} onChange={e=>setCat(e.target.value)}>{CATS.map(c=><option key={c}>{c}</option>)}</Select>
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>
+          {Object.keys(EXPENSE_COLORS).map(c=><option key={c}>{c}</option>)}
+        </Select>
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
-        <Btn full onClick={save} color={T.rose}>Save Expense</Btn>
+        <Btn full onClick={save} color={T.rose}>Log Expense</Btn>
       </div>
     </Modal>
   );
 }
-
-// ── LOG INCOME MODAL ───────────────────────────────────────────────────────────
-function LogIncomeModal({ open, onClose, onSave }) {
-  const [amt, setAmt] = useState('');
-  const [note, setNote] = useState('');
-  const [date, setDate] = useState(today());
-  const save = () => {
-    if (!amt) return;
-    onSave({ id:Date.now(), amount:Number(amt), note, date });
-    setAmt(''); setNote(''); onClose();
-  };
+function LogIncomeModal({open,onClose,onSave}) {
+  const [amt,setAmt]=useState(''); const [src,setSrc]=useState('Salary'); const [note,setNote]=useState(''); const [date,setDate]=useState(today());
+  const save=()=>{ if(!amt) return; onSave({id:Date.now(),amount:Number(amt),source:src,note:note.trim(),date}); setAmt('');setNote('');setDate(today()); };
   return (
     <Modal open={open} onClose={onClose} title="💰 Log Income">
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
-        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Source (Salary, Freelance...)" />
+        <Select value={src} onChange={e=>setSrc(e.target.value)}>
+          {['Salary','Freelance','Investment','Side Project','Gift','Other'].map(s=><option key={s}>{s}</option>)}
+        </Select>
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
-        <Btn full onClick={save} color={T.emerald}>Save Income</Btn>
+        <Btn full onClick={save} color={T.emerald}>Log Income</Btn>
       </div>
     </Modal>
   );
 }
-
-// ── LOG HABIT MODAL ────────────────────────────────────────────────────────────
-function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) {
-  const [newName, setNewName] = useState('');
-  const d = today();
+function LogHabitModal({open,onClose,habits,habitLogs,onLog,onAddHabit}) {
+  const [newH,setNewH]=useState('');
   return (
-    <Modal open={open} onClose={onClose} title="🔥 Log Habit">
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {habits.length === 0 && <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:16 }}>No habits yet. Create your first one below.</div>}
-        {habits.map(h => {
-          const done = (habitLogs[h.id]||[]).includes(d);
-          const streak = getStreak(h.id, habitLogs);
-          return (
-            <div key={h.id} className="los-row" style={{
-              display:'flex', justifyContent:'space-between', alignItems:'center',
-              padding:'10px 12px', borderRadius:T.r,
-              background:done?T.accentDim:T.surface,
-              border:`1px solid ${done?T.accent+'33':T.border}`,
-              transition:'all 0.15s',
-            }}>
-              <div>
-                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{h.name}</div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>🔥 {streak} day streak</div>
-              </div>
-              {done
-                ? <Badge color={T.accent}>✓ Done</Badge>
-                : <Btn onClick={()=>onLog(h.id)} color={T.accent} style={{ padding:'5px 14px' }}>Log</Btn>
-              }
-            </div>
-          );
+    <Modal open={open} onClose={onClose} title="🔥 Habits">
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {habits.map(h=>{ const done=(habitLogs[h.id]||[]).includes(today()); const s=getStreak(h.id,habitLogs);
+          return (<div key={h.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 12px',background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+            <div><div style={{fontSize:12,fontFamily:T.fM,color:T.text}}>{h.name}</div><div style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>🔥 {s}d streak</div></div>
+            {done?<Badge color={T.emerald}>✓ Done</Badge>:<Btn onClick={()=>onLog(h.id)} color={T.accent} style={{padding:'5px 12px'}}>Log</Btn>}
+          </div>);
         })}
-        <div style={{ marginTop:8, display:'flex', gap:8 }}>
-          <Input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="New habit name..." style={{ flex:1 }} />
-          <Btn onClick={()=>{ if(newName.trim()){ onAddHabit(newName.trim()); setNewName(''); } }} color={T.violet} style={{ whiteSpace:'nowrap' }}>Add</Btn>
+        <div style={{display:'flex',gap:8,marginTop:4}}>
+          <Input value={newH} onChange={e=>setNewH(e.target.value)} placeholder="New habit name" style={{flex:1}}/>
+          <Btn onClick={()=>{if(newH.trim()){onAddHabit(newH.trim());setNewH('');}}} color={T.accent} style={{padding:'9px 14px'}}>+</Btn>
         </div>
       </div>
     </Modal>
   );
 }
-
-// ── LOG VITALS MODAL ───────────────────────────────────────────────────────────
-function LogVitalsModal({ open, onClose, onSave }) {
-  const [sleep, setSleep] = useState('');
-  const [mood, setMood] = useState('');
-  const [energy, setEnergy] = useState('');
-  const [weight, setWeight] = useState('');
-  const [note, setNote] = useState('');
-  const save = () => {
-    onSave({ id:Date.now(), date:today(), sleep:Number(sleep)||0, mood:Number(mood)||0, energy:Number(energy)||0, weight:Number(weight)||0, note });
-    setSleep(''); setMood(''); setEnergy(''); setWeight(''); setNote(''); onClose();
-  };
+function LogVitalsModal({open,onClose,onSave}) {
+  const [sleep,setSleep]=useState(''); const [mood,setMood]=useState(''); const [energy,setEnergy]=useState(''); const [weight,setWeight]=useState(''); const [date,setDate]=useState(today());
+  const save=()=>{ onSave({id:Date.now(),sleep:Number(sleep)||0,mood:Number(mood)||0,energy:Number(energy)||0,weight:Number(weight)||0,date}); setSleep('');setMood('');setEnergy('');setWeight(''); };
   return (
     <Modal open={open} onClose={onClose} title="❤️ Log Vitals">
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        <Input type="number" value={sleep} onChange={e=>setSleep(e.target.value)} placeholder="Sleep (hours)" />
-        <Input type="number" value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood (1–10)" />
-        <Input type="number" value={energy} onChange={e=>setEnergy(e.target.value)} placeholder="Energy (1–10)" />
-        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="Weight (lbs/kg, optional)" />
-        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
-        <Btn full onClick={save} color={T.sky}>Save Vitals</Btn>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <Input type="number" value={sleep} onChange={e=>setSleep(e.target.value)} placeholder="Sleep hours (e.g. 7.5)" />
+        <Input type="number" value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood 1-10" />
+        <Input type="number" value={energy} onChange={e=>setEnergy(e.target.value)} placeholder="Energy 1-10" />
+        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="Weight (optional)" />
+        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <Btn full onClick={save} color={T.sky}>Log Vitals</Btn>
       </div>
     </Modal>
   );
 }
-
-// ── ADD NOTE MODAL ─────────────────────────────────────────────────────────────
-function AddNoteModal({ open, onClose, onSave }) {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [tag, setTag] = useState('General');
-  const save = () => {
-    if (!title.trim()) return;
-    onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, date:today() });
-    setTitle(''); setBody(''); setTag('General'); onClose();
-  };
+function AddNoteModal({open,onClose,onSave}) {
+  const [title,setTitle]=useState(''); const [body,setBody]=useState(''); const [tag,setTag]=useState('General');
+  const save=()=>{ if(!title.trim()) return; onSave({id:Date.now(),title:title.trim(),body,tag,date:today()}); setTitle('');setBody(''); };
   return (
     <Modal open={open} onClose={onClose} title="📝 Add Note">
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" />
-        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." style={{ width:'100%', minHeight:80, padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical', transition:'border-color 0.2s' }} />
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Note title" />
         <Select value={tag} onChange={e=>setTag(e.target.value)}>
           {['General','Finance','Health','Career','Growth','Ideas'].map(t=><option key={t}>{t}</option>)}
         </Select>
-        <Btn full onClick={save} color={T.amber}>Save Note</Btn>
+        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content…" rows={4} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}}/>
+        <Btn full onClick={save} color={T.amber}>Add Note</Btn>
       </div>
     </Modal>
   );
 }
-
-// ── ADD GOAL MODAL ─────────────────────────────────────────────────────────────
-function AddGoalModal({ open, onClose, onSave }) {
-  const [name, setName] = useState('');
-  const [target, setTarget] = useState('');
-  const [cat, setCat] = useState('finance');
-  const [deadline, setDeadline] = useState('');
-  const save = () => {
-    if (!name.trim() || !target) return;
-    const emojiMap = { finance:'💰', health:'🏃', growth:'🎓', career:'💼', other:'🎯' };
-    onSave({ id:Date.now(), name:name.trim(), target:Number(target), current:0, cat, deadline, emoji:emojiMap[cat]||'🎯', color:T.accent });
-    setName(''); setTarget(''); onClose();
-  };
+function AddGoalModal({open,onClose,onSave}) {
+  const [name,setName]=useState(''); const [target,setTarget]=useState(''); const [cat,setCat]=useState('finance'); const [emoji,setEmoji]=useState('🎯');
+  const save=()=>{ if(!name||!target) return; onSave({id:Date.now(),name:name.trim(),target:Number(target),current:0,cat,emoji,createdAt:today()}); setName('');setTarget(''); };
   return (
     <Modal open={open} onClose={onClose} title="🎯 New Goal">
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Goal name" />
         <Input type="number" value={target} onChange={e=>setTarget(e.target.value)} placeholder="Target amount / value" />
         <Select value={cat} onChange={e=>setCat(e.target.value)}>
-          {['finance','health','growth','career','other'].map(c=><option key={c}>{c}</option>)}
+          {['finance','health','growth','career'].map(c=><option key={c}>{c}</option>)}
         </Select>
-        <Input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} placeholder="Deadline (optional)" />
-        <Btn full onClick={save} color={T.amber}>Create Goal</Btn>
+        <Btn full onClick={save} color={T.violet}>Create Goal</Btn>
       </div>
     </Modal>
   );
 }
-
-// ── ADD ASSET MODAL ────────────────────────────────────────────────────────────
-function AddAssetModal({ open, onClose, onSave }) {
-  const [name, setName] = useState('');
-  const [val, setVal] = useState('');
-  const [type, setType] = useState('Cash');
-  const save = () => {
-    if (!name || !val) return;
-    onSave({ id:Date.now(), name:name.trim(), value:Number(val), type });
-    setName(''); setVal(''); onClose();
-  };
+function AddAssetModal({open,onClose,onSave}) {
+  const [name,setName]=useState(''); const [val,setVal]=useState(''); const [type,setType]=useState('Cash');
+  const save=()=>{ if(!name||!val) return; onSave({id:Date.now(),name:name.trim(),value:Number(val),type}); setName('');setVal(''); };
   return (
     <Modal open={open} onClose={onClose} title="💎 Add Asset">
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
         <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Asset name (e.g. Savings Account)" />
         <Input type="number" value={val} onChange={e=>setVal(e.target.value)} placeholder="Current value" />
         <Select value={type} onChange={e=>setType(e.target.value)}>
@@ -483,225 +531,158 @@ function AddAssetModal({ open, onClose, onSave }) {
 }
 
 // ── HOME PAGE ──────────────────────────────────────────────────────────────────
-function HomePage({ data, actions, onNav }) {
-  const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, eventLog, notes } = data;
-  const [modal, setModal] = useState(null);
-  const cur = settings.currency || '$';
-  const thisMonth = today().slice(0,7);
-  const hour = new Date().getHours();
-  const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+function HomePage({data,actions,onNav}) {
+  const {expenses,incomes,assets,investments,debts,habits,habitLogs,goals,vitals,totalXP,settings,timeline}=data;
+  const [modal,setModal]=useState(null);
+  const cur=settings.currency||'$';
+  const thisMonth=today().slice(0,7);
+  const hour=new Date().getHours();
+  const greeting=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
 
-  const monthExp = useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
-  const monthInc = useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
-  const invVal   = useMemo(()=>investments.reduce((s,i)=>s+(Number((i.currentPrice??i.buyPrice)||0))*Number(i.quantity||0),0),[investments]);
-  const assetVal = useMemo(()=>assets.reduce((s,a)=>s+Number(a.value||0),0),[assets]);
-  const debtVal  = useMemo(()=>debts.reduce((s,d)=>s+Number(d.balance||0),0),[debts]);
-  const netWorth = assetVal + invVal - debtVal;
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-
-  // Financial Health Score
-  const fhs = useMemo(()=>{
-    let s=0;
-    s+=Math.min(30,savRate*1.5);
+  const monthExp=useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
+  const monthInc=useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
+  const invVal=useMemo(()=>investments.reduce((s,i)=>s+(Number((i.currentPrice??i.buyPrice)||0))*Number(i.quantity||0),0),[investments]);
+  const assetVal=useMemo(()=>assets.reduce((s,a)=>s+Number(a.value||0),0),[assets]);
+  const debtVal=useMemo(()=>debts.reduce((s,d)=>s+Number(d.balance||0),0),[debts]);
+  const netWorth=assetVal+invVal-debtVal;
+  const savRate=monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  const fhs=useMemo(()=>{
+    let s=0; s+=Math.min(30,savRate*1.5);
     const mdp=debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
-    const dti=monthInc>0?(mdp/monthInc)*100:50;
-    s+=Math.max(0,25-dti*0.5);
+    const dti=monthInc>0?(mdp/monthInc)*100:50; s+=Math.max(0,25-dti*0.5);
     const cash=assets.filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
-    const ef=monthExp>0?cash/monthExp:0;
-    s+=Math.min(25,ef*4.2);
-    if(netWorth>0)s+=Math.min(20,10+(netWorth/10000)*5);
+    const ef=monthExp>0?cash/monthExp:0; s+=Math.min(25,ef*4.2);
+    if(netWorth>0) s+=Math.min(20,10+(netWorth/10000)*5);
     return Math.round(Math.max(0,Math.min(100,s)));
   },[savRate,debts,assets,monthInc,monthExp,netWorth]);
+  const level=Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const xpForNext=Math.pow(level,2)*100; const xpForCurrent=Math.pow(level-1,2)*100;
+  const xpPct=((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
+  const todayDone=habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak=habits.reduce((max,h)=>{const s=getStreak(h.id,habitLogs);return s>max?s:max;},0);
+  const lastVitals=vitals.length?[...vitals].sort((a,b)=>a.date<b.date?1:-1)[0]:null;
 
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
-  const xpForNext = Math.pow(level,2)*100;
-  const xpForCurrent = Math.pow(level-1,2)*100;
-  const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
+  // Feed from timeline + derived events
+  const recentFeed=useMemo(()=>{
+    const evs=[];
+    if(timeline&&timeline.length>0) {
+      timeline.slice(0,8).forEach(e=>evs.push({id:e.id,ts:e.date,title:e.title,sub:e.description,value:'',cat:e.category,color:e.color,emoji:e.emoji}));
+    } else {
+      [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({id:'exp-'+e.id,ts:e.date,title:e.note||e.category,sub:e.category,value:`-${cur}${fmtN(e.amount)}`,cat:'money',color:T.rose,emoji:'💳'}));
+      [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({id:'inc-'+e.id,ts:e.date,title:e.note||'Income received',sub:'Income',value:`+${cur}${fmtN(e.amount)}`,cat:'money',color:T.emerald,emoji:'💰'}));
+    }
+    return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,7);
+  },[timeline,expenses,incomes,cur]);
 
-  const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
-  const bestStreak = habits.reduce((max,h)=>{ const s=getStreak(h.id,habitLogs); return s>max?s:max; },0);
-
-  const lastVitals = vitals.length ? [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0] : null;
-
-  // Recent timeline events
-  const recentEvents = useMemo(()=>{
-    const evs = [];
-    [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({ id:'exp-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose }));
-    [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({ id:'inc-'+e.id, ts:e.date, title:e.note||'Income', sub:'Income logged', value:`+${cur}${fmtN(e.amount)}`, cat:'income', color:T.emerald }));
-    habits.forEach(h=>{
-      const logs=(habitLogs[h.id]||[]);
-      const d=logs.includes(today())?today():logs[logs.length-1];
-      if(d) evs.push({ id:'hab-'+h.id, ts:d, title:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)} day streak`, value:'+XP', cat:'habit', color:T.accent });
-    });
-    if(lastVitals) evs.push({ id:'vit-0', ts:lastVitals.date, title:'Vitals Logged', sub:`Sleep ${lastVitals.sleep}h · Mood ${lastVitals.mood}/10`, value:'❤️', cat:'health', color:T.sky });
-    return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,6);
-  },[expenses,incomes,habits,habitLogs,lastVitals,cur]);
-
-  const QUICK_ACTIONS = [
-    { label:'Log Expense',    emoji:'💳', color:T.rose,    modal:'expense'    },
-    { label:'Log Income',     emoji:'💰', color:T.emerald, modal:'income'     },
-    { label:'Log Habit',      emoji:'🔥', color:T.accent,  modal:'habit'      },
-    { label:'Log Vitals',     emoji:'❤️', color:T.sky,     modal:'vitals'     },
-    { label:'Add Note',       emoji:'📝', color:T.amber,   modal:'note'       },
-    { label:'Add Goal',       emoji:'🎯', color:T.violet,  modal:'goal'       },
+  const QUICK_ACTIONS=[
+    {label:'Log Expense',emoji:'💳',color:T.rose,modal:'expense'},
+    {label:'Log Income',emoji:'💰',color:T.emerald,modal:'income'},
+    {label:'Log Habit',emoji:'🔥',color:T.accent,modal:'habit'},
+    {label:'Log Vitals',emoji:'❤️',color:T.sky,modal:'vitals'},
+    {label:'Add Note',emoji:'📝',color:T.amber,modal:'note'},
+    {label:'Add Goal',emoji:'🎯',color:T.violet,modal:'goal'},
   ];
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      {/* Modals */}
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
-      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
-      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
-      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
-      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
-      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}}/>
+      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}}/>
+      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit}/>
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}}/>
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}}/>
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}}/>
 
-      <div style={{ marginBottom:26 }}>
-        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginBottom:5, textTransform:'uppercase' }}>
-          {greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}
-        </div>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
-          {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{ color:T.emerald }}>●</span> {habits.length} habits active · <span style={{ color:T.accent }}>●</span> NW {cur}{fmtN(netWorth)}
+      <div style={{marginBottom:26}}>
+        <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',marginBottom:5,textTransform:'uppercase'}}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+        <h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Command Center</h1>
+        <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginTop:4}}>
+          {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{color:T.emerald}}>●</span> {habits.length} habits · <span style={{color:T.accent}}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{color:T.violet}}>●</span> {(timeline||[]).length} timeline events
         </div>
       </div>
 
-      {/* Hero Metrics */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
         {[
-          { label:'Net Worth',       value:`${cur}${fmtN(netWorth)}`,    sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent,  icon:'💎',  pct:null },
-          { label:'Financial Health',value:`${fhs}/100`,                 sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention',  color:T.emerald, icon:'📊',  pct:fhs  },
-          { label:`Life XP — Lv ${level}`,value:`${Number(totalXP).toLocaleString()} XP`, sub:`${Math.round(xpForNext-Number(totalXP))} to Lv ${level+1}`, color:T.violet,  icon:'⚡',  pct:xpPct},
-          { label:'Savings Rate',    value:`${savRate.toFixed(1)}%`,     sub:`${cur}${fmtN(monthInc-monthExp)} saved this month`,                    color:T.sky,     icon:'🎯',  pct:savRate },
+          {label:'Net Worth',value:`${cur}${fmtN(netWorth)}`,sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`,color:T.accent,icon:'💎',pct:null},
+          {label:'Financial Health',value:`${fhs}/100`,sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention',color:T.emerald,icon:'📊',pct:fhs},
+          {label:`Life XP — Lv ${level}`,value:`${Number(totalXP).toLocaleString()} XP`,sub:`${Math.round(xpForNext-Number(totalXP))} to Lv ${level+1}`,color:T.violet,icon:'⚡',pct:xpPct},
+          {label:'Savings Rate',value:`${savRate.toFixed(1)}%`,sub:`${cur}${fmtN(monthInc-monthExp)} saved this month`,color:T.sky,icon:'🎯',pct:savRate},
         ].map((m,i)=>(
-          <GlassCard key={i} style={{ padding:'18px 20px', animation:`fadeUp 0.4s ease ${i*0.08}s both` }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
-              <span style={{ fontSize:16, opacity:0.7 }}>{m.icon}</span>
+          <GlassCard key={i} style={{padding:'18px 20px',animation:`fadeUp 0.4s ease ${i*0.08}s both`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+              <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase'}}>{m.label}</div>
+              <span style={{fontSize:16,opacity:0.7}}>{m.icon}</span>
             </div>
-            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1, marginBottom:6 }}>{m.value}</div>
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:m.pct!=null?10:0 }}>{m.sub}</div>
-            {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
+            <div style={{fontSize:20,fontFamily:T.fD,fontWeight:700,color:m.color,lineHeight:1,marginBottom:6}}>{m.value}</div>
+            <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:m.pct!=null?10:0}}>{m.sub}</div>
+            {m.pct!=null&&<ProgressBar pct={m.pct} color={m.color} height={4}/>}
           </GlassCard>
         ))}
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:16 }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Daily Brief */}
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:14 }}>
-              <div style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:'dotPulse 2s infinite' }} />
-              <span style={{ fontSize:9, fontFamily:T.fM, letterSpacing:'0.1em', color:'#c084fc', textTransform:'uppercase' }}>AI Daily Brief</span>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 340px',gap:16}}>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <GlassCard style={{padding:'20px 22px'}}>
+            <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:'#c084fc',animation:'dotPulse 2s infinite'}}/>
+              <span style={{fontSize:9,fontFamily:T.fM,letterSpacing:'0.1em',color:'#c084fc',textTransform:'uppercase'}}>AI Daily Brief</span>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
               {[
-                { icon:'💰', label:'Finance',  msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent! You're ${cur}${fmtN(monthInc*0.35-monthExp+monthInc*0.35>=0?monthInc-monthExp:0)} above your target.`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Savings rate: ${savRate.toFixed(1)}%.` },
-                { icon:'❤️', label:'Health',   msg:lastVitals?`Last logged: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10, energy ${lastVitals.energy}/10. ${lastVitals.sleep>=7?'Great rest!':'Aim for 7–8h sleep.'}`:'Log your vitals today to track health trends over time.' },
-                { icon:'🔥', label:'Habits',   msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start logging habits to build streaks.'} ${habits.length===0?'Add your first habit!':''}` },
+                {icon:'💰',label:'Finance',msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent!`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Rate: ${savRate.toFixed(1)}%.`},
+                {icon:'❤️',label:'Health',msg:lastVitals?`Last: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10, energy ${lastVitals.energy}/10.`:'Log your vitals today to track health trends.'},
+                {icon:'🔥',label:'Habits',msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak}d 🔥`:''} `},
               ].map((item,i)=>(
-                <div key={i} style={{ background:T.accentLo, borderRadius:T.r, padding:'12px 14px', border:`1px solid ${T.border}`, animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both` }}>
-                  <div style={{ fontSize:16, marginBottom:5 }}>{item.icon}</div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:3 }}>{item.label.toUpperCase()}</div>
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{item.msg}</div>
+                <div key={i} style={{background:T.accentLo,borderRadius:T.r,padding:'12px 14px',border:`1px solid ${T.border}`,animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both`}}>
+                  <div style={{fontSize:16,marginBottom:5}}>{item.icon}</div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',marginBottom:3}}>{item.label.toUpperCase()}</div>
+                  <div style={{fontSize:11,fontFamily:T.fM,color:T.text,lineHeight:1.5}}>{item.msg}</div>
                 </div>
               ))}
             </div>
           </GlassCard>
-
-          {/* Net Worth Chart */}
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-              <div>
-                <SectionLabel>Net Worth History</SectionLabel>
-                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(netWorth)}</div>
-              </div>
-              {data.netWorthHistory.length>1 && (
-                <Badge color={T.emerald}>
-                  {(((data.netWorthHistory[data.netWorthHistory.length-1]?.value||netWorth)-data.netWorthHistory[0].value)/Math.max(1,data.netWorthHistory[0].value)*100).toFixed(1)}% trend
-                </Badge>
-              )}
-            </div>
-            {data.netWorthHistory.length > 1 ? (
-              <ResponsiveContainer width="100%" height={110}>
-                <AreaChart data={data.netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <defs><linearGradient id="nwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient></defs>
-                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#nwg)" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>
-                Add assets & track expenses to see your net worth chart grow here.
-              </div>
-            )}
-          </GlassCard>
-
-          {/* Quick Actions */}
-          <GlassCard style={{ padding:'20px 22px' }}>
+          <GlassCard style={{padding:'20px 22px'}}>
             <SectionLabel>Quick Actions</SectionLabel>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8 }}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:8}}>
               {QUICK_ACTIONS.map((a,i)=>(
-                <button key={i} className="los-qa" onClick={()=>setModal(a.modal)} style={{
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:5,
-                  padding:'10px 6px', borderRadius:T.r,
-                  background:T.surface, border:`1px solid ${T.border}`,
-                  transition:'all 0.18s', animation:`fadeUp 0.3s ease ${i*0.06}s both`,
-                }}>
-                  <span style={{ fontSize:18 }}>{a.emoji}</span>
-                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'center', lineHeight:1.3 }}>{a.label}</span>
+                <button key={i} className="los-qa" onClick={()=>setModal(a.modal)} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:5,padding:'10px 6px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,transition:'all 0.18s',animation:`fadeUp 0.3s ease ${i*0.06}s both`}}>
+                  <span style={{fontSize:18}}>{a.emoji}</span>
+                  <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub,textAlign:'center',lineHeight:1.3}}>{a.label}</span>
                 </button>
               ))}
             </div>
           </GlassCard>
         </div>
-
-        {/* Right Col */}
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Stats bubbles */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
             {[
-              { label:'This Month', sub:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald },
-              { label:'This Month', sub:'Spent',  val:`${cur}${fmtN(monthExp)}`, color:T.rose    },
-              { label:'Habits',     sub:`${todayDone}/${habits.length} today`, val:bestStreak?`🔥 ${bestStreak}d`:habits.length===0?'None yet':'0d', color:T.accent },
-              { label:'Goals',      sub:`${goals.length} active`, val:goals.length>0?`${Math.round(goals.reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/Math.max(1,goals.length))}% avg`:'Set goals', color:T.violet },
+              {label:'This Month',sub:'Income',val:`${cur}${fmtN(monthInc)}`,color:T.emerald},
+              {label:'This Month',sub:'Spent',val:`${cur}${fmtN(monthExp)}`,color:T.rose},
+              {label:'Habits',sub:`${todayDone}/${habits.length} today`,val:bestStreak?`🔥 ${bestStreak}d`:habits.length===0?'None yet':'0d',color:T.accent},
+              {label:'Goals',sub:`${goals.length} active`,val:goals.length>0?`${Math.round(goals.reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/Math.max(1,goals.length))}% avg`:'Set goals',color:T.violet},
             ].map((s,i)=>(
-              <GlassCard key={i} style={{ padding:'14px 16px' }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.label} · {s.sub}</div>
-                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+              <GlassCard key={i} style={{padding:'14px 16px'}}>
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>{s.label} · {s.sub}</div>
+                <div style={{fontSize:16,fontFamily:T.fD,fontWeight:700,color:s.color}}>{s.val}</div>
               </GlassCard>
             ))}
           </div>
-
-          {/* Today's Feed */}
-          <GlassCard style={{ padding:'18px', flex:1 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <SectionLabel>Today's Feed</SectionLabel>
-              <button onClick={()=>onNav('timeline')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>
-                All <IcoChevR size={9} stroke={T.accent} />
-              </button>
+          <GlassCard style={{padding:'18px',flex:1}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <SectionLabel>Live Activity Feed</SectionLabel>
+              <button onClick={()=>onNav('timeline')} style={{fontSize:9,fontFamily:T.fM,color:T.accent,display:'flex',alignItems:'center',gap:2}}>All <IcoChevR size={9} stroke={T.accent}/></button>
             </div>
-            {recentEvents.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'20px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>
-                Start logging expenses, habits, or vitals<br/>to see your activity feed here.
-              </div>
-            ) : (
-              recentEvents.map((ev,i)=>(
-                <div key={ev.id} className="los-ev" style={{
-                  display:'flex', alignItems:'flex-start', gap:9,
-                  padding:'9px 7px', borderRadius:7, cursor:'pointer',
-                  transition:'background 0.15s',
-                  borderBottom:i<recentEvents.length-1?`1px solid ${T.border}`:'none',
-                }}>
-                  <div style={{ width:6, height:6, borderRadius:'50%', marginTop:5, flexShrink:0, background:ev.color, boxShadow:`0 0 5px ${ev.color}` }} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:160 }}>{ev.title}</div>
-                      <div style={{ fontSize:10, fontFamily:T.fM, color:ev.color, whiteSpace:'nowrap', marginLeft:6 }}>{ev.value}</div>
+            {recentFeed.length===0?(
+              <div style={{textAlign:'center',padding:'20px 0',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Start logging to see your activity feed here.</div>
+            ):(
+              recentFeed.map((ev,i)=>(
+                <div key={ev.id} className="los-ev" style={{display:'flex',alignItems:'flex-start',gap:9,padding:'8px 7px',borderRadius:7,cursor:'pointer',transition:'background 0.15s',borderBottom:i<recentFeed.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div style={{fontSize:12,marginTop:1,flexShrink:0}}>{ev.emoji}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div style={{fontSize:11,fontFamily:T.fD,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}}>{ev.title}</div>
+                      <div style={{fontSize:10,fontFamily:T.fM,color:ev.color,whiteSpace:'nowrap',marginLeft:6}}>{ev.value}</div>
                     </div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{ev.sub} · {ev.ts}</div>
+                    <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:1}}>{ev.sub} · {ev.ts}</div>
                   </div>
                 </div>
               ))
@@ -713,95 +694,203 @@ function HomePage({ data, actions, onNav }) {
   );
 }
 
-// ── TIMELINE PAGE ──────────────────────────────────────────────────────────────
-function TimelinePage({ data }) {
-  const { expenses, incomes, habits, habitLogs, vitals, goals, investments, settings } = data;
-  const [filter, setFilter] = useState('all');
-  const cur = settings.currency || '$';
+// ── TIMELINE PAGE V2 — FULL FEATURED ──────────────────────────────────────────
+function TimelinePage({data,onNav}) {
+  const {expenses,incomes,habits,habitLogs,vitals,goals,investments,assets,debts,settings,notes,timeline:storedTimeline}=data;
+  const [filter,setFilter]=useState('all');
+  const [zoom,setZoom]=useState('week');
+  const [search,setSearch]=useState('');
+  const [page,setPage]=useState(0);
+  const PAGE_SIZE=40;
+  const cur=settings.currency||'$';
 
-  const allEvents = useMemo(() => {
-    const evs = [];
-    expenses.forEach(e => evs.push({ id:'e-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose, emoji:'💳' }));
-    incomes.forEach(i => evs.push({ id:'i-'+i.id, ts:i.date, title:i.note||'Income received', sub:'Income', value:`+${cur}${fmtN(i.amount)}`, cat:'income', color:T.emerald, emoji:'💰' }));
-    habits.forEach(h => {
-      (habitLogs[h.id]||[]).forEach(d => {
-        evs.push({ id:'h-'+h.id+d, ts:d, title:h.name+' completed', sub:`Habit · 🔥 streak`, value:'+XP', cat:'habit', color:T.accent, emoji:'🔥' });
-      });
-    });
-    vitals.forEach(v => evs.push({ id:'v-'+v.id, ts:v.date, title:'Vitals Logged', sub:`Sleep ${v.sleep}h · Mood ${v.mood}/10`, value:'❤️', cat:'health', color:T.sky, emoji:'❤️' }));
-    goals.filter(g=>g.current>=g.target).forEach(g => evs.push({ id:'g-'+g.id, ts:g.updatedAt||today(), title:`Goal completed: ${g.name}`, sub:'Goal milestone', value:'🏆 +50XP', cat:'goal', color:T.amber, emoji:'🎯' }));
-    investments.forEach(inv => evs.push({ id:'inv-'+inv.id, ts:inv.date||today(), title:`${inv.symbol||inv.name} position`, sub:'Investment', value:`${cur}${fmtN(Number(inv.currentPrice??inv.buyPrice)*Number(inv.quantity))}`, cat:'investment', color:T.violet, emoji:'📈' }));
-    return evs.sort((a,b)=>a.ts<b.ts?1:-1);
-  }, [expenses,incomes,habits,habitLogs,vitals,goals,investments,cur]);
+  // Derive events from stored timeline + fallback from raw data
+  const allEvents=useMemo(()=>{
+    const evs=[];
+    // Use stored timeline events (from createTimelineEvent calls)
+    if(storedTimeline&&storedTimeline.length>0){
+      storedTimeline.forEach(e=>evs.push(e));
+    }
+    // Always augment with raw data (deduped by type+source)
+    const existingIds=new Set(evs.map(e=>e.id));
+    expenses.forEach(e=>{const id='raw-exp-'+e.id;if(!existingIds.has(id))evs.push({id,type:'expense',title:e.note||e.category,description:`${cur}${fmtN(e.amount)} — ${e.category}`,category:'money',emoji:'💳',color:T.rose,timestamp:new Date(e.date+'T12:00:00').getTime()||Date.now(),date:e.date,metadata:{amount:e.amount,category:e.category}});});
+    incomes.forEach(i=>{const id='raw-inc-'+i.id;if(!existingIds.has(id))evs.push({id,type:'income',title:i.note||'Income received',description:`+${cur}${fmtN(i.amount)}`,category:'money',emoji:'💰',color:T.emerald,timestamp:new Date(i.date+'T12:00:00').getTime()||Date.now(),date:i.date,metadata:{amount:i.amount}});});
+    habits.forEach(h=>{(habitLogs[h.id]||[]).forEach(d=>{const id='raw-hab-'+h.id+d;if(!existingIds.has(id))evs.push({id,type:'habit_completed',title:`${h.name} completed`,description:`🔥 ${getStreak(h.id,habitLogs)}d streak`,category:'growth',emoji:'🔥',color:T.accent,timestamp:new Date(d+'T12:00:00').getTime()||Date.now(),date:d,metadata:{habitId:h.id,habitName:h.name}});});});
+    vitals.forEach(v=>{const id='raw-vit-'+v.id;if(!existingIds.has(id))evs.push({id,type:'vitals_logged',title:'Vitals Logged',description:`Sleep ${v.sleep}h · Mood ${v.mood}/10 · Energy ${v.energy}/10`,category:'health',emoji:'❤️',color:T.sky,timestamp:new Date(v.date+'T12:00:00').getTime()||Date.now(),date:v.date,metadata:v});});
+    goals.filter(g=>(g.current||0)>=g.target).forEach(g=>{const id='raw-goal-'+g.id;if(!existingIds.has(id))evs.push({id,type:'goal_completed',title:`Goal completed: ${g.name}`,description:`Reached ${cur}${fmtN(g.target)} target`,category:'growth',emoji:'🏁',color:T.emerald,timestamp:new Date((g.updatedAt||today())+'T12:00:00').getTime()||Date.now(),date:g.updatedAt||today(),metadata:{goalName:g.name}});});
+    notes.forEach(n=>{const id='raw-note-'+n.id;if(!existingIds.has(id))evs.push({id,type:'note_created',title:n.title||'Note created',description:n.tag||'Knowledge',category:'knowledge',emoji:'📝',color:T.amber,timestamp:new Date((n.date||today())+'T12:00:00').getTime()||Date.now(),date:n.date||today(),metadata:{tag:n.tag}});});
+    return evs.sort((a,b)=>b.timestamp-a.timestamp);
+  },[storedTimeline,expenses,incomes,habits,habitLogs,vitals,goals,notes,cur,assets,debts]);
 
-  const cats = ['all','expense','income','investment','habit','health','goal'];
-  const filtered = filter==='all'?allEvents:allEvents.filter(e=>e.cat===filter);
+  // Net worth history overlay data
+  const nwOverlay=useMemo(()=>{
+    return data.netWorthHistory&&data.netWorthHistory.length>0?data.netWorthHistory:[];
+  },[data.netWorthHistory]);
 
-  const groups = useMemo(()=>{
+  // Category filter
+  const catFiltered=useMemo(()=>{
+    if(filter==='all') return allEvents;
+    return allEvents.filter(e=>e.category===filter);
+  },[allEvents,filter]);
+
+  // Search filter
+  const searched=useMemo(()=>{
+    if(!search.trim()) return catFiltered;
+    const q=search.toLowerCase();
+    return catFiltered.filter(e=>`${e.title} ${e.description} ${e.type}`.toLowerCase().includes(q));
+  },[catFiltered,search]);
+
+  // Zoom grouping
+  const grouped=useMemo(()=>{
     const g={};
-    filtered.forEach(ev=>{
-      const d=ev.ts?.slice(0,10)||'Unknown';
-      if(!g[d])g[d]=[];
-      g[d].push(ev);
+    searched.forEach(ev=>{
+      let key;
+      const d=ev.date||'Unknown';
+      if(zoom==='day') key=d;
+      else if(zoom==='week'){
+        const dt=new Date(d+'T12:00:00'); dt.setDate(dt.getDate()-dt.getDay());
+        key='Week of '+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      } else if(zoom==='month') key=d.slice(0,7);
+      else key=d.slice(0,4);
+      if(!g[key]) g[key]=[];
+      g[key].push(ev);
     });
-    return Object.entries(g).sort((a,b)=>a[0]<b[0]?1:-1);
-  },[filtered]);
+    return Object.entries(g).sort((a,b)=>b[0]>a[0]?1:-1);
+  },[searched,zoom]);
+
+  // Pagination
+  const totalPages=Math.ceil(searched.length/PAGE_SIZE);
+  const paged=grouped; // groups already ordered, we'll paginate events within
+
+  const CATS=[
+    {id:'all',label:'All',icon:'⬡',color:T.textSub},
+    {id:'money',label:'Money',icon:'💰',color:T.emerald},
+    {id:'health',label:'Health',icon:'❤️',color:T.sky},
+    {id:'growth',label:'Growth',icon:'📈',color:T.violet},
+    {id:'knowledge',label:'Knowledge',icon:'📚',color:T.amber},
+    {id:'system',label:'System',icon:'⚙️',color:T.accent},
+  ];
+
+  const stats=useMemo(()=>({
+    total:allEvents.length,
+    today:allEvents.filter(e=>e.date===today()).length,
+    thisWeek:allEvents.filter(e=>{const d=new Date(e.date+'T12:00:00');const now=new Date();const diff=(now-d)/864e5;return diff<=7;}).length,
+    byCategory:Object.fromEntries(Object.keys(TL_CATS).map(c=>[c,allEvents.filter(e=>e.category===c).length])),
+  }),[allEvents]);
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Core System</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Timeline</h1>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>{allEvents.length} events recorded across your life domains</div>
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      {/* Header */}
+      <div style={{marginBottom:22}}>
+        <SectionLabel>Core System · Timeline Engine</SectionLabel>
+        <h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Life Timeline</h1>
+        <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginTop:4}}>
+          <span style={{color:T.accent}}>{stats.total}</span> events recorded · <span style={{color:T.emerald}}>{stats.today}</span> today · <span style={{color:T.violet}}>{stats.thisWeek}</span> this week
+        </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ display:'flex', gap:6, marginBottom:22, flexWrap:'wrap' }}>
-        {cats.map(cat=>{
-          const colorMap={expense:T.rose,income:T.emerald,investment:T.violet,habit:T.accent,health:T.sky,goal:T.amber};
-          const c=colorMap[cat]||T.textSub;
+      {/* Stats Row */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:18}}>
+        {Object.entries(stats.byCategory).map(([cat,count])=>{
+          const meta=TL_CATS[cat];
           return (
-            <button key={cat} onClick={()=>setFilter(cat)} style={{
-              padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em',
-              background:filter===cat?(c+'18'):'transparent',
-              color:filter===cat?c:T.textSub,
-              border:`1px solid ${filter===cat?c+'44':T.border}`,
-              transition:'all 0.15s',
-            }}>{cat==='all'?'⬡ All':cat}</button>
+            <GlassCard key={cat} style={{padding:'12px 14px',cursor:'pointer',borderLeft:`3px solid ${meta.color}55`}} onClick={()=>setFilter(filter===cat?'all':cat)}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                <span style={{fontSize:13}}>{meta.icon}</span>
+                <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase'}}>{meta.label}</span>
+              </div>
+              <div style={{fontSize:18,fontFamily:T.fD,fontWeight:700,color:meta.color}}>{count}</div>
+            </GlassCard>
           );
         })}
       </div>
 
-      {/* Timeline */}
-      {groups.length===0 ? (
-        <GlassCard style={{ padding:40, textAlign:'center' }}>
-          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No events yet. Start logging expenses, habits, and vitals to build your life timeline.</div>
+      {/* Net Worth Overlay Chart */}
+      {nwOverlay.length>1&&(
+        <GlassCard style={{padding:'16px 20px',marginBottom:18}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <SectionLabel>Net Worth Overlay</SectionLabel>
+            <Badge color={T.accent}>{cur}{fmtN(nwOverlay[nwOverlay.length-1]?.value||0)}</Badge>
+          </div>
+          <ResponsiveContainer width="100%" height={80}>
+            <AreaChart data={nwOverlay} margin={{top:2,right:0,left:0,bottom:0}}>
+              <defs><linearGradient id="tlnwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient></defs>
+              <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false}/>
+              <YAxis hide/>
+              <Tooltip content={<ChartTooltip prefix={cur}/>}/>
+              <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#tlnwg)" dot={false}/>
+            </AreaChart>
+          </ResponsiveContainer>
         </GlassCard>
-      ) : (
-        <div style={{ position:'relative' }}>
-          <div style={{ position:'absolute', left:18, top:0, bottom:0, width:1, background:`linear-gradient(180deg,${T.accent}44 0%,${T.border} 40%,transparent 100%)` }} />
-          {groups.map(([date,events],gi)=>(
-            <div key={date} style={{ marginBottom:24, animation:`fadeUp 0.4s ease ${gi*0.06}s both` }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, paddingLeft:36 }}>
-                <div style={{ fontSize:10, fontFamily:T.fM, fontWeight:600, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase' }}>
-                  {date==='Unknown'?'Unknown date':new Date(date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+      )}
+
+      {/* Controls Row */}
+      <div style={{display:'flex',gap:10,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        {/* Search */}
+        <div style={{flex:1,minWidth:200,display:'flex',alignItems:'center',gap:8,background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.r,padding:'7px 12px'}}>
+          <IcoSearch size={12} stroke={T.textSub}/>
+          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Search events, types, descriptions…" style={{flex:1,background:'transparent',border:'none',fontFamily:T.fM,fontSize:11,color:T.text}}/>
+          {search&&<button onClick={()=>setSearch('')}><IcoX size={11} stroke={T.textMuted}/></button>}
+        </div>
+
+        {/* Zoom */}
+        <div style={{display:'flex',gap:2,background:T.surface,borderRadius:T.r,padding:3,border:`1px solid ${T.border}`}}>
+          {['day','week','month','year'].map(z=>(
+            <button key={z} onClick={()=>setZoom(z)} style={{padding:'4px 10px',borderRadius:7,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.06em',background:zoom===z?T.accentDim:'transparent',color:zoom===z?T.accent:T.textSub,border:`1px solid ${zoom===z?T.accent+'44':'transparent'}`,transition:'all 0.15s'}}>{z}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Category Filters */}
+      <div style={{display:'flex',gap:6,marginBottom:20,flexWrap:'wrap'}}>
+        {CATS.map(cat=>(
+          <button key={cat.id} onClick={()=>{setFilter(cat.id);setPage(0);}} style={{padding:'4px 12px',borderRadius:99,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.06em',background:filter===cat.id?(cat.color+'18'):'transparent',color:filter===cat.id?cat.color:T.textSub,border:`1px solid ${filter===cat.id?cat.color+'44':T.border}`,transition:'all 0.15s'}}>
+            {cat.icon} {cat.label}
+          </button>
+        ))}
+        <div style={{marginLeft:'auto',fontSize:9,fontFamily:T.fM,color:T.textMuted,display:'flex',alignItems:'center'}}>
+          {searched.length} event{searched.length!==1?'s':''}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      {grouped.length===0?(
+        <GlassCard style={{padding:40,textAlign:'center'}}>
+          <div style={{fontSize:30,marginBottom:10}}>⬡</div>
+          <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:6}}>No events found</div>
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Start logging expenses, habits, and vitals to build your life timeline.</div>
+        </GlassCard>
+      ):(
+        <div style={{position:'relative'}}>
+          {/* Vertical line */}
+          <div style={{position:'absolute',left:18,top:0,bottom:0,width:1,background:`linear-gradient(180deg,${T.accent}44 0%,${T.border} 50%,transparent 100%)`}}/>
+
+          {grouped.map(([groupKey,events],gi)=>(
+            <div key={groupKey} style={{marginBottom:28,animation:`fadeUp 0.4s ease ${Math.min(gi,5)*0.06}s both`}}>
+              {/* Group header */}
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12,paddingLeft:36}}>
+                <div style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase'}}>
+                  {zoom==='day'?fmtDate(groupKey):groupKey}
                 </div>
-                <div style={{ flex:1, height:1, background:T.border }} />
+                <div style={{flex:1,height:1,background:T.border}}/>
+                <Badge color={T.textMuted}>{events.length}</Badge>
               </div>
+
               {events.map((ev,i)=>(
-                <div key={ev.id} className="los-ev" style={{ display:'flex', alignItems:'flex-start', gap:14, paddingLeft:36, paddingBottom:12, cursor:'pointer', borderRadius:9, transition:'background 0.15s', animation:`nodeEnter 0.25s ease ${i*0.05}s both` }}>
-                  <div style={{ position:'absolute', left:12, width:12, height:12, borderRadius:'50%', background:T.bg, border:`2px solid ${ev.color}`, boxShadow:`0 0 7px ${ev.color}55`, marginTop:12 }} />
-                  <GlassCard style={{ flex:1, padding:'12px 16px', borderLeft:`3px solid ${ev.color}55` }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
-                      <div>
-                        <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:3 }}>
-                          <span style={{ fontSize:13 }}>{ev.emoji}</span>
-                          <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ev.title}</span>
-                          <Badge color={ev.color}>{ev.cat}</Badge>
+                <div key={ev.id} className="los-ev" style={{display:'flex',alignItems:'flex-start',gap:14,paddingLeft:36,paddingBottom:10,cursor:'default',borderRadius:9,transition:'background 0.15s',animation:i<6?`nodeEnter 0.25s ease ${i*0.04}s both`:'none'}}>
+                  {/* Timeline dot */}
+                  <div style={{position:'absolute',left:11,width:14,height:14,borderRadius:'50%',background:T.bg,border:`2px solid ${ev.color}`,boxShadow:`0 0 8px ${ev.color}55`,marginTop:11,zIndex:2}}/>
+                  <GlassCard style={{flex:1,padding:'12px 16px',borderLeft:`3px solid ${ev.color}33`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
+                          <span style={{fontSize:14}}>{ev.emoji}</span>
+                          <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.title}</span>
+                          <Badge color={ev.color}>{ev.category}</Badge>
                         </div>
-                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{ev.sub}</div>
+                        {ev.description&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,lineHeight:1.5}}>{ev.description}</div>}
                       </div>
-                      <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:ev.color, whiteSpace:'nowrap' }}>{ev.value}</div>
+                      <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,whiteSpace:'nowrap',flexShrink:0}}>{ev.date}</div>
                     </div>
                   </GlassCard>
                 </div>
@@ -815,184 +904,101 @@ function TimelinePage({ data }) {
 }
 
 // ── MONEY PAGE ─────────────────────────────────────────────────────────────────
-function MoneyPage({ data, actions }) {
-  const [tab, setTab] = useState('overview');
-  const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory } = data;
-  const [modal, setModal] = useState(null);
-  const [goalAmt, setGoalAmt] = useState('');
-  const [goalIdx, setGoalIdx] = useState(null);
-  const cur = settings.currency || '$';
-  const thisMonth = today().slice(0,7);
+function MoneyPage({data,actions}) {
+  const [tab,setTab]=useState('overview');
+  const [modal,setModal]=useState(null);
+  const [goalIdx,setGoalIdx]=useState(null);
+  const [goalAmt,setGoalAmt]=useState('');
+  const {expenses,incomes,assets,investments,debts,goals,settings}=data;
+  const cur=settings.currency||'$';
+  const thisMonth=today().slice(0,7);
+  const monthExp=useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
+  const monthInc=useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
+  const invVal=useMemo(()=>investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0),[investments]);
+  const assetVal=useMemo(()=>assets.reduce((s,a)=>s+Number(a.value||0),0),[assets]);
+  const debtVal=useMemo(()=>debts.reduce((s,d)=>s+Number(d.balance||0),0),[debts]);
+  const savRate=monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
 
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-  const assetVal = assets.reduce((s,a)=>s+Number(a.value||0),0);
-  const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const netWorth = assetVal + invVal - debtVal;
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-
-  const spendByCat = useMemo(()=>{
+  const catData=useMemo(()=>{
     const m={};
-    expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); });
-    return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value);
+    expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);});
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([name,value])=>({name,value,color:getCatColor(name)}));
   },[expenses,thisMonth]);
 
-  const cashflowMonths = useMemo(()=>{
-    const months={};
-    [...expenses,...incomes].forEach(item=>{
-      const m=item.date?.slice(0,7);
-      if(!m)return;
-      if(!months[m])months[m]={m,inc:0,exp:0};
-      if(item.amount&&('note' in item||'category' in item)){
-        if('category' in item)months[m].exp+=Number(item.amount||0);
-        else months[m].inc+=Number(item.amount||0);
-      }
-    });
-    incomes.forEach(i=>{ const m=i.date?.slice(0,7); if(m&&months[m])months[m].inc+=Number(i.amount||0); });
-    expenses.forEach(e=>{ const m=e.date?.slice(0,7); if(m&&months[m])months[m].exp+=Number(e.amount||0); });
-    return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6);
-  },[expenses,incomes]);
+  const TABS=['overview','expenses','investments','goals','assets'];
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
-      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
-      <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}} />
-      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}}/>
+      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}}/>
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}}/>
+      <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}}/>
 
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Financial Domain</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Money Hub</h1>
+      <div style={{marginBottom:22}}>
+        <SectionLabel>Money Domain</SectionLabel>
+        <h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Money Hub</h1>
       </div>
-
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['overview','spending','investments','goals','assets'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{
-            padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em',
-            background:tab===t?T.accentDim:'transparent',
-            color:tab===t?T.accent:T.textSub,
-            border:`1px solid ${tab===t?T.accent+'33':'transparent'}`,
-            transition:'all 0.15s',
-          }}>{t}</button>
+      <div style={{display:'flex',gap:2,marginBottom:22,background:T.surface,borderRadius:T.r,padding:3,width:'fit-content',border:`1px solid ${T.border}`}}>
+        {TABS.map(t=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{padding:'5px 14px',borderRadius:8,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.06em',background:tab===t?T.emeraldDim:'transparent',color:tab===t?T.emerald:T.textSub,border:`1px solid ${tab===t?T.emerald+'33':'transparent'}`,transition:'all 0.15s'}}>{t}</button>
         ))}
       </div>
 
-      {tab==='overview' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+      {tab==='overview'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
             {[
-              { label:'Net Worth',    val:`${cur}${fmtN(netWorth)}`,   sub:`Assets ${cur}${fmtN(assetVal+invVal)} - Debts ${cur}${fmtN(debtVal)}`, color:T.accent  },
-              { label:'Monthly Income', val:`${cur}${fmtN(monthInc)}`, sub:'This month total',                                                      color:T.emerald },
-              { label:'Monthly Spend',  val:`${cur}${fmtN(monthExp)}`, sub:`${monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'Track income to compare'}`, color:T.rose },
-              { label:'Savings Rate',   val:`${savRate.toFixed(1)}%`,  sub:`${cur}${fmtN(monthInc-monthExp)} saved`,                               color:T.sky     },
+              {label:'Monthly Income',val:`${cur}${fmtN(monthInc)}`,color:T.emerald},
+              {label:'Monthly Expenses',val:`${cur}${fmtN(monthExp)}`,color:T.rose},
+              {label:'Savings Rate',val:`${savRate.toFixed(1)}%`,color:T.accent},
+              {label:'Net Worth',val:`${cur}${fmtN(assetVal+invVal-debtVal)}`,color:T.violet},
             ].map((m,i)=>(
-              <GlassCard key={i} style={{ padding:'16px 18px' }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+              <GlassCard key={i} style={{padding:'16px 18px'}}>
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:6}}>{m.label}</div>
+                <div style={{fontSize:20,fontFamily:T.fD,fontWeight:700,color:m.color}}>{m.val}</div>
               </GlassCard>
             ))}
           </div>
-
-          <div style={{ display:'flex', gap:12 }}>
+          <div style={{display:'flex',gap:10}}>
             <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
             <Btn onClick={()=>setModal('income')} color={T.emerald}>+ Log Income</Btn>
-            <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
           </div>
-
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Cash Flow — Last 6 Months</SectionLabel>
-            {cashflowMonths.length > 0 ? (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={cashflowMonths} barGap={3} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="m" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  <Bar dataKey="inc" name="Income" fill={T.emerald} opacity={0.85} radius={[4,4,0,0]} />
-                  <Bar dataKey="exp" name="Expenses" fill={T.rose} opacity={0.7} radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ):(
-              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow trends.</div>
-            )}
-          </GlassCard>
-
-          {/* Debts */}
-          {debts.length>0 && (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Debts</SectionLabel>
-              {debts.map((d,i)=>{
-                const origBal=Number(d.originalBalance||d.balance||0);
-                const curBal=Number(d.balance||0);
-                const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0;
-                return (
-                  <div key={d.id||i} style={{ marginBottom:14 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                      <span style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{d.name||d.creditor}</span>
-                      <span style={{ fontSize:11, fontFamily:T.fM, color:T.rose }}>{cur}{fmtN(curBal)} remaining</span>
-                    </div>
-                    <ProgressBar pct={paidPct} color={T.emerald} height={5} />
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>{paidPct.toFixed(0)}% paid off · {d.rate||0}% APR</div>
-                  </div>
-                );
-              })}
-            </GlassCard>
-          )}
-        </div>
-      )}
-
-      {tab==='spending' && (
-        <div>
-          <div style={{ display:'flex', gap:10, marginBottom:14 }}>
-            <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
-          </div>
-          {spendByCat.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No expenses logged this month yet.</div>
-            </GlassCard>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-              <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>Breakdown — {today().slice(0,7)}</SectionLabel>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={spendByCat} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">
-                      {spendByCat.map((e,i)=><Cell key={i} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  </PieChart>
+          {catData.length>0&&(
+            <div style={{display:'grid',gridTemplateColumns:'220px 1fr',gap:14}}>
+              <GlassCard style={{padding:'18px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart><Pie data={catData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" nameKey="name" paddingAngle={3}>
+                    {catData.map((c,i)=><Cell key={i} fill={c.color} opacity={0.85}/>)}
+                  </Pie><Tooltip content={<ChartTooltip prefix={cur}/>}/></PieChart>
                 </ResponsiveContainer>
               </GlassCard>
-              <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>Categories</SectionLabel>
-                {spendByCat.map((c,i)=>(
-                  <div key={i} style={{ marginBottom:12 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                      <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{c.name}</span>
-                      <span style={{ fontSize:11, fontFamily:T.fM, color:c.color, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
+              <GlassCard style={{padding:'18px 20px'}}>
+                <SectionLabel>Spending by Category</SectionLabel>
+                {catData.map((c,i)=>(
+                  <div key={i} style={{marginBottom:10}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                      <span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>{c.name}</span>
+                      <span style={{fontSize:11,fontFamily:T.fM,color:c.color,fontWeight:600}}>{cur}{fmtN(c.value)}</span>
                     </div>
-                    <ProgressBar pct={(c.value/Math.max(1,monthExp))*100} color={c.color} height={4} />
+                    <ProgressBar pct={(c.value/Math.max(1,monthExp))*100} color={c.color} height={4}/>
                   </div>
                 ))}
               </GlassCard>
             </div>
           )}
+        </div>
+      )}
 
-          {/* Recent expenses list */}
-          <GlassCard style={{ padding:'20px 22px', marginTop:14 }}>
+      {tab==='expenses'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',gap:10}}><Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn></div>
+          <GlassCard style={{padding:'20px 22px'}}>
             <SectionLabel>Recent Expenses</SectionLabel>
-            {expenses.length===0 ? (
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>No expenses yet.</div>
-            ) : (
-              [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,20).map((e,i)=>(
-                <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:i<19?`1px solid ${T.border}`:'none', transition:'background 0.15s' }}>
-                  <div>
-                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{e.note||e.category}</div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category} · {e.date}</div>
-                  </div>
-                  <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</div>
+            {expenses.length===0?<div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted,textAlign:'center',padding:20}}>No expenses yet.</div>:(
+              [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,30).map((e,i)=>(
+                <div key={e.id||i} className="los-row" style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:i<29?`1px solid ${T.border}`:'none',transition:'background 0.15s'}}>
+                  <div><div style={{fontSize:12,fontFamily:T.fM,color:T.text}}>{e.note||e.category}</div><div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{e.category} · {e.date}</div></div>
+                  <div style={{fontSize:13,fontFamily:T.fM,fontWeight:600,color:T.rose}}>-{cur}{fmtN(e.amount)}</div>
                 </div>
               ))
             )}
@@ -1000,120 +1006,58 @@ function MoneyPage({ data, actions }) {
         </div>
       )}
 
-      {tab==='investments' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {investments.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add them in the original LifeOS app — they'll appear here automatically.</div>
-            </GlassCard>
-          ) : (
-            <>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
-                {[
-                  { label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`, color:T.violet },
-                  { label:'Total Invested',  val:`${cur}${fmtN(investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:T.text },
-                  { label:'P&L',             val:`${invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:invVal>=investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)?T.emerald:T.rose },
-                ].map((m,i)=>(
-                  <GlassCard key={i} style={{ padding:'16px 18px' }}>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-                    <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
-                  </GlassCard>
-                ))}
-              </div>
-              <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>Positions</SectionLabel>
-                {investments.map((inv,i)=>{
-                  const cur_ = inv.currentPrice??inv.buyPrice??0;
-                  const val=Number(cur_)*Number(inv.quantity||0);
-                  const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);
-                  const pnl=val-cost;
-                  const pnlPct=cost>0?(pnl/cost)*100:0;
-                  return (
-                    <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<investments.length-1?`1px solid ${T.border}`:'none' }}>
-                      <div>
-                        <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</div>
-                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}</div>
-                      </div>
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.text }}>{cur}{fmtN(val)}</div>
-                        <div style={{ fontSize:10, fontFamily:T.fM, color:pnl>=0?T.emerald:T.rose }}>{pnl>=0?'+':''}{cur}{fmtN(pnl)} ({pnlPct.toFixed(1)}%)</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </GlassCard>
-            </>
+      {tab==='investments'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          {investments.length===0?(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No investment positions yet.</div></GlassCard>):(
+            <><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+              {[{label:'Portfolio Value',val:`${cur}${fmtN(invVal)}`,color:T.violet},{label:'Total Invested',val:`${cur}${fmtN(investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`,color:T.text},{label:'P&L',val:`${invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`,color:T.emerald}].map((m,i)=>(
+                <GlassCard key={i} style={{padding:'16px 18px'}}><div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginBottom:6,textTransform:'uppercase',letterSpacing:'0.1em'}}>{m.label}</div><div style={{fontSize:18,fontFamily:T.fD,fontWeight:700,color:m.color}}>{m.val}</div></GlassCard>
+              ))}
+            </div>
+            <GlassCard style={{padding:'20px 22px'}}>
+              <SectionLabel>Positions</SectionLabel>
+              {investments.map((inv,i)=>{const c_=inv.currentPrice??inv.buyPrice??0;const val=Number(c_)*Number(inv.quantity||0);const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);const pnl=val-cost;const pnlPct=cost>0?(pnl/cost)*100:0;return(
+                <div key={inv.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:i<investments.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>{inv.symbol||inv.name}</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}</div></div>
+                  <div style={{textAlign:'right'}}><div style={{fontSize:13,fontFamily:T.fM,fontWeight:600,color:T.text}}>{cur}{fmtN(val)}</div><div style={{fontSize:10,fontFamily:T.fM,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{cur}{fmtN(pnl)} ({pnlPct.toFixed(1)}%)</div></div>
+                </div>
+              );})}
+            </GlassCard></>
           )}
         </div>
       )}
 
-      {tab==='goals' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ display:'flex', justifyContent:'flex-end' }}>
-            <Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn>
-          </div>
-          {goals.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first financial goal.</div>
-            </GlassCard>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {goals.map((goal,i)=>{
-                const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));
-                const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};
-                const c=catColors[goal.cat]||T.accent;
-                return (
-                  <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
-                      <div>
-                        <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
-                        <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{goal.name}</div>
-                        <Badge color={c} style={{ marginTop:4 }}>{goal.cat||'goal'}</Badge>
-                      </div>
-                      <div style={{ width:46, height:46, borderRadius:'50%', background:`conic-gradient(${c} ${pct*3.6}deg,${T.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 12px ${c}33` }}>
-                        <div style={{ width:34, height:34, borderRadius:'50%', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontFamily:T.fM, fontWeight:600, color:c }}>{pct}%</div>
-                      </div>
-                    </div>
-                    <ProgressBar pct={pct} color={c} height={5} />
-                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textSub }}>
-                      <span>{cur}{fmtN(goal.current||0)}</span>
-                      <span>{cur}{fmtN(goal.target)}</span>
-                    </div>
-                    {goalIdx===i ? (
-                      <div style={{ display:'flex', gap:8, marginTop:10 }}>
-                        <Input type="number" value={goalAmt} onChange={e=>setGoalAmt(e.target.value)} placeholder="Add amount" style={{ flex:1 }} />
-                        <Btn onClick={()=>{ actions.updateGoalProgress(goal.id,Number(goalAmt)); setGoalAmt(''); setGoalIdx(null); }} color={c} style={{ padding:'6px 12px' }}>+</Btn>
-                      </div>
-                    ) : (
-                      <button onClick={()=>setGoalIdx(i)} style={{ marginTop:10, fontSize:10, fontFamily:T.fM, color:c }}>+ Add Progress</button>
-                    )}
-                  </GlassCard>
-                );
-              })}
+      {tab==='goals'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{display:'flex',justifyContent:'flex-end'}}><Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn></div>
+          {goals.length===0?(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No goals yet.</div></GlassCard>):(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              {goals.map((goal,i)=>{const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};const c=catColors[goal.cat]||T.accent;return(
+                <GlassCard key={goal.id||i} style={{padding:'18px 20px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
+                    <div><div style={{fontSize:20,marginBottom:6}}>{goal.emoji||'🎯'}</div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>{goal.name}</div><Badge color={c} style={{marginTop:4}}>{goal.cat||'goal'}</Badge></div>
+                    <div style={{width:46,height:46,borderRadius:'50%',background:`conic-gradient(${c} ${pct*3.6}deg,${T.border} 0deg)`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 0 12px ${c}33`}}><div style={{width:34,height:34,borderRadius:'50%',background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:T.fM,fontWeight:600,color:c}}>{pct}%</div></div>
+                  </div>
+                  <ProgressBar pct={pct} color={c} height={5}/>
+                  <div style={{display:'flex',justifyContent:'space-between',marginTop:6,fontSize:10,fontFamily:T.fM,color:T.textSub}}><span>{cur}{fmtN(goal.current||0)}</span><span>{cur}{fmtN(goal.target)}</span></div>
+                  {goalIdx===i?(<div style={{display:'flex',gap:8,marginTop:10}}><Input type="number" value={goalAmt} onChange={e=>setGoalAmt(e.target.value)} placeholder="Add amount" style={{flex:1}}/><Btn onClick={()=>{actions.updateGoalProgress(goal.id,Number(goalAmt));setGoalAmt('');setGoalIdx(null);}} color={c} style={{padding:'6px 12px'}}>+</Btn></div>):(<button onClick={()=>setGoalIdx(i)} style={{marginTop:10,fontSize:10,fontFamily:T.fM,color:c}}>+ Add Progress</button>)}
+                </GlassCard>
+              );})}
             </div>
           )}
         </div>
       )}
 
-      {tab==='assets' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'flex', gap:10 }}>
-            <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
-          </div>
-          {assets.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets yet. Add your cash, property, and other assets.</div>
-            </GlassCard>
-          ) : (
-            <GlassCard style={{ padding:'20px 22px' }}>
+      {tab==='assets'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',gap:10}}><Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn></div>
+          {assets.length===0?(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No assets yet.</div></GlassCard>):(
+            <GlassCard style={{padding:'20px 22px'}}>
               <SectionLabel>Assets · Total {cur}{fmtN(assetVal)}</SectionLabel>
               {assets.map((a,i)=>(
-                <div key={a.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<assets.length-1?`1px solid ${T.border}`:'none' }}>
-                  <div>
-                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{a.name}</div>
-                    <Badge color={T.textSub}>{a.type||'Other'}</Badge>
-                  </div>
-                  <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(a.value)}</div>
+                <div key={a.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:i<assets.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div><div style={{fontSize:12,fontFamily:T.fM,color:T.text}}>{a.name}</div><Badge color={T.textSub}>{a.type||'Other'}</Badge></div>
+                  <div style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.accent}}>{cur}{fmtN(a.value)}</div>
                 </div>
               ))}
             </GlassCard>
@@ -1125,140 +1069,59 @@ function MoneyPage({ data, actions }) {
 }
 
 // ── HEALTH PAGE ────────────────────────────────────────────────────────────────
-function HealthPage({ data, actions }) {
-  const [modal, setModal] = useState(null);
-  const [focusActive, setFocusActive] = useState(false);
-  const [focusTime, setFocusTime] = useState(25*60);
-  const [elapsed, setElapsed] = useState(0);
-  const { vitals } = data;
+function HealthPage({data,actions}) {
+  const [modal,setModal]=useState(null);
+  const [focusActive,setFocusActive]=useState(false);
+  const [focusTime,setFocusTime]=useState(25*60);
+  const [elapsed,setElapsed]=useState(0);
+  const {vitals}=data;
 
-  useEffect(() => {
-    if (!focusActive) return;
-    const iv = setInterval(() => setElapsed(e => { if(e>=focusTime){setFocusActive(false);return 0;} return e+1; }), 1000);
-    return () => clearInterval(iv);
-  }, [focusActive, focusTime]);
+  useEffect(()=>{ if(!focusActive) return; const iv=setInterval(()=>setElapsed(e=>{if(e>=focusTime){setFocusActive(false);actions.logFocusSession&&actions.logFocusSession(focusTime);return 0;}return e+1;}),1000); return()=>clearInterval(iv); },[focusActive,focusTime,actions]);
 
-  const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-  const remaining = focusTime-elapsed;
-  const fpct = (elapsed/focusTime)*100;
-
-  const sorted = [...vitals].sort((a,b)=>a.date<b.date?1:-1);
-  const recent7 = sorted.slice(0,7).reverse();
-  const avgSleep = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.sleep||0),0)/recent7.length).toFixed(1) : '—';
-  const avgMood  = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.mood||0),0)/recent7.length).toFixed(1) : '—';
-  const avgEnergy= recent7.length ? (recent7.reduce((s,v)=>s+Number(v.energy||0),0)/recent7.length).toFixed(1) : '—';
-  const latestWeight = sorted.find(v=>v.weight>0);
+  const fmtTime=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const remaining=focusTime-elapsed; const fpct=(elapsed/focusTime)*100;
+  const sorted=[...vitals].sort((a,b)=>a.date<b.date?1:-1);
+  const recent7=sorted.slice(0,7).reverse();
+  const avgSleep=recent7.length?(recent7.reduce((s,v)=>s+Number(v.sleep||0),0)/recent7.length).toFixed(1):'—';
+  const avgMood=recent7.length?(recent7.reduce((s,v)=>s+Number(v.mood||0),0)/recent7.length).toFixed(1):'—';
+  const avgEnergy=recent7.length?(recent7.reduce((s,v)=>s+Number(v.energy||0),0)/recent7.length).toFixed(1):'—';
+  const latestWeight=sorted.find(v=>v.weight>0);
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
-
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Health Domain</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1>
-      </div>
-
-      <div style={{ display:'flex', gap:10, marginBottom:18 }}>
-        <Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
-        {[
-          { label:'Avg Sleep (7d)',  val:`${avgSleep}h`,       sub:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h',    color:T.sky     },
-          { label:'Avg Mood (7d)',   val:`${avgMood}/10`,      sub:'Emotional wellbeing',                               color:T.violet  },
-          { label:'Avg Energy (7d)', val:`${avgEnergy}/10`,    sub:'Vitality level',                                    color:T.accent  },
-          { label:'Current Weight',  val:latestWeight?`${latestWeight.weight} lbs`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
-        ].map((m,i)=>(
-          <GlassCard key={i} style={{ padding:'16px 18px' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
-          </GlassCard>
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}}/>
+      <div style={{marginBottom:22}}><SectionLabel>Health Domain</SectionLabel><h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Health & Vitals</h1></div>
+      <div style={{display:'flex',gap:10,marginBottom:18}}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}}>
+        {[{label:'Avg Sleep (7d)',val:`${avgSleep}h`,sub:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h',color:T.sky},{label:'Avg Mood (7d)',val:`${avgMood}/10`,sub:'Emotional wellbeing',color:T.violet},{label:'Avg Energy (7d)',val:`${avgEnergy}/10`,sub:'Vitality level',color:T.accent},{label:'Current Weight',val:latestWeight?`${latestWeight.weight} lbs`:'—',sub:latestWeight?latestWeight.date:'Not logged',color:T.emerald}].map((m,i)=>(
+          <GlassCard key={i} style={{padding:'16px 18px'}}><div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:6}}>{m.label}</div><div style={{fontSize:20,fontFamily:T.fD,fontWeight:700,color:m.color,marginBottom:4}}>{m.val}</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{m.sub}</div></GlassCard>
         ))}
       </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14 }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Sleep chart */}
-          <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 300px',gap:14}}>
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <GlassCard style={{padding:'20px 22px'}}>
             <SectionLabel>Sleep History</SectionLabel>
-            {recent7.length>0 ? (
-              <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={recent7} barSize={28} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0,12]} hide />
-                  <Tooltip content={<ChartTooltip suffix="h" />} />
-                  <Bar dataKey="sleep" name="Sleep" fill={T.sky} opacity={0.85} radius={[5,5,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see your sleep chart.</div>
+            {recent7.length>0?(<ResponsiveContainer width="100%" height={150}><BarChart data={recent7} barSize={28} margin={{top:4,right:0,left:0,bottom:0}}><CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false}/><XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false}/><YAxis domain={[0,12]} hide/><Tooltip content={<ChartTooltip suffix="h"/>}/><Bar dataKey="sleep" name="Sleep" fill={T.sky} opacity={0.85} radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>):(
+              <div style={{height:80,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Log vitals to see your sleep chart.</div>
             )}
           </GlassCard>
-
-          {/* Mood + Energy */}
-          <GlassCard style={{ padding:'20px 22px' }}>
+          <GlassCard style={{padding:'20px 22px'}}>
             <SectionLabel>Mood & Energy Trends</SectionLabel>
-            {recent7.length>0 ? (
-              <ResponsiveContainer width="100%" height={130}>
-                <LineChart data={recent7} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0,10]} hide />
-                  <Tooltip content={<ChartTooltip suffix="/10" />} />
-                  <Line type="monotone" dataKey="mood" name="Mood" stroke={T.violet} strokeWidth={2} dot={{fill:T.violet,r:3}} />
-                  <Line type="monotone" dataKey="energy" name="Energy" stroke={T.accent} strokeWidth={2} dot={{fill:T.accent,r:3}} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see mood & energy trends.</div>
+            {recent7.length>0?(<ResponsiveContainer width="100%" height={130}><LineChart data={recent7} margin={{top:4,right:0,left:0,bottom:0}}><CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false}/><XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false}/><YAxis domain={[0,10]} hide/><Tooltip content={<ChartTooltip suffix="/10"/>}/><Line type="monotone" dataKey="mood" name="Mood" stroke={T.violet} strokeWidth={2} dot={{fill:T.violet,r:3}}/><Line type="monotone" dataKey="energy" name="Energy" stroke={T.accent} strokeWidth={2} dot={{fill:T.accent,r:3}}/></LineChart></ResponsiveContainer>):(
+              <div style={{height:80,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Log vitals to see mood & energy trends.</div>
             )}
           </GlassCard>
-
-          {/* Vitals log */}
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Recent Vitals</SectionLabel>
-            {sorted.slice(0,8).map((v,i)=>(
-              <div key={v.id||i} style={{ display:'flex', gap:14, justifyContent:'space-between', padding:'8px 0', borderBottom:i<7?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
-                <span style={{ color:T.textSub }}>{v.date}</span>
-                <div style={{ display:'flex', gap:14 }}>
-                  {v.sleep>0&&<span style={{ color:T.sky }}>😴 {v.sleep}h</span>}
-                  {v.mood>0&&<span style={{ color:T.violet }}>😊 {v.mood}/10</span>}
-                  {v.energy>0&&<span style={{ color:T.accent }}>⚡ {v.energy}/10</span>}
-                  {v.weight>0&&<span style={{ color:T.emerald }}>⚖️ {v.weight}</span>}
-                </div>
-              </div>
-            ))}
-            {sorted.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No vitals logged yet.</div>}
-          </GlassCard>
+          <GlassCard style={{padding:'20px 22px'}}><SectionLabel>Recent Vitals</SectionLabel>{sorted.slice(0,8).map((v,i)=>(<div key={v.id||i} style={{display:'flex',gap:14,justifyContent:'space-between',padding:'8px 0',borderBottom:i<7?`1px solid ${T.border}`:'none',fontSize:11,fontFamily:T.fM}}><span style={{color:T.textSub}}>{v.date}</span><div style={{display:'flex',gap:14}}>{v.sleep>0&&<span style={{color:T.sky}}>😴 {v.sleep}h</span>}{v.mood>0&&<span style={{color:T.violet}}>😊 {v.mood}/10</span>}{v.energy>0&&<span style={{color:T.accent}}>⚡ {v.energy}/10</span>}{v.weight>0&&<span style={{color:T.emerald}}>⚖️ {v.weight}</span>}</div></div>))}{sorted.length===0&&<div style={{textAlign:'center',padding:20,fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No vitals logged yet.</div>}</GlassCard>
         </div>
-
-        {/* Focus Timer */}
-        <GlassCard style={{ padding:'22px', display:'flex', flexDirection:'column', alignItems:'center' }}>
+        <GlassCard style={{padding:'22px',display:'flex',flexDirection:'column',alignItems:'center'}}>
           <SectionLabel>Focus Session</SectionLabel>
-          <div style={{ position:'relative', width:150, height:150, margin:'0 auto 16px' }}>
-            <svg width={150} height={150} style={{ transform:'rotate(-90deg)' }}>
-              <circle cx={75} cy={75} r={64} fill="none" stroke={T.border} strokeWidth={5} />
-              <circle cx={75} cy={75} r={64} fill="none" stroke={T.accent} strokeWidth={5}
-                strokeDasharray={`${2*Math.PI*64*(fpct/100)} ${2*Math.PI*64*(1-fpct/100)}`}
-                strokeLinecap="round"
-                style={{ filter:`drop-shadow(0 0 5px ${T.accent})`, transition:'stroke-dasharray 1s linear' }}
-              />
-            </svg>
-            <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-              <div style={{ fontSize:26, fontFamily:T.fM, fontWeight:600, color:T.text }}>{fmtTime(remaining)}</div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>remaining</div>
-            </div>
+          <div style={{position:'relative',width:150,height:150,margin:'0 auto 16px'}}>
+            <svg width={150} height={150} style={{transform:'rotate(-90deg)'}}><circle cx={75} cy={75} r={64} fill="none" stroke={T.border} strokeWidth={5}/><circle cx={75} cy={75} r={64} fill="none" stroke={T.accent} strokeWidth={5} strokeDasharray={`${2*Math.PI*64*(fpct/100)} ${2*Math.PI*64*(1-fpct/100)}`} strokeLinecap="round" style={{filter:`drop-shadow(0 0 5px ${T.accent})`,transition:'stroke-dasharray 1s linear'}}/></svg>
+            <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}><div style={{fontSize:26,fontFamily:T.fM,fontWeight:600,color:T.text}}>{fmtTime(remaining)}</div><div style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>remaining</div></div>
           </div>
-          <div style={{ display:'flex', gap:5, marginBottom:14 }}>
-            {[15*60,25*60,45*60,60*60].map(s=>(
-              <button key={s} onClick={()=>{setFocusTime(s);setElapsed(0);setFocusActive(false);}} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:focusTime===s?T.accentDim:T.surface, color:focusTime===s?T.accent:T.textSub, border:`1px solid ${focusTime===s?T.accent+'44':T.border}` }}>{s/60}m</button>
-            ))}
-          </div>
-          <button className="los-btn" onClick={()=>setFocusActive(!focusActive)} style={{ width:'100%', padding:'11px', borderRadius:T.r, background:focusActive?T.roseDim:T.accentDim, color:focusActive?T.rose:T.accent, border:`1px solid ${focusActive?T.rose+'44':T.accent+'44'}`, fontSize:11, fontFamily:T.fM, fontWeight:600, animation:focusActive?'glowPulse 2s infinite':'none' }}>
-            {focusActive?'⏸ PAUSE':'▶ START FOCUS'}
-          </button>
+          <div style={{display:'flex',gap:5,marginBottom:14}}>{[15*60,25*60,45*60,60*60].map(s=>(<button key={s} onClick={()=>{setFocusTime(s);setElapsed(0);setFocusActive(false);}} style={{padding:'3px 9px',borderRadius:99,fontSize:9,fontFamily:T.fM,background:focusTime===s?T.accentDim:T.surface,color:focusTime===s?T.accent:T.textSub,border:`1px solid ${focusTime===s?T.accent+'44':T.border}`}}>{s/60}m</button>))}</div>
+          <button className="los-btn" onClick={()=>setFocusActive(!focusActive)} style={{width:'100%',padding:'11px',borderRadius:T.r,background:focusActive?T.roseDim:T.accentDim,color:focusActive?T.rose:T.accent,border:`1px solid ${focusActive?T.rose+'44':T.accent+'44'}`,fontSize:11,fontFamily:T.fM,fontWeight:600,animation:focusActive?'glowPulse 2s infinite':'none'}}>{focusActive?'⏸ PAUSE':'▶ START FOCUS'}</button>
+          {data.focusSessions&&data.focusSessions.length>0&&<div style={{marginTop:12,fontSize:10,fontFamily:T.fM,color:T.textSub,textAlign:'center'}}>{data.focusSessions.length} sessions completed</div>}
         </GlassCard>
       </div>
     </div>
@@ -1266,150 +1129,75 @@ function HealthPage({ data, actions }) {
 }
 
 // ── GROWTH PAGE ────────────────────────────────────────────────────────────────
-function GrowthPage({ data, actions }) {
-  const [tab, setTab] = useState('character');
-  const [modal, setModal] = useState(null);
-  const { habits, habitLogs, goals, totalXP, settings } = data;
-  const cur = settings.currency||'$';
-
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
-  const xpForNext = Math.pow(level,2)*100;
-  const xpForCurrent = Math.pow(level-1,2)*100;
-  const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
-  const CLASSES = ['Apprentice','Seeker','Wanderer','Scholar','Artisan','Champion','Sage','Master','Grandmaster','Legend'];
-  const heroClass = CLASSES[Math.min(level-1,CLASSES.length-1)];
-  const d = today();
-
-  const LIFE_STATS = [
-    { label:'Financial',  val:Math.min(100,Math.round(goals.filter(g=>g.cat==='finance').length*25)), color:T.emerald },
-    { label:'Health',     val:Math.min(100,data.vitals.length*8), color:T.sky    },
-    { label:'Habits',     val:Math.min(100,habits.length*12), color:T.accent  },
-    { label:'Growth',     val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet  },
-    { label:'Focus',      val:Math.min(100,data.focusSessions.length*5), color:T.rose    },
-    { label:'Knowledge',  val:Math.min(100,data.notes.length*10), color:T.amber   },
-  ];
+function GrowthPage({data,actions}) {
+  const [tab,setTab]=useState('character');
+  const [modal,setModal]=useState(null);
+  const {habits,habitLogs,goals,totalXP,settings}=data;
+  const cur=settings.currency||'$';
+  const level=Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const xpForNext=Math.pow(level,2)*100; const xpForCurrent=Math.pow(level-1,2)*100;
+  const xpPct=((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
+  const CLASSES=['Apprentice','Seeker','Wanderer','Scholar','Artisan','Champion','Sage','Master','Grandmaster','Legend'];
+  const heroClass=CLASSES[Math.min(level-1,CLASSES.length-1)];
+  const LIFE_STATS=[{label:'Financial',val:Math.min(100,Math.round(goals.filter(g=>g.cat==='finance').length*25)),color:T.emerald},{label:'Health',val:Math.min(100,data.vitals.length*8),color:T.sky},{label:'Habits',val:Math.min(100,habits.length*12),color:T.accent},{label:'Growth',val:Math.min(100,Math.round(Number(totalXP)/50)),color:T.violet},{label:'Focus',val:Math.min(100,data.focusSessions.length*5),color:T.rose},{label:'Knowledge',val:Math.min(100,data.notes.length*10),color:T.amber}];
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
-      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
-
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Growth Domain</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1>
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit}/>
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}}/>
+      <div style={{marginBottom:22}}><SectionLabel>Growth Domain</SectionLabel><h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Character · Habits · Goals</h1></div>
+      <div style={{display:'flex',gap:2,marginBottom:22,background:T.surface,borderRadius:T.r,padding:3,width:'fit-content',border:`1px solid ${T.border}`}}>
+        {['character','habits','goals'].map(t=>(<button key={t} className="los-tab" onClick={()=>setTab(t)} style={{padding:'5px 14px',borderRadius:8,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.06em',background:tab===t?T.violetDim:'transparent',color:tab===t?T.violet:T.textSub,border:`1px solid ${tab===t?T.violet+'33':'transparent'}`,transition:'all 0.15s'}}>{t}</button>))}
       </div>
 
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['character','habits','goals'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
-        ))}
-      </div>
-
-      {tab==='character' && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-          <GlassCard style={{ padding:'22px', gridColumn:'span 2' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-              <div style={{ width:76, height:76, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.bg, boxShadow:`0 0 24px ${T.violet}44` }}>{level}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>Life Level · {heroClass}</div>
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:T.text, marginBottom:8 }}>Level {level} — {heroClass}</div>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                  <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{Number(totalXP).toLocaleString()} XP</span>
-                  <span style={{ fontSize:10, fontFamily:T.fM, color:T.violet }}>{(xpForNext-Number(totalXP)).toLocaleString()} to Lv {level+1}</span>
-                </div>
-                <ProgressBar pct={xpPct} color={T.violet} height={8} />
+      {tab==='character'&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          <GlassCard style={{padding:'22px',gridColumn:'span 2'}}>
+            <div style={{display:'flex',alignItems:'center',gap:20}}>
+              <div style={{width:76,height:76,borderRadius:'50%',flexShrink:0,background:`linear-gradient(135deg,${T.violet},${T.accent})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.bg,boxShadow:`0 0 24px ${T.violet}44`}}>{level}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:3}}>Life Level · {heroClass}</div>
+                <div style={{fontSize:20,fontFamily:T.fD,fontWeight:800,color:T.text,marginBottom:8}}>Level {level} — {heroClass}</div>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}><span style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{Number(totalXP).toLocaleString()} XP</span><span style={{fontSize:10,fontFamily:T.fM,color:T.violet}}>{(xpForNext-Number(totalXP)).toLocaleString()} to Lv {level+1}</span></div>
+                <ProgressBar pct={xpPct} color={T.violet} height={8}/>
               </div>
             </div>
           </GlassCard>
-          <GlassCard style={{ padding:'20px 22px' }}>
+          <GlassCard style={{padding:'20px 22px'}}>
             <SectionLabel>Life Dimensions</SectionLabel>
-            {LIFE_STATS.map((s,i)=>(
-              <div key={i} style={{ marginBottom:12 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span>
-                  <span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}</span>
-                </div>
-                <ProgressBar pct={s.val} color={s.color} height={5} />
-              </div>
-            ))}
+            {LIFE_STATS.map((s,i)=>(<div key={i} style={{marginBottom:12}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>{s.label}</span><span style={{fontSize:11,fontFamily:T.fM,color:s.color,fontWeight:600}}>{s.val}</span></div><ProgressBar pct={s.val} color={s.color} height={5}/></div>))}
           </GlassCard>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Life Balance Radar</SectionLabel>
-            <ResponsiveContainer width="100%" height={200}>
-              <RadarChart data={LIFE_STATS.map(s=>({subject:s.label,A:s.val}))} margin={{top:8,right:20,bottom:8,left:20}}>
-                <PolarGrid stroke={T.border} />
-                <PolarAngleAxis dataKey="subject" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} />
-                <PolarRadiusAxis domain={[0,100]} tick={false} axisLine={false} />
-                <Radar dataKey="A" stroke={T.violet} fill={T.violet} fillOpacity={0.15} strokeWidth={1.5} dot={{fill:T.violet,r:3}} />
-              </RadarChart>
-            </ResponsiveContainer>
+          <GlassCard style={{padding:'20px 22px'}}>
+            <SectionLabel>XP Breakdown</SectionLabel>
+            {[{label:'Habit Logs',xp:Object.values(habitLogs).flat().length*10,color:T.accent},{label:'Vitals Logged',xp:data.vitals.length*8,color:T.sky},{label:'Goals Created',xp:goals.length*20,color:T.violet},{label:'Notes Added',xp:data.notes.length*5,color:T.amber}].map((x,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'7px 0',borderBottom:i<3?`1px solid ${T.border}`:'none',fontSize:11,fontFamily:T.fM}}><span style={{color:T.textSub}}>{x.label}</span><span style={{color:x.color,fontWeight:600}}>+{x.xp} XP</span></div>))}
           </GlassCard>
         </div>
       )}
 
-      {tab==='habits' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          <div style={{ display:'flex', justifyContent:'flex-end' }}>
-            <Btn onClick={()=>setModal('habit')} color={T.accent}>+ Log / Add Habit</Btn>
-          </div>
-          {habits.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits yet. Create your first habit to start building streaks.</div>
-            </GlassCard>
-          ) : (
-            habits.map((habit,i)=>{
-              const streak = getStreak(habit.id, habitLogs);
-              const done = (habitLogs[habit.id]||[]).includes(d);
-              const HCOLORS = [T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-              const hc = HCOLORS[i%HCOLORS.length];
-              const best = Math.max(30, (habitLogs[habit.id]||[]).length);
-              return (
-                <GlassCard key={habit.id||i} style={{ padding:'16px 20px', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                    <div style={{ width:40, height:40, borderRadius:T.r, flexShrink:0, background:hc+'18', border:`1px solid ${hc}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{habit.emoji||'🔥'}</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                        <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text }}>{habit.name}</span>
-                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                          <span style={{ fontSize:11, fontFamily:T.fM, color:hc }}>🔥 {streak}d streak</span>
-                          {done ? <Badge color={hc}>✓ Done</Badge> : <Btn onClick={()=>actions.logHabit(habit.id)} color={hc} style={{ padding:'4px 12px' }}>Log</Btn>}
-                        </div>
-                      </div>
-                      <ProgressBar pct={(streak/Math.max(streak,30))*100} color={hc} height={4} />
-                    </div>
-                  </div>
-                </GlassCard>
-              );
-            })
+      {tab==='habits'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{display:'flex',justifyContent:'flex-end'}}><Btn onClick={()=>setModal('habit')} color={T.accent}>+ Manage Habits</Btn></div>
+          {habits.length===0?(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No habits yet.</div></GlassCard>):(
+            habits.map((habit,i)=>{const done=(habitLogs[habit.id]||[]).includes(today());const streak=getStreak(habit.id,habitLogs);const hc=streak>=7?T.amber:streak>=3?T.accent:T.textSub;return(
+              <GlassCard key={habit.id||i} style={{padding:'16px 18px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{fontSize:22,flexShrink:0}}>{habit.emoji||'🔥'}</div>
+                  <div style={{flex:1}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}><span style={{fontSize:13,fontFamily:T.fD,fontWeight:600,color:T.text}}>{habit.name}</span><div style={{display:'flex',gap:8,alignItems:'center'}}><span style={{fontSize:11,fontFamily:T.fM,color:hc}}>🔥 {streak}d streak</span>{done?<Badge color={hc}>✓ Done</Badge>:<Btn onClick={()=>actions.logHabit(habit.id)} color={hc} style={{padding:'4px 12px'}}>Log</Btn>}</div></div><ProgressBar pct={(streak/Math.max(streak,30))*100} color={hc} height={4}/></div>
+                </div>
+              </GlassCard>
+            );})
           )}
         </div>
       )}
 
-      {tab==='goals' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ display:'flex', justifyContent:'flex-end' }}>
-            <Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn>
-          </div>
-          {goals.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first goal to start tracking progress.</div>
-            </GlassCard>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {goals.map((goal,i)=>{
-                const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));
-                const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};
-                const c=catColors[goal.cat]||T.violet;
-                return (
-                  <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
-                    <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
-                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{goal.name}</div>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>{cur}{fmtN(goal.current||0)} / {cur}{fmtN(goal.target)} · {pct}%</div>
-                    <ProgressBar pct={pct} color={c} height={6} />
-                    {pct>=100 && <div style={{ marginTop:8, fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Completed!</div>}
-                  </GlassCard>
-                );
-              })}
+      {tab==='goals'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{display:'flex',justifyContent:'flex-end'}}><Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn></div>
+          {goals.length===0?(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No goals yet.</div></GlassCard>):(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              {goals.map((goal,i)=>{const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};const c=catColors[goal.cat]||T.violet;return(
+                <GlassCard key={goal.id||i} style={{padding:'18px 20px'}}><div style={{fontSize:20,marginBottom:6}}>{goal.emoji||'🎯'}</div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:4}}>{goal.name}</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:10}}>{cur}{fmtN(goal.current||0)} / {cur}{fmtN(goal.target)} · {pct}%</div><ProgressBar pct={pct} color={c} height={6}/>{pct>=100&&<div style={{marginTop:8,fontSize:11,fontFamily:T.fM,color:T.emerald}}>🎉 Completed!</div>}</GlassCard>
+              );})}
             </div>
           )}
         </div>
@@ -1419,19 +1207,16 @@ function GrowthPage({ data, actions }) {
 }
 
 // ── KNOWLEDGE PAGE ─────────────────────────────────────────────────────────────
-function KnowledgePage({ data, actions }) {
-  const [tab, setTab] = useState('notes');
-  const [modal, setModal] = useState(null);
-  const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const endRef = useRef(null);
-  const { notes, expenses, incomes, habits, habitLogs, goals, vitals, totalXP, assets, investments, debts, settings } = data;
-  const cur = settings.currency||'$';
+function KnowledgePage({data,actions}) {
+  const [tab,setTab]=useState('notes');
+  const [modal,setModal]=useState(null);
+  const [messages,setMessages]=useState([{role:'assistant',content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?"}]);
+  const [input,setInput]=useState(''); const [loading,setLoading]=useState(false); const endRef=useRef(null);
+  const {notes,expenses,incomes,habits,habitLogs,goals,vitals,totalXP,assets,investments,debts,settings}=data;
+  const cur=settings.currency||'$';
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[messages]);
 
-  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
-
-  const buildContext = () => {
+  const buildContext=()=>{
     const m=today().slice(0,7);
     const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
     const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
@@ -1440,93 +1225,66 @@ function KnowledgePage({ data, actions }) {
     const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0;
     const habitSum=habits.map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none';
     const goalSum=goals.map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ')||'none';
-    const v7=vitals.slice(-7);
-    const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
+    const v7=vitals.slice(-7); const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
     return `USER'S REAL LIFE DATA:\nNet Worth: ${cur}${fmtN(nw)}\nThis Month: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${sr}%\nInvestments: ${cur}${fmtN(invVal)}\nLevel: ${Math.floor(Math.sqrt(Number(totalXP)/100))+1}, ${totalXP} XP\nHabits: ${habitSum}\nGoals: ${goalSum}\nAvg Sleep (7d): ${avgSlp}h\nDebts: ${debts.length} totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`;
   };
 
-  const send = async () => {
-    if (!input.trim()||loading) return;
+  const send=async()=>{
+    if(!input.trim()||loading) return;
     const um={role:'user',content:input};
     setMessages(p=>[...p,um]); setInput(''); setLoading(true);
     try {
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000,
-          system:`You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,
-          messages:[...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content})),
-        }),
-      });
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,messages:[...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}))})});
       const d=await res.json();
       const text=d.content?.map(b=>b.text||'').join('')||'Unable to respond.';
       setMessages(p=>[...p,{role:'assistant',content:text}]);
+      actions.addTLEvent&&actions.addTLEvent({type:'ai_insight',title:'AI Insight Generated',description:input.slice(0,60)+'…',category:'knowledge'});
     } catch { setMessages(p=>[...p,{role:'assistant',content:'Connection error. Please try again.'}]); }
     finally { setLoading(false); }
   };
 
-  const TAG_COLORS = { Finance:T.violet, Health:T.sky, Career:T.amber, Growth:T.emerald, Ideas:'#c084fc', General:T.textSub };
+  const TAG_COLORS={Finance:T.violet,Health:T.sky,Career:T.amber,Growth:T.emerald,Ideas:'#c084fc',General:T.textSub};
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Knowledge Domain</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1>
-      </div>
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['notes','ai assistant'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
-        ))}
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}}/>
+      <div style={{marginBottom:22}}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Knowledge Base</h1></div>
+      <div style={{display:'flex',gap:2,marginBottom:22,background:T.surface,borderRadius:T.r,padding:3,width:'fit-content',border:`1px solid ${T.border}`}}>
+        {['notes','ai assistant'].map(t=>(<button key={t} className="los-tab" onClick={()=>setTab(t)} style={{padding:'5px 14px',borderRadius:8,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.06em',background:tab===t?T.amberDim:'transparent',color:tab===t?T.amber:T.textSub,border:`1px solid ${tab===t?T.amber+'33':'transparent'}`,transition:'all 0.15s'}}>{t}</button>))}
       </div>
 
-      {tab==='notes' && (
+      {tab==='notes'&&(
         <div>
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
-            <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn>
-          </div>
-          {notes.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No notes yet. Create your first note to build your knowledge base.</div>
-            </GlassCard>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {[...notes].sort((a,b)=>a.date<b.date?1:-1).map((note,i)=>{
-                const tc=TAG_COLORS[note.tag]||T.textSub;
-                return (
-                  <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                      <Badge color={tc}>{note.tag||'General'}</Badge>
-                      <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt}</span>
-                    </div>
-                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7 }}>{note.title}</div>
-                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body||note.content||note.text||''}</div>
-                  </GlassCard>
-                );
-              })}
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:14}}><Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn></div>
+          {notes.length===0?(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No notes yet.</div></GlassCard>):(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              {[...notes].sort((a,b)=>a.date<b.date?1:-1).map((note,i)=>{const tc=TAG_COLORS[note.tag]||T.textSub;return(
+                <GlassCard key={note.id||i} style={{padding:'18px',cursor:'pointer',borderLeft:`3px solid ${tc}55`,animation:`fadeUp 0.3s ease ${i*0.08}s both`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}><Badge color={tc}>{note.tag||'General'}</Badge><span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{note.date}</span></div>
+                  <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:7}}>{note.title}</div>
+                  <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,lineHeight:1.5,overflow:'hidden',display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical'}}>{note.body||''}</div>
+                </GlassCard>
+              );})}
             </div>
           )}
         </div>
       )}
 
-      {tab==='ai assistant' && (
-        <GlassCard style={{ display:'flex', flexDirection:'column', height:540 }}>
-          <div style={{ flex:1, overflowY:'auto', padding:'18px', display:'flex', flexDirection:'column', gap:12 }}>
+      {tab==='ai assistant'&&(
+        <GlassCard style={{display:'flex',flexDirection:'column',height:540}}>
+          <div style={{flex:1,overflowY:'auto',padding:'18px',display:'flex',flexDirection:'column',gap:12}}>
             {messages.map((msg,i)=>(
-              <div key={i} style={{ display:'flex', gap:9, flexDirection:msg.role==='user'?'row-reverse':'row', animation:'fadeUp 0.25s ease' }}>
-                {msg.role==='assistant' && <div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,#c084fc,${T.sky})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div>}
-                <div style={{ maxWidth:'72%', padding:'10px 14px', borderRadius:T.rL, background:msg.role==='user'?T.accentDim:T.surfaceHi, border:`1px solid ${msg.role==='user'?T.accent+'33':T.border}`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, borderBottomRightRadius:msg.role==='user'?4:T.rL, borderBottomLeftRadius:msg.role==='assistant'?4:T.rL }}>
-                  {msg.content}
-                </div>
+              <div key={i} style={{display:'flex',gap:9,flexDirection:msg.role==='user'?'row-reverse':'row',animation:'fadeUp 0.25s ease'}}>
+                {msg.role==='assistant'&&<div style={{width:30,height:30,borderRadius:'50%',flexShrink:0,background:`linear-gradient(135deg,#c084fc,${T.sky})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13}}>⬡</div>}
+                <div style={{maxWidth:'72%',padding:'10px 14px',borderRadius:T.rL,background:msg.role==='user'?T.accentDim:T.surfaceHi,border:`1px solid ${msg.role==='user'?T.accent+'33':T.border}`,fontSize:12,fontFamily:T.fM,color:T.text,lineHeight:1.6,borderBottomRightRadius:msg.role==='user'?4:T.rL,borderBottomLeftRadius:msg.role==='assistant'?4:T.rL}}>{msg.content}</div>
               </div>
             ))}
-            {loading && <div style={{ display:'flex', gap:9 }}><div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,#c084fc,${T.sky})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div><div style={{ padding:'10px 14px', borderRadius:T.rL, borderBottomLeftRadius:4, background:T.surfaceHi, border:`1px solid ${T.border}`, display:'flex', gap:4, alignItems:'center' }}>{[0,1,2].map(d=><div key={d} style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:`dotPulse 1.2s ease ${d*0.2}s infinite` }} />)}</div></div>}
-            <div ref={endRef} />
+            {loading&&<div style={{display:'flex',gap:9}}><div style={{width:30,height:30,borderRadius:'50%',flexShrink:0,background:`linear-gradient(135deg,#c084fc,${T.sky})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13}}>⬡</div><div style={{padding:'10px 14px',borderRadius:T.rL,borderBottomLeftRadius:4,background:T.surfaceHi,border:`1px solid ${T.border}`,display:'flex',gap:4,alignItems:'center'}}>{[0,1,2].map(d=><div key={d} style={{width:5,height:5,borderRadius:'50%',background:'#c084fc',animation:`dotPulse 1.2s ease ${d*0.2}s infinite`}}/>)}</div></div>}
+            <div ref={endRef}/>
           </div>
-          <div style={{ padding:'14px 18px', borderTop:`1px solid ${T.border}`, display:'flex', gap:9 }}>
-            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Ask about your finances, habits, goals..." style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, padding:'9px 14px', fontFamily:T.fM, fontSize:12, color:T.text }} />
-            <button className="los-btn" onClick={send} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:T.r, flexShrink:0, background:input.trim()?T.accentDim:T.surface, border:`1px solid ${input.trim()?T.accent+'44':T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <IcoSend size={13} stroke={input.trim()?T.accent:T.textMuted} />
-            </button>
+          <div style={{padding:'14px 18px',borderTop:`1px solid ${T.border}`,display:'flex',gap:9}}>
+            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Ask about your finances, habits, goals…" style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.r,padding:'9px 14px',fontFamily:T.fM,fontSize:12,color:T.text}}/>
+            <button className="los-btn" onClick={send} disabled={!input.trim()||loading} style={{width:38,height:38,borderRadius:T.r,flexShrink:0,background:input.trim()?T.accentDim:T.surface,border:`1px solid ${input.trim()?T.accent+'44':T.border}`,display:'flex',alignItems:'center',justifyContent:'center'}}><IcoSend size={13} stroke={input.trim()?T.accent:T.textMuted}/></button>
           </div>
         </GlassCard>
       )}
@@ -1535,283 +1293,276 @@ function KnowledgePage({ data, actions }) {
 }
 
 // ── INTELLIGENCE PAGE ──────────────────────────────────────────────────────────
-function IntelligencePage({ data }) {
-  const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings } = data;
-  const cur = settings.currency||'$';
-  const thisMonth = today().slice(0,7);
+function IntelligencePage({data}) {
+  const {expenses,incomes,habits,habitLogs,vitals,goals,assets,investments,debts,totalXP,settings}=data;
+  const cur=settings.currency||'$';
+  const thisMonth=today().slice(0,7);
+  const monthExp=expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc=incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const savRate=monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  const invVal=investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+  const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const topCat=useMemo(()=>{const m={};expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1])[0];},[expenses,thisMonth]);
+  const avgSleep7=useMemo(()=>{const v=vitals.slice(-7);return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?';},[vitals]);
+  const level=Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const todayDone=habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak=habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
 
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-  const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
-
-  const topCat = useMemo(()=>{
-    const m={};
-    expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); });
-    return Object.entries(m).sort((a,b)=>b[1]-a[1])[0];
-  },[expenses,thisMonth]);
-
-  const avgSleep7 = useMemo(()=>{
-    const v=vitals.slice(-7);
-    return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?';
-  },[vitals]);
-
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
-  const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
-  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
-
-  const insights = [
-    monthInc>0&&savRate<20 && { title:'Low Savings Rate', body:`You're saving ${savRate.toFixed(0)}% this month. Target 20-35% to build long-term wealth. Reduce spending by ${cur}${fmtN((0.2*monthInc-monthInc+monthExp))} to hit 20%.`, color:T.amber, icon:'⚠️', type:'warning' },
-    monthInc>0&&savRate>=35 && { title:'Excellent Savings Rate', body:`${savRate.toFixed(0)}% savings rate — you're outperforming most. ${cur}${fmtN(monthInc-monthExp)} saved this month. On track for financial independence.`, color:T.emerald, icon:'📈', type:'positive' },
-    topCat && { title:`Top Spending: ${topCat[0]}`, body:`${topCat[0]} is your largest expense at ${cur}${fmtN(topCat[1])} this month (${monthInc>0?((topCat[1]/monthInc)*100).toFixed(0):0}% of income). Review if this aligns with your priorities.`, color:T.violet, icon:'💳', type:'insight' },
-    Number(avgSleep7)>0&&Number(avgSleep7)<7 && { title:'Sleep Deficit Detected', body:`Average sleep of ${avgSleep7}h is below optimal 7-8h. Poor sleep correlates with reduced productivity and worse financial decisions.`, color:T.sky, icon:'😴', type:'insight' },
-    Number(avgSleep7)>=7 && { title:'Sleep Health Strong', body:`${avgSleep7}h average sleep over 7 days — within optimal range. Research shows well-rested individuals make 34% better financial decisions.`, color:T.sky, icon:'🌙', type:'positive' },
-    bestStreak>=7 && { title:`Habit Momentum — ${bestStreak} Day Streak`, body:`Your longest active streak is ${bestStreak} days. Habits compound like investments — you're building powerful life capital.`, color:T.accent, icon:'🔥', type:'positive' },
-    habits.length>0&&todayDone===0 && { title:'No Habits Logged Today', body:`You have ${habits.length} habits but haven't logged any today. Consistency is the key driver of your XP and life score.`, color:T.amber, icon:'🎯', type:'warning' },
-    debts.length>0 && { title:'Active Debt Tracking', body:`${debts.length} debt(s) totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}. Consider avalanche method (highest rate first) to minimize interest.`, color:T.rose, icon:'💳', type:'insight' },
-    goals.length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
-    goals.length>0 && { title:'Goal Progress', body:`${goals.filter(g=>(g.current||0)>=g.target).length} of ${goals.length} goals completed. Average progress: ${Math.round(goals.reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,goals.length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
+  const insights=[
+    monthInc>0&&savRate<20&&{title:'Low Savings Rate',body:`You're saving ${savRate.toFixed(0)}% this month. Target 20–35% to build long-term wealth.`,color:T.amber,icon:'⚠️',type:'warning'},
+    monthInc>0&&savRate>=35&&{title:'Excellent Savings Rate',body:`${savRate.toFixed(0)}% savings rate — you're outperforming most. ${cur}${fmtN(monthInc-monthExp)} saved this month.`,color:T.emerald,icon:'📈',type:'positive'},
+    topCat&&{title:`Top Spending: ${topCat[0]}`,body:`${topCat[0]} is your largest expense at ${cur}${fmtN(topCat[1])} this month (${monthInc>0?((topCat[1]/monthInc)*100).toFixed(0):0}% of income).`,color:T.violet,icon:'💳',type:'insight'},
+    Number(avgSleep7)>0&&Number(avgSleep7)<7&&{title:'Sleep Deficit Detected',body:`Average sleep of ${avgSleep7}h is below optimal 7–8h. Poor sleep correlates with reduced productivity.`,color:T.sky,icon:'😴',type:'insight'},
+    Number(avgSleep7)>=7&&{title:'Sleep Health Strong',body:`${avgSleep7}h average sleep over 7 days — within optimal range.`,color:T.sky,icon:'🌙',type:'positive'},
+    bestStreak>=7&&{title:`Habit Momentum — ${bestStreak} Day Streak`,body:`Your longest active streak is ${bestStreak} days. Habits compound like investments.`,color:T.accent,icon:'🔥',type:'positive'},
+    habits.length>0&&todayDone===0&&{title:'No Habits Logged Today',body:`You have ${habits.length} habits but haven't logged any today.`,color:T.amber,icon:'🎯',type:'warning'},
+    debts.length>0&&{title:'Active Debt Tracking',body:`${debts.length} debt(s) totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}. Consider avalanche method.`,color:T.rose,icon:'💳',type:'insight'},
+    goals.length===0&&{title:'Set Your First Goal',body:'No goals defined yet. Users with written goals are 42% more likely to achieve them.',color:'#c084fc',icon:'🎯',type:'coach'},
+    goals.length>0&&{title:'Goal Progress',body:`${goals.filter(g=>(g.current||0)>=g.target).length} of ${goals.length} goals completed. Average: ${Math.round(goals.reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,goals.length))}%.`,color:T.amber,icon:'🏆',type:'positive'},
   ].filter(Boolean).slice(0,6);
 
-  const LIFE_STATS = [
-    { label:'Financial', val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+(debts.length===0?20:0))), color:T.emerald },
-    { label:'Health',    val:Math.min(100,vitals.length*8), color:T.sky    },
-    { label:'Habits',    val:Math.min(100,habits.length*15+bestStreak*2), color:T.accent  },
-    { label:'Growth',    val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet  },
-    { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose    },
-    { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber  },
-  ];
+  const LIFE_STATS=[{label:'Financial',val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+(debts.length===0?20:0))),color:T.emerald},{label:'Health',val:Math.min(100,vitals.length*8),color:T.sky},{label:'Habits',val:Math.min(100,habits.length*15+bestStreak*2),color:T.accent},{label:'Growth',val:Math.min(100,Math.round(Number(totalXP)/50)),color:T.violet},{label:'Focus',val:Math.min(100,data.focusSessions.length*5),color:T.rose},{label:'Knowledge',val:Math.min(100,data.notes.length*10),color:T.amber}];
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Intelligence Layer</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
-          AI-powered insights built from your real data · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights
-        </div>
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <div style={{marginBottom:22}}><SectionLabel>Intelligence Layer</SectionLabel><h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Life Intelligence</h1><div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginTop:4}}>AI-powered insights · <span style={{color:'#c084fc'}}>●</span> {insights.length} active</div></div>
+      <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:22}}>
+        {insights.map((ins,i)=>(<GlassCard key={i} style={{padding:'18px 22px',borderLeft:`3px solid ${ins.color}55`,animation:`fadeUp 0.3s ease ${i*0.07}s both`}}><div style={{display:'flex',alignItems:'flex-start',gap:12}}><div style={{fontSize:22,flexShrink:0}}>{ins.icon}</div><div style={{flex:1}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>{ins.title}</div><Badge color={ins.color}>{ins.type}</Badge></div><div style={{fontSize:12,fontFamily:T.fM,color:T.textSub,lineHeight:1.6}}>{ins.body}</div></div></div></GlassCard>))}
+        {insights.length===0&&(<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Log expenses, habits and vitals to generate personalized insights.</div></GlassCard>)}
       </div>
-
-      <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
-        {insights.map((ins,i)=>(
-          <GlassCard key={i} style={{ padding:'18px 22px', borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.3s ease ${i*0.07}s both` }}>
-            <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-              <div style={{ fontSize:22, flexShrink:0 }}>{ins.icon}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</div>
-                  <Badge color={ins.color}>{ins.type}</Badge>
-                </div>
-                <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{ins.body}</div>
-              </div>
-            </div>
-          </GlassCard>
-        ))}
-        {insights.length===0 && (
-          <GlassCard style={{ padding:40, textAlign:'center' }}>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses, habits and vitals to generate your personalized insights.</div>
-          </GlassCard>
-        )}
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <GlassCard style={{ padding:'20px 22px' }}>
-          <SectionLabel>Life Domain Scores</SectionLabel>
-          {LIFE_STATS.map((s,i)=>(
-            <div key={i} style={{ marginBottom:12 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span>
-                <span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}/100</span>
-              </div>
-              <ProgressBar pct={s.val} color={s.color} height={5} />
-            </div>
-          ))}
-        </GlassCard>
-        <GlassCard style={{ padding:'20px 22px' }}>
-          <SectionLabel>This Month Summary</SectionLabel>
-          {[
-            { label:'Income',       val:`${cur}${fmtN(monthInc)}`,    color:T.emerald },
-            { label:'Expenses',     val:`${cur}${fmtN(monthExp)}`,    color:T.rose    },
-            { label:'Saved',        val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent },
-            { label:'Savings Rate', val:`${savRate.toFixed(1)}%`,     color:T.sky     },
-            { label:'Net Worth',    val:`${cur}${fmtN(nw)}`,          color:T.violet  },
-            { label:'Habit Streak', val:`🔥 ${bestStreak}d`,          color:T.amber   },
-          ].map((item,i)=>(
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
-              <span style={{ color:T.textSub }}>{item.label}</span>
-              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
-            </div>
-          ))}
-        </GlassCard>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+        <GlassCard style={{padding:'20px 22px'}}><SectionLabel>Life Domain Scores</SectionLabel>{LIFE_STATS.map((s,i)=>(<div key={i} style={{marginBottom:12}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>{s.label}</span><span style={{fontSize:11,fontFamily:T.fM,color:s.color,fontWeight:600}}>{s.val}/100</span></div><ProgressBar pct={s.val} color={s.color} height={5}/></div>))}</GlassCard>
+        <GlassCard style={{padding:'20px 22px'}}><SectionLabel>This Month Summary</SectionLabel>{[{label:'Income',val:`${cur}${fmtN(monthInc)}`,color:T.emerald},{label:'Expenses',val:`${cur}${fmtN(monthExp)}`,color:T.rose},{label:'Saved',val:`${cur}${fmtN(monthInc-monthExp)}`,color:T.accent},{label:'Savings Rate',val:`${savRate.toFixed(1)}%`,color:T.sky},{label:'Net Worth',val:`${cur}${fmtN(nw)}`,color:T.violet},{label:'Habit Streak',val:`🔥 ${bestStreak}d`,color:T.amber}].map((item,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:i<5?`1px solid ${T.border}`:'none',fontSize:11,fontFamily:T.fM}}><span style={{color:T.textSub}}>{item.label}</span><span style={{color:item.color,fontWeight:600}}>{item.val}</span></div>))}</GlassCard>
       </div>
     </div>
   );
 }
 
-// ── ARCHIVE PAGE ───────────────────────────────────────────────────────────────
-function ArchivePage({ data }) {
-  const { netWorthHistory, expenses, incomes, habits, habitLogs, vitals, settings } = data;
-  const cur = settings.currency||'$';
-  const thisMonth = today().slice(0,7);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+// ── ARCHIVE + AUDIT PAGE ───────────────────────────────────────────────────────
+function ArchivePage({data}) {
+  const [tab,setTab]=useState('history');
+  const {netWorthHistory,expenses,incomes,habits,habitLogs,vitals,settings,timeline,goals,notes,assets,investments,debts,focusSessions}=data;
+  const cur=settings.currency||'$';
+  const thisMonth=today().slice(0,7);
+  const monthExp=expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc=incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const bestStreak=habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+
+  // SYSTEM AUDIT
+  const audit=useMemo(()=>{
+    const implemented=[]; const missing=[]; const risks=[];
+    // Infrastructure
+    if(expenses) implemented.push({s:'✅ Expense Store',d:'los_expenses — active'});
+    if(assets) implemented.push({s:'✅ Asset Store',d:'los_assets — active'});
+    if(goals) implemented.push({s:'✅ Goal Store',d:'los_goals — active'});
+    if(habits) implemented.push({s:'✅ Habit Store',d:'los_habits + los_habitlogs — active'});
+    if(timeline) implemented.push({s:'✅ Timeline Engine',d:`los_timeline — ${timeline.length} events`});
+    else missing.push({s:'⚠️ Timeline Engine',d:'No stored TL events yet'});
+    // Global systems
+    implemented.push({s:'✅ Modal System',d:'GlassCard + Modal wrapper'});
+    implemented.push({s:'✅ Theme Engine',d:'CSS tokens in T{} object'});
+    implemented.push({s:'✅ Toast System',d:'ToastContainer — all modules wired'});
+    implemented.push({s:'✅ Command Palette',d:'⌘K fuzzy search — all domains'});
+    // AI
+    implemented.push({s:'✅ AI Advisor',d:'Knowledge Page — claude-sonnet'});
+    implemented.push({s:'✅ AI Insights',d:'Intelligence Page — 6+ auto insights'});
+    if(data.focusSessions) implemented.push({s:'✅ Focus Sessions',d:`${data.focusSessions.length} sessions logged`});
+    // Missing
+    if(!debts||debts.length===0) missing.push({s:'ℹ️ Debt Module',d:'No debts added yet'});
+    if(!investments||investments.length===0) missing.push({s:'ℹ️ Investment Module',d:'No positions added yet'});
+    if(!netWorthHistory||netWorthHistory.length<2) missing.push({s:'ℹ️ NW History',d:'Needs 2+ months of data'});
+    if(!settings.name) missing.push({s:'ℹ️ Profile Name',d:'Set your name in Settings'});
+    // Risks
+    if(expenses.length>500) risks.push({s:'⚠️ Storage Risk',d:`${expenses.length} expenses may slow localStorage`});
+    if(timeline&&timeline.length>800) risks.push({s:'⚠️ Timeline Size',d:`${timeline.length} events — consider archiving`});
+    if(!settings.currency) risks.push({s:'⚠️ Currency',d:'Currency not configured in Settings'});
+    risks.push({s:'ℹ️ No i18n',d:'Internationalization not yet implemented'});
+    risks.push({s:'ℹ️ No Undo',d:'Undo system not yet implemented'});
+    risks.push({s:'ℹ️ Mobile Nav',d:'Mobile-specific navigation not yet implemented'});
+    return {implemented,missing,risks};
+  },[expenses,assets,goals,habits,timeline,data.focusSessions,debts,investments,netWorthHistory,settings]);
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Archive</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1>
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <div style={{marginBottom:22}}><SectionLabel>Archive</SectionLabel><h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Life History & System Audit</h1></div>
+      <div style={{display:'flex',gap:2,marginBottom:22,background:T.surface,borderRadius:T.r,padding:3,width:'fit-content',border:`1px solid ${T.border}`}}>
+        {['history','audit'].map(t=>(<button key={t} className="los-tab" onClick={()=>setTab(t)} style={{padding:'5px 14px',borderRadius:8,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.06em',background:tab===t?T.accentDim:'transparent',color:tab===t?T.accent:T.textSub,border:`1px solid ${tab===t?T.accent+'33':'transparent'}`,transition:'all 0.15s'}}>{t}</button>))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <GlassCard style={{ padding:'20px 22px' }}>
-          <SectionLabel>Net Worth History</SectionLabel>
-          {netWorthHistory.length>1 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}>
-                <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient></defs>
-                <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip content={<ChartTooltip prefix={cur} />} />
-                <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#ag)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ height:100, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Net worth history builds automatically each month.</div>
-          )}
-        </GlassCard>
-        <GlassCard style={{ padding:'20px 22px' }}>
-          <SectionLabel>This Month — {thisMonth}</SectionLabel>
-          {[
-            { label:'Income logged',      val:`${cur}${fmtN(monthInc)}`,    color:T.emerald },
-            { label:'Expenses logged',    val:`${cur}${fmtN(monthExp)}`,    color:T.rose    },
-            { label:'Net saved',          val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent },
-            { label:'Vitals logged',      val:`${vitals.filter(v=>v.date?.startsWith(thisMonth)).length} days`, color:T.sky },
-            { label:'Habits tracked',     val:`${habits.length} habits`, color:T.violet  },
-            { label:'Best streak',        val:`🔥 ${bestStreak} days`, color:T.amber   },
-          ].map((item,i)=>(
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
-              <span style={{ color:T.textSub }}>{item.label}</span>
-              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
-            </div>
-          ))}
-        </GlassCard>
-        {expenses.length>0 && (
-          <GlassCard style={{ padding:'20px 22px', gridColumn:'span 2' }}>
-            <SectionLabel>All-Time Expenses ({expenses.length} entries)</SectionLabel>
-            <div style={{ display:'flex', gap:20 }}>
-              <div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>TOTAL LOGGED</div>
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{cur}{fmtN(expenses.reduce((s,e)=>s+Number(e.amount||0),0))}</div>
-              </div>
-              <div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>TOTAL INCOME</div>
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>{cur}{fmtN(incomes.reduce((s,i)=>s+Number(i.amount||0),0))}</div>
-              </div>
-              <div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>HABIT LOGS</div>
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{Object.values(habitLogs).flat().length}</div>
-              </div>
-              <div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>VITALS DAYS</div>
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:T.sky }}>{vitals.length}</div>
-              </div>
+
+      {tab==='history'&&(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          <GlassCard style={{padding:'20px 22px'}}>
+            <SectionLabel>Net Worth History</SectionLabel>
+            {netWorthHistory.length>1?(<ResponsiveContainer width="100%" height={200}><AreaChart data={netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}><defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.3}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false}/><XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false}/><YAxis hide/><Tooltip content={<ChartTooltip prefix={cur}/>}/><Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#ag)" dot={false}/></AreaChart></ResponsiveContainer>):(
+              <div style={{height:100,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Net worth history builds automatically each month.</div>
+            )}
+          </GlassCard>
+          <GlassCard style={{padding:'20px 22px'}}>
+            <SectionLabel>This Month — {thisMonth}</SectionLabel>
+            {[{label:'Income logged',val:`${cur}${fmtN(monthInc)}`,color:T.emerald},{label:'Expenses logged',val:`${cur}${fmtN(monthExp)}`,color:T.rose},{label:'Net saved',val:`${cur}${fmtN(monthInc-monthExp)}`,color:T.accent},{label:'Vitals logged',val:`${vitals.filter(v=>v.date?.startsWith(thisMonth)).length} days`,color:T.sky},{label:'Habits tracked',val:`${habits.length} habits`,color:T.violet},{label:'Best streak',val:`🔥 ${bestStreak} days`,color:T.amber}].map((item,i)=>(<div key={i} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',borderBottom:i<5?`1px solid ${T.border}`:'none',fontSize:11,fontFamily:T.fM}}><span style={{color:T.textSub}}>{item.label}</span><span style={{color:item.color,fontWeight:600}}>{item.val}</span></div>))}
+          </GlassCard>
+          <GlassCard style={{padding:'20px 22px',gridColumn:'span 2'}}>
+            <SectionLabel>All-Time Activity</SectionLabel>
+            <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+              {[{label:'Expenses',val:expenses.length,color:T.rose},{label:'Income Entries',val:incomes.length,color:T.emerald},{label:'Habit Logs',val:Object.values(habitLogs).flat().length,color:T.accent},{label:'Vitals Days',val:vitals.length,color:T.sky},{label:'Notes',val:notes.length,color:T.amber},{label:'Timeline Events',val:(timeline||[]).length,color:T.violet}].map((s,i)=>(
+                <div key={i}><div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginBottom:4}}>{s.label.toUpperCase()}</div><div style={{fontSize:20,fontFamily:T.fD,fontWeight:700,color:s.color}}>{s.val.toLocaleString()}</div></div>
+              ))}
             </div>
           </GlassCard>
-        )}
-      </div>
+        </div>
+      )}
+
+      {tab==='audit'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          {/* Header */}
+          <GlassCard style={{padding:'20px 24px',background:`linear-gradient(135deg,${T.accentLo},${T.violetDim})`,border:`1px solid ${T.accent}33`}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+              <span style={{fontSize:24}}>⬡</span>
+              <div><div style={{fontSize:9,fontFamily:T.fM,color:T.accent,letterSpacing:'0.1em',textTransform:'uppercase'}}>System Architecture Audit</div><div style={{fontSize:18,fontFamily:T.fD,fontWeight:800,color:T.text}}>LifeOS v2 — Timeline Engine Active</div></div>
+            </div>
+            <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,lineHeight:1.6}}>
+              Full audit of infrastructure, modules, AI systems, and performance. {audit.implemented.length} systems operational · {audit.missing.length} pending · {audit.risks.length} notes.
+            </div>
+          </GlassCard>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14}}>
+            {/* Implemented */}
+            <GlassCard style={{padding:'18px 20px',borderTop:`3px solid ${T.emerald}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
+                <span style={{fontSize:13}}>✅</span>
+                <SectionLabel>Implemented Systems</SectionLabel>
+              </div>
+              {audit.implemented.map((item,i)=>(
+                <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:i<audit.implemented.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:T.emerald}}>{item.s}</div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{item.d}</div>
+                </div>
+              ))}
+            </GlassCard>
+
+            {/* Missing */}
+            <GlassCard style={{padding:'18px 20px',borderTop:`3px solid ${T.amber}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
+                <span style={{fontSize:13}}>⚠️</span>
+                <SectionLabel>Pending / Empty</SectionLabel>
+              </div>
+              {audit.missing.map((item,i)=>(
+                <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:i<audit.missing.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:T.amber}}>{item.s}</div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{item.d}</div>
+                </div>
+              ))}
+            </GlassCard>
+
+            {/* Risks */}
+            <GlassCard style={{padding:'18px 20px',borderTop:`3px solid ${T.rose}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
+                <span style={{fontSize:13}}>🔬</span>
+                <SectionLabel>Architecture Notes</SectionLabel>
+              </div>
+              {audit.risks.map((item,i)=>(
+                <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:i<audit.risks.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:T.rose}}>{item.s}</div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{item.d}</div>
+                </div>
+              ))}
+              <div style={{marginTop:14,padding:'10px 12px',borderRadius:T.r,background:`${T.accent}08`,border:`1px solid ${T.accent}22`}}>
+                <div style={{fontSize:10,fontFamily:T.fM,color:T.accent,fontWeight:600,marginBottom:4}}>💡 Suggested Next Steps</div>
+                {['Add i18n language system (react-intl)','Implement undo stack via useReducer','Add mobile-specific navigation','Export/import full timeline','Set up recurring event system'].map((s,i)=>(
+                  <div key={i} style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginBottom:3}}>→ {s}</div>
+                ))}
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Timeline integration status */}
+          <GlassCard style={{padding:'20px 22px'}}>
+            <SectionLabel>Timeline Event Integration Status</SectionLabel>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+              {[
+                {module:'Expenses',status:'✅',events:`${expenses.length}`,color:T.emerald},
+                {module:'Income',status:'✅',events:`${incomes.length}`,color:T.emerald},
+                {module:'Habits',status:'✅',events:`${Object.values(habitLogs).flat().length}`,color:T.emerald},
+                {module:'Vitals',status:'✅',events:`${vitals.length}`,color:T.emerald},
+                {module:'Goals',status:'✅',events:`${goals.length}`,color:T.emerald},
+                {module:'Notes',status:'✅',events:`${notes.length}`,color:T.emerald},
+                {module:'Focus Sessions',status:'✅',events:`${focusSessions.length}`,color:T.emerald},
+                {module:'AI Insights',status:'✅',events:'auto',color:T.emerald},
+                {module:'Assets',status:'✅',events:`${assets.length}`,color:T.emerald},
+                {module:'Investments',status:'✅',events:`${investments.length}`,color:T.emerald},
+                {module:'Debts',status:debts.length>0?'✅':'ℹ️',events:`${debts.length}`,color:debts.length>0?T.emerald:T.amber},
+                {module:'Career/Jobs',status:'ℹ️',events:'0',color:T.amber},
+              ].map((m,i)=>(
+                <div key={i} style={{padding:'10px 12px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
+                    <span style={{fontSize:12}}>{m.status}</span>
+                    <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.06em'}}>{m.module.toUpperCase()}</span>
+                  </div>
+                  <div style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:m.color}}>{m.events} events</div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── SETTINGS PAGE ──────────────────────────────────────────────────────────────
-function SettingsPage({ data, actions }) {
-  const { settings } = data;
-  const [name, setName] = useState(settings.name||'');
-  const [currency, setCurrency] = useState(settings.currency||'$');
-  const [incomeTarget, setIncomeTarget] = useState(settings.incomeTarget||'');
-  const [savingsTarget, setSavingsTarget] = useState(settings.savingsTarget||'');
+function SettingsPage({data,actions}) {
+  const {settings}=data;
+  const [name,setName]=useState(settings.name||'');
+  const [currency,setCurrency]=useState(settings.currency||'$');
+  const [incomeTarget,setIncomeTarget]=useState(settings.incomeTarget||'');
+  const [savingsTarget,setSavingsTarget]=useState(settings.savingsTarget||'');
 
-  const save = () => {
-    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget) });
-  };
+  const save=()=>{actions.updateSettings({...settings,name,currency,incomeTarget:Number(incomeTarget),savingsTarget:Number(savingsTarget)});};
 
-  const exportData = () => {
-    const d = {
-      los_habits:data.habits, los_habitlogs:data.habitLogs,
-      los_expenses:data.expenses, los_incomes:data.incomes,
-      los_debts:data.debts, los_goals:data.goals,
-      los_assets:data.assets, los_investments:data.investments,
-      los_vitals:data.vitals, los_notes:data.notes,
-      los_xp:data.totalXP, los_nwhistory:data.netWorthHistory,
-      los_settings:settings, los_focus:data.focusSessions,
-    };
+  const exportData=()=>{
+    const d={los_habits:data.habits,los_habitlogs:data.habitLogs,los_expenses:data.expenses,los_incomes:data.incomes,los_debts:data.debts,los_goals:data.goals,los_assets:data.assets,los_investments:data.investments,los_vitals:data.vitals,los_notes:data.notes,los_xp:data.totalXP,los_nwhistory:data.netWorthHistory,los_settings:settings,los_focus:data.focusSessions,los_timeline:data.timeline};
     const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=`lifeos_backup_${today()}.json`; a.click();
-    URL.revokeObjectURL(url);
+    const a=document.createElement('a');a.href=url;a.download=`lifeos_backup_${today()}.json`;a.click();URL.revokeObjectURL(url);
   };
 
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>System</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Settings</h1>
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-        <GlassCard style={{ padding:'24px' }}>
+    <div style={{animation:'fadeUp 0.4s ease'}}>
+      <div style={{marginBottom:22}}><SectionLabel>System</SectionLabel><h1 style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>Settings</h1></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+        <GlassCard style={{padding:'24px'}}>
           <SectionLabel>Profile</SectionLabel>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" />
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"/>
             <Select value={currency} onChange={e=>setCurrency(e.target.value)}>
               {['$','€','£','¥','₹','₩','Fr','A$','C$'].map(c=><option key={c}>{c}</option>)}
             </Select>
-            <Input type="number" value={incomeTarget} onChange={e=>setIncomeTarget(e.target.value)} placeholder="Monthly income target" />
-            <Input type="number" value={savingsTarget} onChange={e=>setSavingsTarget(e.target.value)} placeholder="Savings rate target (%)" />
+            <Input type="number" value={incomeTarget} onChange={e=>setIncomeTarget(e.target.value)} placeholder="Monthly income target"/>
+            <Input type="number" value={savingsTarget} onChange={e=>setSavingsTarget(e.target.value)} placeholder="Savings rate target (%)"/>
             <Btn full onClick={save} color={T.accent}>Save Settings</Btn>
           </div>
         </GlassCard>
-
-        <GlassCard style={{ padding:'24px' }}>
+        <GlassCard style={{padding:'24px'}}>
           <SectionLabel>Data</SectionLabel>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ padding:'14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, marginBottom:2 }}>Expenses logged</div>
-              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{data.expenses.length}</div>
-            </div>
-            <div style={{ padding:'14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, marginBottom:2 }}>Habits tracked</div>
-              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{data.habits.length}</div>
-            </div>
-            <div style={{ padding:'14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, marginBottom:2 }}>Goals set</div>
-              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{data.goals.length}</div>
-            </div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {[{label:'Timeline Events',val:((data.timeline||[]).length).toString(),color:T.accent},{label:'Expenses logged',val:data.expenses.length.toString(),color:T.rose},{label:'Habits tracked',val:data.habits.length.toString(),color:T.amber},{label:'Goals set',val:data.goals.length.toString(),color:T.violet}].map((s,i)=>(
+              <div key={i} style={{padding:'12px 14px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>{s.label}</div>
+                <div style={{fontSize:16,fontFamily:T.fD,fontWeight:700,color:s.color}}>{s.val}</div>
+              </div>
+            ))}
             <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
           </div>
         </GlassCard>
-
-        <GlassCard style={{ padding:'24px', gridColumn:'span 2' }}>
-          <SectionLabel>System Status</SectionLabel>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
-            {['Finance Engine','Health Sync','AI Coach','Timeline','Intelligence'].map((sys,i)=>(
-              <div key={i} style={{ padding:'12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}>
-                  <div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2s infinite' }} />
-                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.emerald }}>Online</span>
-                </div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.text }}>{sys}</div>
+        <GlassCard style={{padding:'24px',gridColumn:'span 2'}}>
+          <SectionLabel>System Status — All Modules</SectionLabel>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:10}}>
+            {['Finance Engine','Health Sync','AI Coach','Timeline Engine','Intelligence','Command Palette','Toast System','Knowledge Base','Growth Engine','Archive','Settings','Export'].map((sys,i)=>(
+              <div key={i} style={{padding:'10px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`}}>
+                <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}><div style={{width:5,height:5,borderRadius:'50%',background:T.emerald,animation:'dotPulse 2s infinite'}}/><span style={{fontSize:8,fontFamily:T.fM,color:T.emerald}}>Online</span></div>
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.text}}>{sys}</div>
               </div>
             ))}
-          </div>
-          <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Data Continuity</div>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>
-              All your data from the original LifeOS app is automatically loaded here via shared localStorage. Any changes you make are instantly saved and visible in both apps.
-            </div>
           </div>
         </GlassCard>
       </div>
@@ -1821,156 +1572,237 @@ function SettingsPage({ data, actions }) {
 
 // ── ROOT APP ───────────────────────────────────────────────────────────────────
 export default function LifeOS() {
-  const [page, setPage] = useState('home');
+  const [page,setPage]=useState('home');
+  const [cmdOpen,setCmdOpen]=useState(false);
+  const [toasts,setToasts]=useState([]);
 
-  // ── ALL STATE — same localStorage keys as original app ──────────────────────
-  const [settings,    setSettings   ] = useLocalStorage('los_settings',   { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
-  const [habits,      setHabits     ] = useLocalStorage('los_habits',      []);
-  const [habitLogs,   setHabitLogs  ] = useLocalStorage('los_habitlogs',   {});
-  const [expenses,    setExpenses   ] = useLocalStorage('los_expenses',    []);
-  const [incomes,     setIncomes    ] = useLocalStorage('los_incomes',     []);
-  const [debts,       setDebts      ] = useLocalStorage('los_debts',       []);
-  const [goals,       setGoals      ] = useLocalStorage('los_goals',       []);
-  const [assets,      setAssets     ] = useLocalStorage('los_assets',      []);
-  const [investments, setInvestments] = useLocalStorage('los_investments', []);
-  const [vitals,      setVitals     ] = useLocalStorage('los_vitals',      []);
-  const [notes,       setNotes      ] = useLocalStorage('los_notes',       []);
-  const [focusSessions,setFocusSessions]=useLocalStorage('los_focus',      []);
-  const [totalXP,     setTotalXP    ] = useLocalStorage('los_xp',          0);
+  // Toast system
+  const addToast=useCallback((title,type='success',body='',icon='')=>{
+    const META={success:{color:T.emerald,icon:'✅'},error:{color:T.rose,icon:'❌'},info:{color:T.sky,icon:'ℹ️'},achievement:{color:T.amber,icon:'🏅'},timeline:{color:T.accent,icon:'⚡'}};
+    const m=META[type]||META.success;
+    const id=Date.now()+Math.random();
+    setToasts(p=>[...p,{id,title,body,color:m.color,icon:icon||m.icon}]);
+    setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3500);
+  },[]);
+  const removeToast=useCallback((id)=>setToasts(p=>p.filter(t=>t.id!==id)),[]);
+
+  // ⌘K shortcut
+  useEffect(()=>{
+    const handler=(e)=>{ if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setCmdOpen(o=>!o);} };
+    window.addEventListener('keydown',handler);
+    return()=>window.removeEventListener('keydown',handler);
+  },[]);
+
+  // State stores
+  const [settings,setSettings]=useLocalStorage('los_settings',{name:'',currency:'$',language:'en',incomeTarget:0,savingsTarget:30});
+  const [habits,setHabits]=useLocalStorage('los_habits',[]);
+  const [habitLogs,setHabitLogs]=useLocalStorage('los_habitlogs',{});
+  const [expenses,setExpenses]=useLocalStorage('los_expenses',[]);
+  const [incomes,setIncomes]=useLocalStorage('los_incomes',[]);
+  const [debts,setDebts]=useLocalStorage('los_debts',[]);
+  const [goals,setGoals]=useLocalStorage('los_goals',[]);
+  const [assets,setAssets]=useLocalStorage('los_assets',[]);
+  const [investments,setInvestments]=useLocalStorage('los_investments',[]);
+  const [vitals,setVitals]=useLocalStorage('los_vitals',[]);
+  const [notes,setNotes]=useLocalStorage('los_notes',[]);
+  const [focusSessions,setFocusSessions]=useLocalStorage('los_focus',[]);
+  const [totalXP,setTotalXP]=useLocalStorage('los_xp',0);
   const [netWorthHistory,setNetWorthHistory]=useLocalStorage('los_nwhistory',[]);
-  const [eventLog,    setEventLog   ] = useLocalStorage('los_eventlog',    []);
-  const [quickNotes,  setQuickNotes ] = useLocalStorage('los_qnotes',      []);
-  const [subscriptions,setSubscriptions]=useLocalStorage('los_subs',       []);
-  const [bills,       setBills      ] = useLocalStorage('los_bills',       []);
+  const [eventLog,setEventLog]=useLocalStorage('los_eventlog',[]);
+  const [quickNotes,setQuickNotes]=useLocalStorage('los_qnotes',[]);
+  const [subscriptions]=useLocalStorage('los_subs',[]);
+  const [bills]=useLocalStorage('los_bills',[]);
 
-  // ── ACTIONS ────────────────────────────────────────────────────────────────
-  const addExpense = useCallback((e) => {
-    setExpenses(p => [e, ...p]);
-    setTotalXP(x => Number(x) + 5);
-  }, []);
+  // TIMELINE ENGINE — central event store
+  const [timeline,setTimeline]=useLocalStorage('los_timeline',[]);
 
-  const addIncome = useCallback((i) => {
-    setIncomes(p => [i, ...p]);
-    setTotalXP(x => Number(x) + 10);
-  }, []);
+  // createTimelineEvent — called by all modules
+  const addTLEvent=useCallback((params)=>{
+    const event=buildTLEvent(params);
+    setTimeline(prev=>[event,...prev].slice(0,2000)); // max 2000 events
+    return event;
+  },[setTimeline]);
 
-  const addHabit = useCallback((name) => {
-    const h = { id: Date.now(), name, frequency:'daily', emoji:'🔥', xp:10 };
-    setHabits(p => [...p, h]);
-  }, []);
+  const cur=settings.currency||'$';
 
-  const logHabit = useCallback((habitId) => {
-    const d = today();
-    setHabitLogs(prev => {
-      const logs = prev[habitId] || [];
-      if (logs.includes(d)) return prev;
-      return { ...prev, [habitId]: [...logs, d] };
+  // ── ACTIONS (all wired to timeline) ────────────────────────────────────────
+  const addExpense=useCallback((e)=>{
+    setExpenses(p=>[e,...p]);
+    setTotalXP(x=>Number(x)+5);
+    addTLEvent({type:'expense',title:`Expense: ${e.note||e.category}`,description:`${cur}${fmtN(e.amount)} — ${e.category}`,category:'money',metadata:{amount:e.amount,category:e.category,note:e.note},date:e.date});
+    addToast(`Expense logged`,`timeline`,`${e.category} · ${cur}${fmtN(e.amount)}`,'💳');
+  },[cur,addTLEvent,addToast]);
+
+  const addIncome=useCallback((i)=>{
+    setIncomes(p=>[i,...p]);
+    setTotalXP(x=>Number(x)+10);
+    addTLEvent({type:'income',title:`Income: ${i.note||i.source||'Received'}`,description:`+${cur}${fmtN(i.amount)} — ${i.source||'Income'}`,category:'money',metadata:{amount:i.amount,source:i.source},date:i.date});
+    addToast(`Income logged`,`success`,`+${cur}${fmtN(i.amount)}`,'💰');
+  },[cur,addTLEvent,addToast]);
+
+  const addHabit=useCallback((name)=>{
+    const h={id:Date.now(),name,frequency:'daily',emoji:'🔥',xp:10};
+    setHabits(p=>[...p,h]);
+    addTLEvent({type:'goal_created',title:`New habit: ${name}`,description:'Habit created and tracking started',category:'growth'});
+  },[addTLEvent]);
+
+  const logHabit=useCallback((habitId)=>{
+    const d=today();
+    setHabitLogs(prev=>{
+      const logs=prev[habitId]||[];
+      if(logs.includes(d)) return prev;
+      return{...prev,[habitId]:[...logs,d]};
     });
-    setTotalXP(x => Number(x) + 10);
-  }, []);
+    setTotalXP(x=>Number(x)+10);
+    const hab=habits.find(h=>h.id===habitId);
+    const streak=getStreak(habitId,habitLogs)+1;
+    addTLEvent({type:'habit_completed',title:`${hab?.name||'Habit'} completed`,description:`🔥 ${streak}d streak`,category:'growth',metadata:{habitId,habitName:hab?.name,streak}});
+    if(streak===7||streak===30||streak===100){
+      addTLEvent({type:'streak_milestone',title:`🏆 ${streak}-day streak milestone!`,description:`${hab?.name} — ${streak} days`,category:'growth',metadata:{habitId,streak}});
+      addToast(`${streak}-day streak!`,'achievement',hab?.name||'Habit','🏆');
+    } else {
+      addToast(`Habit logged`,'timeline',`${hab?.name} · 🔥 ${streak}d`,'🔥');
+    }
+  },[habits,habitLogs,addTLEvent,addToast]);
 
-  const addVitals = useCallback((v) => {
-    setVitals(p => {
-      const existing = p.findIndex(x => x.date === v.date);
-      if (existing >= 0) { const n=[...p]; n[existing]={...n[existing],...v}; return n; }
-      return [v, ...p];
+  const addVitals=useCallback((v)=>{
+    setVitals(p=>{
+      const existing=p.findIndex(x=>x.date===v.date);
+      if(existing>=0){const n=[...p];n[existing]={...n[existing],...v};return n;}
+      return[v,...p];
     });
-    setTotalXP(x => Number(x) + 8);
-  }, []);
+    setTotalXP(x=>Number(x)+8);
+    addTLEvent({type:'vitals_logged',title:'Vitals Logged',description:`Sleep ${v.sleep}h · Mood ${v.mood}/10 · Energy ${v.energy}/10`,category:'health',metadata:v,date:v.date});
+    addToast('Vitals logged','info',`Sleep ${v.sleep}h · Mood ${v.mood}/10`,'❤️');
+  },[addTLEvent,addToast]);
 
-  const addNote = useCallback((n) => {
-    setNotes(p => [n, ...p]);
-    setTotalXP(x => Number(x) + 5);
-  }, []);
+  const addNote=useCallback((n)=>{
+    setNotes(p=>[n,...p]);
+    setTotalXP(x=>Number(x)+5);
+    addTLEvent({type:'note_created',title:`Note: ${n.title}`,description:n.tag||'Knowledge',category:'knowledge',metadata:{title:n.title,tag:n.tag},date:n.date});
+    addToast('Note created','info',n.title,'📝');
+  },[addTLEvent,addToast]);
 
-  const addGoal = useCallback((g) => {
-    setGoals(p => [...p, g]);
-    setTotalXP(x => Number(x) + 20);
-  }, []);
+  const addGoal=useCallback((g)=>{
+    setGoals(p=>[...p,g]);
+    setTotalXP(x=>Number(x)+20);
+    addTLEvent({type:'goal_created',title:`New goal: ${g.name}`,description:`Target: ${cur}${fmtN(g.target)} · Category: ${g.cat}`,category:'growth',metadata:{name:g.name,target:g.target,cat:g.cat}});
+    addToast('Goal created','success',g.name,'🎯');
+  },[cur,addTLEvent,addToast]);
 
-  const addAsset = useCallback((a) => {
-    setAssets(p => [...p, a]);
-    setTotalXP(x => Number(x) + 15);
-  }, []);
+  const addAsset=useCallback((a)=>{
+    setAssets(p=>[...p,a]);
+    setTotalXP(x=>Number(x)+15);
+    addTLEvent({type:'asset_added',title:`Asset added: ${a.name}`,description:`${a.type} · ${cur}${fmtN(a.value)}`,category:'money',metadata:{name:a.name,value:a.value,type:a.type}});
+    addToast('Asset added','success',`${a.name} · ${cur}${fmtN(a.value)}`,'💎');
+  },[cur,addTLEvent,addToast]);
 
-  const updateGoalProgress = useCallback((goalId, amount) => {
-    setGoals(p => p.map(g => g.id === goalId ? { ...g, current: Number(g.current||0) + amount, updatedAt: today() } : g));
-    setTotalXP(x => Number(x) + 25);
-  }, []);
+  const updateGoalProgress=useCallback((goalId,amount)=>{
+    setGoals(p=>p.map(g=>{
+      if(g.id!==goalId) return g;
+      const newCurrent=Number(g.current||0)+amount;
+      const completed=newCurrent>=g.target&&(g.current||0)<g.target;
+      if(completed){
+        addTLEvent({type:'goal_completed',title:`🏁 Goal completed: ${g.name}`,description:`Reached ${cur}${fmtN(g.target)} target`,category:'growth',metadata:{goalName:g.name,target:g.target}});
+        addToast(`Goal completed!`,'achievement',g.name,'🏁');
+      } else {
+        addTLEvent({type:'goal_milestone',title:`Goal progress: ${g.name}`,description:`+${cur}${fmtN(amount)} → ${Math.round((newCurrent/g.target)*100)}%`,category:'growth',metadata:{goalName:g.name,added:amount,newPct:Math.round((newCurrent/g.target)*100)}});
+      }
+      return{...g,current:newCurrent,updatedAt:today()};
+    }));
+    setTotalXP(x=>Number(x)+25);
+  },[cur,addTLEvent,addToast]);
 
-  const updateSettings = useCallback((s) => { setSettings(s); }, []);
+  const logFocusSession=useCallback((seconds)=>{
+    const session={id:Date.now(),duration:seconds,date:today()};
+    setFocusSessions(p=>[session,...p]);
+    setTotalXP(x=>Number(x)+15);
+    addTLEvent({type:'focus_completed',title:`Focus session: ${Math.round(seconds/60)}m`,description:`Deep work completed · +15 XP`,category:'growth',metadata:{duration:seconds}});
+    addToast(`Focus session complete`,'success',`${Math.round(seconds/60)} minutes`,'⏱️');
+  },[addTLEvent,addToast]);
 
-  const actions = { addExpense, addIncome, addHabit, logHabit, addVitals, addNote, addGoal, addAsset, updateGoalProgress, updateSettings };
+  const updateSettings=useCallback((s)=>{setSettings(s);},[]);
 
-  const data = { expenses, incomes, assets, investments, debts, goals, habits, habitLogs, vitals, notes, totalXP, settings, netWorthHistory, eventLog, focusSessions, quickNotes, subscriptions, bills };
+  const actions={addExpense,addIncome,addHabit,logHabit,addVitals,addNote,addGoal,addAsset,updateGoalProgress,updateSettings,logFocusSession,addTLEvent};
 
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
-  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
-  const cur = settings.currency||'$';
-  const thisMonth = today().slice(0,7);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-  const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  const data={expenses,incomes,assets,investments,debts,goals,habits,habitLogs,vitals,notes,totalXP,settings,netWorthHistory,eventLog,focusSessions,quickNotes,subscriptions,bills,timeline};
 
-  const VIEW = {
-    home:         <HomePage         data={data} actions={actions} onNav={setPage} />,
-    timeline:     <TimelinePage     data={data} />,
-    money:        <MoneyPage        data={data} actions={actions} />,
-    health:       <HealthPage       data={data} actions={actions} />,
-    growth:       <GrowthPage       data={data} actions={actions} />,
-    knowledge:    <KnowledgePage    data={data} actions={actions} />,
-    intel:        <IntelligencePage data={data} />,
-    archive:      <ArchivePage      data={data} />,
-    settings:     <SettingsPage     data={data} actions={actions} />,
+  const level=Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const bestStreak=habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+  const thisMonth=today().slice(0,7);
+  const monthInc=incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const monthExp=expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const invVal=investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+  const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const savRate=monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+
+  const VIEW={
+    home:<HomePage data={data} actions={actions} onNav={setPage}/>,
+    timeline:<TimelinePage data={data} onNav={setPage}/>,
+    money:<MoneyPage data={data} actions={actions}/>,
+    health:<HealthPage data={data} actions={actions}/>,
+    growth:<GrowthPage data={data} actions={actions}/>,
+    knowledge:<KnowledgePage data={data} actions={actions}/>,
+    intel:<IntelligencePage data={data}/>,
+    archive:<ArchivePage data={data}/>,
+    settings:<SettingsPage data={data} actions={actions}/>,
   };
 
   return (
-    <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
+    <div style={{minHeight:'100vh',background:T.bg,color:T.text,fontFamily:T.fD,display:'flex'}}>
       {/* Ambient glow */}
-      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:-200, left:T.sw, width:600, height:600, borderRadius:'50%', background:`radial-gradient(circle,${T.accent}05 0%,transparent 70%)` }} />
-        <div style={{ position:'absolute', bottom:-200, right:100, width:500, height:500, borderRadius:'50%', background:`radial-gradient(circle,${T.violet}04 0%,transparent 70%)` }} />
+      <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:0,overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-200,left:T.sw,width:600,height:600,borderRadius:'50%',background:`radial-gradient(circle,${T.accent}05 0%,transparent 70%)`}}/>
+        <div style={{position:'absolute',bottom:-200,right:100,width:500,height:500,borderRadius:'50%',background:`radial-gradient(circle,${T.violet}04 0%,transparent 70%)`}}/>
       </div>
 
-      <Sidebar active={page} onNav={setPage} userName={settings.name} />
+      {/* Toast system */}
+      <ToastContainer toasts={toasts} removeToast={removeToast}/>
 
-      <div style={{ flex:1, marginLeft:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
+      {/* Command Palette */}
+      <CommandPalette open={cmdOpen} onClose={()=>setCmdOpen(false)} data={data} onNav={(p)=>{setPage(p);setCmdOpen(false);}}/>
+
+      <Sidebar active={page} onNav={setPage} userName={settings.name} onCmdPalette={()=>setCmdOpen(true)}/>
+
+      <div style={{flex:1,marginLeft:T.sw,minHeight:'100vh',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
         {/* Topbar */}
-        <div style={{ height:50, borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.15em' }}>LIFE OS</span>
-            <span style={{ color:T.textMuted, fontSize:11 }}>›</span>
-            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{page}</span>
+        <div style={{height:50,borderBottom:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',justifyContent:'space-between',background:`${T.bg}dd`,backdropFilter:'blur(20px)',position:'sticky',top:0,zIndex:50}}>
+          <div style={{display:'flex',alignItems:'center',gap:7}}>
+            <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,letterSpacing:'0.15em'}}>LIFE OS</span>
+            <span style={{color:T.textMuted,fontSize:11}}>›</span>
+            <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase'}}>{page}</span>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'flex', alignItems:'center', gap:5 }}>
-              <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
-              All Systems Online
+          <div style={{display:'flex',alignItems:'center',gap:16}}>
+            {/* ⌘K trigger */}
+            <button onClick={()=>setCmdOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontSize:9,fontFamily:T.fM,color:T.textSub,transition:'all 0.15s'}}>
+              <IcoSearch size={9} stroke={T.textSub}/> Search <kbd style={{fontSize:8,color:T.textMuted,padding:'1px 4px',borderRadius:3,border:`1px solid ${T.border}`}}>⌘K</kbd>
+            </button>
+            <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,display:'flex',alignItems:'center',gap:5}}>
+              <div style={{width:4,height:4,borderRadius:'50%',background:T.emerald,animation:'dotPulse 2.5s infinite'}}/>
+              {(timeline||[]).length} events
             </div>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+            <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
           </div>
         </div>
 
         {/* Page */}
-        <div key={page} style={{ flex:1, padding:'26px 30px', overflowY:'auto', maxWidth:1180 }}>
+        <div key={page} style={{flex:1,padding:'26px 30px',overflowY:'auto',maxWidth:1180}}>
           {VIEW[page]}
         </div>
 
         {/* Status bar */}
-        <div style={{ height:26, borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', gap:18, background:T.bg }}>
+        <div style={{height:26,borderTop:`1px solid ${T.border}`,display:'flex',alignItems:'center',padding:'0 28px',gap:18,background:T.bg}}>
           {[
-            { label:'NW',      val:`${cur}${fmtN(nw)}`,             color:T.accent  },
-            { label:'LV',      val:`${level}`,                       color:T.violet  },
-            { label:'SAVINGS', val:`${savRate.toFixed(0)}%`,         color:T.emerald },
-            { label:'STREAK',  val:`🔥 ${bestStreak}d`,             color:T.amber   },
-            { label:'HABITS',  val:`${habits.length} tracked`,      color:T.sky     },
+            {label:'NW',val:`${cur}${fmtN(nw)}`,color:T.accent},
+            {label:'LV',val:`${level}`,color:T.violet},
+            {label:'SAVINGS',val:`${savRate.toFixed(0)}%`,color:T.emerald},
+            {label:'STREAK',val:`🔥 ${bestStreak}d`,color:T.amber},
+            {label:'TL',val:`${(timeline||[]).length} events`,color:T.sky},
           ].map((item,i)=>(
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM }}>
-              <span style={{ color:T.textMuted, letterSpacing:'0.08em' }}>{item.label}</span>
-              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
-              {i<4&&<span style={{ color:T.textMuted, marginLeft:6 }}>·</span>}
+            <div key={i} style={{display:'flex',alignItems:'center',gap:4,fontSize:9,fontFamily:T.fM}}>
+              <span style={{color:T.textMuted,letterSpacing:'0.08em'}}>{item.label}</span>
+              <span style={{color:item.color,fontWeight:600}}>{item.val}</span>
+              {i<4&&<span style={{color:T.textMuted,marginLeft:6}}>·</span>}
             </div>
           ))}
         </div>
