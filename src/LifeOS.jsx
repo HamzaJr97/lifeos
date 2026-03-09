@@ -493,7 +493,7 @@ function HomePage({ data, actions, onNav }) {
 
   const monthExp = useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
   const monthInc = useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
-  const invVal   = useMemo(()=>investments.reduce((s,i)=>s+(Number(i.currentPrice??i.buyPrice||0))*Number(i.quantity||0),0),[investments]);
+  const invVal   = useMemo(()=>investments.reduce((s,i)=>s+(Number((i.currentPrice??i.buyPrice)||0))*Number(i.quantity||0),0),[investments]);
   const assetVal = useMemo(()=>assets.reduce((s,a)=>s+Number(a.value||0),0),[assets]);
   const debtVal  = useMemo(()=>debts.reduce((s,d)=>s+Number(d.balance||0),0),[debts]);
   const netWorth = assetVal + invVal - debtVal;
@@ -826,7 +826,7 @@ function MoneyPage({ data, actions }) {
 
   const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
   const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const invVal   = investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
   const assetVal = assets.reduce((s,a)=>s+Number(a.value||0),0);
   const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
   const netWorth = assetVal + invVal - debtVal;
@@ -1435,7 +1435,7 @@ function KnowledgePage({ data, actions }) {
     const m=today().slice(0,7);
     const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
     const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
-    const invVal=investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+    const invVal=investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
     const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
     const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0;
     const habitSum=habits.map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none';
@@ -1543,7 +1543,7 @@ function IntelligencePage({ data }) {
   const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
   const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
   const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-  const invVal   = investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
   const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
 
   const topCat = useMemo(()=>{
@@ -1910,7 +1910,7 @@ export default function LifeOS() {
   const thisMonth = today().slice(0,7);
   const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
   const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const invVal   = investments.reduce((s,i)=>s+Number(i.currentPrice??i.buyPrice||0)*Number(i.quantity||0),0);
+  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
   const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
   const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
 
