@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, memo } from "react";
 import PropTypes from "prop-types";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
@@ -1101,7 +1101,7 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── HABIT HEATMAP — Phase 5 ───────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-const HabitHeatmap = React.memo(function HabitHeatmap({ habitLogs, habits }) {
+const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
   const WEEKS = 18; const DAYS = 7;
   const cells = useMemo(() => {
     const allLogs = new Set(Object.values(habitLogs).flat());
