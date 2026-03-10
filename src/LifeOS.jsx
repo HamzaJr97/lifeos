@@ -26,6 +26,18 @@ import {
     @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
     @keyframes countUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
     @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes toastTimer { from { width:100%; } to { width:0%; } }
+    @keyframes xpPop { 0% { opacity:0; transform:translateY(12px) scale(0.8); } 18% { opacity:1; transform:translateY(-6px) scale(1.12); } 55% { opacity:1; transform:translateY(-12px) scale(1); } 100% { opacity:0; transform:translateY(-28px) scale(0.9); } }
+    @keyframes fabItemIn { from { opacity:0; transform:scale(0.4); } to { opacity:1; transform:scale(1); } }
+    @keyframes badgeIn { from { opacity:0; transform:scale(0.7) rotateY(90deg); } to { opacity:1; transform:scale(1) rotateY(0deg); } }
+    @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+    @media (max-width:767px) {
+      .los-desktop-only { display:none !important; }
+      .los-mobile-only { display:flex !important; }
+    }
+    @media (min-width:768px) {
+      .los-mobile-only { display:none !important; }
+    }
     .los-btn:hover { filter:brightness(1.2); transform:translateY(-1px); }
     .los-card:hover { border-color:rgba(0,245,212,0.18) !important; }
     .los-nav:hover { background:rgba(0,245,212,0.08) !important; }
@@ -91,6 +103,47 @@ const getStreak = (habitId, habitLogs) => {
   while (true) { const s = d.toISOString().slice(0, 10); if (logs.includes(s)) { streak++; d.setDate(d.getDate()-1); } else break; }
   return streak;
 };
+
+// ── useMobile hook ─────────────────────────────────────────────────────────────
+function useMobile() {
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width:767px)');
+    const handler = (e) => setMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return mobile;
+}
+
+// ── ACHIEVEMENTS (20 total) ────────────────────────────────────────────────────
+const ACHIEVEMENTS = [
+  // Habits
+  { id:'habit_first',   emoji:'🌱', name:'First Step',       desc:'Log your first habit',              color:T.accent,  check:d => Object.values(d.habitLogs).flat().length >= 1 },
+  { id:'streak_7',      emoji:'🔥', name:'Week Warrior',     desc:'7-day streak on any habit',          color:T.amber,   check:d => d.habits.some(h => getStreak(h.id, d.habitLogs) >= 7) },
+  { id:'streak_30',     emoji:'⚡', name:'Iron Discipline',  desc:'30-day streak on any habit',         color:T.violet,  check:d => d.habits.some(h => getStreak(h.id, d.habitLogs) >= 30) },
+  { id:'habits_100',    emoji:'💯', name:'Century Club',     desc:'100 total habit logs',               color:T.accent,  check:d => Object.values(d.habitLogs).flat().length >= 100 },
+  { id:'habits_5',      emoji:'🎭', name:'Multi-Tracker',    desc:'Track 5 habits simultaneously',      color:T.sky,     check:d => d.habits.length >= 5 },
+  // Finance
+  { id:'expense_first', emoji:'💳', name:'First Log',        desc:'Log your first expense',             color:T.rose,    check:d => d.expenses.length >= 1 },
+  { id:'expenses_50',   emoji:'📊', name:'Data Driven',      desc:'Log 50 expenses',                    color:T.rose,    check:d => d.expenses.length >= 50 },
+  { id:'income_first',  emoji:'💰', name:'Earner',           desc:'Log your first income',              color:T.emerald, check:d => d.incomes.length >= 1 },
+  { id:'debt_free',     emoji:'🏆', name:'Debt Slayer',      desc:'Reduce all debts to zero balance',   color:T.emerald, check:d => d.debts.length > 0 && d.debts.every(x => Number(x.balance||0) === 0) },
+  { id:'savings_50',    emoji:'🚀', name:'Super Saver',      desc:'Achieve 50%+ savings rate',          color:T.accent,  check:d => { const m=new Date().toISOString().slice(0,7); const inc=d.incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0); const exp=d.expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0); return inc>0&&((inc-exp)/inc)>=0.5; } },
+  // Growth / XP
+  { id:'level_5',       emoji:'⚔️', name:'Rising Star',      desc:'Reach Level 5',                      color:T.violet,  check:d => Math.floor(Math.sqrt(Number(d.totalXP)/100))+1 >= 5 },
+  { id:'level_10',      emoji:'👑', name:'Life Master',      desc:'Reach Level 10',                     color:T.amber,   check:d => Math.floor(Math.sqrt(Number(d.totalXP)/100))+1 >= 10 },
+  { id:'goals_5',       emoji:'🎯', name:'Visionary',        desc:'Create 5 goals',                     color:T.amber,   check:d => d.goals.length >= 5 },
+  { id:'goal_done',     emoji:'🏅', name:'Goal Getter',      desc:'Complete your first goal',           color:T.emerald, check:d => d.goals.some(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0) },
+  { id:'xp_1000',       emoji:'✨', name:'XP Collector',     desc:'Earn 1,000 XP',                      color:T.violet,  check:d => Number(d.totalXP) >= 1000 },
+  // Knowledge / Health
+  { id:'note_first',    emoji:'📝', name:'Note Taker',       desc:'Create your first note',             color:T.amber,   check:d => d.notes.length >= 1 },
+  { id:'notes_10',      emoji:'📚', name:'Librarian',        desc:'Build a library of 10 notes',        color:T.amber,   check:d => d.notes.length >= 10 },
+  { id:'vitals_first',  emoji:'❤️', name:'Body Check',       desc:'Log vitals for the first time',      color:T.sky,     check:d => d.vitals.length >= 1 },
+  { id:'vitals_30',     emoji:'🏃', name:'Health Tracker',   desc:'Log vitals 30 times',                color:T.sky,     check:d => d.vitals.length >= 30 },
+  // Portfolio
+  { id:'invest_first',  emoji:'📈', name:'Investor',         desc:'Add your first investment position', color:T.violet,  check:d => d.investments.length >= 1 },
+];
 const EXPENSE_COLORS = {
   '🍽️ Food':T.emerald,'🍔 Fast Food':T.amber,'🚗 Transport':T.sky,
   '❤️ Health':T.rose,'🏠 Housing':T.violet,'💳 Debts':T.rose,
@@ -125,6 +178,14 @@ const IcoSend     = (p) => <Ico {...p} d={<><line x1="22" y1="2" x2="11" y2="13"
 const IcoCheck    = (p) => <Ico {...p} d={<><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>} />;
 const IcoSearch   = (p) => <Ico {...p} d={<><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>} />;
 const IcoTrash    = (p) => <Ico {...p} d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>} />;
+const IcoPencil   = (p) => <Ico {...p} d={<><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>} />;
+const IcoUndo     = (p) => <Ico {...p} d={<><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.99"/></>} />;
+const IcoBill     = (p) => <Ico {...p} d={<><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></>} />;
+const IcoStickyNote=(p) => <Ico {...p} d={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></>} />;
+const IcoTrophy   = (p) => <Ico {...p} d={<><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2h-2"/><rect x="6" y="18" width="12" height="4"/></>} />;
+const IcoStar     = (p) => <Ico {...p} d={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>} />;
+const IcoMenu     = (p) => <Ico {...p} d={<><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></>} />;
+const IcoFlag     = (p) => <Ico {...p} d={<><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>} />;
 
 // ── SHARED UI COMPONENTS ──────────────────────────────────────────────────────
 const GlassCard = ({ children, style={}, className='', onClick }) => (
@@ -178,6 +239,126 @@ const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, st
   <button className="los-btn" onClick={onClick} disabled={disabled} style={{ padding:'10px 20px', borderRadius:T.r, background:disabled?T.surface:(color+'18'), color:disabled?T.textMuted:color, border:`1px solid ${disabled?T.border:(color+'44')}`, fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em', width:full?'100%':'auto', transition:'all 0.18s', ...style }}>{children}</button>
 );
 
+// ── MILESTONE PROGRESS BAR ─────────────────────────────────────────────────────
+const MilestoneProgressBar = ({ pct, color=T.accent, height=4, milestones=[] }) => (
+  <div style={{ position:'relative', width:'100%', paddingBottom: milestones.length ? 14 : 0 }}>
+    <div style={{ width:'100%', height, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'visible', position:'relative' }}>
+      <div style={{ height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99, background:`linear-gradient(90deg,${color}aa,${color})`, boxShadow:`0 0 6px ${color}44`, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
+      {milestones.map((m,i) => (
+        <div key={i} title={m.label} style={{ position:'absolute', left:`${m.pct}%`, top:'50%', transform:'translate(-50%,-50%)', width:height+6, height:height+6, borderRadius:'50%', background:(pct||0)>=m.pct?color:T.bg2, border:`2px solid ${(pct||0)>=m.pct?color:T.textMuted}`, zIndex:2, boxShadow:(pct||0)>=m.pct?`0 0 6px ${color}88`:'none', transition:'all 0.4s ease' }} />
+      ))}
+    </div>
+    {milestones.length > 0 && (
+      <div style={{ position:'relative', width:'100%', marginTop:4 }}>
+        {milestones.map((m,i) => (
+          <div key={i} style={{ position:'absolute', left:`${m.pct}%`, transform:'translateX(-50%)', fontSize:8, fontFamily:T.fM, color:(pct||0)>=m.pct?color:T.textMuted, textAlign:'center', whiteSpace:'nowrap', transition:'color 0.4s ease' }}>{m.label}</div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+// ── XP POP CONTAINER ──────────────────────────────────────────────────────────
+function XPPopContainer({ pops }) {
+  if (!pops.length) return null;
+  return (
+    <div style={{ position:'fixed', top:64, right:24, zIndex:9997, display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end', pointerEvents:'none' }}>
+      {pops.map(pop => (
+        <div key={pop.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 13px', borderRadius:99, background:`${pop.color||T.violet}18`, border:`1px solid ${pop.color||T.violet}44`, color:pop.color||T.violet, fontFamily:T.fM, fontWeight:700, fontSize:13, letterSpacing:'0.03em', animation:'xpPop 1.8s ease forwards', whiteSpace:'nowrap' }}>
+          ⚡ {pop.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── QUICK CAPTURE FAB ─────────────────────────────────────────────────────────
+function QuickCaptureFAB({ onAction, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const FAB_ITEMS = [
+    { label:'Expense', emoji:'💳', modal:'expense', color:T.rose },
+    { label:'Income',  emoji:'💰', modal:'income',  color:T.emerald },
+    { label:'Habit',   emoji:'🔥', modal:'habit',   color:T.accent },
+    { label:'Vitals',  emoji:'❤️', modal:'vitals',  color:T.sky },
+    { label:'Note',    emoji:'📝', modal:'note',    color:T.amber },
+    { label:'Goal',    emoji:'🎯', modal:'goal',    color:T.violet },
+  ];
+  // Fan arc from 90° (up) to 180° (left) at radius 78px
+  const positions = FAB_ITEMS.map((_,i) => {
+    const deg = 90 + (90 / (FAB_ITEMS.length - 1)) * i;
+    const rad = deg * Math.PI / 180;
+    return { x: Math.round(Math.cos(rad) * 78), y: Math.round(Math.sin(rad) * 78) };
+  });
+  const bottomOffset = isMobile ? 74 : 46;
+  return (
+    <div style={{ position:'fixed', bottom:bottomOffset, right:20, zIndex:9990 }}>
+      {open && FAB_ITEMS.map((item, i) => (
+        <button
+          key={item.modal}
+          onClick={() => { onAction(item.modal); setOpen(false); }}
+          title={item.label}
+          style={{ position:'absolute', bottom:positions[i].y, right:-positions[i].x, width:44, height:44, borderRadius:'50%', background:T.bg2, border:`1.5px solid ${item.color}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, boxShadow:`0 4px 16px rgba(0,0,0,0.6), 0 0 8px ${item.color}22`, animation:`fabItemIn 0.22s ease ${i*0.045}s both`, cursor:'pointer' }}
+        >{item.emoji}</button>
+      ))}
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:-1 }} />
+      )}
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{ width:52, height:52, borderRadius:'50%', background:open?T.roseDim:T.accentDim, border:`1.5px solid ${open?T.rose:T.accent}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, color:open?T.rose:T.accent, boxShadow:`0 4px 20px ${open?T.rose:T.accent}33`, transform:open?'rotate(45deg)':'none', transition:'all 0.25s cubic-bezier(0.34,1.56,0.64,1)', animation:open?'none':'glowPulse 4s infinite', cursor:'pointer' }}
+      >⊕</button>
+    </div>
+  );
+}
+
+// ── BOTTOM NAV (mobile) ───────────────────────────────────────────────────────
+const BOTTOM_NAV = [
+  { id:'home',      Icon:IcoHome,     label:'Home'     },
+  { id:'money',     Icon:IcoMoney,    label:'Money'    },
+  { id:'health',    Icon:IcoHealth,   label:'Health'   },
+  { id:'growth',    Icon:IcoGrowth,   label:'Growth'   },
+  { id:'knowledge', Icon:IcoBook,     label:'Knowledge'},
+];
+function BottomNav({ active, onNav }) {
+  return (
+    <div className="los-mobile-only" style={{ position:'fixed', bottom:0, left:0, right:0, height:60, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none' }}>
+      {BOTTOM_NAV.map(({ id, Icon, label }) => {
+        const isA = active === id;
+        return (
+          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', padding:'6px 0' }}>
+            <Icon size={17} stroke={isA?T.accent:T.textSub} />
+            <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em' }}>{label.toUpperCase()}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── TOAST / UNDO SYSTEM ───────────────────────────────────────────────────────
+function ToastContainer({ toasts, onUndo, onDismiss }) {
+  if (!toasts.length) return null;
+  return (
+    <div style={{ position:'fixed', bottom:42, left:'50%', transform:'translateX(-50%)', zIndex:9998, display:'flex', flexDirection:'column', gap:8, alignItems:'center', pointerEvents:'none' }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 18px', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:12, boxShadow:`0 8px 32px rgba(0,0,0,0.5)`, animation:'slideDown 0.25s ease', fontFamily:T.fM, fontSize:12, color:T.text, pointerEvents:'all', minWidth:280 }}>
+          <span style={{ flex:1 }}>{t.message}</span>
+          {t.onUndo && (
+            <button onClick={()=>onUndo(t.id)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
+              <IcoUndo size={11} stroke={T.accent} /> Undo
+            </button>
+          )}
+          <button onClick={()=>onDismiss(t.id)} style={{ color:T.textSub, padding:3 }}><IcoX size={13} stroke={T.textSub} /></button>
+          {/* Progress bar showing 6s timer */}
+          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, borderRadius:'0 0 12px 12px', overflow:'hidden', background:'rgba(255,255,255,0.06)' }}>
+            <div style={{ height:'100%', background:T.accent, animation:`toastTimer ${t.duration||6}s linear forwards` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
 const NAV = [
   { id:'home',      Icon:IcoHome,     label:'Home'         },
@@ -194,7 +375,7 @@ function Sidebar({ active, onNav, userName }) {
   const [hov, setHov] = useState(null);
   const init = userName ? userName.charAt(0).toUpperCase() : 'U';
   return (
-    <div style={{ width:T.sw, minHeight:'100vh', flexShrink:0, background:`linear-gradient(180deg, ${T.bg} 0%, ${T.bg1} 100%)`, borderRight:`1px solid ${T.border}`, display:'flex', flexDirection:'column', alignItems:'center', padding:'16px 0', gap:2, position:'fixed', top:0, left:0, bottom:0, zIndex:100 }}>
+    <div className="los-desktop-only" style={{ width:T.sw, minHeight:'100vh', flexShrink:0, background:`linear-gradient(180deg, ${T.bg} 0%, ${T.bg1} 100%)`, borderRight:`1px solid ${T.border}`, display:'flex', flexDirection:'column', alignItems:'center', padding:'16px 0', gap:2, position:'fixed', top:0, left:0, bottom:0, zIndex:100 }}>
       <div style={{ width:36, height:36, borderRadius:10, marginBottom:14, background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`, border:`1px solid ${T.accent}44`, display:'flex', alignItems:'center', justifyContent:'center', animation:'glowPulse 3s infinite', fontSize:15 }}>⬡</div>
       {NAV.map(({ id, Icon, label }) => {
         const isA = active===id;
@@ -395,10 +576,12 @@ function AddNoteModal({ open, onClose, onSave }) {
 function AddGoalModal({ open, onClose, onSave }) {
   const [name, setName] = useState(''); const [target, setTarget] = useState('');
   const [cat, setCat] = useState('finance'); const [deadline, setDeadline] = useState('');
+  const [useMilestones, setUseMilestones] = useState(true);
+  const DEFAULT_MILESTONES = [{ label:'25%', pct:25 }, { label:'50%', pct:50 }, { label:'75%', pct:75 }];
   const save = () => {
     if (!name.trim() || !target) return;
     const emojiMap = { finance:'💰', health:'🏃', growth:'🎓', career:'💼', other:'🎯' };
-    onSave({ id:Date.now(), name:name.trim(), target:Number(target), current:0, cat, deadline, emoji:emojiMap[cat]||'🎯', color:T.accent });
+    onSave({ id:Date.now(), name:name.trim(), target:Number(target), current:0, cat, deadline, emoji:emojiMap[cat]||'🎯', color:T.accent, milestones:useMilestones?DEFAULT_MILESTONES:[] });
     setName(''); setTarget(''); onClose();
   };
   return (
@@ -408,6 +591,10 @@ function AddGoalModal({ open, onClose, onSave }) {
         <Input type="number" value={target} onChange={e=>setTarget(e.target.value)} placeholder="Target amount / value" />
         <Select value={cat} onChange={e=>setCat(e.target.value)}>{['finance','health','growth','career','other'].map(c=><option key={c}>{c}</option>)}</Select>
         <Input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} placeholder="Deadline (optional)" />
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+          <input type="checkbox" checked={useMilestones} onChange={e=>setUseMilestones(e.target.checked)} />
+          <span>Add milestone checkpoints <span style={{ color:T.textSub, fontSize:10 }}>(25%, 50%, 75%)</span></span>
+        </label>
         <Btn full onClick={save} color={T.amber}>Create Goal</Btn>
       </div>
     </Modal>
@@ -554,6 +741,125 @@ function BudgetModal({ open, onClose, budgets, onSave }) {
           </div>
         ))}
         <Btn full onClick={()=>{ onSave(Object.fromEntries(Object.entries(local).filter(([,v])=>v))); onClose(); }} color={T.accent} style={{ marginTop:8 }}>Save Budgets</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// S1 — Edit Expense Modal
+function EditExpenseModal({ open, onClose, expense, onSave }) {
+  const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
+  const [note, setNote] = useState(''); const [date, setDate] = useState(today());
+  useEffect(() => { if (expense && open) { setAmt(String(expense.amount||'')); setCat(expense.category||'🍽️ Food'); setNote(expense.note||''); setDate(expense.date||today()); } }, [expense, open]);
+  const save = () => { if (!amt) return; onSave(expense.id, { amount:Number(amt), category:cat, note, date }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Expense">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>{CATS.map(c=><option key={c}>{c}</option>)}</Select>
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
+        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <Btn full onClick={save} color={T.rose}>Save Changes</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// S1 — Edit Debt Modal
+function EditDebtModal({ open, onClose, debt, onSave }) {
+  const [name, setName] = useState(''); const [balance, setBalance] = useState('');
+  const [rate, setRate] = useState(''); const [minPayment, setMinPayment] = useState('');
+  const [type, setType] = useState('Credit Card');
+  useEffect(() => { if (debt && open) { setName(debt.name||''); setBalance(String(debt.balance||'')); setRate(String(debt.rate||'')); setMinPayment(String(debt.minPayment||'')); setType(debt.type||'Credit Card'); } }, [debt, open]);
+  const save = () => { if (!name.trim() || !balance) return; onSave(debt.id, { name:name.trim(), balance:Number(balance), rate:Number(rate)||0, minPayment:Number(minPayment)||0, type }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Debt">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Debt name" />
+        <Select value={type} onChange={e=>setType(e.target.value)}>{['Credit Card','Student Loan','Car Loan','Mortgage','Personal Loan','Medical','Other'].map(t=><option key={t}>{t}</option>)}</Select>
+        <Input type="number" value={balance} onChange={e=>setBalance(e.target.value)} placeholder="Current balance" />
+        <Input type="number" value={rate} onChange={e=>setRate(e.target.value)} placeholder="Interest rate (APR %)" />
+        <Input type="number" value={minPayment} onChange={e=>setMinPayment(e.target.value)} placeholder="Minimum monthly payment" />
+        <Btn full onClick={save} color={T.rose}>Save Changes</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// S1 — Add Bill Modal
+function AddBillModal({ open, onClose, onSave }) {
+  const [name, setName] = useState(''); const [amount, setAmount] = useState('');
+  const [dueDay, setDueDay] = useState('1'); const [category, setCategory] = useState('Utilities');
+  const [emoji, setEmoji] = useState('🧾'); const [autoPay, setAutoPay] = useState(false);
+  const save = () => {
+    if (!name.trim() || !amount) return;
+    const nextDate = (() => { const d=new Date(); d.setDate(Number(dueDay)); if(d<new Date()) d.setMonth(d.getMonth()+1); return d.toISOString().slice(0,10); })();
+    onSave({ id:Date.now(), name:name.trim(), amount:Number(amount), dueDay:Number(dueDay), category, emoji, autoPay, nextDate, createdAt:today(), paid:false });
+    setName(''); setAmount(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="🧾 Add Bill">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'48px 1fr', gap:8 }}>
+          <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{ textAlign:'center', fontSize:18 }} />
+          <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Bill name (e.g. Electricity)" />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" />
+          <Input type="number" value={dueDay} onChange={e=>setDueDay(e.target.value)} placeholder="Due day of month (1-31)" min="1" max="31" />
+        </div>
+        <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Utilities','Rent/Mortgage','Insurance','Phone','Internet','Transportation','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer' }}>
+          <input type="checkbox" checked={autoPay} onChange={e=>setAutoPay(e.target.checked)} /> Auto-pay enabled
+        </label>
+        <Btn full onClick={save} color={T.sky}>Add Bill</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// S1 — Add Quick Note Modal
+function AddQuickNoteModal({ open, onClose, onSave }) {
+  const [text, setText] = useState(''); const [color, setColor] = useState('#fbbf24');
+  const COLORS = ['#fbbf24','#34d399','#38bdf8','#8b5cf6','#fb7185','#00f5d4'];
+  const save = () => { if (!text.trim()) return; onSave({ id:Date.now(), text:text.trim(), color, date:today() }); setText(''); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="📌 Quick Note">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Capture a thought, idea, or reminder..." rows={4} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Color:</span>
+          {COLORS.map(c=>(
+            <button key={c} onClick={()=>setColor(c)} style={{ width:20, height:20, borderRadius:'50%', background:c, border:`2px solid ${color===c?T.text:'transparent'}`, cursor:'pointer', flexShrink:0 }} />
+          ))}
+        </div>
+        <Btn full onClick={save} color={T.amber}>Save Note</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// S2 — Edit Habit Modal
+function EditHabitModal({ open, onClose, habit, onSave }) {
+  const [name, setName] = useState(''); const [emoji, setEmoji] = useState('🔥');
+  const [frequency, setFrequency] = useState('daily'); const [xp, setXp] = useState('10');
+  useEffect(() => { if (habit && open) { setName(habit.name||''); setEmoji(habit.emoji||'🔥'); setFrequency(habit.frequency||'daily'); setXp(String(habit.xp||10)); } }, [habit, open]);
+  const save = () => { if (!name.trim()) return; onSave(habit.id, { name:name.trim(), emoji, frequency, xp:Number(xp)||10 }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Habit">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'52px 1fr', gap:8 }}>
+          <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{ textAlign:'center', fontSize:20 }} />
+          <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Habit name" />
+        </div>
+        <Select value={frequency} onChange={e=>setFrequency(e.target.value)}>
+          {['daily','weekdays','3x week','weekly'].map(f=><option key={f}>{f}</option>)}
+        </Select>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>XP reward per log</div>
+          <Input type="number" value={xp} onChange={e=>setXp(e.target.value)} placeholder="10" />
+        </div>
+        <Btn full onClick={save} color={T.accent}>Save Changes</Btn>
       </div>
     </Modal>
   );
@@ -834,6 +1140,37 @@ function HomePage({ data, actions, onNav }) {
           </div>
           <GlassCard style={{ padding:'18px', flex:1 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <SectionLabel>Today's Habits</SectionLabel>
+              <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
+            </div>
+            {habits.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'16px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.<br/><button onClick={()=>setModal('habit')} style={{ color:T.accent, fontSize:11, fontFamily:T.fM, marginTop:6, cursor:'pointer' }}>+ Add habit</button></div>
+            ) : (
+              habits.map((h,i) => {
+                const done = (habitLogs[h.id]||[]).includes(today());
+                const streak = getStreak(h.id, habitLogs);
+                const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                const hc = HCOLORS[i%HCOLORS.length];
+                return (
+                  <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 6px', borderRadius:8, borderBottom:`1px solid ${T.border}`, transition:'background 0.15s', marginBottom:2 }}>
+                    <button onClick={()=>!done&&actions.logHabit(h.id)} style={{ width:22, height:22, borderRadius:6, flexShrink:0, background:done?hc+'33':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.18s' }}>
+                      {done && <span style={{ fontSize:11, color:hc }}>✓</span>}
+                    </button>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:done?T.textSub:T.text, textDecoration:done?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.emoji||'🔥'} {h.name}</div>
+                    </div>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:streak>0?hc:T.textMuted, flexShrink:0 }}>🔥 {streak}d</span>
+                  </div>
+                );
+              })
+            )}
+            <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{todayDone}/{habits.length} done today</span>
+              <ProgressBar pct={habits.length>0?(todayDone/habits.length)*100:0} color={T.accent} height={4} />
+            </div>
+          </GlassCard>
+          <GlassCard style={{ padding:'18px', flex:1 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <SectionLabel>Today's Feed</SectionLabel>
               <button onClick={()=>onNav('timeline')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
             </div>
@@ -933,7 +1270,9 @@ function MoneyPage({ data, actions }) {
   const [goalAmt, setGoalAmt] = useState(''); const [goalIdx, setGoalIdx] = useState(null);
   const [payoffMethod, setPayoffMethod] = useState('avalanche');
   const [extraPayment, setExtraPayment] = useState(0);
-  const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets } = data;
+  const [editExpense, setEditExpense] = useState(null);
+  const [editDebt, setEditDebt] = useState(null);
+  const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
   const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
@@ -947,7 +1286,9 @@ function MoneyPage({ data, actions }) {
   const payoffInfo = useMemo(()=>calcDebtPayoff(debts, extraPayment, payoffMethod),[debts, extraPayment, payoffMethod]);
   const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, thisMonth),[expenses,budgets,thisMonth]);
   const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
-  const TABS = ['overview','spending','debts','investments','goals','assets','subscriptions'];
+  const billsArr = bills || [];
+  const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
+  const TABS = ['overview','spending','debts','investments','goals','assets','subscriptions','bills'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
@@ -958,7 +1299,10 @@ function MoneyPage({ data, actions }) {
       <LogDebtPaymentModal open={modal==='pay-debt'} onClose={()=>setModal(null)} debts={debts} onPay={(id,amt)=>{actions.payDebt(id,amt);setModal(null);}} />
       <AddInvestmentModal open={modal==='investment'} onClose={()=>setModal(null)} onSave={e=>{actions.addInvestment(e);setModal(null);}} />
       <AddSubscriptionModal open={modal==='subscription'} onClose={()=>setModal(null)} onSave={e=>{actions.addSubscription(e);setModal(null);}} />
+      <AddBillModal open={modal==='bill'} onClose={()=>setModal(null)} onSave={e=>{actions.addBill(e);setModal(null);}} />
       <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} />
+      <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
+      <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
       <div style={{ marginBottom:22 }}>
         <SectionLabel>Financial Domain</SectionLabel>
         <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Money Hub</h1>
@@ -1054,9 +1398,13 @@ function MoneyPage({ data, actions }) {
             <SectionLabel>Recent Expenses</SectionLabel>
             {expenses.length===0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>No expenses yet.</div> : (
               [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,20).map((e,i)=>(
-                <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:i<19?`1px solid ${T.border}`:'none', transition:'background 0.15s' }}>
+                <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<19?`1px solid ${T.border}`:'none', transition:'background 0.15s' }}>
                   <div><div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{e.note||e.category}</div><div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category} · {e.date}</div></div>
-                  <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</div>
+                    <button onClick={()=>setEditExpense(e)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }} title="Edit"><IcoPencil size={11} stroke={T.sky} /></button>
+                    <button onClick={()=>actions.removeExpense(e.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }} title="Delete"><IcoTrash size={11} stroke={T.rose} /></button>
+                  </div>
                 </div>
               ))
             )}
@@ -1118,6 +1466,7 @@ function MoneyPage({ data, actions }) {
                         <div style={{ fontSize:14, fontFamily:T.fM, fontWeight:600, color:T.rose }}>{cur}{fmtN(curBal)}</div>
                         <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{paidPct.toFixed(0)}% paid</div>
                       </div>
+                      <button onClick={()=>setEditDebt(d)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={12} stroke={T.sky} /></button>
                       <button onClick={()=>actions.removeDebt(d.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={12} stroke={T.rose} /></button>
                     </div>
                   </div>
@@ -1262,11 +1611,64 @@ function MoneyPage({ data, actions }) {
           )}
         </div>
       )}
+      {tab==='bills' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <Btn onClick={()=>setModal('bill')} color={T.sky}>+ Add Bill</Btn>
+            {billsArr.length>0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Monthly total: <span style={{ color:T.sky, fontWeight:600 }}>{cur}{fmtN(billsArr.reduce((s,b)=>s+Number(b.amount||0),0))}</span></div>}
+          </div>
+          {billsArr.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:28, marginBottom:12 }}>🧾</div>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>No bills tracked</div>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Add your recurring bills — rent, utilities, insurance — to never miss a due date.</div>
+            </GlassCard>
+          ) : (
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Upcoming Bills</SectionLabel>
+              {upcomingBills.map((bill,i)=>{
+                const daysUntil = Math.ceil((new Date(bill.nextDate)-new Date())/(1000*60*60*24));
+                const isOverdue = daysUntil < 0;
+                const isUrgent = daysUntil <= 3 && daysUntil >= 0;
+                const statusColor = isOverdue ? T.rose : isUrgent ? T.amber : T.text;
+                return (
+                  <div key={bill.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0', borderBottom:i<upcomingBills.length-1?`1px solid ${T.border}`:'none' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                      <div style={{ width:38, height:38, borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{bill.emoji||'🧾'}</div>
+                      <div>
+                        <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{bill.name}</div>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{bill.category} · Due: {bill.nextDate}{bill.autoPay?' · ✓ Auto-pay':''}</div>
+                      </div>
+                    </div>
+                    <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.sky }}>{cur}{fmtN(bill.amount)}</div>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:statusColor, fontWeight:isOverdue||isUrgent?600:400 }}>{isOverdue?`${-daysUntil}d overdue`:isUrgent?`Due in ${daysUntil}d`:`${daysUntil}d away`}</div>
+                      </div>
+                      <button onClick={()=>actions.markBillPaid(bill.id)} style={{ padding:'4px 9px', borderRadius:6, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, fontSize:10, fontFamily:T.fM, color:T.emerald, cursor:'pointer' }}>✓ Pay</button>
+                      <button onClick={()=>actions.removeBill(bill.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={12} stroke={T.rose} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+              {billsArr.filter(b=>b.paid).length > 0 && (
+                <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:10, letterSpacing:'0.08em' }}>PAID THIS CYCLE</div>
+                  {billsArr.filter(b=>b.paid).map((bill,i)=>(
+                    <div key={bill.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', opacity:0.5 }}>
+                      <div style={{ display:'flex', gap:10, alignItems:'center' }}><span>{bill.emoji||'🧾'}</span><span style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textDecoration:'line-through' }}>{bill.name}</span></div>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>✓ Paid · {cur}{fmtN(bill.amount)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassCard>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-// ── HEALTH PAGE ───────────────────────────────────────────────────────────────
 function HealthPage({ data, actions }) {
   const [modal, setModal] = useState(null);
   const [focusActive, setFocusActive] = useState(false);
@@ -1375,6 +1777,7 @@ function HealthPage({ data, actions }) {
 function GrowthPage({ data, actions }) {
   const [tab, setTab] = useState('character');
   const [modal, setModal] = useState(null);
+  const [editHabit, setEditHabit] = useState(null);
   const { habits, habitLogs, goals, totalXP, settings } = data;
   const cur = settings.currency||'$';
   const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
@@ -1391,14 +1794,19 @@ function GrowthPage({ data, actions }) {
     { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose },
     { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber },
   ];
+  const unlockedAchievements = useMemo(() => ACHIEVEMENTS.filter(a => a.check(data)), [data]);
+  const lockedAchievements = useMemo(() => ACHIEVEMENTS.filter(a => !a.check(data)), [data]);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+      <EditHabitModal open={!!editHabit} onClose={()=>setEditHabit(null)} habit={editHabit} onSave={(id,patch)=>{actions.updateHabit(id,patch);setEditHabit(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1></div>
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['character','habits','goals'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
+      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
+        {['character','habits','goals','achievements'].map(t=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
+            {t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
+          </button>
         ))}
       </div>
 
@@ -1412,6 +1820,12 @@ function GrowthPage({ data, actions }) {
                 <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:T.text, marginBottom:8 }}>Level {level} — {heroClass}</div>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{Number(totalXP).toLocaleString()} XP</span><span style={{ fontSize:10, fontFamily:T.fM, color:T.violet }}>{(xpForNext-Number(totalXP)).toLocaleString()} to Lv {level+1}</span></div>
                 <ProgressBar pct={xpPct} color={T.violet} height={8} />
+                <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                  {unlockedAchievements.slice(0,6).map(a=>(
+                    <div key={a.id} title={a.name} style={{ fontSize:18, filter:`drop-shadow(0 0 4px ${a.color}66)` }}>{a.emoji}</div>
+                  ))}
+                  {unlockedAchievements.length > 6 && <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, alignSelf:'center' }}>+{unlockedAchievements.length-6} more</span>}
+                </div>
               </div>
             </div>
           </GlassCard>
@@ -1458,15 +1872,20 @@ function GrowthPage({ data, actions }) {
                   <div style={{ width:40, height:40, borderRadius:T.r, flexShrink:0, background:hc+'18', border:`1px solid ${hc}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{habit.emoji||'🔥'}</div>
                   <div style={{ flex:1 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                      <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text }}>{habit.name}</span>
-                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                        <span style={{ fontSize:11, fontFamily:T.fM, color:hc }}>🔥 {streak}d streak</span>
+                      <div>
+                        <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text }}>{habit.name}</span>
+                        {habit.frequency && habit.frequency !== 'daily' && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginLeft:8 }}>{habit.frequency}</span>}
+                      </div>
+                      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                        <span style={{ fontSize:11, fontFamily:T.fM, color:hc }}>🔥 {streak}d</span>
+                        {habit.xp && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>+{habit.xp}xp</span>}
                         {done ? <Badge color={hc}>✓ Done</Badge> : <Btn onClick={()=>actions.logHabit(habit.id)} color={hc} style={{ padding:'4px 12px' }}>Log</Btn>}
+                        <button onClick={()=>setEditHabit(habit)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={11} stroke={T.sky} /></button>
                         <button onClick={()=>actions.removeHabit(habit.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={11} stroke={T.rose} /></button>
                       </div>
                     </div>
                     <ProgressBar pct={(streak/Math.max(streak,30))*100} color={hc} height={4} />
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>Total logs: {(habitLogs[habit.id]||[]).length} · Best: {Math.max(streak, (habitLogs[habit.id]||[]).length > 0 ? streak : 0)}d</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>Total logs: {(habitLogs[habit.id]||[]).length}</div>
                   </div>
                 </div>
               </GlassCard>
@@ -1482,7 +1901,7 @@ function GrowthPage({ data, actions }) {
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first goal to start tracking progress.</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {goals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.violet; return (
+              {goals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.violet; const ms=goal.milestones||[]; return (
                 <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
@@ -1490,11 +1909,58 @@ function GrowthPage({ data, actions }) {
                   </div>
                   <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{goal.name}</div>
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>{cur}{fmtN(goal.current||0)} / {cur}{fmtN(goal.target)} · {pct}%{goal.deadline?` · Due ${goal.deadline}`:''}</div>
-                  <ProgressBar pct={pct} color={c} height={6} />
+                  <MilestoneProgressBar pct={pct} color={c} height={6} milestones={ms} />
                   {pct>=100 && <div style={{ marginTop:8, fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Completed!</div>}
+                  {ms.length > 0 && pct < 100 && (() => { const next = ms.find(m => (pct||0) < m.pct); return next ? <div style={{ fontSize:9, fontFamily:T.fM, color:c, marginTop:8 }}>Next milestone: {next.label} at {next.pct}%</div> : null; })()}
                 </GlassCard>
               ); })}
             </div>
+          )}
+        </div>
+      )}
+
+      {tab==='achievements' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
+            <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{unlockedAchievements.length} / {ACHIEVEMENTS.length} unlocked</div>
+            <ProgressBar pct={(unlockedAchievements.length/ACHIEVEMENTS.length)*100} color={T.violet} height={5} />
+          </div>
+          {unlockedAchievements.length > 0 && (
+            <div>
+              <SectionLabel>Unlocked</SectionLabel>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10 }}>
+                {unlockedAchievements.map((a,i) => (
+                  <GlassCard key={a.id} style={{ padding:'16px', textAlign:'center', borderColor:`${a.color}33`, animation:`badgeIn 0.35s ease ${i*0.05}s both` }}>
+                    <div style={{ fontSize:32, marginBottom:8, filter:`drop-shadow(0 0 8px ${a.color}66)` }}>{a.emoji}</div>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{a.name}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.4 }}>{a.desc}</div>
+                    <div style={{ marginTop:8 }}><Badge color={a.color}>✓ Unlocked</Badge></div>
+                  </GlassCard>
+                ))}
+              </div>
+            </div>
+          )}
+          {lockedAchievements.length > 0 && (
+            <div>
+              <SectionLabel>Locked</SectionLabel>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10 }}>
+                {lockedAchievements.map((a) => (
+                  <GlassCard key={a.id} style={{ padding:'16px', textAlign:'center', opacity:0.45 }}>
+                    <div style={{ fontSize:32, marginBottom:8, filter:'grayscale(1)' }}>{a.emoji}</div>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.textSub, marginBottom:4 }}>{a.name}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, lineHeight:1.4 }}>{a.desc}</div>
+                    <div style={{ marginTop:8 }}><Badge color={T.textMuted}>🔒 Locked</Badge></div>
+                  </GlassCard>
+                ))}
+              </div>
+            </div>
+          )}
+          {unlockedAchievements.length === 0 && (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>🏆</div>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>No achievements yet</div>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Start logging habits, expenses, and vitals to unlock your first badges.</div>
+            </GlassCard>
           )}
         </div>
       )}
@@ -1506,10 +1972,11 @@ function GrowthPage({ data, actions }) {
 function KnowledgePage({ data, actions }) {
   const [tab, setTab] = useState('notes');
   const [modal, setModal] = useState(null);
+  const [noteSearch, setNoteSearch] = useState('');
   const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
-  const { notes, expenses, incomes, habits, habitLogs, goals, vitals, totalXP, assets, investments, debts, settings } = data;
+  const { notes, expenses, incomes, habits, habitLogs, goals, vitals, totalXP, assets, investments, debts, settings, quickNotes } = data;
   const cur = settings.currency||'$';
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
   const buildContext = () => {
@@ -1526,29 +1993,72 @@ function KnowledgePage({ data, actions }) {
     finally { setLoading(false); }
   };
   const TAG_COLORS = { Finance:T.violet, Health:T.sky, Career:T.amber, Growth:T.emerald, Ideas:'#c084fc', General:T.textSub };
+  const qn = quickNotes || [];
+  const filteredNotes = useMemo(()=>{
+    const q = noteSearch.trim().toLowerCase();
+    if (!q) return [...notes].sort((a,b)=>a.date<b.date?1:-1);
+    return [...notes].filter(n=>(n.title||'').toLowerCase().includes(q)||(n.body||'').toLowerCase().includes(q)).sort((a,b)=>a.date<b.date?1:-1);
+  },[notes, noteSearch]);
+  const STICKY_COLORS = ['#fbbf24','#34d399','#38bdf8','#8b5cf6','#fb7185','#00f5d4'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
+      <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['notes','ai assistant'].map(t=>(
+        {['notes','quick notes','ai assistant'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
       {tab==='notes' && (
         <div>
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}><Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn></div>
-          {notes.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No notes yet. Create your first note to build your knowledge base.</div></GlassCard>
+          <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center' }}>
+            <div style={{ flex:1, position:'relative' }}>
+              <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+              <input value={noteSearch} onChange={e=>setNoteSearch(e.target.value)} placeholder="Search notes…" style={{ width:'100%', padding:'8px 12px 8px 30px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
+            </div>
+            <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn>
+          </div>
+          {filteredNotes.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{noteSearch?`No notes match "${noteSearch}"` :'No notes yet. Create your first note to build your knowledge base.'}</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              {[...notes].sort((a,b)=>a.date<b.date?1:-1).map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
+              {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
                 <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}><Badge color={tc}>{note.tag||'General'}</Badge><span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt}</span></div>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                    <Badge color={tc}>{note.tag||'General'}</Badge>
+                    <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                      <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt}</span>
+                      <button onClick={e=>{e.stopPropagation();actions.removeNote(note.id);}} style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={10} stroke={T.rose} /></button>
+                    </div>
+                  </div>
                   <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7 }}>{note.title}</div>
                   <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body||note.content||note.text||''}</div>
                 </GlassCard>
               ); })}
+            </div>
+          )}
+        </div>
+      )}
+      {tab==='quick notes' && (
+        <div>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
+            <Btn onClick={()=>setModal('qnote')} color={T.amber}>📌 New Quick Note</Btn>
+          </div>
+          {qn.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No quick notes yet. Capture fleeting thoughts and ideas.</div></GlassCard>
+          ) : (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+              {[...qn].sort((a,b)=>a.date<b.date?1:-1).map((qn,i)=>(
+                <div key={qn.id||i} style={{ padding:'16px', borderRadius:T.r, background:`${qn.color||T.amber}11`, border:`1px solid ${(qn.color||T.amber)}33`, position:'relative', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                    <div style={{ width:10, height:10, borderRadius:'50%', background:qn.color||T.amber, flexShrink:0, marginTop:2 }} />
+                    <button onClick={()=>actions.removeQuickNote(qn.id)} style={{ padding:3, borderRadius:5, background:'rgba(255,255,255,0.06)', border:`1px solid rgba(255,255,255,0.08)`, opacity:0.6 }}><IcoTrash size={10} stroke={T.rose} /></button>
+                  </div>
+                  <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, wordBreak:'break-word' }}>{qn.text}</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:10 }}>{qn.date}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1763,8 +2273,8 @@ function SettingsPage({ data, actions }) {
             ))}
           </div>
           <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v2 — All Systems Active</div>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>Command Palette (⌘K), Debt Engine, Investment Tracker, Subscription Manager, Budget System, Habit Heatmap, and Timeline Events all active.</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v4 — S2 Upgrades Active</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>Expense delete/edit with Undo toasts, Inline Habits Dashboard, Note delete, Debt edit, Bills Tracker, Quick Notes grid, and Note Search all active.</div>
           </div>
         </GlassCard>
       </div>
@@ -1799,6 +2309,23 @@ export default function LifeOS() {
   const [quickNotes,    setQuickNotes    ] = useLocalStorage('los_qnotes',       []);
   const [subscriptions, setSubscriptions ] = useLocalStorage('los_subs',         []);
   const [budgets,       setBudgetsStore  ] = useLocalStorage('los_budgets',      {});
+  const [bills,         setBills         ] = useLocalStorage('los_bills',        []);
+
+  // ── S1: Toast/Undo system ──────────────────────────────────────────────────
+  const [toasts, setToasts] = useState([]);
+  const addToast = useCallback((message, onUndo, duration=6) => {
+    const id = Date.now();
+    setToasts(p => [...p, { id, message, onUndo, duration }]);
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), duration * 1000 + 500);
+    return id;
+  }, []);
+  const dismissToast = useCallback((id) => setToasts(p => p.filter(t => t.id !== id)), []);
+  const handleUndo = useCallback((toastId) => {
+    setToasts(p => p.map(t => t.id === toastId ? { ...t, undone: true } : t));
+    const t = toasts.find(t => t.id === toastId);
+    if (t?.onUndo) t.onUndo();
+    dismissToast(toastId);
+  }, [toasts, dismissToast]);
 
   // ── Phase 1: Timeline Event Push Engine ────────────────────────────────────
   const pushEvent = useCallback((event) => {
@@ -1950,7 +2477,72 @@ export default function LifeOS() {
   // Phase 2 — Budget Actions
   const setBudgets = useCallback((b) => { setBudgetsStore(b); }, []);
 
+  // ── S1 ACTIONS ──────────────────────────────────────────────────────────────
+  const removeExpense = useCallback((expId) => {
+    const exp = expenses.find(e => e.id === expId);
+    if (!exp) return;
+    setExpenses(p => p.filter(e => e.id !== expId));
+    addToast(`Expense deleted: -${settings.currency||'$'}${fmtN(exp.amount)}`, () => setExpenses(p => [exp, ...p]));
+    pushEvent({ type:'expense_removed', title:'Expense deleted', value:'', color:T.textSub, domain:'money' });
+  }, [expenses, pushEvent, addToast, settings.currency]);
+
+  const updateExpense = useCallback((expId, patch) => {
+    setExpenses(p => p.map(e => e.id === expId ? { ...e, ...patch } : e));
+    pushEvent({ type:'expense_edited', title:'Expense updated', value:'', color:T.rose, domain:'money' });
+  }, [pushEvent]);
+
+  const updateDebt = useCallback((debtId, patch) => {
+    setDebts(p => p.map(d => d.id === debtId ? { ...d, ...patch } : d));
+    pushEvent({ type:'debt_edited', title:'Debt updated', value:'', color:T.rose, domain:'money' });
+  }, [pushEvent]);
+
+  const removeNote = useCallback((noteId) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    setNotes(p => p.filter(n => n.id !== noteId));
+    addToast(`Note deleted: "${note.title}"`, () => setNotes(p => [note, ...p]));
+    pushEvent({ type:'note_removed', title:'Note deleted', value:'', color:T.textSub, domain:'knowledge' });
+  }, [notes, pushEvent, addToast]);
+
+  const addBill = useCallback((bill) => {
+    setBills(p => [...p, bill]);
+    pushEvent({ type:'bill_added', title:`Bill added: ${bill.name}`, value:`${settings.currency||'$'}${bill.amount}/mo`, color:T.sky, domain:'money' });
+  }, [pushEvent, settings.currency]);
+
+  const removeBill = useCallback((billId) => {
+    const bill = bills.find(b => b.id === billId);
+    if (!bill) return;
+    setBills(p => p.filter(b => b.id !== billId));
+    addToast(`Bill removed: "${bill.name}"`, () => setBills(p => [bill, ...p]));
+  }, [bills, addToast]);
+
+  const markBillPaid = useCallback((billId) => {
+    setBills(p => p.map(b => {
+      if (b.id !== billId) return b;
+      const next = new Date(b.nextDate); next.setMonth(next.getMonth()+1);
+      return { ...b, paid:true, lastPaid:today(), nextDate:next.toISOString().slice(0,10) };
+    }));
+    addToast('Bill marked as paid ✓', null, 3);
+  }, [addToast]);
+
+  const addQuickNote = useCallback((qn) => {
+    setQuickNotes(p => [qn, ...p]);
+    pushEvent({ type:'qnote', title:'Quick note added', value:'', color:T.amber, domain:'knowledge' });
+  }, [pushEvent]);
+
+  const removeQuickNote = useCallback((qnId) => {
+    const qn = quickNotes.find(n => n.id === qnId);
+    setQuickNotes(p => p.filter(n => n.id !== qnId));
+    if (qn) addToast('Quick note deleted', () => setQuickNotes(p => [qn, ...p]));
+  }, [quickNotes, addToast]);
+
   const updateSettings = useCallback((s) => { setSettings(s); }, []);
+
+  // ── S2 ACTIONS ──────────────────────────────────────────────────────────────
+  const updateHabit = useCallback((habitId, patch) => {
+    setHabits(p => p.map(h => h.id === habitId ? { ...h, ...patch } : h));
+    pushEvent({ type:'habit_edited', title:'Habit updated', value:'', color:T.accent, domain:'growth' });
+  }, [pushEvent]);
 
   const actions = {
     addExpense, addIncome, addHabit, logHabit, removeHabit,
@@ -1960,13 +2552,19 @@ export default function LifeOS() {
     addInvestment, removeInvestment,
     addSubscription, removeSubscription,
     setBudgets,
+    // S1
+    removeExpense, updateExpense, updateDebt, removeNote,
+    addBill, removeBill, markBillPaid,
+    addQuickNote, removeQuickNote,
+    // S2
+    updateHabit,
   };
 
   const data = {
     expenses, incomes, assets, investments, debts, goals,
     habits, habitLogs, vitals, notes, totalXP, settings,
     netWorthHistory, eventLog, focusSessions, quickNotes,
-    subscriptions, budgets,
+    subscriptions, budgets, bills,
   };
 
   // ── DERIVED STATS for status bar ───────────────────────────────────────────
@@ -1980,13 +2578,49 @@ export default function LifeOS() {
   const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
   const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
 
+  // ── S2: XP Pop notifications ────────────────────────────────────────────────
+  const [xpPops, setXPPops] = useState([]);
+  const addXPPop = useCallback((label, color=T.violet) => {
+    const id = Date.now() + Math.random();
+    setXPPops(p => [...p, { id, label, color }]);
+    setTimeout(() => setXPPops(p => p.filter(x => x.id !== id)), 1900);
+  }, []);
+
+  // Hook XP pops onto key actions (called after each XP-earning event)
+  const logHabitWithPop = useCallback((habitId) => {
+    logHabit(habitId);
+    const h = habits.find(x => x.id === habitId);
+    addXPPop(`+${h?.xp||10} XP — ${h?.name||'Habit'} ✓`, T.accent);
+  }, [logHabit, habits, addXPPop]);
+
+  const addGoalWithPop = useCallback((g) => {
+    addGoal(g); addXPPop('+20 XP — Goal Created 🎯', T.violet);
+  }, [addGoal, addXPPop]);
+
+  const addNoteWithPop = useCallback((n) => {
+    addNote(n); addXPPop('+5 XP — Note Saved 📝', T.amber);
+  }, [addNote, addXPPop]);
+
+  // Achievement unlock detection
+  const [prevUnlocked, setPrevUnlocked] = useState(() => new Set());
+  useEffect(() => {
+    const newly = ACHIEVEMENTS.filter(a => a.check(data) && !prevUnlocked.has(a.id));
+    if (newly.length) {
+      newly.forEach((a, i) => setTimeout(() => addXPPop(`🏆 ${a.name} unlocked!`, a.color), i * 700));
+      setPrevUnlocked(prev => new Set([...prev, ...newly.map(a => a.id)]));
+    }
+  }, [data]);
+
+  // ── S2: Mobile state ────────────────────────────────────────────────────────
+  const isMobile = useMobile();
+
   const VIEW = {
-    home:      <HomePage      data={data} actions={actions} onNav={setPage} />,
+    home:      <HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop}} onNav={setPage} />,
     timeline:  <TimelinePage  data={data} />,
     money:     <MoneyPage     data={data} actions={actions} />,
     health:    <HealthPage    data={data} actions={actions} />,
-    growth:    <GrowthPage    data={data} actions={actions} />,
-    knowledge: <KnowledgePage data={data} actions={actions} />,
+    growth:    <GrowthPage    data={data} actions={{...actions, logHabit:logHabitWithPop, addGoal:addGoalWithPop}} />,
+    knowledge: <KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />,
     intel:     <IntelligencePage data={data} />,
     archive:   <ArchivePage   data={data} />,
     settings:  <SettingsPage  data={data} actions={actions} />,
@@ -2009,63 +2643,83 @@ export default function LifeOS() {
       {/* Command Palette — Phase 1 */}
       <CommandPalette open={cmdOpen} onClose={()=>setCmdOpen(false)} data={data} onNav={(p)=>{setPage(p);setCmdOpen(false);}} onModal={handleGlobalModal} />
 
-      {/* Global modals triggered from Command Palette */}
+      {/* Toast/Undo notifications — S1 */}
+      <ToastContainer toasts={toasts} onUndo={handleUndo} onDismiss={dismissToast} />
+
+      {/* XP Pop notifications — S2 */}
+      <XPPopContainer pops={xpPops} />
+
+      {/* Quick Capture FAB — S2 */}
+      <QuickCaptureFAB onAction={handleGlobalModal} isMobile={isMobile} />
+
+      {/* Bottom Nav — S2 mobile */}
+      <BottomNav active={page} onNav={setPage} />
+
+      {/* Global modals triggered from Command Palette / FAB */}
       <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addExpense(e);setGlobalModal(null);}} />
       <LogIncomeModal open={globalModal==='income'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addIncome(e);setGlobalModal(null);}} />
-      <LogHabitModal open={globalModal==='habit'} onClose={()=>setGlobalModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
+      <LogHabitModal open={globalModal==='habit'} onClose={()=>setGlobalModal(null)} habits={habits} habitLogs={habitLogs} onLog={logHabitWithPop} onAddHabit={actions.addHabit} />
       <LogVitalsModal open={globalModal==='vitals'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addVitals(e);setGlobalModal(null);}} />
-      <AddNoteModal open={globalModal==='note'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addNote(e);setGlobalModal(null);}} />
-      <AddGoalModal open={globalModal==='goal'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addGoal(e);setGlobalModal(null);}} />
+      <AddNoteModal open={globalModal==='note'} onClose={()=>setGlobalModal(null)} onSave={e=>{addNoteWithPop(e);setGlobalModal(null);}} />
+      <AddGoalModal open={globalModal==='goal'} onClose={()=>setGlobalModal(null)} onSave={e=>{addGoalWithPop(e);setGlobalModal(null);}} />
       <AddDebtModal open={globalModal==='debt'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addDebt(e);setGlobalModal(null);}} />
       <AddInvestmentModal open={globalModal==='investment'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addInvestment(e);setGlobalModal(null);}} />
       <AddSubscriptionModal open={globalModal==='subscription'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addSubscription(e);setGlobalModal(null);}} />
 
       <Sidebar active={page} onNav={setPage} userName={settings.name} />
 
-      <div style={{ flex:1, marginLeft:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
+      <div style={{ flex:1, marginLeft:isMobile?0:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
         {/* Topbar */}
-        <div style={{ height:50, borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50 }}>
+        <div style={{ height:50, borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+            {isMobile && (
+              <button onClick={()=>setCmdOpen(true)} style={{ padding:'4px 6px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, marginRight:4 }}>
+                <IcoMenu size={14} stroke={T.textSub} />
+              </button>
+            )}
             <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.15em' }}>LIFE OS</span>
             <span style={{ color:T.textMuted, fontSize:11 }}>›</span>
             <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{page}</span>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-            {/* Command Palette Button */}
-            <button onClick={()=>setCmdOpen(true)} className="los-btn" style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:7, background:T.surface, border:`1px solid ${T.border}`, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
-              <IcoSearch size={10} stroke={T.textSub} />
-              Search <span style={{ color:T.textMuted }}>⌘K</span>
-            </button>
+          <div style={{ display:'flex', alignItems:'center', gap:isMobile?8:16 }}>
+            {!isMobile && (
+              <button onClick={()=>setCmdOpen(true)} className="los-btn" style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:7, background:T.surface, border:`1px solid ${T.border}`, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+                <IcoSearch size={10} stroke={T.textSub} />
+                Search <span style={{ color:T.textMuted }}>⌘K</span>
+              </button>
+            )}
             <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'flex', alignItems:'center', gap:5 }}>
               <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
-              All Systems Online
+              {!isMobile && 'All Systems Online'}
             </div>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+            {!isMobile && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>}
           </div>
         </div>
 
         {/* Page */}
-        <div key={page} style={{ flex:1, padding:'26px 30px', overflowY:'auto', maxWidth:1180 }}>
+        <div key={page} style={{ flex:1, padding:isMobile?'18px 14px 80px':'26px 30px', overflowY:'auto', maxWidth:1180 }}>
           {VIEW[page]}
         </div>
 
-        {/* Status bar */}
-        <div style={{ height:26, borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', gap:18, background:T.bg }}>
-          {[
-            { label:'NW',      val:`${cur}${fmtN(nw)}`,           color:T.accent  },
-            { label:'LV',      val:`${level}`,                     color:T.violet  },
-            { label:'SAVINGS', val:`${savRate.toFixed(0)}%`,       color:T.emerald },
-            { label:'STREAK',  val:`🔥 ${bestStreak}d`,           color:T.amber   },
-            { label:'HABITS',  val:`${habits.length} tracked`,     color:T.sky     },
-            { label:'DEBTS',   val:`${debts.length} · ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`, color:debts.length>0?T.rose:T.textMuted },
-          ].map((item,i)=>(
-            <div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM }}>
-              <span style={{ color:T.textMuted, letterSpacing:'0.08em' }}>{item.label}</span>
-              <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
-              {i<5&&<span style={{ color:T.textMuted, marginLeft:6 }}>·</span>}
-            </div>
-          ))}
-        </div>
+        {/* Status bar — desktop only */}
+        {!isMobile && (
+          <div style={{ height:26, borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', gap:18, background:T.bg }}>
+            {[
+              { label:'NW',      val:`${cur}${fmtN(nw)}`,           color:T.accent  },
+              { label:'LV',      val:`${level}`,                     color:T.violet  },
+              { label:'SAVINGS', val:`${savRate.toFixed(0)}%`,       color:T.emerald },
+              { label:'STREAK',  val:`🔥 ${bestStreak}d`,           color:T.amber   },
+              { label:'HABITS',  val:`${habits.length} tracked`,     color:T.sky     },
+              { label:'DEBTS',   val:`${debts.length} · ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`, color:debts.length>0?T.rose:T.textMuted },
+            ].map((item,i)=>(
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM }}>
+                <span style={{ color:T.textMuted, letterSpacing:'0.08em' }}>{item.label}</span>
+                <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
+                {i<5&&<span style={{ color:T.textMuted, marginLeft:6 }}>·</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
