@@ -357,17 +357,6 @@ const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, st
 );
 
 
-// ── PROPTYPES ─────────────────────────────────────────────────────────────────
-if (typeof PropTypes !== 'undefined') {
-  GlassCard.propTypes    = { children: PropTypes.node, style: PropTypes.object, className: PropTypes.string, onClick: PropTypes.func };
-  Badge.propTypes        = { children: PropTypes.node, color: PropTypes.string };
-  ProgressBar.propTypes  = { pct: PropTypes.number, color: PropTypes.string, height: PropTypes.number };
-  Btn.propTypes          = { children: PropTypes.node, onClick: PropTypes.func, color: PropTypes.string, disabled: PropTypes.bool, full: PropTypes.bool, style: PropTypes.object };
-  Modal.propTypes        = { open: PropTypes.bool, onClose: PropTypes.func, title: PropTypes.string, children: PropTypes.node, wide: PropTypes.bool };
-  HabitHeatmap.propTypes = { habitLogs: PropTypes.object.isRequired, habits: PropTypes.array.isRequired };
-  SmartAlertsButton.propTypes = { alerts: PropTypes.array.isRequired };
-}
-
 // ── MILESTONE PROGRESS BAR ─────────────────────────────────────────────────────
 const MilestoneProgressBar = ({ pct, color=T.accent, height=4, milestones=[] }) => (
   <div style={{ position:'relative', width:'100%', paddingBottom: milestones.length ? 14 : 0 }}>
@@ -1250,6 +1239,17 @@ function SmartAlertsButton({ alerts }) {
       )}
     </div>
   );
+}
+
+// ── PROPTYPES (must appear after all const components are initialized) ─────────
+if (typeof PropTypes !== 'undefined') {
+  GlassCard.propTypes    = { children: PropTypes.node, style: PropTypes.object, className: PropTypes.string, onClick: PropTypes.func };
+  Badge.propTypes        = { children: PropTypes.node, color: PropTypes.string };
+  ProgressBar.propTypes  = { pct: PropTypes.number, color: PropTypes.string, height: PropTypes.number };
+  Btn.propTypes          = { children: PropTypes.node, onClick: PropTypes.func, color: PropTypes.string, disabled: PropTypes.bool, full: PropTypes.bool, style: PropTypes.object };
+  Modal.propTypes        = { open: PropTypes.bool, onClose: PropTypes.func, title: PropTypes.string, children: PropTypes.node, wide: PropTypes.bool };
+  HabitHeatmap.propTypes = { habitLogs: PropTypes.object.isRequired, habits: PropTypes.array.isRequired };
+  SmartAlertsButton.propTypes = { alerts: PropTypes.array.isRequired };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
