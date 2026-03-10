@@ -1854,6 +1854,9 @@ function MoneyPage({ data, actions }) {
         </div>
       )}
 
+      {/* S4: What-If Financial Simulator tab */}
+      {tab === 'simulator' && <WhatIfSimulator data={data} />}
+
       {tab==='tools' && (() => {
         // ── Compound Growth Simulator ──────────────────────────────────────────
         const [principal, setPrincipal] = useState(10000);
@@ -1998,10 +2001,14 @@ function MoneyPage({ data, actions }) {
           </div>
         );
       })()}
+    </div>
+  );
+}
 
-      {/* S4: What-If Simulator tab */}
-      {tab === 'simulator' && <WhatIfSimulator data={data} />}
-
+// ══════════════════════════════════════════════════════════════════════════════
+// ── HEALTH PAGE ───────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function HealthPage({ data, actions }) {
   const [modal, setModal] = useState(null);
   const [focusActive, setFocusActive] = useState(false);
   const [focusTime, setFocusTime] = useState(25*60);
