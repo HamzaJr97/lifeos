@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } from "react";
+import PropTypes from "prop-types";
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   PieChart, Pie, Cell, RadarChart, Radar,
@@ -161,7 +162,12 @@ const LOCALES = {
   },
 };
 let currentLang = 'en';
-const t = (key) => LOCALES[currentLang]?.[key] || LOCALES.en[key] || key;
+const LangContext = createContext('en');
+function useLang() { return useContext(LangContext); }
+const t = (key, lang) => {
+  const l = lang || currentLang;
+  return LOCALES[l]?.[key] || LOCALES.en[key] || key;
+};
 
 // ── LOCAL STORAGE HOOK ────────────────────────────────────────────────────────
 function useLocalStorage(key, defaultVal) {
@@ -206,6 +212,16 @@ function useMobile() {
     return () => mq.removeEventListener('change', handler);
   }, []);
   return mobile;
+}
+
+// ── useDebounce hook ───────────────────────────────────────────────────────────
+function useDebounce(value, delay) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
 }
 
 // ── ACHIEVEMENTS (20 total) ────────────────────────────────────────────────────
@@ -340,6 +356,18 @@ const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, st
   <button className="los-btn" onClick={onClick} disabled={disabled} style={{ padding:'10px 20px', borderRadius:T.r, background:disabled?T.surface:(color+'18'), color:disabled?T.textMuted:color, border:`1px solid ${disabled?T.border:(color+'44')}`, fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em', width:full?'100%':'auto', transition:'all 0.18s', ...style }}>{children}</button>
 );
 
+
+// ── PROPTYPES ─────────────────────────────────────────────────────────────────
+if (typeof PropTypes !== 'undefined') {
+  GlassCard.propTypes    = { children: PropTypes.node, style: PropTypes.object, className: PropTypes.string, onClick: PropTypes.func };
+  Badge.propTypes        = { children: PropTypes.node, color: PropTypes.string };
+  ProgressBar.propTypes  = { pct: PropTypes.number, color: PropTypes.string, height: PropTypes.number };
+  Btn.propTypes          = { children: PropTypes.node, onClick: PropTypes.func, color: PropTypes.string, disabled: PropTypes.bool, full: PropTypes.bool, style: PropTypes.object };
+  Modal.propTypes        = { open: PropTypes.bool, onClose: PropTypes.func, title: PropTypes.string, children: PropTypes.node, wide: PropTypes.bool };
+  HabitHeatmap.propTypes = { habitLogs: PropTypes.object.isRequired, habits: PropTypes.array.isRequired };
+  SmartAlertsButton.propTypes = { alerts: PropTypes.array.isRequired };
+}
+
 // ── MILESTONE PROGRESS BAR ─────────────────────────────────────────────────────
 const MilestoneProgressBar = ({ pct, color=T.accent, height=4, milestones=[] }) => (
   <div style={{ position:'relative', width:'100%', paddingBottom: milestones.length ? 14 : 0 }}>
@@ -413,14 +441,16 @@ function QuickCaptureFAB({ onAction, isMobile }) {
 }
 
 // ── BOTTOM NAV (mobile) ───────────────────────────────────────────────────────
-const BOTTOM_NAV = [
-  { id:'home',      Icon:IcoHome,     label:'Home'     },
-  { id:'money',     Icon:IcoMoney,    label:'Money'    },
-  { id:'health',    Icon:IcoHealth,   label:'Health'   },
-  { id:'growth',    Icon:IcoGrowth,   label:'Growth'   },
-  { id:'knowledge', Icon:IcoBook,     label:'Knowledge'},
+const BOTTOM_NAV_DEFS = [
+  { id:'home',      Icon:IcoHome,     tKey:'home'      },
+  { id:'money',     Icon:IcoMoney,    tKey:'money'     },
+  { id:'health',    Icon:IcoHealth,   tKey:'health'    },
+  { id:'growth',    Icon:IcoGrowth,   tKey:'growth'    },
+  { id:'knowledge', Icon:IcoBook,     tKey:'knowledge' },
 ];
 function BottomNav({ active, onNav }) {
+  const lang = useLang();
+  const BOTTOM_NAV = BOTTOM_NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   return (
     <div className="los-mobile-only" style={{ position:'fixed', bottom:0, left:0, right:0, height:60, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none' }}>
       {BOTTOM_NAV.map(({ id, Icon, label }) => {
@@ -461,21 +491,24 @@ function ToastContainer({ toasts, onUndo, onDismiss }) {
 }
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
-const NAV = [
-  { id:'home',      Icon:IcoHome,       label:'Home'         },
-  { id:'timeline',  Icon:IcoTimeline,   label:'Timeline'     },
-  { id:'money',     Icon:IcoMoney,      label:'Money'        },
-  { id:'health',    Icon:IcoHealth,     label:'Health'       },
-  { id:'growth',    Icon:IcoGrowth,     label:'Growth'       },
-  { id:'knowledge', Icon:IcoBook,       label:'Knowledge'    },
-  { id:'career',    Icon:IcoBriefcase,  label:'Career'       },
-  { id:'calendar',  Icon:IcoCalendar,   label:'Calendar'     },
-  { id:'intel',     Icon:IcoBrain,      label:'Intelligence' },
-  { id:'archive',   Icon:IcoArchive,    label:'Archive'      },
-  { id:'settings',  Icon:IcoSettings,   label:'Settings'     },
+// NAV uses t() at render time via a getter so labels auto-update with lang
+const NAV_DEFS = [
+  { id:'home',      Icon:IcoHome,       tKey:'home'        },
+  { id:'timeline',  Icon:IcoTimeline,   tKey:'timeline'    },
+  { id:'money',     Icon:IcoMoney,      tKey:'money'       },
+  { id:'health',    Icon:IcoHealth,     tKey:'health'      },
+  { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
+  { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
+  { id:'career',    Icon:IcoBriefcase,  tKey:'career'      },
+  { id:'calendar',  Icon:IcoCalendar,   tKey:'calendar'    },
+  { id:'intel',     Icon:IcoBrain,      tKey:'intel'       },
+  { id:'archive',   Icon:IcoArchive,    tKey:'archive'     },
+  { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
 function Sidebar({ active, onNav, userName }) {
   const [hov, setHov] = useState(null);
+  const lang = useLang();
+  const NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   const init = userName ? userName.charAt(0).toUpperCase() : 'U';
   return (
     <div className="los-desktop-only" style={{ width:T.sw, minHeight:'100vh', flexShrink:0, background:`linear-gradient(180deg, ${T.bg} 0%, ${T.bg1} 100%)`, borderRight:`1px solid ${T.border}`, display:'flex', flexDirection:'column', alignItems:'center', padding:'16px 0', gap:2, position:'fixed', top:0, left:0, bottom:0, zIndex:100 }}>
@@ -519,7 +552,7 @@ function calcDebtPayoff(debts, extraPayment = 0, method = 'avalanche') {
     min: Number(d.minPayment || 0),
   }));
   let months = 0; let totalInterest = 0;
-  while (remaining.some(d => d.balance > 0.01) && months < 600) {
+  while (remaining.some(d => d.balance > 0.01) && months < 360) {
     months++;
     let extra = extraPayment;
     // Interest accrual + minimum payments
@@ -587,7 +620,7 @@ function LogExpenseModal({ open, onClose, onSave }) {
         <Select value={cat} onChange={e=>setCat(e.target.value)}>{CATS.map(c=><option key={c}>{c}</option>)}</Select>
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
-        <Btn full onClick={save} color={T.rose}>Save Expense</Btn>
+        <Btn full onClick={save} color={T.rose}>{t('save')}</Btn>
       </div>
     </Modal>
   );
@@ -1019,7 +1052,7 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
     { label:'Add Subscription', icon:'🔄', action:()=>onModal('subscription') },
   ];
 
-  const searchIndex = useMemo(() => buildSearchIndex(data), [data]);
+  const searchIndex = useMemo(() => buildSearchIndex(data), [data.notes, data.goals, data.habits, data.habitLogs, data.expenses, data.debts, data.investments, data.assets]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1079,7 +1112,7 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── HABIT HEATMAP — Phase 5 ───────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-function HabitHeatmap({ habitLogs, habits }) {
+const HabitHeatmap = React.memo(function HabitHeatmap({ habitLogs, habits }) {
   const WEEKS = 18; const DAYS = 7;
   const cells = useMemo(() => {
     const allLogs = new Set(Object.values(habitLogs).flat());
@@ -1141,6 +1174,80 @@ function HabitHeatmap({ habitLogs, habits }) {
         ))}
         <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>More</span>
       </div>
+    </div>
+  );
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── S3: SMART ALERTS ENGINE (shared by TopBar + HomePage) ────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc, savRate }) {
+  const today_ = today();
+  const alerts = [];
+  // Bills due / overdue
+  (bills||[]).filter(b=>!b.paid).forEach(b => {
+    const d = Math.ceil((new Date(b.nextDate)-new Date())/(1000*60*60*24));
+    if (d <= 3) alerts.push({ icon:d<0?'🚨':'⏰', msg:`${b.name} bill ${d<0?'overdue by '+(-d)+'d':'due in '+d+'d'}`, color:d<0?T.rose:T.amber, priority:d<0?0:1 });
+  });
+  // Budget over 90%
+  Object.entries(budgets||{}).forEach(([cat, limit]) => {
+    const spent = expenses.filter(e=>e.date?.startsWith(thisMonth)&&e.category?.includes(cat.split(' ')[1]||cat)).reduce((s,e)=>s+Number(e.amount||0),0);
+    const pct = limit>0?(spent/limit)*100:0;
+    if (pct>=90) alerts.push({ icon:pct>=100?'🔴':'🟡', msg:`${cat} ${pct>=100?'over budget':'at '+Math.round(pct)+'% of budget'}`, color:pct>=100?T.rose:T.amber, priority:pct>=100?0:2 });
+  });
+  // Streak at risk (logged yesterday but not today, after 18:00)
+  habits.forEach(h => {
+    const logs = habitLogs[h.id]||[];
+    const yday = new Date(); yday.setDate(yday.getDate()-1);
+    const ys = yday.toISOString().slice(0,10);
+    if (logs.includes(ys) && !logs.includes(today_) && new Date().getHours() >= 18) {
+      alerts.push({ icon:'🔥', msg:`${h.name} streak at risk! Log today`, color:T.accent, priority:1 });
+    }
+  });
+  // Low savings rate
+  if (monthInc > 0 && savRate < 10) alerts.push({ icon:'📉', msg:`Savings rate only ${savRate.toFixed(0)}% this month`, color:T.amber, priority:3 });
+  // No vitals in 3 days
+  if (vitals.length > 0) {
+    const lastV = [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0];
+    const daysSince = Math.round((new Date()-new Date(lastV.date))/(1000*60*60*24));
+    if (daysSince >= 3) alerts.push({ icon:'❤️', msg:`No vitals logged in ${daysSince} days`, color:T.sky, priority:3 });
+  }
+  return [...alerts].sort((a,b)=>a.priority-b.priority).slice(0,6);
+}
+
+// ── SmartAlertsButton — appears in TopBar ─────────────────────────────────────
+function SmartAlertsButton({ alerts }) {
+  const [open, setOpen] = useState(false);
+  if (!alerts.length) return (
+    <button style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center' }} title="No alerts">
+      <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+  );
+  return (
+    <div style={{ position:'relative' }}>
+      <button onClick={()=>setOpen(v=>!v)} style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:open?T.amberDim:'transparent', border:`1px solid ${open?T.amber+'44':'transparent'}`, color:T.amber, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }} title={`${alerts.length} alert${alerts.length>1?'s':''}`}>
+        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span style={{ position:'absolute', top:-3, right:-3, width:14, height:14, borderRadius:'50%', background:T.rose, border:`1.5px solid ${T.bg}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontFamily:T.fM, fontWeight:700, color:'#fff' }}>{alerts.length}</span>
+      </button>
+      {open && (
+        <>
+          <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:498 }} />
+          <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, width:320, background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:12, boxShadow:`0 12px 40px rgba(0,0,0,0.5)`, zIndex:499, animation:'slideDown 0.18s ease', overflow:'hidden' }}>
+            <div style={{ padding:'10px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:7 }}>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700 }}>⚠️ Smart Alerts · {alerts.length}</span>
+            </div>
+            <div style={{ padding:'8px 0', maxHeight:320, overflowY:'auto' }}>
+              {alerts.map((a,i)=>(
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom:i<alerts.length-1?`1px solid ${T.border}`:'none' }}>
+                  <span style={{ fontSize:16, flexShrink:0 }}>{a.icon}</span>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.45 }}>{a.msg}</span>
+                  <span style={{ marginLeft:'auto', width:6, height:6, borderRadius:'50%', flexShrink:0, background:a.color }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1218,56 +1325,7 @@ function HomePage({ data, actions, onNav }) {
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:16 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Smart Alerts — S3 */}
-          {(() => {
-            const bills = data.bills || [];
-            const budgets = data.budgets || {};
-            const today_ = today();
-            const alerts = [];
-            // Bills due in ≤3 days
-            bills.filter(b=>!b.paid).forEach(b => {
-              const d = Math.ceil((new Date(b.nextDate)-new Date())/(1000*60*60*24));
-              if (d <= 3) alerts.push({ icon:d<0?'🚨':'⏰', msg:`${b.name} bill ${d<0?'overdue by '+(-d)+'d':'due in '+d+'d'}`, color:d<0?T.rose:T.amber, priority:d<0?0:1 });
-            });
-            // Budget over 90%
-            Object.entries(budgets).forEach(([cat, limit]) => {
-              const spent = expenses.filter(e=>e.date?.startsWith(thisMonth)&&e.category?.includes(cat.split(' ')[1]||cat)).reduce((s,e)=>s+Number(e.amount||0),0);
-              const pct = limit>0?(spent/limit)*100:0;
-              if (pct>=90) alerts.push({ icon:pct>=100?'🔴':'🟡', msg:`${cat} ${pct>=100?'over budget':'at '+Math.round(pct)+'% of budget'}`, color:pct>=100?T.rose:T.amber, priority:pct>=100?0:2 });
-            });
-            // Streak at risk (logged yesterday but not today)
-            habits.forEach(h => {
-              const logs = habitLogs[h.id]||[];
-              const yday = new Date(); yday.setDate(yday.getDate()-1);
-              const ys = yday.toISOString().slice(0,10);
-              if (logs.includes(ys) && !logs.includes(today_) && new Date().getHours() >= 18) {
-                alerts.push({ icon:'🔥', msg:`${h.name} streak at risk! Log today`, color:T.accent, priority:1 });
-              }
-            });
-            // Low savings rate
-            if (monthInc > 0 && savRate < 10) alerts.push({ icon:'📉', msg:`Savings rate only ${savRate.toFixed(0)}% this month`, color:T.amber, priority:3 });
-            // No vitals in 3 days
-            if (vitals.length > 0) {
-              const lastV = [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0];
-              const daysSince = Math.round((new Date()-new Date(lastV.date))/(1000*60*60*24));
-              if (daysSince >= 3) alerts.push({ icon:'❤️', msg:`No vitals logged in ${daysSince} days`, color:T.sky, priority:3 });
-            }
-            if (alerts.length === 0) return null;
-            const sorted_ = [...alerts].sort((a,b)=>a.priority-b.priority).slice(0,4);
-            return (
-              <GlassCard style={{ padding:'16px 20px', borderLeft:`3px solid ${T.amber}55` }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>⚠️ Smart Alerts · {alerts.length}</div>
-                <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-                  {sorted_.map((a,i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 10px', borderRadius:8, background:`${a.color}0d`, border:`1px solid ${a.color}22` }}>
-                      <span style={{ fontSize:14, flexShrink:0 }}>{a.icon}</span>
-                      <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{a.msg}</span>
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            );
-          })()}
+          {/* Smart Alerts — now rendered in TopBar bell icon (S3) */}
           <GlassCard style={{ padding:'20px 22px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:14 }}>
               <div style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:'dotPulse 2s infinite' }} />
@@ -1445,6 +1503,7 @@ function MoneyPage({ data, actions }) {
   const [goalAmt, setGoalAmt] = useState(''); const [goalIdx, setGoalIdx] = useState(null);
   const [payoffMethod, setPayoffMethod] = useState('avalanche');
   const [extraPayment, setExtraPayment] = useState(0);
+  const debouncedExtraPayment = useDebounce(extraPayment, 300);
   const [editExpense, setEditExpense] = useState(null);
   const [editDebt, setEditDebt] = useState(null);
   const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
@@ -1458,7 +1517,7 @@ function MoneyPage({ data, actions }) {
   const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
   const spendByCat = useMemo(()=>{ const m={}; expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value); },[expenses,thisMonth]);
   const cashflowMonths = useMemo(()=>{ const months={}; expenses.forEach(e=>{ const m=e.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].exp+=Number(e.amount||0); }); incomes.forEach(i=>{ const m=i.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].inc+=Number(i.amount||0); }); return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6); },[expenses,incomes]);
-  const payoffInfo = useMemo(()=>calcDebtPayoff(debts, extraPayment, payoffMethod),[debts, extraPayment, payoffMethod]);
+  const payoffInfo = useMemo(()=>calcDebtPayoff(debts, debouncedExtraPayment, payoffMethod),[debts, debouncedExtraPayment, payoffMethod]);
   const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, thisMonth),[expenses,budgets,thisMonth]);
   const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
@@ -3232,72 +3291,134 @@ function WhatIfSimulator({ data }) {
 // ── S4: LIVE PRICES PANEL ────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 const CRYPTO_IDS = { BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', ADA:'cardano', DOT:'polkadot', XRP:'ripple', AVAX:'avalanche-2', MATIC:'matic-network', LINK:'chainlink' };
+// Stock tickers that can be fetched via Yahoo Finance public endpoint
+const STOCK_TYPES = ['Stock', 'ETF', 'Index', 'Fund'];
 
 function LivePricesPanel({ investments, onUpdatePrice }) {
-  const [prices, setPrices] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [lastFetched, setLastFetched] = useState(null);
-  const [error, setError] = useState(null);
+  const [cryptoPrices, setCryptoPrices] = useState({});
+  const [stockPrices,  setStockPrices ] = useState({});
+  const [loading,      setLoading     ] = useState(false);
+  const [lastFetched,  setLastFetched ] = useState(null);
+  const [errors,       setErrors      ] = useState([]);
 
   const cryptoInvs = investments.filter(i => i.type === 'Crypto' && CRYPTO_IDS[i.symbol?.toUpperCase()]);
+  const stockInvs  = investments.filter(i => STOCK_TYPES.includes(i.type) && i.symbol);
   const cryptoIds  = [...new Set(cryptoInvs.map(i => CRYPTO_IDS[i.symbol.toUpperCase()]))];
+  const stockSyms  = [...new Set(stockInvs.map(i => i.symbol.toUpperCase()))];
 
-  const fetchPrices = async () => {
-    if (!cryptoIds.length) { setError('No crypto with known symbols. Supported: BTC, ETH, SOL, BNB…'); return; }
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true`);
-      if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      setPrices(data);
-      setLastFetched(new Date().toLocaleTimeString());
-      // Update investment prices
-      cryptoInvs.forEach(inv => {
-        const cid = CRYPTO_IDS[inv.symbol.toUpperCase()];
-        if (data[cid]) onUpdatePrice(inv.id, data[cid].usd);
-      });
-    } catch (e) {
-      setError('Could not fetch prices. Check connection.');
-    }
-    setLoading(false);
+  const fetchCrypto = async () => {
+    if (!cryptoIds.length) return null;
+    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true`);
+    if (!res.ok) throw new Error('Crypto API error');
+    return await res.json();
   };
 
-  // Auto-fetch on focus
+  // Yahoo Finance v8 — no API key needed, browser fetch (CORS varies by env)
+  const fetchStock = async (symbol) => {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`);
+    if (!res.ok) throw new Error(`${symbol} fetch failed`);
+    const j = await res.json();
+    const meta = j?.chart?.result?.[0]?.meta;
+    if (!meta) throw new Error(`No data for ${symbol}`);
+    const price = meta.regularMarketPrice || meta.previousClose;
+    const prev  = meta.chartPreviousClose || meta.previousClose;
+    const chg   = prev > 0 ? ((price - prev) / prev) * 100 : null;
+    return { price, chg };
+  };
+
+  const fetchAll = async () => {
+    setLoading(true); setErrors([]);
+    const errs = [];
+    try {
+      // Crypto
+      if (cryptoIds.length) {
+        try {
+          const data = await fetchCrypto();
+          setCryptoPrices(data);
+          cryptoInvs.forEach(inv => {
+            const cid = CRYPTO_IDS[inv.symbol.toUpperCase()];
+            if (data[cid]) onUpdatePrice(inv.id, data[cid].usd);
+          });
+        } catch (e) { errs.push('Crypto: ' + e.message); }
+      }
+      // Stocks — parallel requests
+      if (stockSyms.length) {
+        const results = await Promise.allSettled(stockSyms.map(s => fetchStock(s).then(d => ({ sym:s, ...d }))));
+        const newStocks = {};
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') {
+            newStocks[stockSyms[i]] = r.value;
+            stockInvs.filter(inv => inv.symbol.toUpperCase() === stockSyms[i]).forEach(inv => onUpdatePrice(inv.id, r.value.price));
+          } else {
+            errs.push(`${stockSyms[i]}: ${r.reason?.message||'fetch failed'}`);
+          }
+        });
+        setStockPrices(p => ({ ...p, ...newStocks }));
+      }
+    } finally {
+      setLoading(false);
+      setLastFetched(new Date().toLocaleTimeString());
+      if (errs.length) setErrors(errs);
+    }
+  };
+
   useEffect(() => {
-    const handler = () => { if (cryptoIds.length) fetchPrices(); };
+    const handler = () => fetchAll();
     window.addEventListener('focus', handler);
     return () => window.removeEventListener('focus', handler);
-  }, [cryptoIds.length]);
+  }, []);
+
+  const allInvs = [...cryptoInvs, ...stockInvs];
+  if (!allInvs.length) return (
+    <GlassCard style={{ padding:'18px 20px' }}>
+      <SectionLabel>📡 Live Prices</SectionLabel>
+      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Add investments typed as Stock, ETF, or Crypto with symbols to see live prices.</div>
+    </GlassCard>
+  );
 
   return (
     <GlassCard style={{ padding:'18px 20px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <SectionLabel>📡 Live Crypto Prices</SectionLabel>
+        <SectionLabel>📡 Live Prices (Crypto + Stocks)</SectionLabel>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {lastFetched && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Updated {lastFetched}</span>}
-          <button onClick={fetchPrices} disabled={loading} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:10, fontFamily:T.fM, cursor:'pointer', opacity:loading?0.5:1 }}>
+          <button onClick={fetchAll} disabled={loading} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:10, fontFamily:T.fM, cursor:'pointer', opacity:loading?0.5:1 }}>
             <IcoRefresh size={11} stroke={T.accent} style={loading?{animation:'spin 1s linear infinite'}:{}} /> {loading?'Fetching…':'Refresh'}
           </button>
         </div>
       </div>
-      {error && <div style={{ fontSize:10, fontFamily:T.fM, color:T.rose, marginBottom:8, padding:'6px 10px', background:T.roseDim, borderRadius:6 }}>{error}</div>}
-      {cryptoInvs.length === 0 && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Add Crypto investments with known symbols (BTC, ETH, SOL…) to see live prices.</div>}
+      {errors.length > 0 && (
+        <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, marginBottom:8, padding:'6px 10px', background:T.amberDim, borderRadius:6, lineHeight:1.5 }}>
+          {errors.map((e,i)=><div key={i}>⚠ {e}</div>)}
+        </div>
+      )}
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-        {cryptoInvs.map(inv => {
-          const cid   = CRYPTO_IDS[inv.symbol?.toUpperCase()];
-          const price = prices[cid];
-          const chg   = price?.usd_24h_change;
-          const val   = price ? price.usd * Number(inv.quantity) : null;
+        {allInvs.map(inv => {
+          const isCrypto = inv.type === 'Crypto';
+          const sym = inv.symbol?.toUpperCase();
+          let price = null, chg = null, posVal = null;
+          if (isCrypto) {
+            const cid = CRYPTO_IDS[sym];
+            const p = cryptoPrices[cid];
+            if (p) { price = p.usd; chg = p.usd_24h_change; posVal = price * Number(inv.quantity); }
+          } else {
+            const p = stockPrices[sym];
+            if (p) { price = p.price; chg = p.chg; posVal = price * Number(inv.quantity); }
+          }
           return (
             <div key={inv.id} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
               <div style={{ display:'flex', flexDirection:'column' }}>
-                <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol} <span style={{ fontSize:9, color:T.textMuted }}>×{inv.quantity}</span></span>
-                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Bought @ ${fmtN(inv.buyPrice)}</span>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{sym}</span>
+                  <span style={{ fontSize:8, fontFamily:T.fM, color:isCrypto?T.amber:T.sky, background:isCrypto?T.amberDim:T.skyDim, padding:'1px 5px', borderRadius:99 }}>{inv.type||'—'}</span>
+                  <span style={{ fontSize:9, color:T.textMuted }}>×{inv.quantity}</span>
+                </div>
+                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Cost basis ${fmtN(inv.buyPrice)}</span>
               </div>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
-                <span style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:T.text }}>{price?`$${fmtN(price.usd)}`:'—'}</span>
+                <span style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:T.text }}>{price!=null?`$${fmtN(price)}`:'—'}</span>
                 {chg != null && <span style={{ fontSize:9, fontFamily:T.fM, color:chg>=0?T.emerald:T.rose }}>{chg>=0?'+':''}{chg.toFixed(2)}% 24h</span>}
-                {val != null && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Pos: ${fmtN(val)}</span>}
+                {posVal != null && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Pos: ${fmtN(posVal)}</span>}
               </div>
             </div>
           );
@@ -3350,6 +3471,16 @@ export default function LifeOS() {
     dismissToast(toastId);
   }, [toasts, dismissToast]);
 
+  // ── Timeline — monthly prune: keep only last 3 months of events ─────────────
+  useEffect(() => {
+    const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 3);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    setEventLog(p => {
+      const pruned = p.filter(ev => (ev.ts || '') >= cutoffStr);
+      return pruned.length < p.length ? pruned : p; // only update if something changed
+    });
+  }, []); // run once per mount (each session)
+
   // ── Phase 1: Timeline Event Push Engine ────────────────────────────────────
   const pushEvent = useCallback((event) => {
     const ev = { id: Date.now(), ts: today(), ...event };
@@ -3378,12 +3509,12 @@ export default function LifeOS() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // ── S5: Apply saved theme + language on mount ──────────────────────────────
+  // ── S5: Apply theme + language reactively on settings change ─────────────────
   useEffect(() => {
     const savedTheme = settings.theme || 'dark';
     Object.assign(T, THEMES[savedTheme] || THEMES.dark);
     currentLang = settings.language || 'en';
-  }, []);
+  }, [settings.theme, settings.language]);
 
   // ── S5: Recurring Expense Auto-log ────────────────────────────────────────
   useEffect(() => {
@@ -3616,6 +3747,19 @@ export default function LifeOS() {
     setInvestments(p => p.map(i => i.id === invId ? { ...i, currentPrice: newPrice } : i));
   }, []);
 
+  // ── CENTRAL COMPUTED VALUES — single source of truth for all pages ──────────
+  const _thisMonth = today().slice(0,7);
+  const computed = useMemo(() => {
+    const monthInc = incomes.filter(i=>i.date?.startsWith(_thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+    const monthExp = expenses.filter(e=>e.date?.startsWith(_thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+    const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+    const assetVal = assets.reduce((s,a)=>s+Number(a.value||0),0);
+    const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
+    const nw       = assetVal + invVal - debtVal;
+    const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+    return { monthInc, monthExp, invVal, assetVal, debtVal, nw, savRate, thisMonth:_thisMonth };
+  }, [incomes, expenses, investments, assets, debts, _thisMonth]);
+
   const actions = {
     addExpense, addIncome, addHabit, logHabit, removeHabit,
     addVitals, addNote, addGoal, removeGoal, addAsset,
@@ -3639,18 +3783,20 @@ export default function LifeOS() {
     habits, habitLogs, vitals, notes, totalXP, settings,
     netWorthHistory, eventLog, focusSessions, quickNotes,
     subscriptions, budgets, bills, career,
+    computed, // ← centralised derived stats
   };
 
-  // ── DERIVED STATS for status bar ───────────────────────────────────────────
+  // ── DERIVED STATS for status bar — uses centralised computed ─────────────────
   const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
   const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
   const cur = settings.currency||'$';
-  const thisMonth = today().slice(0,7);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-  const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  const { monthInc, monthExp, invVal, nw, savRate, thisMonth } = computed;
+
+  // ── S3: Smart Alerts — computed centrally for TopBar bell ────────────────────
+  const smartAlerts = useMemo(() => computeSmartAlerts({
+    bills, budgets, expenses, habits, habitLogs, vitals,
+    thisMonth, monthInc, savRate,
+  }), [bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc, savRate]);
 
   // ── S2: XP Pop notifications ────────────────────────────────────────────────
   const [xpPops, setXPPops] = useState([]);
@@ -3708,7 +3854,9 @@ export default function LifeOS() {
     setCmdOpen(false);
   };
 
+  const lang = settings.language || 'en';
   return (
+    <LangContext.Provider value={lang}>
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
@@ -3768,6 +3916,7 @@ export default function LifeOS() {
               <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
               {!isMobile && 'All Systems Online'}
             </div>
+            <SmartAlertsButton alerts={smartAlerts} />
             {!isMobile && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>}
           </div>
         </div>
@@ -3798,5 +3947,6 @@ export default function LifeOS() {
         )}
       </div>
     </div>
+    </LangContext.Provider>
   );
 }
