@@ -132,6 +132,20 @@ const THEMES = {
   },
 };
 
+// ── S5: THEME BOOT — apply saved theme before first render ───────────────────
+// Reads localStorage synchronously at module load so T is correct on the very
+// first paint — no flash of wrong theme (FOWT) on refresh or cold start.
+(() => {
+  try {
+    const raw = localStorage.getItem('los_settings');
+    if (raw) {
+      const saved = JSON.parse(raw);
+      const theme = saved?.theme;
+      if (theme && THEMES[theme]) Object.assign(T, THEMES[theme]);
+    }
+  } catch {} // silent — fall back to dark
+})();
+
 // ── S5: i18n ──────────────────────────────────────────────────────────────────
 const LOCALES = {
   en: {
@@ -2911,7 +2925,7 @@ function SettingsPage({ data, actions }) {
                 { id:'amoled',    label:'⬛ AMOLED',     preview:'#000000' },
                 { id:'solarized', label:'🌊 Solarized',  preview:'#002b36' },
               ].map(th => (
-                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
+                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
                   <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${T.border}`, flexShrink:0 }} />
                   {th.label}
                 </button>
