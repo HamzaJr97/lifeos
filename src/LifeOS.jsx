@@ -195,6 +195,33 @@ function useLocalStorage(key, defaultVal) {
   }, [key]);
   return [val, setter];
 }
+function useDebouncedLocalStorage(key, defaultVal, delay = 600) {
+  const [val, setValState] = useState(() => {
+    try { const s = localStorage.getItem(key); return s !== null ? JSON.parse(s) : defaultVal; }
+    catch { return defaultVal; }
+  });
+  const timerRef = useRef(null);
+  const latestVal = useRef(defaultVal);
+  const setter = useCallback((v) => {
+    setValState(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      latestVal.current = next;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        try { localStorage.setItem(key, JSON.stringify(latestVal.current)); } catch {}
+      }, delay);
+      return next;
+    });
+  }, [key, delay]);
+  // Flush on unmount — never lose in-flight writes
+  useEffect(() => () => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      try { localStorage.setItem(key, JSON.stringify(latestVal.current)); } catch {}
+    }
+  }, [key]);
+  return [val, setter];
+}
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const today = () => new Date().toISOString().slice(0, 10);
@@ -539,8 +566,65 @@ function Sidebar({ active, onNav, userName }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Phase 3 — Debt Payoff Engine (avalanche / snowball)
+
+// ── DEBT WORKER FACTORY ───────────────────────────────────────────────────────
+// Creates an inline Web Worker so heavy debt payoff simulations don't block the UI.
+// The worker receives the same args as calcDebtPayoff and posts back the result.
+function createDebtWorker() {
+  const src = `
+    function calcDebtPayoff(debts, extraPayment, method) {
+      if (!debts || debts.length === 0) return { months:0, totalInterest:0, payoffDate:null, impossible:false };
+      const MAX_MONTHS = 360;
+      const sorted = [...debts].sort((a,b) =>
+        method === 'avalanche' ? Number(b.rate||0)-Number(a.rate||0) : Number(a.balance||0)-Number(b.balance||0)
+      );
+      let remaining = sorted.map(d => ({
+        balance: Number(d.balance||0),
+        monthlyRate: Number(d.rate||0)/100/12,
+        min: Math.max(Number(d.minPayment||0), 1),
+      }));
+      const totalMin = remaining.reduce((s,d)=>s+d.min,0) + extraPayment;
+      const totalInterestFirst = remaining.reduce((s,d)=>s+d.balance*d.monthlyRate,0);
+      if (totalMin <= totalInterestFirst && extraPayment === 0)
+        return { months:MAX_MONTHS, totalInterest:Infinity, payoffDate:null, impossible:true };
+      let months = 0, totalInterest = 0;
+      while (remaining.some(d=>d.balance>0.01) && months < MAX_MONTHS) {
+        months++;
+        let extra = extraPayment;
+        remaining = remaining.map(d => {
+          if (d.balance<=0) return d;
+          const interest = d.balance*d.monthlyRate;
+          totalInterest += interest;
+          return { ...d, balance: Math.max(0, d.balance+interest-d.min) };
+        });
+        for (let i=0;i<remaining.length;i++) {
+          if (remaining[i].balance>0 && extra>0) {
+            const pmt = Math.min(remaining[i].balance, extra);
+            remaining[i] = { ...remaining[i], balance: remaining[i].balance-pmt };
+            extra -= pmt;
+          }
+        }
+      }
+      const impossible = remaining.some(d=>d.balance>0.01);
+      return { months, totalInterest, impossible, payoffDate: impossible ? null : Date.now()+months*30.44*24*3600*1000 };
+    }
+    self.onmessage = (e) => {
+      const { debts, extraPayment, method } = e.data;
+      const result = calcDebtPayoff(debts, extraPayment, method);
+      self.postMessage(result);
+    };
+  `;
+  try {
+    const blob = new Blob([src], { type: 'application/javascript' });
+    return new Worker(URL.createObjectURL(blob));
+  } catch {
+    return null; // fallback to sync if Worker unavailable
+  }
+}
+
 function calcDebtPayoff(debts, extraPayment = 0, method = 'avalanche') {
-  if (!debts || debts.length === 0) return { months: 0, totalInterest: 0, payoffDate: new Date() };
+  if (!debts || debts.length === 0) return { months: 0, totalInterest: 0, payoffDate: new Date(), impossible: false };
+  const MAX_MONTHS = 360; // hard cap — never loop more than 30 years
   const sorted = [...debts].sort((a, b) =>
     method === 'avalanche'
       ? Number(b.rate || 0) - Number(a.rate || 0)
@@ -549,20 +633,24 @@ function calcDebtPayoff(debts, extraPayment = 0, method = 'avalanche') {
   let remaining = sorted.map(d => ({
     ...d, balance: Number(d.balance || 0),
     monthlyRate: Number(d.rate || 0) / 100 / 12,
-    min: Number(d.minPayment || 0),
+    min: Math.max(Number(d.minPayment || 0), 1), // ensure at least $1/mo to prevent infinite loops
   }));
+  // Early bail-out: if min payments don't even cover interest, it's impossible without extra
+  const totalMin = remaining.reduce((s, d) => s + d.min, 0) + extraPayment;
+  const totalInterestFirst = remaining.reduce((s, d) => s + d.balance * d.monthlyRate, 0);
+  if (totalMin <= totalInterestFirst && extraPayment === 0) {
+    return { months: MAX_MONTHS, totalInterest: Infinity, payoffDate: null, impossible: true };
+  }
   let months = 0; let totalInterest = 0;
-  while (remaining.some(d => d.balance > 0.01) && months < 360) {
+  while (remaining.some(d => d.balance > 0.01) && months < MAX_MONTHS) {
     months++;
     let extra = extraPayment;
-    // Interest accrual + minimum payments
     remaining = remaining.map(d => {
       if (d.balance <= 0) return d;
       const interest = d.balance * d.monthlyRate;
       totalInterest += interest;
       return { ...d, balance: Math.max(0, d.balance + interest - d.min) };
     });
-    // Apply extra to first active debt
     for (let i = 0; i < remaining.length; i++) {
       if (remaining[i].balance > 0 && extra > 0) {
         const pmt = Math.min(remaining[i].balance, extra);
@@ -571,8 +659,9 @@ function calcDebtPayoff(debts, extraPayment = 0, method = 'avalanche') {
       }
     }
   }
-  const payoffDate = new Date(Date.now() + months * 30.44 * 24 * 3600 * 1000);
-  return { months, totalInterest, payoffDate };
+  const impossible = remaining.some(d => d.balance > 0.01);
+  const payoffDate = impossible ? null : new Date(Date.now() + months * 30.44 * 24 * 3600 * 1000);
+  return { months, totalInterest, payoffDate, impossible };
 }
 
 // Phase 2 — Budget Engine
@@ -1052,7 +1141,21 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
     { label:'Add Subscription', icon:'🔄', action:()=>onModal('subscription') },
   ];
 
-  const searchIndex = useMemo(() => buildSearchIndex(data), [data.notes, data.goals, data.habits, data.habitLogs, data.expenses, data.debts, data.investments, data.assets]);
+  // Rebuild search index only when item *counts* or *IDs* change — not on every parent re-render
+  // Only recompute search index when palette is open AND item IDs changed
+  const searchDepsKey = useMemo(() => {
+    if (!open) return 'closed'; // freeze while palette is shut
+    return [
+      (data.notes||[]).map(n=>n.id).join(','),
+      (data.goals||[]).map(g=>g.id).join(','),
+      (data.habits||[]).map(h=>h.id).join(','),
+      (data.expenses||[]).slice(0,20).map(e=>e.id).join(','),
+      (data.debts||[]).map(d=>d.id).join(','),
+      (data.investments||[]).map(i=>i.id).join(','),
+      (data.assets||[]).map(a=>a.id).join(','),
+    ].join('|');
+  }, [open, data.notes, data.goals, data.habits, data.expenses, data.debts, data.investments, data.assets]);
+  const searchIndex = useMemo(() => open ? buildSearchIndex(data) : [], [searchDepsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -1115,18 +1218,20 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
 const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
   const WEEKS = 18; const DAYS = 7;
   const cells = useMemo(() => {
-    const allLogs = new Set(Object.values(habitLogs).flat());
     const total = habits.length || 1;
     const result = [];
     const now = new Date(); now.setHours(0,0,0,0);
     // Go back to start of week
     const startOffset = now.getDay();
     const start = new Date(now); start.setDate(start.getDate() - (WEEKS * 7) + (7 - startOffset));
+    // Pre-build a date→count map for O(1) lookups instead of O(habits) per cell
+    const dateCountMap = {};
+    Object.values(habitLogs).forEach(logs => logs.forEach(d => { dateCountMap[d] = (dateCountMap[d]||0)+1; }));
     for (let w = 0; w < WEEKS; w++) {
       for (let d = 0; d < DAYS; d++) {
         const date = new Date(start); date.setDate(start.getDate() + w * 7 + d);
         const ds = date.toISOString().slice(0, 10);
-        const done = Object.values(habitLogs).filter(logs => logs.includes(ds)).length;
+        const done = dateCountMap[ds] || 0;
         const pct = Math.min(1, done / total);
         result.push({ date:ds, done, pct, future:date > now });
       }
@@ -1254,13 +1359,29 @@ function SmartAlertsButton({ alerts }) {
 
 // ── PROPTYPES (must appear after all const components are initialized) ─────────
 if (typeof PropTypes !== 'undefined') {
+  // UI primitives
   GlassCard.propTypes    = { children: PropTypes.node, style: PropTypes.object, className: PropTypes.string, onClick: PropTypes.func };
   Badge.propTypes        = { children: PropTypes.node, color: PropTypes.string };
   ProgressBar.propTypes  = { pct: PropTypes.number, color: PropTypes.string, height: PropTypes.number };
   Btn.propTypes          = { children: PropTypes.node, onClick: PropTypes.func, color: PropTypes.string, disabled: PropTypes.bool, full: PropTypes.bool, style: PropTypes.object };
   Modal.propTypes        = { open: PropTypes.bool, onClose: PropTypes.func, title: PropTypes.string, children: PropTypes.node, wide: PropTypes.bool };
+  // Feature components
   HabitHeatmap.propTypes = { habitLogs: PropTypes.object.isRequired, habits: PropTypes.array.isRequired };
   SmartAlertsButton.propTypes = { alerts: PropTypes.array.isRequired };
+  // Navigation
+  BottomNav.propTypes    = { active: PropTypes.string.isRequired, onNav: PropTypes.func.isRequired };
+  Sidebar.propTypes      = { active: PropTypes.string.isRequired, onNav: PropTypes.func.isRequired, userName: PropTypes.string };
+  // Shared data shape (used by all pages)
+  const dataPropType     = PropTypes.shape({ expenses:PropTypes.array, incomes:PropTypes.array, habits:PropTypes.array, habitLogs:PropTypes.object, settings:PropTypes.object.isRequired, computed:PropTypes.object.isRequired });
+  const actionsPropType  = PropTypes.shape({ addExpense:PropTypes.func, addIncome:PropTypes.func, addHabit:PropTypes.func });
+  HomePage.propTypes     = { data: dataPropType.isRequired, actions: actionsPropType.isRequired, onNav: PropTypes.func.isRequired };
+  MoneyPage.propTypes    = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
+  HealthPage.propTypes   = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
+  GrowthPage.propTypes   = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
+  KnowledgePage.propTypes= { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
+  IntelligencePage.propTypes = { data: dataPropType.isRequired };
+  SettingsPage.propTypes = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
+  CareerPage.propTypes   = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1296,13 +1417,8 @@ function HomePage({ data, actions, onNav }) {
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   const hour = new Date().getHours();
   const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
-  const monthExp = useMemo(()=>expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,thisMonth]);
-  const monthInc = useMemo(()=>incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,thisMonth]);
-  const invVal   = useMemo(()=>investments.reduce((s,i)=>s+(Number((i.currentPrice??i.buyPrice)||0))*Number(i.quantity||0),0),[investments]);
-  const assetVal = useMemo(()=>assets.reduce((s,a)=>s+Number(a.value||0),0),[assets]);
-  const debtVal  = useMemo(()=>debts.reduce((s,d)=>s+Number(d.balance||0),0),[debts]);
-  const netWorth = assetVal + invVal - debtVal;
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  // Use pre-computed values from App root (no duplicate reduce loops)
+  const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
   const fhs = useMemo(()=>{ let s=0; s+=Math.min(30,savRate*1.5); const mdp=debts.reduce((a,d)=>a+Number(d.minPayment||0),0); const dti=monthInc>0?(mdp/monthInc)*100:50; s+=Math.max(0,25-dti*0.5); const cash=assets.filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0); const ef=monthExp>0?cash/monthExp:0; s+=Math.min(25,ef*4.2); if(netWorth>0)s+=Math.min(20,10+(netWorth/10000)*5); return Math.round(Math.max(0,Math.min(100,s))); },[savRate,debts,assets,monthInc,monthExp,netWorth]);
   const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
   const xpForNext = Math.pow(level,2)*100; const xpForCurrent = Math.pow(level-1,2)*100;
@@ -1470,17 +1586,19 @@ function TimelinePage({ data }) {
   const { expenses, incomes, habits, habitLogs, vitals, goals, investments, debts, settings } = data;
   const [filter, setFilter] = useState('all');
   const cur = settings.currency || '$';
-  const allEvents = useMemo(() => {
-    const evs = [];
-    expenses.forEach(e => evs.push({ id:'e-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose, emoji:'💳' }));
-    incomes.forEach(i => evs.push({ id:'i-'+i.id, ts:i.date, title:i.note||'Income received', sub:'Income', value:`+${cur}${fmtN(i.amount)}`, cat:'income', color:T.emerald, emoji:'💰' }));
-    habits.forEach(h => { (habitLogs[h.id]||[]).forEach(d => { evs.push({ id:'h-'+h.id+d, ts:d, title:h.name+' completed', sub:`Habit · 🔥 streak`, value:'+XP', cat:'habit', color:T.accent, emoji:'🔥' }); }); });
-    vitals.forEach(v => evs.push({ id:'v-'+v.id, ts:v.date, title:'Vitals Logged', sub:`Sleep ${v.sleep}h · Mood ${v.mood}/10`, value:'❤️', cat:'health', color:T.sky, emoji:'❤️' }));
-    goals.filter(g=>g.current>=g.target).forEach(g => evs.push({ id:'g-'+g.id, ts:g.updatedAt||today(), title:`Goal completed: ${g.name}`, sub:'Goal milestone', value:'🏆 +50XP', cat:'goal', color:T.amber, emoji:'🎯' }));
-    investments.forEach(inv => evs.push({ id:'inv-'+inv.id, ts:inv.date||today(), title:`${inv.symbol||inv.name} position`, sub:'Investment', value:`${cur}${fmtN(Number(inv.currentPrice??inv.buyPrice)*Number(inv.quantity))}`, cat:'investment', color:T.violet, emoji:'📈' }));
-    debts.forEach(d => evs.push({ id:'d-'+d.id, ts:d.createdAt||today(), title:`Debt: ${d.name}`, sub:`${d.type||'Debt'} · ${d.rate||0}% APR`, value:`${cur}${fmtN(d.balance)}`, cat:'debt', color:T.rose, emoji:'⚠️' }));
-    return evs.sort((a,b)=>a.ts<b.ts?1:-1);
-  }, [expenses,incomes,habits,habitLogs,vitals,goals,investments,debts,cur]);
+  // Per-category memos — each only recalculates when its source data changes
+  const expenseEvs    = useMemo(() => expenses.map(e=>({ id:'e-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose, emoji:'💳' })), [expenses, cur]);
+  const incomeEvs     = useMemo(() => incomes.map(i=>({ id:'i-'+i.id, ts:i.date, title:i.note||'Income received', sub:'Income', value:`+${cur}${fmtN(i.amount)}`, cat:'income', color:T.emerald, emoji:'💰' })), [incomes, cur]);
+  const habitEvs      = useMemo(() => { const evs=[]; habits.forEach(h=>(habitLogs[h.id]||[]).forEach(d=>evs.push({ id:'h-'+h.id+d, ts:d, title:h.name+' completed', sub:'Habit · 🔥 streak', value:'+XP', cat:'habit', color:T.accent, emoji:'🔥' }))); return evs; }, [habits, habitLogs]);
+  const vitalEvs      = useMemo(() => vitals.map(v=>({ id:'v-'+v.id, ts:v.date, title:'Vitals Logged', sub:`Sleep ${v.sleep}h · Mood ${v.mood}/10`, value:'❤️', cat:'health', color:T.sky, emoji:'❤️' })), [vitals]);
+  const goalEvs       = useMemo(() => goals.filter(g=>g.current>=g.target).map(g=>({ id:'g-'+g.id, ts:g.updatedAt||today(), title:`Goal completed: ${g.name}`, sub:'Goal milestone', value:'🏆 +50XP', cat:'goal', color:T.amber, emoji:'🎯' })), [goals]);
+  const investmentEvs = useMemo(() => investments.map(inv=>({ id:'inv-'+inv.id, ts:inv.date||today(), title:`${inv.symbol||inv.name} position`, sub:'Investment', value:`${cur}${fmtN(Number(inv.currentPrice??inv.buyPrice)*Number(inv.quantity))}`, cat:'investment', color:T.violet, emoji:'📈' })), [investments, cur]);
+  const debtEvs       = useMemo(() => debts.map(d=>({ id:'d-'+d.id, ts:d.createdAt||today(), title:`Debt: ${d.name}`, sub:`${d.type||'Debt'} · ${d.rate||0}% APR`, value:`${cur}${fmtN(d.balance)}`, cat:'debt', color:T.rose, emoji:'⚠️' })), [debts, cur]);
+  // Merge only when a category slice actually changes
+  const allEvents = useMemo(() =>
+    [...expenseEvs,...incomeEvs,...habitEvs,...vitalEvs,...goalEvs,...investmentEvs,...debtEvs]
+      .sort((a,b)=>a.ts<b.ts?1:-1),
+    [expenseEvs,incomeEvs,habitEvs,vitalEvs,goalEvs,investmentEvs,debtEvs]);
   const cats = ['all','expense','income','investment','habit','health','goal','debt'];
   const filtered = filter==='all'?allEvents:allEvents.filter(e=>e.cat===filter);
   const groups = useMemo(()=>{ const g={}; filtered.forEach(ev=>{ const d=ev.ts?.slice(0,10)||'Unknown'; if(!g[d])g[d]=[]; g[d].push(ev); }); return Object.entries(g).sort((a,b)=>a[0]<b[0]?1:-1); },[filtered]);
@@ -1543,16 +1661,33 @@ function MoneyPage({ data, actions }) {
   const [editDebt, setEditDebt] = useState(null);
   const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-  const assetVal = assets.reduce((s,a)=>s+Number(a.value||0),0);
-  const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const netWorth = assetVal + invVal - debtVal;
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
+  // Use pre-computed values from App root
+  const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
   const spendByCat = useMemo(()=>{ const m={}; expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value); },[expenses,thisMonth]);
   const cashflowMonths = useMemo(()=>{ const months={}; expenses.forEach(e=>{ const m=e.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].exp+=Number(e.amount||0); }); incomes.forEach(i=>{ const m=i.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].inc+=Number(i.amount||0); }); return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6); },[expenses,incomes]);
-  const payoffInfo = useMemo(()=>calcDebtPayoff(debts, debouncedExtraPayment, payoffMethod),[debts, debouncedExtraPayment, payoffMethod]);
+  // Use Web Worker for >10 debts; sync fallback for small lists
+  const [payoffInfo, setPayoffInfo] = useState(() => calcDebtPayoff(debts, 0, payoffMethod));
+  const workerRef = useRef(null);
+  useEffect(() => {
+    if (debts.length > 10) {
+      if (!workerRef.current) workerRef.current = createDebtWorker();
+      if (workerRef.current) {
+        const w = workerRef.current;
+        const handler = (e) => {
+          const r = e.data;
+          // Worker returns timestamp instead of Date object — convert back
+          setPayoffInfo({ ...r, payoffDate: r.payoffDate ? new Date(r.payoffDate) : null });
+        };
+        w.addEventListener('message', handler);
+        w.postMessage({ debts, extraPayment: debouncedExtraPayment, method: payoffMethod });
+        return () => w.removeEventListener('message', handler);
+      }
+    }
+    // Sync path for ≤10 debts (fast enough, <2ms)
+    setPayoffInfo(calcDebtPayoff(debts, debouncedExtraPayment, payoffMethod));
+    return undefined;
+  }, [debts, debouncedExtraPayment, payoffMethod]);
+  useEffect(() => () => { workerRef.current?.terminate(); workerRef.current = null; }, []);
   const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, thisMonth),[expenses,budgets,thisMonth]);
   const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
@@ -2264,6 +2399,19 @@ function GrowthPage({ data, actions }) {
   const [editHabit, setEditHabit] = useState(null);
   const { habits, habitLogs, goals, totalXP, settings } = data;
   const cur = settings.currency||'$';
+  // Stable ref for HabitHeatmap via useRef snapshot — avoids JSON.stringify on every render
+  const habitLogsRef = useRef(habitLogs);
+  const stableHabitLogsRef = useRef(habitLogs);
+  if (habitLogsRef.current !== habitLogs) {
+    // Only do the deep-equality check when the reference actually changed
+    const prevKeys = Object.keys(habitLogsRef.current);
+    const nextKeys = Object.keys(habitLogs);
+    const changed = prevKeys.length !== nextKeys.length ||
+      nextKeys.some(k => (habitLogs[k]?.length ?? 0) !== (habitLogsRef.current[k]?.length ?? 0));
+    if (changed) stableHabitLogsRef.current = habitLogs;
+    habitLogsRef.current = habitLogs;
+  }
+  const stableHabitLogs = stableHabitLogsRef.current;
   const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
   const xpForNext = Math.pow(level,2)*100; const xpForCurrent = Math.pow(level-1,2)*100;
   const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
@@ -2344,7 +2492,7 @@ function GrowthPage({ data, actions }) {
           {habits.length > 0 && (
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Activity Heatmap — Last 18 Weeks</SectionLabel>
-              <HabitHeatmap habitLogs={habitLogs} habits={habits} />
+              <HabitHeatmap habitLogs={stableHabitLogs} habits={habits} />
             </GlassCard>
           )}
           {habits.length===0 ? (
@@ -2585,15 +2733,12 @@ function KnowledgePage({ data, actions }) {
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
 function IntelligencePage({ data }) {
   const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings } = data;
-  const cur = settings.currency||'$'; const thisMonth = today().slice(0,7);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-  const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-  const nw       = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const topCat = useMemo(()=>{ const m={}; expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; },[expenses,thisMonth]);
+  const cur = settings.currency||'$';
+  // Use pre-computed values from App root
+  const { monthExp, monthInc, invVal, nw, savRate, thisMonth, topCatEntry, level: lvl } = data.computed;
+  const topCat = topCatEntry; // from data.computed
   const avgSleep7 = useMemo(()=>{ const v=vitals.slice(-7); return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?'; },[vitals]);
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const level = lvl; // from data.computed
   const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
   const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
   const insights = [
@@ -3483,7 +3628,7 @@ export default function LifeOS() {
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
   const [habits,        setHabits        ] = useLocalStorage('los_habits',       []);
-  const [habitLogs,     setHabitLogs     ] = useLocalStorage('los_habitlogs',    {});
+  const [habitLogs,     setHabitLogs     ] = useDebouncedLocalStorage('los_habitlogs',    {}, 400);
   const [expenses,      setExpenses      ] = useLocalStorage('los_expenses',     []);
   const [incomes,       setIncomes       ] = useLocalStorage('los_incomes',      []);
   const [debts,         setDebts         ] = useLocalStorage('los_debts',        []);
@@ -3492,10 +3637,10 @@ export default function LifeOS() {
   const [investments,   setInvestments   ] = useLocalStorage('los_investments',  []);
   const [vitals,        setVitals        ] = useLocalStorage('los_vitals',       []);
   const [notes,         setNotes         ] = useLocalStorage('los_notes',        []);
-  const [focusSessions, setFocusSessions ] = useLocalStorage('los_focus',        []);
-  const [totalXP,       setTotalXP       ] = useLocalStorage('los_xp',           0);
+  const [focusSessions, setFocusSessions ] = useDebouncedLocalStorage('los_focus',        [], 1000);
+  const [totalXP,       setTotalXP       ] = useDebouncedLocalStorage('los_xp',           0,  400);
   const [netWorthHistory,setNetWorthHistory]=useLocalStorage('los_nwhistory',    []);
-  const [eventLog,      setEventLog      ] = useLocalStorage('los_eventlog',     []);
+  const [eventLog,      setEventLog      ] = useDebouncedLocalStorage('los_eventlog',     [], 800);
   const [quickNotes,    setQuickNotes    ] = useLocalStorage('los_qnotes',       []);
   const [subscriptions, setSubscriptions ] = useLocalStorage('los_subs',         []);
   const [budgets,       setBudgetsStore  ] = useLocalStorage('los_budgets',      {});
@@ -3519,15 +3664,24 @@ export default function LifeOS() {
     dismissToast(toastId);
   }, [toasts, dismissToast]);
 
-  // ── Timeline — monthly prune: keep only last 3 months of events ─────────────
+  // ── Timeline — monthly prune: keep only last 3 months, run once per calendar day ──
   useEffect(() => {
+    const PRUNE_KEY = 'los_last_prune';
+    const todayStr = today();
+    const lastPrune = localStorage.getItem(PRUNE_KEY) || '';
+    if (lastPrune === todayStr) return; // already pruned today
     const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 3);
     const cutoffStr = cutoff.toISOString().slice(0,10);
     setEventLog(p => {
-      const pruned = p.filter(ev => (ev.ts || '') >= cutoffStr);
-      return pruned.length < p.length ? pruned : p; // only update if something changed
+      const pruned = p.filter(ev => (ev.ts || '') >= cutoffStr).slice(0, 500); // date + cap
+      if (pruned.length < p.length) {
+        localStorage.setItem(PRUNE_KEY, todayStr);
+        return pruned;
+      }
+      return p;
     });
-  }, []); // run once per mount (each session)
+    localStorage.setItem(PRUNE_KEY, todayStr);
+  }, []); // run once per mount, guard via localStorage date stamp
 
   // ── Phase 1: Timeline Event Push Engine ────────────────────────────────────
   const pushEvent = useCallback((event) => {
@@ -3805,8 +3959,16 @@ export default function LifeOS() {
     const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
     const nw       = assetVal + invVal - debtVal;
     const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-    return { monthInc, monthExp, invVal, assetVal, debtVal, nw, savRate, thisMonth:_thisMonth };
-  }, [incomes, expenses, investments, assets, debts, _thisMonth]);
+    // Pre-compute per-category spend for current month (used by MoneyPage + IntelPage)
+    const spendByCatMap = expenses
+      .filter(e=>e.date?.startsWith(_thisMonth))
+      .reduce((m,e)=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); return m; }, {});
+    const topCatEntry = Object.entries(spendByCatMap).sort((a,b)=>b[1]-a[1])[0] || null;
+    // Level / XP helpers (used by Home + Intel)
+    const level     = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+    return { monthInc, monthExp, invVal, assetVal, debtVal, nw, savRate, thisMonth:_thisMonth,
+             spendByCatMap, topCatEntry, level };
+  }, [incomes, expenses, investments, assets, debts, _thisMonth, totalXP]);
 
   const actions = {
     addExpense, addIncome, addHabit, logHabit, removeHabit,
