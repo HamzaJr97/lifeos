@@ -164,6 +164,17 @@ const LOCALES = {
 let currentLang = 'en';
 const LangContext = createContext('en');
 function useLang() { return useContext(LangContext); }
+
+// ── DOMAIN CONTEXTS — per-domain state isolation ──────────────────────────────
+const MoneyContext = createContext(null);
+const HealthContext = createContext(null);
+const GrowthContext = createContext(null);
+/** Hook for money-domain components */
+function useMoney() { return useContext(MoneyContext); }
+/** Hook for health-domain components */
+function useHealth() { return useContext(HealthContext); }
+/** Hook for growth-domain components */
+function useGrowth() { return useContext(GrowthContext); }
 const t = (key, lang) => {
   const l = lang || currentLang;
   return LOCALES[l]?.[key] || LOCALES.en[key] || key;
@@ -1255,6 +1266,30 @@ if (typeof PropTypes !== 'undefined') {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
+// ── ERROR BOUNDARY ────────────────────────────────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, info) { console.error('[LifeOS ErrorBoundary]', error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding:40, textAlign:'center', animation:'fadeUp 0.4s ease' }}>
+          <div style={{ fontSize:32, marginBottom:16 }}>⚠️</div>
+          <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:8 }}>Something went wrong in this section</div>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginBottom:20, maxWidth:360, margin:'0 auto 20px' }}>
+            {this.state.error?.message || 'An unexpected error occurred.'}
+          </div>
+          <button onClick={()=>this.setState({hasError:false,error:null})} style={{ padding:'8px 20px', borderRadius:T.r, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontFamily:T.fM, fontSize:11, cursor:'pointer' }}>
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function HomePage({ data, actions, onNav }) {
   const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, notes } = data;
   const [modal, setModal] = useState(null);
@@ -1305,7 +1340,7 @@ function HomePage({ data, actions, onNav }) {
           {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{ color:T.emerald }}>●</span> {habits.length} habits · <span style={{ color:T.accent }}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K to search</span>
         </div>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {[
           { label:'Net Worth', value:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent, icon:'💎', pct:null },
           { label:'Financial Health', value:`${fhs}/100`, sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention', color:T.emerald, icon:'📊', pct:fhs },
@@ -1323,7 +1358,7 @@ function HomePage({ data, actions, onNav }) {
           </GlassCard>
         ))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 340px', gap:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:16 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {/* Smart Alerts — now rendered in TopBar bell icon (S3) */}
           <GlassCard style={{ padding:'20px 22px' }}>
@@ -1347,7 +1382,7 @@ function HomePage({ data, actions, onNav }) {
           </GlassCard>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Quick Actions</SectionLabel>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))', gap:8 }}>
               {QUICK_ACTIONS.map((a,i)=>(
                 <button key={i} className="los-qa" onClick={()=>setModal(a.modal)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'10px 6px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, transition:'all 0.18s', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
                   <span style={{ fontSize:18 }}>{a.emoji}</span>
@@ -1358,7 +1393,7 @@ function HomePage({ data, actions, onNav }) {
           </GlassCard>
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
             {[
               { label:'This Month', sub:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald },
               { label:'This Month', sub:'Spent', val:`${cur}${fmtN(monthExp)}`, color:T.rose },
@@ -1549,7 +1584,7 @@ function MoneyPage({ data, actions }) {
 
       {tab==='overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
             {[{ label:'Net Worth', val:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} - Debts ${cur}${fmtN(debtVal)}`, color:T.accent }, { label:'Monthly Income', val:`${cur}${fmtN(monthInc)}`, sub:'This month total', color:T.emerald }, { label:'Monthly Spend', val:`${cur}${fmtN(monthExp)}`, sub:`${monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'Track income to compare'}`, color:T.rose }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, sub:`${cur}${fmtN(monthInc-monthExp)} saved`, color:T.sky }].map((m,i)=>(
               <GlassCard key={i} style={{ padding:'16px 18px' }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
@@ -1606,7 +1641,7 @@ function MoneyPage({ data, actions }) {
           {spendByCat.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No expenses logged this month yet.</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               <GlassCard style={{ padding:'20px 22px' }}>
                 <SectionLabel>Breakdown — {thisMonth}</SectionLabel>
                 <ResponsiveContainer width="100%" height={200}>
@@ -1659,7 +1694,7 @@ function MoneyPage({ data, actions }) {
               <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Add your debts to track payoff progress and optimize your strategy.</div>
             </GlassCard>
           ) : (<>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
               {[{ label:'Total Debt', val:`${cur}${fmtN(debtVal)}`, color:T.rose }, { label:'Payoff (months)', val:payoffInfo.months>599?'50+ years':`${payoffInfo.months} mo`, color:T.amber }, { label:'Total Interest', val:`${cur}${fmtN(payoffInfo.totalInterest)}`, color:T.textSub }].map((m,i)=>(
                 <GlassCard key={i} style={{ padding:'16px 18px' }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
@@ -1720,7 +1755,7 @@ function MoneyPage({ data, actions }) {
           {investments.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
               {[{ label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN(investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:T.text }, { label:'Total P&L', val:`${invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:invVal>=investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)?T.emerald:T.rose }].map((m,i)=>(
                 <GlassCard key={i} style={{ padding:'16px 18px' }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
@@ -1758,7 +1793,7 @@ function MoneyPage({ data, actions }) {
           {goals.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first financial goal.</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
               {goals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.accent;
                 const remaining = Math.max(0, Number(goal.target||0) - Number(goal.current||0));
                 const monthsLeft = goal.deadline ? Math.max(1, Math.round((new Date(goal.deadline)-new Date())/(1000*60*60*24*30.4))) : null;
@@ -2000,7 +2035,7 @@ function MoneyPage({ data, actions }) {
             {/* Compound Growth Simulator */}
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Compound Growth Simulator</SectionLabel>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:18 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginBottom:18 }}>
                 <div>
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Starting amount ({cur})</div>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -2030,7 +2065,7 @@ function MoneyPage({ data, actions }) {
                   </div>
                 </div>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:18 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12, marginBottom:18 }}>
                 {[{ label:'Final Value', val:`${cur}${fmtN(finalVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN(totalIn)}`, color:T.text }, { label:'Total Growth', val:`+${cur}${fmtN(totalGrowth)}`, color:T.emerald }].map((s,i)=>(
                   <div key={i} style={{ padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
                     <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.08em' }}>{s.label}</div>
@@ -2105,7 +2140,7 @@ function HealthPage({ data, actions }) {
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1></div>
       <div style={{ display:'flex', gap:10, marginBottom:18 }}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {[
           { label:'Avg Sleep (7d)', val:`${avgSleep}h`, sub:avgSleepQ?`Quality: ${avgSleepQ}/5 ⭐`:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h', color:T.sky },
           { label:'Avg Mood (7d)',  val:`${avgMood}/10`, sub:'Emotional wellbeing', color:T.violet },
@@ -2119,7 +2154,7 @@ function HealthPage({ data, actions }) {
           </GlassCard>
         ))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Sleep History</SectionLabel>
@@ -2260,7 +2295,7 @@ function GrowthPage({ data, actions }) {
       </div>
 
       {tab==='character' && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
           <GlassCard style={{ padding:'22px', gridColumn:'span 2' }}>
             <div style={{ display:'flex', alignItems:'center', gap:20 }}>
               <div style={{ width:76, height:76, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.bg, boxShadow:`0 0 24px ${T.violet}44` }}>{level}</div>
@@ -2349,7 +2384,7 @@ function GrowthPage({ data, actions }) {
           {goals.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first goal to start tracking progress.</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
               {goals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.violet; const ms=goal.milestones||[]; return (
                 <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
@@ -2432,13 +2467,20 @@ function KnowledgePage({ data, actions }) {
     const m=today().slice(0,7); const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0); const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0); const invVal=investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0); const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0); const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0; const habitSum=habits.map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none'; const goalSum=goals.map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ')||'none'; const v7=vitals.slice(-7); const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
     return `USER'S REAL LIFE DATA:\nNet Worth: ${cur}${fmtN(nw)}\nThis Month: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${sr}%\nInvestments: ${cur}${fmtN(invVal)}\nLevel: ${Math.floor(Math.sqrt(Number(totalXP)/100))+1}, ${totalXP} XP\nHabits: ${habitSum}\nGoals: ${goalSum}\nAvg Sleep (7d): ${avgSlp}h\nDebts: ${debts.length} totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`;
   };
+  const apiKey = settings.aiApiKey || '';
   const send = async () => {
     if (!input.trim()||loading) return;
+    if (!apiKey) {
+      setMessages(p=>[...p,{role:'assistant',content:'⚠️ No API key configured. Go to Settings → AI Provider and enter your Anthropic API key. Your key is stored locally and never sent anywhere except Anthropic\'s API.'}]);
+      return;
+    }
     const um={role:'user',content:input}; setMessages(p=>[...p,um]); setInput(''); setLoading(true);
     try {
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,messages:[...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}))})});
-      const d=await res.json(); const text=d.content?.map(b=>b.text||'').join('')||'Unable to respond.'; setMessages(p=>[...p,{role:'assistant',content:text}]);
-    } catch { setMessages(p=>[...p,{role:'assistant',content:'Connection error. Please try again.'}]); }
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,messages:[...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}))})});
+      const d=await res.json();
+      if (d.error) throw new Error(d.error.message||'API error');
+      const text=d.content?.map(b=>b.text||'').join('')||'Unable to respond.'; setMessages(p=>[...p,{role:'assistant',content:text}]);
+    } catch(err) { setMessages(p=>[...p,{role:'assistant',content:`Connection error: ${err.message||'Please try again.'}`}]); }
     finally { setLoading(false); }
   };
   const TAG_COLORS = { Finance:T.violet, Health:T.sky, Career:T.amber, Growth:T.emerald, Ideas:'#c084fc', General:T.textSub };
@@ -2471,7 +2513,7 @@ function KnowledgePage({ data, actions }) {
           {filteredNotes.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{noteSearch?`No notes match "${noteSearch}"` :'No notes yet. Create your first note to build your knowledge base.'}</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
               {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
                 <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
@@ -2497,7 +2539,7 @@ function KnowledgePage({ data, actions }) {
           {qn.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No quick notes yet. Capture fleeting thoughts and ideas.</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
               {[...qn].sort((a,b)=>a.date<b.date?1:-1).map((qn,i)=>(
                 <div key={qn.id||i} style={{ padding:'16px', borderRadius:T.r, background:`${qn.color||T.amber}11`, border:`1px solid ${(qn.color||T.amber)}33`, position:'relative', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
@@ -2514,6 +2556,12 @@ function KnowledgePage({ data, actions }) {
       )}
       {tab==='ai assistant' && (
         <GlassCard style={{ display:'flex', flexDirection:'column', height:540 }}>
+          {!apiKey && (
+            <div style={{ padding:'10px 18px', background:T.amberDim, borderBottom:`1px solid ${T.amber}33`, display:'flex', alignItems:'center', gap:10, fontSize:11, fontFamily:T.fM, color:T.amber }}>
+              <span>⚠️</span>
+              <span>AI Assistant requires an Anthropic API key. <strong onClick={()=>{}} style={{cursor:'pointer',textDecoration:'underline'}} >Go to Settings → AI Provider to add yours.</strong></span>
+            </div>
+          )}
           <div style={{ flex:1, overflowY:'auto', padding:'18px', display:'flex', flexDirection:'column', gap:12 }}>
             {messages.map((msg,i)=>(
               <div key={i} style={{ display:'flex', gap:9, flexDirection:msg.role==='user'?'row-reverse':'row', animation:'fadeUp 0.25s ease' }}>
@@ -2585,7 +2633,7 @@ function IntelligencePage({ data }) {
         ))}
         {insights.length===0 && <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses, habits and vitals to generate personalized insights.</div></GlassCard>}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'20px 22px' }}>
           <SectionLabel>Life Domain Scores</SectionLabel>
           {LIFE_STATS.map((s,i)=>(
@@ -2618,7 +2666,7 @@ function ArchivePage({ data }) {
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <div style={{ marginBottom:22 }}><SectionLabel>Archive</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1></div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'20px 22px' }}>
           <SectionLabel>Net Worth History</SectionLabel>
           {netWorthHistory.length>1 ? (
@@ -2694,7 +2742,7 @@ function SettingsPage({ data, actions }) {
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <div style={{ marginBottom:22 }}><SectionLabel>System</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Settings</h1></div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>Profile</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -2785,7 +2833,7 @@ function SettingsPage({ data, actions }) {
 
         <GlassCard style={{ padding:'24px', gridColumn:'span 2' }}>
           <SectionLabel>System Status</SectionLabel>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
             {['Finance Engine','Health Sync','AI Coach','Timeline','Intelligence'].map((sys,i)=>(
               <div key={i} style={{ padding:'12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
                 <div style={{ display:'flex', alignItems:'center', gap:5, marginBottom:4 }}><div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2s infinite' }} /><span style={{ fontSize:9, fontFamily:T.fM, color:T.emerald }}>Online</span></div>
@@ -2908,7 +2956,7 @@ function CareerPage({ data, actions }) {
       </Modal>
 
       <div style={{ marginBottom:22 }}><SectionLabel>Career Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Career Hub</h1></div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {statCards.map((m,i)=>(
           <GlassCard key={i} style={{ padding:'16px 18px' }}>
             <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
@@ -2929,7 +2977,7 @@ function CareerPage({ data, actions }) {
 
       {/* Kanban Board */}
       {tab === 'kanban' && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
           {JOB_STAGES.map(stage => {
             const stageJobs = jobs.filter(j=>j.stage===stage);
             const sc = STAGE_COLORS[stage];
@@ -3019,7 +3067,7 @@ function CareerPage({ data, actions }) {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <Input value={cvRole}   onChange={e=>setCvRole(e.target.value)}   placeholder="Current role / target role" />
             <textarea value={cvBio} onChange={e=>setCvBio(e.target.value)} placeholder="Professional summary (2–3 sentences)" rows={4} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
               <Input value={cvEmail}  onChange={e=>setCvEmail(e.target.value)}  placeholder="Email" />
               <Input value={cvLinked} onChange={e=>setCvLinked(e.target.value)} placeholder="LinkedIn URL" />
             </div>
@@ -3111,7 +3159,7 @@ function CalendarPage({ data }) {
       <div style={{ marginBottom:22 }}><SectionLabel>Calendar Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Monthly Overview</h1></div>
 
       {/* Stats row */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {[
           { label:'Month Spend',   val:`${cur}${fmtN(totalMonthExp)}`, color:T.rose   },
           { label:'Active Days',   val:`${daysWithHabits} days`,       color:T.accent },
@@ -3226,7 +3274,7 @@ function WhatIfSimulator({ data }) {
   return (
     <GlassCard style={{ padding:'24px' }}>
       <SectionLabel>💡 What-If Financial Simulator</SectionLabel>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:20, marginBottom:20 }}>
         {[
           { label:'Income increase (%)', val:incDelta, set:setIncDelta, min:-50, max:200, step:5, color:T.emerald },
           { label:'Expense cut (%)',     val:expCut,   set:setExpCut,   min:0,   max:90,  step:5, color:T.rose   },
@@ -3244,7 +3292,7 @@ function WhatIfSimulator({ data }) {
       </div>
 
       {/* Scenario summary */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:18 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10, marginBottom:18 }}>
         {[
           { label:'New Monthly Save', val:`${cur}${fmtN(Math.max(0,newSaved))}`, sub:`Was ${cur}${fmtN(Math.max(0,baseInc-baseExp))}`, color:newSaved>0?T.accent:T.rose },
           { label:'New Savings Rate', val:`${newSavRate.toFixed(1)}%`, sub:`Was ${baseInc>0?((baseInc-baseExp)/baseInc*100).toFixed(1):0}%`, color:newSavRate>30?T.emerald:T.amber },
@@ -3259,7 +3307,7 @@ function WhatIfSimulator({ data }) {
       </div>
 
       {/* Projection horizons */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10, marginBottom:16 }}>
         {projections.map((p,i)=>(
           <div key={i} style={{ padding:'14px', borderRadius:T.r, background:`${p.color}0d`, border:`1px solid ${p.color}33` }}>
             <div style={{ fontSize:9, fontFamily:T.fM, color:p.color, marginBottom:4, textTransform:'uppercase', fontWeight:700 }}>{p.label}</div>
@@ -3778,12 +3826,14 @@ export default function LifeOS() {
     updateCareer, updateInvestmentPrice,
   };
 
+  const isMobile = useMobile();
   const data = {
     expenses, incomes, assets, investments, debts, goals,
     habits, habitLogs, vitals, notes, totalXP, settings,
     netWorthHistory, eventLog, focusSessions, quickNotes,
     subscriptions, budgets, bills, career,
     computed, // ← centralised derived stats
+    isMobile,  // ← passed to all pages for responsive layouts
   };
 
   // ── DERIVED STATS for status bar — uses centralised computed ─────────────────
@@ -3832,20 +3882,19 @@ export default function LifeOS() {
   }, [data]);
 
   // ── S2: Mobile state ────────────────────────────────────────────────────────
-  const isMobile = useMobile();
-
+  const eb = (child) => <ErrorBoundary key={page}>{child}</ErrorBoundary>;
   const VIEW = {
-    home:      <HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop}} onNav={setPage} />,
-    timeline:  <TimelinePage  data={data} />,
-    money:     <MoneyPage     data={data} actions={actions} />,
-    health:    <HealthPage    data={data} actions={actions} />,
-    growth:    <GrowthPage    data={data} actions={{...actions, logHabit:logHabitWithPop, addGoal:addGoalWithPop}} />,
-    knowledge: <KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />,
-    career:    <CareerPage    data={data} actions={actions} />,
-    calendar:  <CalendarPage  data={data} />,
-    intel:     <IntelligencePage data={data} />,
-    archive:   <ArchivePage   data={data} />,
-    settings:  <SettingsPage  data={data} actions={actions} />,
+    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop}} onNav={setPage} />),
+    timeline:  eb(<TimelinePage  data={data} />),
+    money:     eb(<MoneyPage     data={data} actions={actions} />),
+    health:    eb(<HealthPage    data={data} actions={actions} />),
+    growth:    eb(<GrowthPage    data={data} actions={{...actions, logHabit:logHabitWithPop, addGoal:addGoalWithPop}} />),
+    knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
+    career:    eb(<CareerPage    data={data} actions={actions} />),
+    calendar:  eb(<CalendarPage  data={data} />),
+    intel:     eb(<IntelligencePage data={data} />),
+    archive:   eb(<ArchivePage   data={data} />),
+    settings:  eb(<SettingsPage  data={data} actions={actions} />),
   };
 
   // Global modal handler for Command Palette quick actions
@@ -3857,6 +3906,9 @@ export default function LifeOS() {
   const lang = settings.language || 'en';
   return (
     <LangContext.Provider value={lang}>
+    <MoneyContext.Provider value={{ expenses, incomes, debts, assets, investments, budgets, subscriptions, bills, computed }}>
+    <HealthContext.Provider value={{ vitals, habits, habitLogs }}>
+    <GrowthContext.Provider value={{ goals, focusSessions, totalXP }}>
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
@@ -3947,6 +3999,9 @@ export default function LifeOS() {
         )}
       </div>
     </div>
+    </GrowthContext.Provider>
+    </HealthContext.Provider>
+    </MoneyContext.Provider>
     </LangContext.Provider>
   );
 }
