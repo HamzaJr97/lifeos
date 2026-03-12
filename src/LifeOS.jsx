@@ -745,6 +745,126 @@ const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','
 // Resolve active categories — uses custom list if configured
 const getActiveCats = () => { try { const s=JSON.parse(localStorage.getItem('los_settings')||'{}'); return s.customCats?.length ? s.customCats : CATS; } catch { return CATS; } };
 
+// ── RECEIPT SCANNER MODAL (AI OCR) ───────────────────────────────────────────
+function ReceiptScannerModal({ open, onClose, onExpenseDetected, apiKey, currency }) {
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [imgPreview, setImgPreview] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('Food & Drink');
+  const [note, setNote] = useState('');
+  const [expDate, setExpDate] = useState(today());
+  const fileRef = useRef();
+
+  useEffect(() => { if (!open) { setResult(null); setError(''); setImgPreview(null); setAmount(''); setNote(''); setExpDate(today()); } }, [open]);
+
+  const scan = async (file) => {
+    if (!file) return;
+    if (!apiKey) { setError('Add your API key in Settings → AI Provider to use Receipt Scanner.'); return; }
+    setScanning(true); setError(''); setResult(null);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const b64 = e.target.result.split(',')[1];
+      setImgPreview(e.target.result);
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 400,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: file.type||'image/jpeg', data: b64 } },
+                { type: 'text', text: 'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.' }
+              ]
+            }]
+          })
+        });
+        const data = await res.json();
+        const text = data.content?.find(b=>b.type==='text')?.text || '';
+        const clean = text.replace(/```json?|```/g,'').trim();
+        const parsed = JSON.parse(clean);
+        setResult(parsed);
+        setAmount(String(parsed.amount||''));
+        setCategory(parsed.category||'Food & Drink');
+        setNote(parsed.merchant ? `${parsed.merchant}${parsed.items?` — ${parsed.items}`:''}` : '');
+        setExpDate(parsed.date||today());
+      } catch(err) {
+        setError('Could not parse receipt. Try a clearer photo.');
+      } finally { setScanning(false); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  if (!open) return null;
+  const cur = currency||'$';
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div style={{ width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', borderRadius:20, background:T.bg, border:`1px solid ${T.border}`, padding:'28px 30px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+          <h2 style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.text }}>🧾 Receipt Scanner</h2>
+          <button onClick={onClose} style={{ fontSize:20, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>×</button>
+        </div>
+        {!result && !scanning && (
+          <div
+            onClick={()=>fileRef.current?.click()}
+            style={{ border:`2px dashed ${T.border}`, borderRadius:12, padding:40, textAlign:'center', cursor:'pointer', transition:'border-color 0.2s' }}
+            onDragOver={e=>{e.preventDefault();}} onDrop={e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)scan(f);}}>
+            <div style={{ fontSize:40, marginBottom:12 }}>📷</div>
+            <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>Snap or drop a receipt</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>AI will extract the amount, merchant, date and category automatically</div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e=>scan(e.target.files[0])} />
+          </div>
+        )}
+        {scanning && (
+          <div style={{ textAlign:'center', padding:40 }}>
+            <div style={{ fontSize:36, marginBottom:12, animation:'spin 1.5s linear infinite' }}>🔍</div>
+            <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.accent }}>Scanning receipt…</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:6 }}>AI is extracting merchant, amount, date & items</div>
+          </div>
+        )}
+        {error && <div style={{ padding:'14px 16px', borderRadius:10, background:T.roseDim, border:`1px solid ${T.rose}44`, fontSize:12, fontFamily:T.fM, color:T.rose, marginBottom:16 }}>⚠️ {error}</div>}
+        {result && !scanning && (
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {imgPreview && <img src={imgPreview} alt="receipt" style={{ width:'100%', maxHeight:200, objectFit:'contain', borderRadius:10, border:`1px solid ${T.border}` }} />}
+            <div style={{ padding:'12px 14px', borderRadius:10, background:`${T.emerald}10`, border:`1px solid ${T.emerald}33` }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald, marginBottom:4 }}>✅ Receipt scanned — review & confirm</div>
+              {result.merchant && <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{result.merchant}</div>}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Amount ({cur})</div>
+                <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} />
+              </div>
+              <div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Date</div>
+                <Input type="date" value={expDate} onChange={e=>setExpDate(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Category</div>
+              <Select value={category} onChange={e=>setCategory(e.target.value)}>
+                {['Food & Drink','Transport','Shopping','Health','Entertainment','Utilities','Housing','Other'].map(c=><option key={c}>{c}</option>)}
+              </Select>
+            </div>
+            <div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Note</div>
+              <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Merchant / items…" />
+            </div>
+            <div style={{ display:'flex', gap:8, marginTop:4 }}>
+              <button onClick={()=>{setResult(null);setImgPreview(null);}} style={{ flex:1, padding:'10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Rescan</button>
+              <Btn onClick={()=>{ onExpenseDetected({ id:Date.now(), date:expDate, amount:Number(amount), category, note, source:'receipt' }); onClose(); }} color={T.accent} style={{ flex:2, padding:'10px 0' }}>✓ Add Expense</Btn>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LogExpenseModal({ open, onClose, onSave }) {
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
@@ -1174,7 +1294,7 @@ function BudgetModal({ open, onClose, budgets, onSave }) {
     <Modal open={open} onClose={onClose} title="📊 Monthly Budgets">
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Set spending limits per category</div>
-        {CATS.map(cat => (
+        {getActiveCats().map(cat => (
           <div key={cat} style={{ display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:12, fontFamily:T.fM, color:T.text, minWidth:140 }}>{cat}</span>
             <Input type="number" value={local[cat]||''} onChange={e=>setLocal(p=>({...p,[cat]:e.target.value}))} placeholder="No limit" style={{ flex:1 }} />
@@ -1196,10 +1316,7 @@ function EditExpenseModal({ open, onClose, expense, onSave }) {
     <Modal open={open} onClose={onClose} title="✏️ Edit Expense">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
-        <Select value={cat} onChange={e=>setCat(e.target.value)}>{CATS.map(c=><option key={c}>{c}</option>)}</Select>
-        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
-        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
-        <Btn full onClick={save} color={T.rose}>Save Changes</Btn>
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>{getActiveCats().map(c=><option key={c}>{c}</option>)}</Select>
       </div>
     </Modal>
   );
@@ -1644,7 +1761,19 @@ function HomePage({ data, actions, onNav }) {
   const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
   // Use pre-computed values from App root (no duplicate reduce loops)
   const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
-  const fhs = useMemo(()=>{ let s=0; s+=Math.min(30,savRate*1.5); const mdp=debts.reduce((a,d)=>a+Number(d.minPayment||0),0); const dti=monthInc>0?(mdp/monthInc)*100:50; s+=Math.max(0,25-dti*0.5); const cash=assets.filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0); const ef=monthExp>0?cash/monthExp:0; s+=Math.min(25,ef*4.2); if(netWorth>0)s+=Math.min(20,10+(netWorth/10000)*5); return Math.round(Math.max(0,Math.min(100,s))); },[savRate,debts,assets,monthInc,monthExp,netWorth]);
+  const fhsDetail = useMemo(()=>{
+    const mdp = debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
+    const dti = monthInc>0?(mdp/monthInc)*100:50;
+    const cash = assets.filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
+    const ef = monthExp>0?cash/monthExp:0;
+    const savScore = Math.round(Math.min(30, savRate*1.5));
+    const dtiScore = Math.round(Math.max(0, 25-dti*0.5));
+    const efScore  = Math.round(Math.min(25, ef*4.2));
+    const nwScore  = netWorth>0?Math.round(Math.min(20,10+(netWorth/10000)*5)):0;
+    const total = Math.max(0,Math.min(100, savScore+dtiScore+efScore+nwScore));
+    return { total, savScore, savMax:30, dtiScore, dtiMax:25, efScore, efMax:25, nwScore, nwMax:20, dti:dti.toFixed(1), ef:ef.toFixed(1) };
+  },[savRate,debts,assets,monthInc,monthExp,netWorth]);
+  const fhs = fhsDetail.total;
   const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
   const xpForNext = Math.pow(level,2)*100; const xpForCurrent = Math.pow(level-1,2)*100;
   const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
@@ -1723,7 +1852,7 @@ function HomePage({ data, actions, onNav }) {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {[
           { label:'Net Worth', value:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent, icon:'💎', pct:null },
-          { label:'Financial Health', value:`${fhs}/100`, sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention', color:T.emerald, icon:'📊', pct:fhs },
+          { label:'Financial Health', value:`${fhs}/100`, sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention', color:T.emerald, icon:'📊', pct:fhs, detail:fhsDetail },
           { label:`Life XP — Lv ${level}`, value:`${Number(totalXP).toLocaleString()} XP`, sub:`${Math.round(xpForNext-Number(totalXP))} to Lv ${level+1}`, color:T.violet, icon:'⚡', pct:xpPct },
           { label:'Savings Rate', value:`${savRate.toFixed(1)}%`, sub:`${cur}${fmtN(monthInc-monthExp)} saved this month`, color:T.sky, icon:'🎯', pct:savRate },
         ].map((m,i)=>(
@@ -1735,6 +1864,24 @@ function HomePage({ data, actions, onNav }) {
             <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1, marginBottom:6 }}>{m.value}</div>
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:m.pct!=null?10:0 }}>{m.sub}</div>
             {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
+            {m.detail && (
+              <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:4, borderTop:`1px solid ${T.border}`, paddingTop:8 }}>
+                {[
+                  { label:'Savings Rate', score:m.detail.savScore, max:m.detail.savMax, hint:`${savRate.toFixed(0)}%` },
+                  { label:'Debt-to-Income', score:m.detail.dtiScore, max:m.detail.dtiMax, hint:`${m.detail.dti}% DTI` },
+                  { label:'Emergency Fund', score:m.detail.efScore, max:m.detail.efMax, hint:`${m.detail.ef}mo` },
+                  { label:'Net Worth', score:m.detail.nwScore, max:m.detail.nwMax, hint:netWorth>0?'Positive':'—' },
+                ].map(sub => (
+                  <div key={sub.label}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>
+                      <span>{sub.label}</span>
+                      <span style={{ color:m.color }}>{sub.score}/{sub.max} · {sub.hint}</span>
+                    </div>
+                    <ProgressBar pct={(sub.score/sub.max)*100} color={m.color} height={3} />
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
         ))}
       </div>
@@ -2142,6 +2289,7 @@ const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched'
 function MoneyPage({ data, actions }) {
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
+  const [receiptScannerOpen, setReceiptScannerOpen] = useState(false);
   const [goalAmt, setGoalAmt] = useState(''); const [goalIdx, setGoalIdx] = useState(null);
   const [payoffMethod, setPayoffMethod] = useState('avalanche');
   const [extraPayment, setExtraPayment] = useState(0);
@@ -2199,6 +2347,7 @@ function MoneyPage({ data, actions }) {
   const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} apiKey={data.settings?.aiApiKey} currency={cur} />
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <EditIncomeModal open={!!editIncome} onClose={()=>setEditIncome(null)} income={editIncome} onSave={(id,patch)=>{actions.updateIncome(id,patch);setEditIncome(null);}} />
@@ -2212,7 +2361,6 @@ function MoneyPage({ data, actions }) {
       <EditSubscriptionModal open={!!editingSub} onClose={()=>setEditingSub(null)} sub={editingSub} onSave={(id,patch)=>{actions.updateSubscription(id,patch);setEditingSub(null);}} />
       <EditBillModal open={!!editingBill} onClose={()=>setEditingBill(null)} bill={editingBill} onSave={(id,patch)=>{actions.updateBill(id,patch);setEditingBill(null);}} />
       <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} />
-      <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
       <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
       <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
@@ -2239,6 +2387,7 @@ function MoneyPage({ data, actions }) {
           </div>
           <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
             <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
+            <Btn onClick={()=>setReceiptScannerOpen(true)} color={T.amber}>🧾 Scan Receipt</Btn>
             <Btn onClick={()=>setModal('income')} color={T.emerald}>+ Log Income</Btn>
             <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
             <Btn onClick={()=>setModal('debt')} color={T.rose}>+ Add Debt</Btn>
@@ -2592,27 +2741,80 @@ function MoneyPage({ data, actions }) {
 
       {tab==='recurring' && (() => {
         const billTotal = billsArr.reduce((s,b)=>s+Number(b.amount||0),0);
+        const recurringIncomes = incomes.filter(i => i.recurring);
+        const recurringIncomeMo = recurringIncomes.reduce((s,i) => {
+          const amt = Number(i.amount||0);
+          if (i.frequency==='yearly') return s + amt/12;
+          if (i.frequency==='weekly') return s + amt*4.33;
+          if (i.frequency==='bi-weekly') return s + amt*2.17;
+          return s + amt; // monthly default
+        }, 0);
         const combinedMonthly = monthlySubTotal + billTotal;
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
             {/* Summary bar */}
-            {(subscriptions.length>0||billsArr.length>0) && (
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <div style={{ flex:1, minWidth:140, padding:'10px 14px', background:T.skyDim, borderRadius:T.r, border:`1px solid ${T.sky}22` }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>TOTAL RECURRING / MONTH</div>
-                  <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.sky }}>{cur}{fmtN(combinedMonthly)}</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{cur}{fmtN(combinedMonthly*12)}/year{monthInc>0?` · ${((combinedMonthly/monthInc)*100).toFixed(1)}% of income`:''}</div>
-                </div>
-                <div style={{ flex:1, minWidth:120, padding:'10px 14px', background:T.surface, borderRadius:T.r, border:`1px solid ${T.border}` }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>SUBSCRIPTIONS</div>
-                  <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{subscriptions.length} · {cur}{fmtN(monthlySubTotal)}/mo</div>
-                </div>
-                <div style={{ flex:1, minWidth:120, padding:'10px 14px', background:T.surface, borderRadius:T.r, border:`1px solid ${T.border}` }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>BILLS</div>
-                  <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{billsArr.filter(b=>!b.paid).length} pending · {cur}{fmtN(billTotal)}/mo</div>
-                </div>
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+              <div style={{ flex:1, minWidth:140, padding:'10px 14px', background:T.emeraldDim, borderRadius:T.r, border:`1px solid ${T.emerald}22` }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>RECURRING INCOME / MO</div>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>{cur}{fmtN(recurringIncomeMo)}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{recurringIncomes.length} source{recurringIncomes.length!==1?'s':''}</div>
               </div>
-            )}
+              <div style={{ flex:1, minWidth:140, padding:'10px 14px', background:T.roseDim, borderRadius:T.r, border:`1px solid ${T.rose}22` }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>RECURRING COSTS / MO</div>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{cur}{fmtN(combinedMonthly)}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{cur}{fmtN(combinedMonthly*12)}/year</div>
+              </div>
+              <div style={{ flex:1, minWidth:140, padding:'10px 14px', background:recurringIncomeMo>combinedMonthly?T.emeraldDim:T.roseDim, borderRadius:T.r, border:`1px solid ${recurringIncomeMo>combinedMonthly?T.emerald:T.rose}22` }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>NET RECURRING / MO</div>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:recurringIncomeMo>combinedMonthly?T.emerald:T.rose }}>{recurringIncomeMo>combinedMonthly?'+':''}{cur}{fmtN(recurringIncomeMo-combinedMonthly)}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{recurringIncomeMo>0?`${((combinedMonthly/recurringIncomeMo)*100).toFixed(0)}% of recurring income`:'Add recurring income'}</div>
+              </div>
+            </div>
+
+            {/* Recurring Income section */}
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, fontWeight:600, letterSpacing:'0.08em' }}>💰 RECURRING INCOME</div>
+                <Btn onClick={()=>setModal('income')} color={T.emerald} style={{ padding:'4px 12px', fontSize:11 }}>+ Add</Btn>
+              </div>
+              {recurringIncomes.length === 0 ? (
+                <GlassCard style={{ padding:24, textAlign:'center' }}>
+                  <div style={{ fontSize:22, marginBottom:8 }}>💰</div>
+                  <div style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted, marginBottom:10 }}>No recurring income tracked</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Log income with the "Recurring" toggle on to track salary, rent, dividends, etc.</div>
+                </GlassCard>
+              ) : (
+                <GlassCard style={{ padding:'14px 18px' }}>
+                  {recurringIncomes.map((inc, i) => {
+                    const monthly = inc.frequency==='yearly' ? Number(inc.amount)/12 : inc.frequency==='weekly' ? Number(inc.amount)*4.33 : inc.frequency==='bi-weekly' ? Number(inc.amount)*2.17 : Number(inc.amount);
+                    const freqLabel = { monthly:'mo', yearly:'yr', weekly:'wk', 'bi-weekly':'2wk' }[inc.frequency] || 'mo';
+                    return (
+                      <div key={inc.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<recurringIncomes.length-1?`1px solid ${T.border}`:'none' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <div style={{ width:34, height:34, borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>💰</div>
+                          <div>
+                            <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{inc.note||'Recurring Income'}</div>
+                            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>🔄 {inc.frequency||'monthly'} · Since {inc.date}</div>
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                          <div style={{ textAlign:'right' }}>
+                            <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:T.emerald }}>{cur}{fmtN(inc.amount)}/{freqLabel}</div>
+                            {inc.frequency!=='monthly' && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{cur}{fmtN(monthly)}/mo</div>}
+                          </div>
+                          <button onClick={()=>setEditIncome(inc)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}` }} title="Edit"><IcoPencil size={11} stroke={T.sky} /></button>
+                          <button onClick={()=>actions.removeIncome(inc.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM }}>
+                    <span style={{ color:T.textSub }}>{recurringIncomes.length} source{recurringIncomes.length!==1?'s':''} · {cur}{fmtN(recurringIncomeMo*12)}/year</span>
+                    <span style={{ color:T.emerald, fontWeight:700 }}>{cur}{fmtN(recurringIncomeMo)}/month</span>
+                  </div>
+                </GlassCard>
+              )}
+            </div>
 
             {/* Subscriptions section */}
             <div>
@@ -2759,7 +2961,8 @@ function HealthPage({ data, actions }) {
           { label:'Avg Sleep (7d)', val:`${avgSleep}h`, sub:avgSleepQ?`Quality: ${avgSleepQ}/5 ⭐`:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h', color:T.sky },
           { label:'Avg Mood (7d)',  val:`${avgMood}/10`, sub:'Emotional wellbeing', color:T.violet },
           { label:'Avg Energy (7d)',val:`${avgEnergy}/10`, sub:'Vitality level', color:T.accent },
-          { label:'Current Weight', val:latestWeight?`${latestWeight.weight} lbs`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald }
+          { label:'Current Weight', val:latestWeight?`${latestWeight.weight} lbs`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
+          { label:'Avg Steps (7d)', val:(() => { const s=recent7.filter(v=>v.steps>0); return s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length).toLocaleString():'—'; })(), sub:'Daily step count', color:T.amber },
         ].map((m,i)=>(
           <GlassCard key={i} style={{ padding:'16px 18px' }}>
             <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
@@ -2799,6 +3002,71 @@ function HealthPage({ data, actions }) {
               </ResponsiveContainer>
             ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see mood & energy trends.</div>}
           </GlassCard>
+          {recent7.some(v=>v.sleepQuality>0) && (
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Sleep Quality (7d)</SectionLabel>
+              <ResponsiveContainer width="100%" height={110}>
+                <BarChart data={recent7} barSize={22} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0,5]} hide />
+                  <Tooltip formatter={(v)=>`${v}/5 ⭐`} contentStyle={{ background:T.surfaceHi, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }} />
+                  <Bar dataKey="sleepQuality" name="Sleep Quality" fill={T.amber} opacity={0.85} radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:6 }}>
+                {['1★','2★','3★','4★','5★'].map(s=><span key={s}>{s}</span>)}
+              </div>
+            </GlassCard>
+          )}
+          {recent7.some(v=>v.steps>0) && (
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Steps (7d)</SectionLabel>
+              <ResponsiveContainer width="100%" height={110}>
+                <BarChart data={recent7} barSize={22} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<ChartTooltip suffix=" steps" />} />
+                  <Bar dataKey="steps" name="Steps" fill={T.amber} opacity={0.85} radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
+                {(() => { const s=recent7.filter(v=>v.steps>0); const avg=s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length):0; return `Avg: ${avg.toLocaleString()} steps/day${avg>=10000?' · ✅ 10k goal hit!':` · ${(10000-avg).toLocaleString()} to 10k goal`}`; })()}
+              </div>
+            </GlassCard>
+          )}
+          {(() => {
+            const weightData = [...vitals].filter(v=>Number(v.weight)>0).sort((a,b)=>a.date>b.date?1:-1).slice(-20);
+            if (weightData.length < 2) return null;
+            const minW = Math.min(...weightData.map(v=>Number(v.weight)));
+            const maxW = Math.max(...weightData.map(v=>Number(v.weight)));
+            const range = maxW - minW;
+            const delta = Number(weightData[weightData.length-1].weight) - Number(weightData[0].weight);
+            const deltaColor = delta > 0 ? T.amber : delta < 0 ? T.emerald : T.textSub;
+            return (
+              <GlassCard style={{ padding:'20px 22px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <SectionLabel>Weight Trend</SectionLabel>
+                  <span style={{ fontSize:10, fontFamily:T.fM, color:deltaColor, fontWeight:600 }}>{delta>0?'+':''}{delta.toFixed(1)} lbs</span>
+                </div>
+                <ResponsiveContainer width="100%" height={120}>
+                  <LineChart data={weightData} margin={{top:4,right:0,left:0,bottom:0}}>
+                    <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis domain={[minW - (range||5)*0.3, maxW + (range||5)*0.3]} hide />
+                    <Tooltip content={<ChartTooltip suffix=" lbs" />} />
+                    <Line type="monotone" dataKey="weight" name="Weight" stroke={T.emerald} strokeWidth={2} dot={{fill:T.emerald,r:3}} />
+                  </LineChart>
+                </ResponsiveContainer>
+                <div style={{ display:'flex', gap:20, marginTop:6, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+                  <span>Low: {minW} lbs</span>
+                  <span>High: {maxW} lbs</span>
+                  <span>Latest: {weightData[weightData.length-1].weight} lbs</span>
+                </div>
+              </GlassCard>
+            );
+          })()}
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Recent Vitals</SectionLabel>
             {sorted.slice(0,8).map((v,i)=>(
@@ -2885,6 +3153,7 @@ function GrowthPage({ data, actions }) {
   const [tab, setTab] = useState('character');
   const [modal, setModal] = useState(null);
   const [editHabit, setEditHabit] = useState(null);
+  const [editGoal, setEditGoal] = useState(null);
   const [chronicleModal, setChronicleModal] = useState(false);
   const { habits, habitLogs, goals, totalXP, settings, chronicles, challenges } = data;
   const cur = settings.currency||'$';
@@ -2922,6 +3191,7 @@ function GrowthPage({ data, actions }) {
       <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
       <EditHabitModal open={!!editHabit} onClose={()=>setEditHabit(null)} habit={editHabit} onSave={(id,patch)=>{actions.updateHabit(id,patch);setEditHabit(null);}} />
+      <EditGoalModal open={!!editGoal} onClose={()=>setEditGoal(null)} goal={editGoal} onSave={(id,patch)=>{actions.updateGoal(id,patch);setEditGoal(null);}} />
       <AddChronicleModal open={chronicleModal} onClose={()=>setChronicleModal(false)} onSave={c=>{actions.addChronicle(c);setChronicleModal(false);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
@@ -2980,6 +3250,69 @@ function GrowthPage({ data, actions }) {
           <div style={{ display:'flex', justifyContent:'flex-end' }}>
             <Btn onClick={()=>setModal('habit')} color={T.accent}>+ Log / Add Habit</Btn>
           </div>
+          {habits.length > 0 && (() => {
+            const DAY_LABELS = ['M','T','W','T','F','S','S'];
+            const weekDays = Array.from({length:7},(_,i)=>{ const d=new Date(); const day=d.getDay(); const diff=i-(day===0?6:day-1); d.setDate(d.getDate()+diff); return d.toISOString().slice(0,10); });
+            const weekDone = habits.map(h=>({
+              habit:h,
+              days: weekDays.map(d=>({ date:d, done:(habitLogs[h.id]||[]).includes(d) })),
+              streak: getStreak(h.id,habitLogs),
+            }));
+            const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+            const totalThisWeek = weekDone.reduce((s,h)=>s+h.days.filter(d=>d.done).length,0);
+            const maxThisWeek = habits.length * 7;
+            return (
+              <GlassCard style={{ padding:'20px 22px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                  <SectionLabel>This Week's Review</SectionLabel>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600 }}>{totalThisWeek}/{maxThisWeek} completed</span>
+                </div>
+                <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', minWidth:320 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'left', padding:'0 0 8px', fontWeight:500, minWidth:120 }}>Habit</th>
+                        {weekDays.map((d,i) => (
+                          <th key={d} style={{ fontSize:9, fontFamily:T.fM, color:d===today()?T.accent:T.textSub, textAlign:'center', padding:'0 4px 8px', fontWeight:d===today()?700:400, width:30 }}>
+                            <div>{DAY_LABELS[i]}</div>
+                            <div style={{ fontSize:8, color:T.textMuted }}>{d.slice(8)}</div>
+                          </th>
+                        ))}
+                        <th style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:'0 0 8px 8px', fontWeight:500 }}>Streak</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weekDone.map((row,i) => {
+                        const hc = HCOLORS[i%HCOLORS.length];
+                        const doneCount = row.days.filter(d=>d.done).length;
+                        return (
+                          <tr key={row.habit.id} style={{ borderTop:`1px solid ${T.border}` }}>
+                            <td style={{ padding:'8px 0', fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:130 }}>
+                              {row.habit.emoji||'🔥'} {row.habit.name}
+                            </td>
+                            {row.days.map(d => (
+                              <td key={d.date} style={{ textAlign:'center', padding:'8px 4px' }}>
+                                <div style={{ width:20, height:20, borderRadius:5, margin:'0 auto', background:d.done?hc+'33':T.surface, border:`1.5px solid ${d.done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                  {d.done && <span style={{ fontSize:9, color:hc }}>✓</span>}
+                                </div>
+                              </td>
+                            ))}
+                            <td style={{ textAlign:'center', padding:'8px 0 8px 8px', fontSize:10, fontFamily:T.fM, color:row.streak>0?hc:T.textMuted, fontWeight:row.streak>=7?700:400 }}>
+                              🔥{row.streak}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ marginTop:12, paddingTop:10, borderTop:`1px solid ${T.border}` }}>
+                  <ProgressBar pct={maxThisWeek>0?(totalThisWeek/maxThisWeek)*100:0} color={T.accent} height={4} />
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>{Math.round(maxThisWeek>0?(totalThisWeek/maxThisWeek)*100:0)}% completion this week</div>
+                </div>
+              </GlassCard>
+            );
+          })()}
           {habits.length > 0 && (
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Activity Heatmap — Last 18 Weeks</SectionLabel>
@@ -3036,7 +3369,10 @@ function GrowthPage({ data, actions }) {
                 <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
-                    <button onClick={()=>actions.removeGoal(goal.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={11} stroke={T.rose} /></button>
+                    <div style={{ display:'flex', gap:5 }}>
+                      <button onClick={()=>setEditGoal(goal)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.6 }} title="Edit goal"><IcoPencil size={11} stroke={T.sky} /></button>
+                      <button onClick={()=>actions.removeGoal(goal.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={11} stroke={T.rose} /></button>
+                    </div>
                   </div>
                   <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{goal.name}</div>
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>{cur}{fmtN(goal.current||0)} / {cur}{fmtN(goal.target)} · {pct}%{goal.deadline?` · Due ${goal.deadline}`:''}</div>
@@ -3467,7 +3803,8 @@ function ScenarioCard({ cur, monthInc, savRate }) {
 
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
 function IntelligencePage({ data }) {
-  const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings } = data;
+  const [tab, setTab] = useState('overview');
+  const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings, netWorthHistory } = data;
   const cur = settings.currency||'$';
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, nw, savRate, thisMonth, topCatEntry, level: lvl } = data.computed;
@@ -3476,6 +3813,44 @@ function IntelligencePage({ data }) {
   const level = lvl; // from data.computed
   const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
   const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+
+  // Spending trends — last 6 months by category
+  const spendTrends = useMemo(() => {
+    const months = Array.from({length:6},(_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-5+i); return d.toISOString().slice(0,7); });
+    const cats = [...new Set(expenses.map(e=>e.category))].slice(0,6);
+    return { months, cats, data: months.map(m => {
+      const row = { month: m.slice(5) };
+      cats.forEach(c => { row[c] = expenses.filter(e=>e.date?.startsWith(m)&&e.category===c).reduce((s,e)=>s+Number(e.amount||0),0); });
+      row._total = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+      return row;
+    })};
+  }, [expenses]);
+
+  // Net worth projections
+  const nwProjection = useMemo(() => {
+    const months = netWorthHistory.slice(-12);
+    if (months.length < 2) return [];
+    const growth = (months[months.length-1].value - months[0].value) / Math.max(1, months.length-1);
+    const projected = Array.from({length:6},(_,i) => ({
+      month: (() => { const d=new Date(); d.setMonth(d.getMonth()+i+1); return d.toISOString().slice(0,7); })(),
+      projected: Math.round(months[months.length-1].value + growth*(i+1)),
+    }));
+    return [...months, ...projected];
+  }, [netWorthHistory]);
+
+  // Habit weekly analytics — last 8 weeks consistency %
+  const habitAnalytics = useMemo(() => {
+    const weeks = Array.from({length:8},(_,i)=>{
+      const start = new Date(); start.setDate(start.getDate() - start.getDay() - 7*(7-i));
+      return Array.from({length:7},(_,j)=>{ const d=new Date(start); d.setDate(d.getDate()+j); return d.toISOString().slice(0,10); });
+    });
+    return weeks.map(days => {
+      const total = habits.length * 7;
+      const done = habits.reduce((s,h)=>s+days.filter(d=>(habitLogs[h.id]||[]).includes(d)).length, 0);
+      return { week: days[0].slice(5), pct: total>0?Math.round((done/total)*100):0, done, total };
+    });
+  }, [habits, habitLogs]);
+
   const insights = [
     monthInc>0&&savRate<20 && { title:'Low Savings Rate', body:`You're saving ${savRate.toFixed(0)}% this month. Target 20-35% to build long-term wealth. Reduce spending by ${cur}${fmtN(0.2*monthInc-(monthInc-monthExp))} to hit 20%.`, color:T.amber, icon:'⚠️', type:'warning' },
     monthInc>0&&savRate>=35 && { title:'Excellent Savings Rate', body:`${savRate.toFixed(0)}% savings rate — you're outperforming most. ${cur}${fmtN(monthInc-monthExp)} saved this month. On track for financial independence.`, color:T.emerald, icon:'📈', type:'positive' },
@@ -3496,93 +3871,310 @@ function IntelligencePage({ data }) {
     { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose },
     { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber },
   ];
+  const CAT_COLORS = [T.accent,T.rose,T.violet,T.sky,T.amber,T.emerald];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}><SectionLabel>Intelligence Layer</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>AI-powered insights · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights</div></div>
-      <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
-        {insights.map((ins,i)=>(
-          <GlassCard key={i} style={{ padding:'18px 22px', borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.3s ease ${i*0.07}s both` }}>
-            <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-              <div style={{ fontSize:22, flexShrink:0 }}>{ins.icon}</div>
-              <div style={{ flex:1 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}><div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</div><Badge color={ins.color}>{ins.type}</Badge></div>
-                <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{ins.body}</div>
-              </div>
-            </div>
-          </GlassCard>
+      <div style={{ marginBottom:22 }}>
+        <SectionLabel>Intelligence Layer</SectionLabel>
+        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>AI-powered insights · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights</div>
+      </div>
+      {/* Tab nav */}
+      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
+        {['overview','spending','net worth','habits'].map(t=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?'#c084fc22':'transparent', color:tab===t?'#c084fc':T.textSub, border:`1px solid ${tab===t?'#c084fc33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
-        {insights.length===0 && <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses, habits and vitals to generate personalized insights.</div></GlassCard>}
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
-        <GlassCard style={{ padding:'20px 22px' }}>
-          <SectionLabel>Life Domain Scores</SectionLabel>
-          {LIFE_STATS.map((s,i)=>(
-            <div key={i} style={{ marginBottom:12 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span><span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}/100</span></div>
-              <ProgressBar pct={s.val} color={s.color} height={5} />
-            </div>
-          ))}
-        </GlassCard>
-        <GlassCard style={{ padding:'20px 22px' }}>
-          <SectionLabel>This Month Summary</SectionLabel>
-          {[{ label:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald }, { label:'Expenses', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, color:T.sky }, { label:'Net Worth', val:`${cur}${fmtN(nw)}`, color:T.violet }, { label:'Habit Streak', val:`🔥 ${bestStreak}d`, color:T.amber }].map((item,i)=>(
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
-              <span style={{ color:T.textSub }}>{item.label}</span><span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
-            </div>
-          ))}
-        </GlassCard>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginTop:14 }}>
-
-        {/* Emergency Fund Tracker */}
-        {(() => {
-          const cashAssets = assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
-          const avgMonthExp = monthExp > 0 ? monthExp : expenses.reduce((s,e)=>s+Number(e.amount||0),0) / Math.max(1, [...new Set(expenses.map(e=>e.date?.slice(0,7)))].length);
-          const efMonths = avgMonthExp > 0 ? cashAssets/avgMonthExp : 0;
-          const efTarget = 6; const efPct = Math.min(100,(efMonths/efTarget)*100);
-          const efColor = efMonths>=6?T.emerald:efMonths>=3?T.amber:T.rose;
-          return (
-            <GlassCard style={{ padding:'20px 22px', borderLeft:`3px solid ${efColor}44` }}>
-              <SectionLabel>Emergency Fund</SectionLabel>
-              <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:700, color:efColor, marginBottom:4 }}>{efMonths.toFixed(1)} months</div>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>Cash {cur}{fmtN(cashAssets)} ÷ avg spend {cur}{fmtN(avgMonthExp)}/mo</div>
-              <ProgressBar pct={efPct} color={efColor} height={6} />
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:8 }}>
-                {efMonths>=6?'✅ Fully funded (6+ months)':efMonths>=3?`⚠️ Partially funded — need ${cur}${fmtN((efTarget-efMonths)*avgMonthExp)} more`:`🚨 Under-funded — build to ${cur}${fmtN(efTarget*avgMonthExp)}`}
-              </div>
-            </GlassCard>
-          );
-        })()}
-
-        {/* Recurring Transactions Detector */}
-        {expenses.length >= 4 && (() => {
-          const freq = {};
-          expenses.forEach(e => {
-            const k = `${e.category}|${Math.round(Number(e.amount)/5)*5}`;
-            if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0 };
-            freq[k].count++;
-          });
-          const recurring = Object.values(freq).filter(x=>x.count>=3).sort((a,b)=>b.count-a.count).slice(0,5);
-          if (!recurring.length) return null;
-          return (
+      {tab==='overview' && (
+        <>
+          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
+            {insights.map((ins,i)=>(
+              <GlassCard key={i} style={{ padding:'18px 22px', borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.3s ease ${i*0.07}s both` }}>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+                  <div style={{ fontSize:22, flexShrink:0 }}>{ins.icon}</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}><div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</div><Badge color={ins.color}>{ins.type}</Badge></div>
+                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{ins.body}</div>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+            {insights.length===0 && <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses, habits and vitals to generate personalized insights.</div></GlassCard>}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
             <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Detected Recurring</SectionLabel>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>Expenses appearing 3+ times</div>
-              {recurring.map((r,i)=>(
-                <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:i<recurring.length-1?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
-                  <span style={{ color:T.text }}>{r.cat}</span>
-                  <span style={{ color:T.violet }}>{cur}{fmtN(r.amount)} × {r.count}</span>
+              <SectionLabel>Life Domain Scores</SectionLabel>
+              {LIFE_STATS.map((s,i)=>(
+                <div key={i} style={{ marginBottom:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span><span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}/100</span></div>
+                  <ProgressBar pct={s.val} color={s.color} height={5} />
                 </div>
               ))}
             </GlassCard>
-          );
-        })()}
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>This Month Summary</SectionLabel>
+              {[{ label:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald }, { label:'Expenses', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, color:T.sky }, { label:'Net Worth', val:`${cur}${fmtN(nw)}`, color:T.violet }, { label:'Habit Streak', val:`🔥 ${bestStreak}d`, color:T.amber }].map((item,i)=>(
+                <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
+                  <span style={{ color:T.textSub }}>{item.label}</span><span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
+                </div>
+              ))}
+            </GlassCard>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginTop:14 }}>
+            {(() => {
+              const cashAssets = assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+              const avgMonthExp = monthExp > 0 ? monthExp : expenses.reduce((s,e)=>s+Number(e.amount||0),0) / Math.max(1, [...new Set(expenses.map(e=>e.date?.slice(0,7)))].length);
+              const efMonths = avgMonthExp > 0 ? cashAssets/avgMonthExp : 0;
+              const efTarget = 6; const efPct = Math.min(100,(efMonths/efTarget)*100);
+              const efColor = efMonths>=6?T.emerald:efMonths>=3?T.amber:T.rose;
+              return (
+                <GlassCard style={{ padding:'20px 22px', borderLeft:`3px solid ${efColor}44` }}>
+                  <SectionLabel>Emergency Fund</SectionLabel>
+                  <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:700, color:efColor, marginBottom:4 }}>{efMonths.toFixed(1)} months</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>Cash {cur}{fmtN(cashAssets)} ÷ avg spend {cur}{fmtN(avgMonthExp)}/mo</div>
+                  <ProgressBar pct={efPct} color={efColor} height={6} />
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:8 }}>
+                    {efMonths>=6?'✅ Fully funded (6+ months)':efMonths>=3?`⚠️ Partially funded — need ${cur}${fmtN((efTarget-efMonths)*avgMonthExp)} more`:`🚨 Under-funded — build to ${cur}${fmtN(efTarget*avgMonthExp)}`}
+                  </div>
+                </GlassCard>
+              );
+            })()}
+            {expenses.length >= 4 && (() => {
+              const freq = {};
+              expenses.forEach(e => { const k = `${e.category}|${Math.round(Number(e.amount)/5)*5}`; if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0 }; freq[k].count++; });
+              const recurring = Object.values(freq).filter(x=>x.count>=3).sort((a,b)=>b.count-a.count).slice(0,5);
+              if (!recurring.length) return null;
+              return (
+                <GlassCard style={{ padding:'20px 22px' }}>
+                  <SectionLabel>Detected Recurring</SectionLabel>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>Expenses appearing 3+ times</div>
+                  {recurring.map((r,i)=>(
+                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:i<recurring.length-1?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
+                      <span style={{ color:T.text }}>{r.cat}</span>
+                      <span style={{ color:T.violet }}>{cur}{fmtN(r.amount)} × {r.count}</span>
+                    </div>
+                  ))}
+                </GlassCard>
+              );
+            })()}
+            <CompoundGrowthCard cur={cur} />
+            <ScenarioCard cur={cur} monthInc={monthInc} savRate={savRate} />
+          </div>
+        </>
+      )}
 
-        <CompoundGrowthCard cur={cur} />
-        <ScenarioCard cur={cur} monthInc={monthInc} savRate={savRate} />
+      {tab==='spending' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Monthly Spend — Last 6 Months</SectionLabel>
+            {spendTrends.data.some(m=>m._total>0) ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={spendTrends.data} barSize={28} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<ChartTooltip prefix={cur} />} />
+                  {spendTrends.cats.map((cat,i) => (
+                    <Bar key={cat} dataKey={cat} name={cat} stackId="a" fill={CAT_COLORS[i%CAT_COLORS.length]} opacity={0.85} radius={i===spendTrends.cats.length-1?[4,4,0,0]:[0,0,0,0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height:120, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses to see spending trends.</div>
+            )}
+            {spendTrends.cats.length > 0 && (
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:10 }}>
+                {spendTrends.cats.map((cat,i) => (
+                  <div key={cat} style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+                    <div style={{ width:8, height:8, borderRadius:2, background:CAT_COLORS[i%CAT_COLORS.length] }} />{cat}
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Category Breakdown — This Month</SectionLabel>
+            {spendTrends.data.length > 0 && (() => {
+              const latest = spendTrends.data[spendTrends.data.length-1];
+              const total = latest._total || 1;
+              return (
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {spendTrends.cats.filter(c=>latest[c]>0).sort((a,b)=>latest[b]-latest[a]).map((cat,i) => {
+                    const pct = Math.round((latest[cat]/total)*100);
+                    return (
+                      <div key={cat}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
+                          <span style={{ color:T.text }}>{cat}</span>
+                          <span style={{ color:CAT_COLORS[spendTrends.cats.indexOf(cat)%CAT_COLORS.length] }}>{cur}{fmtN(latest[cat])} · {pct}%</span>
+                        </div>
+                        <ProgressBar pct={pct} color={CAT_COLORS[spendTrends.cats.indexOf(cat)%CAT_COLORS.length]} height={4} />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </GlassCard>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Month-over-Month Total Spend</SectionLabel>
+            {spendTrends.data.some(m=>m._total>0) ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={spendTrends.data} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<ChartTooltip prefix={cur} />} />
+                  <Line type="monotone" dataKey="_total" name="Total Spend" stroke={T.rose} strokeWidth={2} dot={{fill:T.rose,r:4}} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No data yet.</div>}
+          </GlassCard>
+        </div>
+      )}
 
-      </div>
+      {tab==='net worth' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
+            {[
+              { label:'Current Net Worth', val:`${cur}${fmtN(nw)}`, color:T.accent },
+              { label:'Assets', val:`${cur}${fmtN(assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal)}`, color:T.emerald },
+              { label:'Debts', val:`${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`, color:T.rose },
+              { label:'Investments', val:`${cur}${fmtN(invVal)}`, color:T.violet },
+            ].map((m,i)=>(
+              <GlassCard key={i} style={{ padding:'16px 18px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+              </GlassCard>
+            ))}
+          </div>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Net Worth History</SectionLabel>
+            {netWorthHistory.length > 1 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={nwProjection.length>1?nwProjection:netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <defs>
+                    <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.35}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient>
+                    <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.violet} stopOpacity={0.2}/><stop offset="100%" stopColor={T.violet} stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip content={<ChartTooltip prefix={cur} />} />
+                  <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#nwGrad)" dot={false} />
+                  {nwProjection.some(d=>d.projected) && <Area type="monotone" dataKey="projected" name="Projected" stroke={T.violet} strokeWidth={1.5} strokeDasharray="4 3" fill="url(#projGrad)" dot={false} />}
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height:120, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Net worth history builds automatically each month. Log assets and income to start.</div>
+            )}
+            {nwProjection.some(d=>d.projected) && (
+              <div style={{ display:'flex', gap:16, marginTop:8 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.accent }} />Actual</div>
+                <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.violet, opacity:0.7 }} />6-month projection</div>
+              </div>
+            )}
+          </GlassCard>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Asset Breakdown</SectionLabel>
+              {assets.length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets logged yet.</div> : (
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {[...new Set(assets.map(a=>a.type))].map((type,i) => {
+                    const val = assets.filter(a=>a.type===type).reduce((s,a)=>s+Number(a.value||0),0);
+                    const pct = Math.round((val/(assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal||1))*100);
+                    return (
+                      <div key={type}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
+                          <span style={{ color:T.text }}>{type}</span>
+                          <span style={{ color:CAT_COLORS[i%CAT_COLORS.length] }}>{cur}{fmtN(val)} · {pct}%</span>
+                        </div>
+                        <ProgressBar pct={pct} color={CAT_COLORS[i%CAT_COLORS.length]} height={4} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </GlassCard>
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <SectionLabel>Debt Overview</SectionLabel>
+              {debts.length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Debt free!</div> : (
+                debts.map((d,i) => {
+                  const bal = Number(d.balance||0);
+                  const maxBal = Math.max(...debts.map(x=>Number(x.balance||0)));
+                  return (
+                    <div key={d.id||i} style={{ marginBottom:i<debts.length-1?12:0 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
+                        <span style={{ color:T.text }}>{d.name}</span>
+                        <span style={{ color:T.rose }}>{cur}{fmtN(bal)} · {d.rate||0}%</span>
+                      </div>
+                      <ProgressBar pct={maxBal>0?(bal/maxBal)*100:0} color={T.rose} height={4} />
+                    </div>
+                  );
+                })
+              )}
+            </GlassCard>
+          </div>
+        </div>
+      )}
+
+      {tab==='habits' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
+            {[
+              { label:'Active Habits', val:habits.length, color:T.accent },
+              { label:'Done Today', val:`${todayDone}/${habits.length}`, color:todayDone===habits.length&&habits.length>0?T.emerald:T.amber },
+              { label:'Best Streak', val:`🔥 ${bestStreak}d`, color:T.amber },
+              { label:'Total Logs', val:Object.values(habitLogs).flat().length, color:T.violet },
+            ].map((m,i)=>(
+              <GlassCard key={i} style={{ padding:'16px 18px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+              </GlassCard>
+            ))}
+          </div>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Weekly Consistency — Last 8 Weeks</SectionLabel>
+            {habitAnalytics.some(w=>w.pct>0) ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={habitAnalytics} barSize={22} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="week" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0,100]} hide />
+                  <Tooltip formatter={(v)=>`${v}%`} contentStyle={{ background:T.surfaceHi, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }} />
+                  <Bar dataKey="pct" name="Consistency %" fill={T.accent} opacity={0.85} radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log habits to see weekly trends.</div>}
+          </GlassCard>
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <SectionLabel>Per-Habit Performance</SectionLabel>
+            {habits.length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.</div> : (
+              habits.map((h,i) => {
+                const streak = getStreak(h.id, habitLogs);
+                const total = (habitLogs[h.id]||[]).length;
+                const last30 = Array.from({length:30},(_,j)=>{ const d=new Date(); d.setDate(d.getDate()-29+j); return d.toISOString().slice(0,10); }).filter(d=>(habitLogs[h.id]||[]).includes(d)).length;
+                const cons30 = Math.round((last30/30)*100);
+                const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                const hc = HCOLORS[i%HCOLORS.length];
+                return (
+                  <div key={h.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:i<habits.length-1?`1px solid ${T.border}`:'none' }}>
+                    <div style={{ fontSize:18, flexShrink:0 }}>{h.emoji||'🔥'}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                        <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.name}</span>
+                        <span style={{ fontSize:10, fontFamily:T.fM, color:hc, flexShrink:0, marginLeft:8 }}>🔥{streak}d · {cons30}% last 30d</span>
+                      </div>
+                      <ProgressBar pct={cons30} color={hc} height={4} />
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{total} total logs · {last30}/30 this month</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }
@@ -3778,7 +4370,7 @@ function SettingsPage({ data, actions }) {
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:8, marginBottom:2 }}>Language</div>
             <div style={{ display:'flex', gap:8 }}>
               {[{id:'en',label:'🇬🇧 English'},{id:'fr',label:'🇫🇷 Français'}].map(lang=>(
-                <button key={lang.id} onClick={()=>{ setLanguage(lang.id); currentLang=lang.id; }} style={{ flex:1, padding:'8px', borderRadius:8, background:language===lang.id?T.accentDim:T.surface, border:`1px solid ${language===lang.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:language===lang.id?T.accent:T.text }}>
+                <button key={lang.id} onClick={()=>{ setLanguage(lang.id); currentLang=lang.id; actions.updateSettings({...settings, language:lang.id, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, aiProvider, aiApiKey, pin:pin.length===4?pin:''}); }} style={{ flex:1, padding:'8px', borderRadius:8, background:language===lang.id?T.accentDim:T.surface, border:`1px solid ${language===lang.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:language===lang.id?T.accent:T.text }}>
                   {lang.label}
                 </button>
               ))}
@@ -3830,6 +4422,9 @@ function SettingsPage({ data, actions }) {
               📥 Import Backup (JSON)
               <input type="file" accept=".json" onChange={importData} style={{ display:'none' }} />
             </label>
+            <div style={{ marginTop:8, paddingTop:12, borderTop:`1px solid ${T.border}` }}>
+              <Btn full onClick={()=>{ actions.updateSettings({...settings, onboarded:false, name:''}); window.location.reload(); }} color={T.amber}>🧭 Restart Onboarding Wizard</Btn>
+            </div>
           </div>
         </GlassCard>
 
@@ -4483,7 +5078,115 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── ONBOARDING WIZARD ─────────────────────────────────────────────────────────
-function OnboardingWizard({ onComplete, actions, settings }) {
+// ── EDIT GOAL MODAL ───────────────────────────────────────────────────────────
+function EditGoalModal({ open, onClose, goal, onSave }) {
+  const [name, setName] = useState('');
+  const [target, setTarget] = useState('');
+  const [current, setCurrent] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [emoji, setEmoji] = useState('🎯');
+  const [cat, setCat] = useState('other');
+  const [milestones, setMilestones] = useState([]);
+  const [newMsPct, setNewMsPct] = useState('');
+  const [newMsLabel, setNewMsLabel] = useState('');
+
+  useEffect(() => {
+    if (goal) {
+      setName(goal.name||''); setTarget(goal.target||''); setCurrent(goal.current||0);
+      setDeadline(goal.deadline||''); setEmoji(goal.emoji||'🎯'); setCat(goal.cat||'other');
+      setMilestones(goal.milestones||[]);
+    }
+  }, [goal]);
+
+  if (!open || !goal) return null;
+
+  const addMilestone = () => {
+    const p = Number(newMsPct);
+    if (!p || p<1 || p>99 || !newMsLabel.trim()) return;
+    setMilestones(prev => [...prev.filter(m=>m.pct!==p), { pct:p, label:newMsLabel.trim() }].sort((a,b)=>a.pct-b.pct));
+    setNewMsPct(''); setNewMsLabel('');
+  };
+
+  const pct = Math.min(100, Math.round((Number(current)/Math.max(1,Number(target)))*100));
+  const catColors = { finance:T.accent, health:T.sky, growth:T.violet, career:T.amber, other:T.textSub };
+  const c = catColors[cat]||T.violet;
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div style={{ width:'100%', maxWidth:520, maxHeight:'90vh', overflowY:'auto', borderRadius:20, background:T.bg, border:`1px solid ${T.border}`, padding:'28px 32px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
+          <h2 style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.text }}>✏️ Edit Goal</h2>
+          <button onClick={onClose} style={{ fontSize:20, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>×</button>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Emoji + Name row */}
+          <div style={{ display:'flex', gap:8 }}>
+            <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{ width:56, textAlign:'center', fontSize:20, flexShrink:0 }} />
+            <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Goal name" style={{ flex:1 }} />
+          </div>
+          {/* Category */}
+          <Select value={cat} onChange={e=>setCat(e.target.value)}>
+            {['finance','health','growth','career','other'].map(c=><option key={c} value={c}>{c}</option>)}
+          </Select>
+          {/* Target + Current */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Target amount</div>
+              <Input type="number" value={target} onChange={e=>setTarget(e.target.value)} placeholder="e.g. 10000" />
+            </div>
+            <div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Current progress</div>
+              <Input type="number" value={current} onChange={e=>setCurrent(e.target.value)} placeholder="e.g. 3500" />
+            </div>
+          </div>
+          {/* Progress preview */}
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>
+              <span>Progress preview</span><span style={{ color:c }}>{pct}%</span>
+            </div>
+            <MilestoneProgressBar pct={pct} color={c} height={8} milestones={milestones} />
+          </div>
+          {/* Deadline */}
+          <div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Deadline (optional)</div>
+            <Input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} />
+          </div>
+          {/* Milestones */}
+          <div style={{ marginTop:4, paddingTop:12, borderTop:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:8 }}>Milestone checkpoints</div>
+            {milestones.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:10 }}>
+                {milestones.map((m,i) => (
+                  <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <div style={{ width:28, height:28, borderRadius:6, background:pct>=m.pct?c+'22':T.surface, border:`1px solid ${pct>=m.pct?c+'55':T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:pct>=m.pct?c:T.textSub, fontWeight:600 }}>{m.pct}%</div>
+                      <span style={{ fontSize:11, fontFamily:T.fM, color:pct>=m.pct?c:T.text }}>{m.label}{pct>=m.pct?' ✓':''}</span>
+                    </div>
+                    <button onClick={()=>setMilestones(prev=>prev.filter((_,j)=>j!==i))} style={{ color:T.rose, fontSize:14, background:'none', border:'none', cursor:'pointer', opacity:0.7 }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display:'grid', gridTemplateColumns:'70px 1fr auto', gap:6, alignItems:'center' }}>
+              <Input type="number" value={newMsPct} onChange={e=>setNewMsPct(e.target.value)} placeholder="% e.g. 50" min={1} max={99} />
+              <Input value={newMsLabel} onChange={e=>setNewMsLabel(e.target.value)} placeholder="Label e.g. Halfway there!" onKeyDown={e=>{ if(e.key==='Enter') addMilestone(); }} />
+              <Btn onClick={addMilestone} color={c}>Add</Btn>
+            </div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>Milestones appear as markers on your progress bar</div>
+          </div>
+          {/* Actions */}
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <button onClick={onClose} style={{ flex:1, padding:'10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Cancel</button>
+            <Btn onClick={()=>onSave(goal.id, { name:name.trim()||goal.name, target:Number(target)||goal.target, current:Number(current), deadline, emoji:emoji||'🎯', cat, milestones })} color={T.accent} style={{ flex:2, padding:'10px 0' }}>Save Goal</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ONBOARDING WIZARD ─────────────────────────────────────────────────────────
+function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('$');
@@ -4524,8 +5227,11 @@ function OnboardingWizard({ onComplete, actions, settings }) {
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
       <div style={{width:'100%',maxWidth:480,borderRadius:20,background:T.bg,border:`1px solid ${T.border}`,padding:'32px 36px'}}>
-        <div style={{display:'flex',gap:4,marginBottom:28}}>
-          {STEPS.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:99,background:i<=step?T.accent:T.border,transition:'background 0.3s'}} />)}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:28}}>
+          <div style={{display:'flex',gap:4,flex:1}}>
+            {STEPS.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:99,background:i<=step?T.accent:T.border,transition:'background 0.3s'}} />)}
+          </div>
+          {onSkip && <button onClick={onSkip} style={{marginLeft:16,fontSize:10,fontFamily:T.fM,color:T.textMuted,background:'none',border:'none',cursor:'pointer',flexShrink:0}}>Skip</button>}
         </div>
         <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>Step {step+1} / {STEPS.length}</div>
         <div style={{fontSize:22,fontFamily:T.fD,fontWeight:800,color:T.text,marginBottom:6}}>{STEPS[step].title}</div>
@@ -5568,6 +6274,10 @@ export default function LifeOS() {
     if (g) addToast(`Goal "${g.name}" deleted`, () => setGoals(p => [...p, g]));
   }, [goals, pushEvent, addToast]);
 
+  const updateGoal = useCallback((goalId, patch) => {
+    setGoals(p => p.map(g => g.id === goalId ? { ...g, ...patch, updatedAt: today() } : g));
+  }, []);
+
   const addAsset = useCallback((a) => {
     setAssets(p => [...p, a]);
     setTotalXP(x => Number(x) + 15);
@@ -5702,7 +6412,13 @@ export default function LifeOS() {
     if (qn) addToast('Quick note deleted', () => setQuickNotes(p => [qn, ...p]));
   }, [quickNotes, addToast]);
 
-  const updateSettings = useCallback((s) => { setSettings(s); }, []);
+  const updateSettings = useCallback((s) => {
+    // Apply theme immediately so the re-render sees the new T values
+    if (s.theme && THEMES[s.theme]) Object.assign(T, THEMES[s.theme]);
+    // Apply language immediately so t() returns correct strings on re-render
+    if (s.language) currentLang = s.language;
+    setSettings(s);
+  }, []);
 
   // ── S2 ACTIONS ──────────────────────────────────────────────────────────────
   const updateHabit = useCallback((habitId, patch) => {
@@ -5742,7 +6458,7 @@ export default function LifeOS() {
 
   const actions = {
     addExpense, addIncome, removeIncome, updateIncome, addHabit, logHabit, removeHabit,
-    addVitals, removeVitals, updateVitals, addNote, addGoal, removeGoal, addAsset,
+    addVitals, removeVitals, updateVitals, addNote, addGoal, removeGoal, updateGoal, addAsset,
     updateGoalProgress, updateSettings,
     addDebt, payDebt, removeDebt,
     addInvestment, removeInvestment,
@@ -5868,7 +6584,7 @@ export default function LifeOS() {
     <HealthContext.Provider value={{ vitals, habits, habitLogs }}>
     <GrowthContext.Provider value={{ goals, focusSessions, totalXP }}>
     {settings.pin && !pinUnlocked && <PinLockOverlay pin={settings.pin} onUnlock={()=>setPinUnlocked(true)} />}
-    {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} actions={actions} settings={settings} />}
+    {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} onSkip={()=>{ setShowOnboarding(false); actions.updateSettings({...settings, onboarded:true}); }} actions={actions} settings={settings} />}
     <GlobalAIPanel open={showAIPanel} onClose={()=>setShowAIPanel(false)} data={data} />
     <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
     <BadgeUnlockModal badge={showBadge} onClose={()=>setShowBadge(null)} />
