@@ -1808,11 +1808,24 @@ function MoneyPage({ data, actions }) {
   const debouncedExtraPayment = useDebounce(extraPayment, 300);
   const [editExpense, setEditExpense] = useState(null);
   const [editDebt, setEditDebt] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
+  const [showMonthlyReview, setShowMonthlyReview] = useState(false);
+  const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
-  const spendByCat = useMemo(()=>{ const m={}; expenses.filter(e=>e.date?.startsWith(thisMonth)).forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value); },[expenses,thisMonth]);
+  const availableMonths = useMemo(()=>{
+    const ms=new Set([...expenses.map(e=>e.date?.slice(0,7)),...incomes.map(i=>i.date?.slice(0,7))].filter(Boolean));
+    const arr=[...ms].sort().reverse();
+    if(!arr.includes(today().slice(0,7))) arr.unshift(today().slice(0,7));
+    return arr;
+  },[expenses,incomes]);
+  const selMonthExp = useMemo(()=>expenses.filter(e=>e.date?.startsWith(selectedMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,selectedMonth]);
+  const selMonthInc = useMemo(()=>incomes.filter(i=>i.date?.startsWith(selectedMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,selectedMonth]);
+  const selMonthExpenses = useMemo(()=>[...expenses].filter(e=>e.date?.startsWith(selectedMonth)).sort((a,b)=>a.date<b.date?1:-1),[expenses,selectedMonth]);
+  const totalBudget = useMemo(()=>Object.values(budgets||{}).reduce((s,v)=>s+Number(v||0),0),[budgets]);
+  const spendByCat = useMemo(()=>{ const m={}; selMonthExpenses.forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value); },[selMonthExpenses]);
   const cashflowMonths = useMemo(()=>{ const months={}; expenses.forEach(e=>{ const m=e.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].exp+=Number(e.amount||0); }); incomes.forEach(i=>{ const m=i.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].inc+=Number(i.amount||0); }); return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6); },[expenses,incomes]);
   // Use Web Worker for >10 debts; sync fallback for small lists
   const [payoffInfo, setPayoffInfo] = useState(() => calcDebtPayoff(debts, 0, payoffMethod));
@@ -1837,11 +1850,11 @@ function MoneyPage({ data, actions }) {
     return undefined;
   }, [debts, debouncedExtraPayment, payoffMethod]);
   useEffect(() => () => { workerRef.current?.terminate(); workerRef.current = null; }, []);
-  const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, thisMonth),[expenses,budgets,thisMonth]);
+  const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, selectedMonth),[expenses,budgets,selectedMonth]);
   const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const TABS = ['overview','spending','debts','investments','goals','assets','subscriptions','bills','tools','simulator'];
+  const TABS = ['overview','spending','debts','investments','trades','watchlist','investor','depreciation','goals','assets','subscriptions','bills','tools','simulator'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
@@ -1854,6 +1867,8 @@ function MoneyPage({ data, actions }) {
       <AddSubscriptionModal open={modal==='subscription'} onClose={()=>setModal(null)} onSave={e=>{actions.addSubscription(e);setModal(null);}} />
       <AddBillModal open={modal==='bill'} onClose={()=>setModal(null)} onSave={e=>{actions.addBill(e);setModal(null);}} />
       <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} />
+      <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
+      <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
       <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
       <div style={{ marginBottom:22 }}>
@@ -1882,6 +1897,7 @@ function MoneyPage({ data, actions }) {
             <Btn onClick={()=>setModal('income')} color={T.emerald}>+ Log Income</Btn>
             <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
             <Btn onClick={()=>setModal('debt')} color={T.rose}>+ Add Debt</Btn>
+            <Btn onClick={()=>setShowMonthlyReview(true)} color={T.violet}>📅 Monthly Review</Btn>
           </div>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Cash Flow — Last 6 Months</SectionLabel>
@@ -1917,49 +1933,100 @@ function MoneyPage({ data, actions }) {
       )}
 
       {tab==='spending' && (
-        <div>
-          <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Controls */}
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
             <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
-            <Btn onClick={()=>setModal('budget')} color={T.amber}>📊 Set Budgets</Btn>
+            <Btn onClick={()=>setModal('budget')} color={T.amber}>📊 Budgets</Btn>
+            <Btn onClick={()=>setShowMonthlyReview(true)} color={T.violet}>📅 Monthly Review</Btn>
+            <div style={{ flex:1 }} />
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Month:</span>
+              <select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)} style={{ padding:'6px 10px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
+                {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
           </div>
+
+          {/* Month summary banners */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
+            {[
+              { label:'Income', val:`${cur}${fmtN(selMonthInc)}`, color:T.emerald, icon:'💰' },
+              { label:'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳' },
+              { label:'Remaining', val:`${cur}${fmtN(selMonthInc-selMonthExp)}`, color:(selMonthInc-selMonthExp)>=0?T.accent:T.rose, icon:(selMonthInc-selMonthExp)>=0?'✅':'⚠️' },
+              ...(totalBudget>0?[{ label:'Budget Left', val:`${cur}${fmtN(totalBudget-selMonthExp)}`, color:(totalBudget-selMonthExp)>=0?T.sky:T.rose, icon:'📊' }]:[]),
+            ].map((s,i)=>(
+              <GlassCard key={i} style={{ padding:'14px 16px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.icon} {s.label}</div>
+                <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+              </GlassCard>
+            ))}
+          </div>
+
           {spendByCat.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No expenses logged this month yet.</div></GlassCard>
+            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No expenses for {selectedMonth}.</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>Breakdown — {thisMonth}</SectionLabel>
+                <SectionLabel>Breakdown — {selectedMonth}</SectionLabel>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart><Pie data={spendByCat} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">{spendByCat.map((e,i)=><Cell key={i} fill={e.color} />)}</Pie><Tooltip content={<ChartTooltip prefix={cur} />} /></PieChart>
                 </ResponsiveContainer>
+                <div style={{ marginTop:10 }}>
+                  {spendByCat.slice(0,5).map((c,i)=>(
+                    <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, padding:'3px 0' }}>
+                      <span style={{ color:T.textSub, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:8,height:8,borderRadius:'50%',background:c.color,display:'inline-block' }} />{c.name}</span>
+                      <span style={{ color:T.text, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
+                    </div>
+                  ))}
+                </div>
               </GlassCard>
               <GlassCard style={{ padding:'20px 22px' }}>
                 <SectionLabel>vs Budget</SectionLabel>
+                {Object.keys(budgets||{}).length===0 && <div style={{ fontSize:10,fontFamily:T.fM,color:T.textMuted,textAlign:'center',padding:'16px 0' }}>No budgets set yet.</div>}
                 {spendByCat.map((c,i)=>{ const bs=budgetStatus[c.name]; const budget=bs?.budget||0; const over=budget>0&&c.value>budget; return (
                   <div key={i} style={{ marginBottom:12 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                       <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{c.name}</span>
                       <span style={{ fontSize:11, fontFamily:T.fM, color:over?T.rose:c.color, fontWeight:600 }}>{cur}{fmtN(c.value)}{budget>0?` / ${cur}${fmtN(budget)}`:''}</span>
                     </div>
-                    <ProgressBar pct={budget>0?(c.value/budget)*100:(c.value/Math.max(1,monthExp))*100} color={over?T.rose:c.color} height={4} />
-                    {over && <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose, marginTop:2 }}>Over budget by {cur}{fmtN(c.value-budget)}</div>}
+                    <ProgressBar pct={budget>0?(c.value/budget)*100:(c.value/Math.max(1,selMonthExp))*100} color={over?T.rose:c.color} height={4} />
+                    {over?<div style={{ fontSize:9,fontFamily:T.fM,color:T.rose,marginTop:2 }}>Over by {cur}{fmtN(c.value-budget)}</div>:budget>0&&<div style={{ fontSize:9,fontFamily:T.fM,color:T.emerald,marginTop:2 }}>{cur}{fmtN(budget-c.value)} remaining</div>}
                   </div>
                 ); })}
               </GlassCard>
             </div>
           )}
-          <GlassCard style={{ padding:'20px 22px', marginTop:14 }}>
-            <SectionLabel>Recent Expenses</SectionLabel>
-            {expenses.length===0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>No expenses yet.</div> : (
-              [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,20).map((e,i)=>(
-                <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<19?`1px solid ${T.border}`:'none', transition:'background 0.15s' }}>
-                  <div><div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{e.note||e.category}</div><div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category} · {e.date}</div></div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</div>
-                    <button onClick={()=>setEditExpense(e)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }} title="Edit"><IcoPencil size={11} stroke={T.sky} /></button>
-                    <button onClick={()=>actions.removeExpense(e.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }} title="Delete"><IcoTrash size={11} stroke={T.rose} /></button>
+
+          {/* Full expense list for selected month */}
+          <GlassCard style={{ padding:'20px 22px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <SectionLabel>All Expenses — {selectedMonth} ({selMonthExpenses.length})</SectionLabel>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:T.rose, fontWeight:700 }}>{cur}{fmtN(selMonthExp)}</span>
+            </div>
+            {selMonthExpenses.length===0 ? (
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>No expenses for {selectedMonth}.</div>
+            ) : selMonthExpenses.map((e,i)=>(
+              <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<selMonthExpenses.length-1?`1px solid ${T.border}`:'none' }}>
+                <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:getCatColor(e.category), flexShrink:0 }} />
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.note||e.category}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category} · {e.date}</div>
                   </div>
                 </div>
-              ))
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                  <span style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</span>
+                  <button onClick={()=>setEditExpense(e)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={11} stroke={T.sky} /></button>
+                  <button onClick={()=>actions.removeExpense(e.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
+                </div>
+              </div>
+            ))}
+            {selMonthExpenses.length>0 && (
+              <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM }}>
+                <span style={{ color:T.textSub }}>{selMonthExpenses.length} transactions</span>
+                <span style={{ color:T.rose, fontWeight:700 }}>{cur}{fmtN(selMonthExp)} total</span>
+              </div>
             )}
           </GlassCard>
         </div>
@@ -2070,6 +2137,23 @@ function MoneyPage({ data, actions }) {
           </>)}
         </div>
       )}
+
+      {tab==='trades' && (
+        <TradeJournalTab />
+      )}
+
+      {tab==='watchlist' && (
+        <WatchlistTab />
+      )}
+
+      {tab==='investor' && (
+        <InvestorProfileTab data={data} actions={actions} />
+      )}
+
+      {tab==='depreciation' && (
+        <AssetDepreciationTab data={data} />
+      )}
+
 
       {tab==='goals' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -2534,6 +2618,11 @@ function HealthPage({ data, actions }) {
             </button>
           </>)}
         </GlassCard>
+
+        {/* Focus Billing */}
+        <div style={{ marginTop:14 }}>
+          <FocusBillingTab data={data} />
+        </div>
       </div>
     </div>
   );
@@ -2586,7 +2675,7 @@ function GrowthPage({ data, actions }) {
       <AddChronicleModal open={chronicleModal} onClose={()=>setChronicleModal(false)} onSave={c=>{actions.addChronicle(c);setChronicleModal(false);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {['character','habits','goals','achievements','chronicles','challenges'].map(t=>(
+        {['character','habits','goals','achievements','chronicles','challenges','vision'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
             {t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
             {t==='chronicles'&&chronicles.length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{chronicles.length}</span>}
@@ -2838,6 +2927,9 @@ function GrowthPage({ data, actions }) {
             })}
           </div>
         </div>
+      {tab==='vision' && (
+        <VisionBoardTab />
+      )}
       )}
     </div>
   );
@@ -2896,7 +2988,7 @@ function KnowledgePage({ data, actions }) {
       <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['notes','quick notes','ai assistant'].map(t=>(
+        {['notes','quick notes','courses','capsule','ai assistant'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
@@ -2965,6 +3057,14 @@ function KnowledgePage({ data, actions }) {
           )}
         </div>
       )}
+      {tab==='courses' && (
+        <CourseTrackerTab data={data} actions={actions} />
+      )}
+
+      {tab==='capsule' && (
+        <TimeCapsuleTab data={data} actions={actions} />
+      )}
+
       {tab==='ai assistant' && (
         <GlassCard style={{ display:'flex', flexDirection:'column', height:540 }}>
           {!apiKey && (
@@ -2990,6 +3090,71 @@ function KnowledgePage({ data, actions }) {
         </GlassCard>
       )}
     </div>
+  );
+}
+
+
+// ── COMPOUND GROWTH SIMULATOR CARD ───────────────────────────────────────────
+function CompoundGrowthCard({ cur }) {
+  const [cgAmt, setCgAmt] = useState(1000);
+  const [cgRate, setCgRate] = useState(8);
+  const [cgYears, setCgYears] = useState(20);
+  const cgResult = cgAmt * Math.pow(1 + cgRate/100, cgYears);
+  const cgGain = cgResult - cgAmt;
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <SectionLabel>Compound Growth Simulator</SectionLabel>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {[
+          { label:`Initial: ${cur}${fmtN(cgAmt)}`, val:cgAmt, set:setCgAmt, min:100, max:100000, step:100 },
+          { label:`Rate: ${cgRate}% /yr`, val:cgRate, set:setCgRate, min:1, max:30, step:0.5 },
+          { label:`Years: ${cgYears}`, val:cgYears, set:setCgYears, min:1, max:50, step:1 },
+        ].map(({label,val,set,min,max,step})=>(
+          <div key={label}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>{label}</div>
+            <input type="range" min={min} max={max} step={step} value={val} onChange={e=>set(Number(e.target.value))} style={{ width:'100%', accentColor:T.violet }} />
+          </div>
+        ))}
+        <div style={{ marginTop:6, padding:'12px', borderRadius:T.r, background:T.violetDim, border:`1px solid ${T.violet}33`, textAlign:'center' }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>After {cgYears} years</div>
+          <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:700, color:T.violet }}>{cur}{fmtN(cgResult)}</div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald }}>+{cur}{fmtN(cgGain)} gain ({((cgGain/cgAmt)*100).toFixed(0)}x growth)</div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function ScenarioCard({ cur, monthInc, savRate }) {
+  const [scnIncome, setScnIncome] = useState(monthInc||3000);
+  const [scnSave, setScnSave] = useState(Math.round(savRate)||20);
+  const [scnReturn, setScnReturn] = useState(7);
+  const [scnYears, setScnYears] = useState(10);
+  const monthlySave = scnIncome * scnSave/100;
+  const annualSave = monthlySave * 12;
+  const futureVal = scnReturn > 0 ? annualSave * ((Math.pow(1+scnReturn/100, scnYears)-1)/(scnReturn/100)) : annualSave * scnYears;
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <SectionLabel>Scenario Planner</SectionLabel>
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {[
+          { label:`Income: ${cur}${fmtN(scnIncome)}/mo`, val:scnIncome, set:setScnIncome, min:500, max:50000, step:100 },
+          { label:`Savings Rate: ${scnSave}%`, val:scnSave, set:setScnSave, min:1, max:80, step:1 },
+          { label:`Annual Return: ${scnReturn}%`, val:scnReturn, set:setScnReturn, min:0, max:20, step:0.5 },
+          { label:`Horizon: ${scnYears} years`, val:scnYears, set:setScnYears, min:1, max:40, step:1 },
+        ].map(({label,val,set,min,max,step})=>(
+          <div key={label}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>{label}</div>
+            <input type="range" min={min} max={max} step={step} value={val} onChange={e=>set(Number(e.target.value))} style={{ width:'100%', accentColor:T.accent }} />
+          </div>
+        ))}
+        <div style={{ padding:'12px', borderRadius:T.r, background:T.accentLo, border:`1px solid ${T.accent}22`, textAlign:'center' }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Projected wealth in {scnYears} years</div>
+          <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(futureVal)}</div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Saving {cur}{fmtN(monthlySave)}/mo · {cur}{fmtN(annualSave)}/yr</div>
+        </div>
+      </div>
+    </GlassCard>
   );
 }
 
@@ -3060,7 +3225,6 @@ function IntelligencePage({ data }) {
           ))}
         </GlassCard>
       </div>
-    </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginTop:14 }}>
 
@@ -3085,13 +3249,12 @@ function IntelligencePage({ data }) {
         })()}
 
         {/* Recurring Transactions Detector */}
-        {(() => {
-          if (expenses.length < 4) return null;
+        {expenses.length >= 4 && (() => {
           const freq = {};
           expenses.forEach(e => {
             const k = `${e.category}|${Math.round(Number(e.amount)/5)*5}`;
-            if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0, dates:[] };
-            freq[k].count++; freq[k].dates.push(e.date);
+            if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0 };
+            freq[k].count++;
           });
           const recurring = Object.values(freq).filter(x=>x.count>=3).sort((a,b)=>b.count-a.count).slice(0,5);
           if (!recurring.length) return null;
@@ -3109,72 +3272,11 @@ function IntelligencePage({ data }) {
           );
         })()}
 
-        {/* Compound Growth Simulator */}
-        {(() => {
-          const [cgAmt, setCgAmt] = React.useState(1000);
-          const [cgRate, setCgRate] = React.useState(8);
-          const [cgYears, setCgYears] = React.useState(20);
-          const cgResult = cgAmt * Math.pow(1 + cgRate/100, cgYears);
-          const cgGain = cgResult - cgAmt;
-          return (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Compound Growth Simulator</SectionLabel>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {[
-                  { label:`Initial: ${cur}${fmtN(cgAmt)}`, val:cgAmt, set:setCgAmt, min:100, max:100000, step:100 },
-                  { label:`Rate: ${cgRate}% /yr`, val:cgRate, set:setCgRate, min:1, max:30, step:0.5 },
-                  { label:`Years: ${cgYears}`, val:cgYears, set:setCgYears, min:1, max:50, step:1 },
-                ].map(({label,val,set,min,max,step})=>(
-                  <div key={label}>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>{label}</div>
-                    <input type="range" min={min} max={max} step={step} value={val} onChange={e=>set(Number(e.target.value))} style={{ width:'100%', accentColor:T.violet }} />
-                  </div>
-                ))}
-                <div style={{ marginTop:6, padding:'12px', borderRadius:T.r, background:T.violetDim, border:`1px solid ${T.violet}33`, textAlign:'center' }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>After {cgYears} years</div>
-                  <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:700, color:T.violet }}>{cur}{fmtN(cgResult)}</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald }}>+{cur}{fmtN(cgGain)} gain ({((cgGain/cgAmt)*100).toFixed(0)}x growth)</div>
-                </div>
-              </div>
-            </GlassCard>
-          );
-        })()}
-
-        {/* Scenario Planner */}
-        {(() => {
-          const [scnIncome, setScnIncome] = React.useState(monthInc||3000);
-          const [scnSave, setScnSave] = React.useState(Math.round(savRate)||20);
-          const [scnReturn, setScnReturn] = React.useState(7);
-          const [scnYears, setScnYears] = React.useState(10);
-          const monthlySave = scnIncome * scnSave/100;
-          const annualSave = monthlySave * 12;
-          const futureVal = annualSave * ((Math.pow(1+scnReturn/100, scnYears)-1)/(scnReturn/100));
-          return (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Scenario Planner</SectionLabel>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {[
-                  { label:`Income: ${cur}${fmtN(scnIncome)}/mo`, val:scnIncome, set:setScnIncome, min:500, max:50000, step:100 },
-                  { label:`Savings Rate: ${scnSave}%`, val:scnSave, set:setScnSave, min:1, max:80, step:1 },
-                  { label:`Annual Return: ${scnReturn}%`, val:scnReturn, set:setScnReturn, min:1, max:20, step:0.5 },
-                  { label:`Horizon: ${scnYears} years`, val:scnYears, set:setScnYears, min:1, max:40, step:1 },
-                ].map(({label,val,set,min,max,step})=>(
-                  <div key={label}>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>{label}</div>
-                    <input type="range" min={min} max={max} step={step} value={val} onChange={e=>set(Number(e.target.value))} style={{ width:'100%', accentColor:T.accent }} />
-                  </div>
-                ))}
-                <div style={{ padding:'12px', borderRadius:T.r, background:T.accentLo, border:`1px solid ${T.accent}22`, textAlign:'center' }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Projected wealth in {scnYears} years</div>
-                  <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(futureVal)}</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Saving {cur}{fmtN(monthlySave)}/mo · {cur}{fmtN(annualSave)}/yr</div>
-                </div>
-              </div>
-            </GlassCard>
-          );
-        })()}
+        <CompoundGrowthCard cur={cur} />
+        <ScenarioCard cur={cur} monthInc={monthInc} savRate={savRate} />
 
       </div>
+    </div>
   );
 }
 
@@ -3236,11 +3338,12 @@ function SettingsPage({ data, actions }) {
   const [savingsTarget, setSavingsTarget] = useState(settings.savingsTarget||'');
   const [theme, setTheme] = useState(settings.theme||'dark');
   const [language, setLanguage] = useState(settings.language||'en');
+  const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
   const [aiApiKey, setAiApiKey] = useState(settings.aiApiKey||'');
 
   const save = () => {
-    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey });
+    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:pin.length===4?pin:'' });
     // Apply theme immediately
     Object.assign(T, THEMES[theme] || THEMES.dark);
     currentLang = language;
@@ -3280,6 +3383,11 @@ function SettingsPage({ data, actions }) {
             <Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['$','€','£','¥','₹','₩','Fr','A$','C$'].map(c=><option key={c}>{c}</option>)}</Select>
             <Input type="number" value={incomeTarget} onChange={e=>setIncomeTarget(e.target.value)} placeholder="Monthly income target" />
             <Input type="number" value={savingsTarget} onChange={e=>setSavingsTarget(e.target.value)} placeholder="Savings rate target (%)" />
+            <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>🔒 PIN Lock (4 digits, blank = disabled)</div>
+              <input type="password" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="4-digit PIN…" maxLength={4} inputMode="numeric" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:20, color:T.text, letterSpacing:'0.4em', textAlign:'center' }} />
+              {pin.length>0&&pin.length<4&&<div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, marginTop:4 }}>Must be exactly 4 digits</div>}
+            </div>
             <Btn full onClick={save} color={T.accent}>Save Settings</Btn>
 
           <div style={{ marginTop:24, paddingTop:24, borderTop:`1px solid ${T.border}` }}>
@@ -4045,10 +4153,651 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
     </GlassCard>
   );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BATCH 3 & 4 COMPONENTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── ONBOARDING WIZARD ─────────────────────────────────────────────────────────
+function OnboardingWizard({ onComplete, actions, settings }) {
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState('');
+  const [currency, setCurrency] = useState('$');
+  const [income, setIncome] = useState('');
+  const [selGoals, setSelGoals] = useState([]);
+  const [selHabits, setSelHabits] = useState([]);
+  const GOAL_OPTS = [
+    {id:'savings',label:'Build Savings',emoji:'💰'},
+    {id:'debt',label:'Pay Off Debt',emoji:'💳'},
+    {id:'invest',label:'Start Investing',emoji:'📈'},
+    {id:'health',label:'Get Healthier',emoji:'🏃'},
+    {id:'skills',label:'Learn Skills',emoji:'🎓'},
+    {id:'retire',label:'Early Retirement',emoji:'🏖️'},
+  ];
+  const HABIT_OPTS = [
+    {id:'exercise',label:'Exercise',emoji:'💪'},
+    {id:'read',label:'Read',emoji:'📚'},
+    {id:'meditate',label:'Meditate',emoji:'🧘'},
+    {id:'journal',label:'Journal',emoji:'✍️'},
+    {id:'budget',label:'Track Spending',emoji:'💳'},
+    {id:'water',label:'Drink Water',emoji:'💧'},
+  ];
+  const STEPS = [
+    {title:'Welcome to LifeOS 👋',sub:'Your personal life operating system. Set up in under a minute.'},
+    {title:'What\'s your name?',sub:'We\'ll personalise your experience.'},
+    {title:'Financial setup',sub:'Currency and income target — you can change these later.'},
+    {title:'What are your goals?',sub:'Pick up to 3 focus areas.'},
+    {title:'Pick your first habits',sub:'Start with 2–3 for best results.'},
+    {title:'You\'re all set! 🎉',sub:'LifeOS is ready to go.'},
+  ];
+  const toggle = (arr,setArr,id,max=3) => setArr(p=>p.includes(id)?p.filter(x=>x!==id):p.length<max?[...p,id]:p);
+  const finish = () => {
+    actions.updateSettings({...settings,name,currency,incomeTarget:Number(income),onboarded:true});
+    selGoals.forEach(g=>{const o=GOAL_OPTS.find(x=>x.id===g);actions.addGoal({id:Date.now()+Math.random(),name:o?.label||g,target:0,current:0,cat:'other',emoji:o?.emoji||'🎯',milestones:[]});});
+    selHabits.forEach(h=>{const o=HABIT_OPTS.find(x=>x.id===h);actions.addHabit(o?.label||h,{emoji:o?.emoji||'✅'});});
+    onComplete();
+  };
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:480,borderRadius:20,background:T.bg,border:`1px solid ${T.border}`,padding:'32px 36px'}}>
+        <div style={{display:'flex',gap:4,marginBottom:28}}>
+          {STEPS.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:99,background:i<=step?T.accent:T.border,transition:'background 0.3s'}} />)}
+        </div>
+        <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>Step {step+1} / {STEPS.length}</div>
+        <div style={{fontSize:22,fontFamily:T.fD,fontWeight:800,color:T.text,marginBottom:6}}>{STEPS[step].title}</div>
+        <div style={{fontSize:12,fontFamily:T.fM,color:T.textSub,marginBottom:28,lineHeight:1.5}}>{STEPS[step].sub}</div>
+        {step===1&&<Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name…" autoFocus />}
+        {step===2&&(
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Currency</div>
+              <Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['$','€','£','¥','₹','₩','Fr','R$','CA$','A$'].map(c=><option key={c}>{c}</option>)}</Select></div>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Monthly income (optional)</div>
+              <Input type="number" value={income} onChange={e=>setIncome(e.target.value)} placeholder="e.g. 3000" /></div>
+          </div>
+        )}
+        {step===3&&(
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            {GOAL_OPTS.map(g=>(
+              <button key={g.id} onClick={()=>toggle(selGoals,setSelGoals,g.id,3)} style={{padding:'12px 14px',borderRadius:T.r,background:selGoals.includes(g.id)?T.accentDim:T.surface,border:`1px solid ${selGoals.includes(g.id)?T.accent+'66':T.border}`,textAlign:'left',display:'flex',gap:8,alignItems:'center',cursor:'pointer',transition:'all 0.15s'}}>
+                <span style={{fontSize:20}}>{g.emoji}</span><span style={{fontSize:11,fontFamily:T.fM,color:selGoals.includes(g.id)?T.accent:T.text}}>{g.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {step===4&&(
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            {HABIT_OPTS.map(h=>(
+              <button key={h.id} onClick={()=>toggle(selHabits,setSelHabits,h.id,6)} style={{padding:'12px 14px',borderRadius:T.r,background:selHabits.includes(h.id)?`${T.violet}22`:T.surface,border:`1px solid ${selHabits.includes(h.id)?T.violet+'66':T.border}`,textAlign:'left',display:'flex',gap:8,alignItems:'center',cursor:'pointer',transition:'all 0.15s'}}>
+                <span style={{fontSize:20}}>{h.emoji}</span><span style={{fontSize:11,fontFamily:T.fM,color:selHabits.includes(h.id)?T.violet:T.text}}>{h.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {step===5&&(
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {[[`👤 Name`,name||'Not set'],[`💱 Currency`,currency],[`🎯 Goals`,selGoals.length+' selected'],[`🔥 Habits`,selHabits.length+' selected']].map(([k,v])=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontSize:11,fontFamily:T.fM}}>
+                <span style={{color:T.textSub}}>{k}</span><span style={{color:T.accent,fontWeight:600}}>{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{display:'flex',gap:10,marginTop:28}}>
+          {step>0&&<button onClick={()=>setStep(s=>s-1)} style={{padding:'10px 20px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Back</button>}
+          <Btn onClick={step<STEPS.length-1?()=>setStep(s=>s+1):finish} color={T.accent} style={{flex:1,padding:'10px 0',fontSize:12}}>{step<STEPS.length-1?'Continue →':'Launch LifeOS 🚀'}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MONTHLY REVIEW MODAL ──────────────────────────────────────────────────────
+function MonthlyReviewModal({ open, onClose, data, actions }) {
+  const {expenses,incomes,habits,habitLogs,vitals,goals,settings}=data;
+  const cur=settings.currency||'$';
+  const m=today().slice(0,7);
+  const prevDate=new Date(m+'-01'); prevDate.setMonth(prevDate.getMonth()-1);
+  const prevM=prevDate.toISOString().slice(0,7);
+  const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const pExp=expenses.filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const pInc=incomes.filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const habitScore=habits.length>0?Math.round((habits.filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length/habits.length)*100):0;
+  const mVitals=vitals.filter(v=>v.date?.startsWith(m));
+  const avgSleep=mVitals.length>0?(mVitals.reduce((s,v)=>s+Number(v.sleep||0),0)/mVitals.length).toFixed(1):'—';
+  const [wins,setWins]=useState('');
+  const [reflection,setReflection]=useState('');
+  const [nextFocus,setNextFocus]=useState('');
+  const save=()=>{
+    actions.addChronicle({id:Date.now(),emoji:'📅',title:`Monthly Review — ${m}`,body:`🏆 Wins: ${wins}\n💭 Reflection: ${reflection}\n🎯 Next month: ${nextFocus}`,date:today()});
+    onClose();
+  };
+  if(!open) return null;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:3000,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{width:'100%',maxWidth:560,maxHeight:'90vh',overflowY:'auto',borderRadius:20,background:T.bg,border:`1px solid ${T.border}`,padding:'28px 32px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+          <h2 style={{fontSize:18,fontFamily:T.fD,fontWeight:800,color:T.text}}>📅 Monthly Review — {m}</h2>
+          <button onClick={onClose} style={{fontSize:20,color:T.textSub,background:'none',border:'none',cursor:'pointer'}}>×</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+          {[
+            {label:'Income',val:`${cur}${fmtN(mInc)}`,sub:pInc>0?`${mInc>=pInc?'↑':'↓'} vs ${cur}${fmtN(pInc)} last mo`:'',color:T.emerald},
+            {label:'Spent',val:`${cur}${fmtN(mExp)}`,sub:pExp>0?`${mExp<=pExp?'↓ less':'↑ more'} than last mo`:'',color:T.rose},
+            {label:'Saved',val:`${cur}${fmtN(mInc-mExp)}`,sub:`${mInc>0?((( mInc-mExp)/mInc)*100).toFixed(0):0}% rate`,color:(mInc-mExp)>=0?T.accent:T.rose},
+            {label:'Habit Score',val:`${habitScore}%`,sub:`${habits.filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length}/${habits.length} active`,color:T.violet},
+            {label:'Avg Sleep',val:`${avgSleep}h`,sub:'this month',color:T.sky},
+            {label:'Goals',val:goals.length,sub:`${goals.filter(g=>Number(g.current||0)>=Number(g.target||1)).length} completed`,color:T.amber},
+          ].map((s,i)=>(
+            <div key={i} style={{padding:'12px 14px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>{s.label}</div>
+              <div style={{fontSize:16,fontFamily:T.fD,fontWeight:700,color:s.color}}>{s.val}</div>
+              {s.sub&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{s.sub}</div>}
+            </div>
+          ))}
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          {[['🏆 Wins & highlights',wins,setWins,'What went well?'],['💭 Reflection',reflection,setReflection,'What to improve?'],].map(([label,val,set,ph])=>(
+            <div key={label}><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>{label}</div>
+              <textarea value={val} onChange={e=>set(e.target.value)} placeholder={ph} rows={2} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} /></div>
+          ))}
+          <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>🎯 Main focus next month</div>
+            <Input value={nextFocus} onChange={e=>setNextFocus(e.target.value)} placeholder="One key priority…" /></div>
+        </div>
+        <div style={{display:'flex',gap:10,marginTop:20}}>
+          <button onClick={onClose} style={{padding:'10px 20px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+          <Btn onClick={save} color={T.accent} style={{flex:1}}>Save to Chronicles</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PIN LOCK OVERLAY ──────────────────────────────────────────────────────────
+function PinLockOverlay({ pin, onUnlock }) {
+  const [input,setInput]=useState('');
+  const [shake,setShake]=useState(false);
+  const tryPin=(val)=>{ if(val===pin){onUnlock();}else if(val.length>=pin.length){setShake(true);setInput('');setTimeout(()=>setShake(false),400);} };
+  const addDigit=(d)=>{ const next=input+d; setInput(next); tryPin(next); };
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:99999,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:28}}>
+      <div style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>LifeOS 🔒</div>
+      <div style={{display:'flex',gap:14,animation:shake?'shake 0.4s ease':''}}>
+        {Array.from({length:pin.length},(_,i)=>(
+          <div key={i} style={{width:14,height:14,borderRadius:'50%',background:input.length>i?T.accent:T.border,transition:'background 0.15s'}} />
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,transform:shake?'translateX(-6px)':'none',transition:'transform 0.1s'}}>
+        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d,i)=>(
+          <button key={i} onClick={()=>d==='⌫'?setInput(p=>p.slice(0,-1)):d&&addDigit(d)} style={{width:64,height:64,borderRadius:'50%',background:d?T.surface:'transparent',border:`1px solid ${d?T.border:'transparent'}`,fontSize:18,fontFamily:T.fD,fontWeight:600,color:T.text,cursor:d?'pointer':'default'}}>
+            {d}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── COURSE TRACKER ────────────────────────────────────────────────────────────
+function CourseTrackerTab({ data, actions }) {
+  const [courses,setCourses]=useLocalStorage('los_courses',[]);
+  const [modal,setModal]=useState(false);
+  const [title,setTitle]=useState(''); const [url,setUrl]=useState('');
+  const [platform,setPlatform]=useState('Udemy'); const [total,setTotal]=useState('');
+  const add=()=>{ if(!title.trim())return; setCourses(p=>[...p,{id:Date.now(),title:title.trim(),url,platform,totalLessons:Number(total)||0,done:[],startDate:today()}]); setTitle('');setUrl('');setTotal('');setModal(false); };
+  const toggleLesson=(cid,n)=>setCourses(p=>p.map(c=>c.id===cid?{...c,done:c.done.includes(n)?c.done.filter(x=>x!==n):[...c.done,n]}:c));
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Course Tracker</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Track your learning progress</div></div>
+        <Btn onClick={()=>setModal(true)} color={T.violet}>+ Add Course</Btn>
+      </div>
+      {modal&&(
+        <GlassCard style={{padding:'16px 18px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Course title" autoFocus />
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <Select value={platform} onChange={e=>setPlatform(e.target.value)}>{['Udemy','Coursera','YouTube','edX','LinkedIn Learning','Skillshare','Other'].map(p=><option key={p}>{p}</option>)}</Select>
+              <Input type="number" value={total} onChange={e=>setTotal(e.target.value)} placeholder="Total lessons" />
+            </div>
+            <Input value={url} onChange={e=>setUrl(e.target.value)} placeholder="URL (optional)" />
+            <div style={{display:'flex',gap:8}}>
+              <Btn onClick={add} color={T.violet} style={{flex:1}}>Add Course</Btn>
+              <button onClick={()=>setModal(false)} style={{padding:'8px 16px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+      {courses.length===0&&!modal&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No courses yet. Start tracking your learning!</div></GlassCard>}
+      {courses.map(c=>{
+        const pct=c.totalLessons>0?Math.round((c.done.length/c.totalLessons)*100):0;
+        const col=pct===100?T.emerald:T.violet;
+        return (
+          <GlassCard key={c.id} style={{padding:'18px 20px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <div>
+                <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>{c.title}</div>
+                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{c.platform}{c.url&&<> · <a href={c.url} target="_blank" rel="noreferrer" style={{color:T.accent}}>Open ↗</a></>}</div>
+              </div>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                {pct===100&&<Badge color={T.emerald}>✓ Done</Badge>}
+                <button onClick={()=>setCourses(p=>p.filter(x=>x.id!==c.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
+              </div>
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,fontSize:10,fontFamily:T.fM}}><span style={{color:T.textSub}}>Progress</span><span style={{color:col,fontWeight:600}}>{c.done.length}/{c.totalLessons||'?'} · {pct}%</span></div>
+            <ProgressBar pct={pct} color={col} height={6} />
+            {c.totalLessons>0&&(
+              <div style={{display:'flex',gap:3,marginTop:10,flexWrap:'wrap'}}>
+                {Array.from({length:Math.min(c.totalLessons,40)},(_,i)=>i+1).map(n=>(
+                  <button key={n} onClick={()=>toggleLesson(c.id,n)} style={{width:18,height:18,borderRadius:3,background:c.done.includes(n)?col+'44':T.surface,border:`1px solid ${c.done.includes(n)?col+'88':T.border}`,cursor:'pointer',fontSize:8,color:c.done.includes(n)?col:T.textMuted,display:'flex',alignItems:'center',justifyContent:'center'}}>{c.done.includes(n)?'✓':n}</button>
+                ))}
+                {c.totalLessons>40&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>+{c.totalLessons-40} more</span>}
+              </div>
+            )}
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── TIME CAPSULE ──────────────────────────────────────────────────────────────
+function TimeCapsuleTab({ data, actions }) {
+  const [capsules,setCapsules]=useLocalStorage('los_capsules',[]);
+  const [modal,setModal]=useState(false);
+  const [title,setTitle]=useState(''); const [msg,setMsg]=useState('');
+  const [openDate,setOpenDate]=useState(''); const [emoji,setEmoji]=useState('📦');
+  const add=()=>{ if(!title.trim()||!openDate)return; setCapsules(p=>[...p,{id:Date.now(),title:title.trim(),message:msg,emoji,createdAt:today(),openDate}]); setTitle('');setMsg('');setOpenDate('');setModal(false); };
+  const now=today();
+  const ready=capsules.filter(c=>c.openDate<=now);
+  const locked=capsules.filter(c=>c.openDate>now);
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Time Capsule</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Messages to your future self</div></div>
+        <Btn onClick={()=>setModal(true)} color={T.violet}>+ Create</Btn>
+      </div>
+      {modal&&(
+        <GlassCard style={{padding:'16px 18px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{display:'flex',gap:8}}>
+              <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{width:54,textAlign:'center',fontSize:20}} />
+              <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Capsule title…" style={{flex:1}} />
+            </div>
+            <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Write a message to your future self…" rows={3} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} />
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Open on</div><Input type="date" value={openDate} onChange={e=>setOpenDate(e.target.value)} min={today()} /></div>
+            <div style={{display:'flex',gap:8}}>
+              <Btn onClick={add} color={T.violet} style={{flex:1}}>Seal Capsule 🔒</Btn>
+              <button onClick={()=>setModal(false)} style={{padding:'8px 16px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+      {ready.length>0&&(
+        <div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.emerald,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>🎉 Ready to Open</div>
+          {ready.map(c=>(
+            <GlassCard key={c.id} style={{padding:'18px',marginBottom:10,borderLeft:`3px solid ${T.emerald}55`}}>
+              <div style={{display:'flex',gap:12,alignItems:'flex-start'}}>
+                <div style={{fontSize:28}}>{c.emoji}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:4}}>{c.title}</div>
+                  <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,lineHeight:1.6,marginBottom:8,whiteSpace:'pre-wrap'}}>{c.message}</div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>Written {c.createdAt} · Opened {c.openDate}</div>
+                </div>
+                <button onClick={()=>setCapsules(p=>p.filter(x=>x.id!==c.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4,flexShrink:0}}><IcoTrash size={10} stroke={T.rose} /></button>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+      {locked.length>0&&(
+        <div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>🔒 Sealed</div>
+          {locked.sort((a,b)=>a.openDate<b.openDate?-1:1).map(c=>{
+            const days=Math.ceil((new Date(c.openDate)-new Date())/86400000);
+            return (
+              <GlassCard key={c.id} style={{padding:'14px 18px',marginBottom:8,opacity:0.7}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                    <div style={{fontSize:22}}>{c.emoji}</div>
+                    <div>
+                      <div style={{fontSize:12,fontFamily:T.fD,fontWeight:600,color:T.text}}>{c.title}</div>
+                      <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>Opens in {days} day{days!==1?'s':''} · {c.openDate}</div>
+                    </div>
+                  </div>
+                  <button onClick={()=>setCapsules(p=>p.filter(x=>x.id!==c.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
+                </div>
+              </GlassCard>
+            );
+          })}
+        </div>
+      )}
+      {capsules.length===0&&!modal&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No capsules yet. Write a message to your future self!</div></GlassCard>}
+    </div>
+  );
+}
+
+// ── TRADE JOURNAL ─────────────────────────────────────────────────────────────
+function TradeJournalTab() {
+  const [trades,setTrades]=useLocalStorage('los_trades',[]);
+  const [modal,setModal]=useState(false);
+  const [sym,setSym]=useState(''); const [type,setType]=useState('Buy');
+  const [qty,setQty]=useState(''); const [price,setPrice]=useState('');
+  const [exit,setExit]=useState(''); const [note,setNote]=useState('');
+  const [date,setDate]=useState(today());
+  const add=()=>{
+    if(!sym.trim()||!qty||!price)return;
+    const entry=Number(price); const ex=Number(exit)||0;
+    const pnl=ex>0?(type==='Buy'||type==='Cover'?(ex-entry)*Number(qty):(entry-ex)*Number(qty)):null;
+    setTrades(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),type,qty:Number(qty),price:entry,exitPrice:ex,pnl,note,date},...p]);
+    setSym('');setQty('');setPrice('');setExit('');setNote('');setModal(false);
+  };
+  const totalPnl=trades.filter(t=>t.pnl!==null).reduce((s,t)=>s+(t.pnl||0),0);
+  const wins=trades.filter(t=>t.pnl!=null&&t.pnl>0).length;
+  const losses=trades.filter(t=>t.pnl!=null&&t.pnl<0).length;
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Trade Journal</div>
+          {trades.length>0&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>P&amp;L: <span style={{color:totalPnl>=0?T.emerald:T.rose,fontWeight:600}}>{totalPnl>=0?'+':''}{fmtN(totalPnl)}</span> · {wins}W / {losses}L</div>}
+        </div>
+        <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Trade</Btn>
+      </div>
+      {modal&&(
+        <GlassCard style={{padding:'16px 18px'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+            <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="Symbol (AAPL…)" />
+            <Select value={type} onChange={e=>setType(e.target.value)}>{['Buy','Sell','Short','Cover'].map(t=><option key={t}>{t}</option>)}</Select>
+            <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
+            <Input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="Entry price" />
+            <Input type="number" value={exit} onChange={e=>setExit(e.target.value)} placeholder="Exit price (optional)" />
+            <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+          </div>
+          <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Rationale / notes…" style={{marginBottom:8}} />
+          <div style={{display:'flex',gap:8}}>
+            <Btn onClick={add} color={T.accent} style={{flex:1}}>Save Trade</Btn>
+            <button onClick={()=>setModal(false)} style={{padding:'8px 16px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+          </div>
+        </GlassCard>
+      )}
+      {trades.length===0&&!modal&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No trades logged yet. Record your first position.</div></GlassCard>}
+      {trades.map((t,i)=>{
+        const hasPnl=t.pnl!==null&&t.pnl!==undefined;
+        const col=!hasPnl?T.textSub:t.pnl>=0?T.emerald:T.rose;
+        return (
+          <GlassCard key={t.id||i} style={{padding:'14px 18px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
+                  <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{t.sym}</span>
+                  <Badge color={t.type==='Buy'||t.type==='Cover'?T.emerald:T.rose}>{t.type}</Badge>
+                  {hasPnl&&<Badge color={col}>{t.pnl>=0?'+':''}{fmtN(t.pnl)}</Badge>}
+                </div>
+                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{t.qty} × ${fmtN(t.price)}{t.exitPrice>0?` → $${fmtN(t.exitPrice)}`:''} · {t.date}</div>
+                {t.note&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:4,fontStyle:'italic'}}>{t.note}</div>}
+              </div>
+              <button onClick={()=>setTrades(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
+            </div>
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── WATCHLIST & PRICE ALERTS ──────────────────────────────────────────────────
+function WatchlistTab() {
+  const [watchlist,setWatchlist]=useLocalStorage('los_watchlist',[]);
+  const [prices,setPrices]=useState({});
+  const [loading,setLoading]=useState(false);
+  const [sym,setSym]=useState(''); const [hi,setHi]=useState(''); const [lo,setLo]=useState('');
+  const addWatch=()=>{ if(!sym.trim())return; const s=sym.trim().toUpperCase(); setWatchlist(p=>p.some(x=>x.sym===s)?p:[...p,{id:Date.now(),sym:s,alertHigh:Number(hi)||null,alertLow:Number(lo)||null}]); setSym('');setHi('');setLo(''); };
+  const COIN_IDS={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap'};
+  const refresh=async()=>{
+    setLoading(true);
+    try {
+      const syms=watchlist.filter(w=>COIN_IDS[w.sym]);
+      if(syms.length>0){
+        const ids=syms.map(w=>COIN_IDS[w.sym]).join(',');
+        const res=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
+        const d=await res.json();
+        const update={};
+        syms.forEach(w=>{ const id=COIN_IDS[w.sym]; if(d[id]) update[w.sym]={price:d[id].usd,change:d[id].usd_24h_change?.toFixed(2)||'0'}; });
+        setPrices(p=>({...p,...update}));
+      }
+    } catch{}
+    setLoading(false);
+  };
+  const triggered=watchlist.filter(w=>prices[w.sym]&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Watchlist & Alerts</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Crypto prices via CoinGecko</div></div>
+        <Btn onClick={refresh} color={T.sky} style={{opacity:loading?0.5:1}}>{loading?'…':'↻ Refresh'}</Btn>
+      </div>
+      {triggered.length>0&&<div style={{padding:'10px 14px',borderRadius:T.r,background:`${T.amber}11`,border:`1px solid ${T.amber}44`,fontSize:11,fontFamily:T.fM,color:T.amber}}>🔔 Alert: {triggered.map(w=>w.sym).join(', ')} hit your price target!</div>}
+      <GlassCard style={{padding:'14px 18px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
+          <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="BTC, ETH, SOL…" onKeyDown={e=>e.key==='Enter'&&addWatch()} />
+          <Input type="number" value={hi} onChange={e=>setHi(e.target.value)} placeholder="Alert high $" />
+          <Input type="number" value={lo} onChange={e=>setLo(e.target.value)} placeholder="Alert low $" />
+        </div>
+        <Btn onClick={addWatch} color={T.accent} style={{width:'100%'}}>+ Add to Watchlist</Btn>
+      </GlassCard>
+      {watchlist.length===0?<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add crypto symbols to watch. Supported: BTC, ETH, SOL, BNB, ADA, XRP, DOGE, AVAX…</div></GlassCard>:
+        watchlist.map(w=>{
+          const p=prices[w.sym];
+          const alert=p&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
+          const ch=Number(p?.change||0);
+          return (
+            <GlassCard key={w.id} style={{padding:'14px 18px',borderLeft:alert?`3px solid ${T.amber}`:'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div>
+                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                    <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{w.sym}</span>
+                    {alert&&<span>🔔</span>}
+                  </div>
+                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>
+                    {w.alertHigh?`↑ $${fmtN(w.alertHigh)} `:''}{w.alertLow?`↓ $${fmtN(w.alertLow)}`:''}
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                  {p?<div style={{textAlign:'right'}}>
+                    <div style={{fontSize:15,fontFamily:T.fD,fontWeight:700,color:T.text}}>${fmtN(p.price)}</div>
+                    <div style={{fontSize:10,fontFamily:T.fM,color:ch>=0?T.emerald:T.rose}}>{ch>=0?'+':''}{ch}% 24h</div>
+                  </div>:<div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>— refresh to load</div>}
+                  <button onClick={()=>setWatchlist(p=>p.filter(x=>x.id!==w.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
+                </div>
+              </div>
+            </GlassCard>
+          );
+        })
+      }
+    </div>
+  );
+}
+
+// ── INVESTOR PROFILE ──────────────────────────────────────────────────────────
+function InvestorProfileTab({ data }) {
+  const {investments,settings}=data;
+  const cur=settings.currency||'$';
+  const [profile,setProfile]=useLocalStorage('los_investor_profile',{risk:'moderate',horizon:'long',style:'passive',target_return:8,notes:''});
+  const typeBreakdown=investments.reduce((acc,inv)=>{ acc[inv.type]=(acc[inv.type]||0)+Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0); return acc; },{});
+  const totalVal=Object.values(typeBreakdown).reduce((s,v)=>s+v,0);
+  const RISK=[{id:'conservative',label:'Conservative',desc:'Preserve capital',emoji:'🛡️',color:T.sky},{id:'moderate',label:'Moderate',desc:'Balanced growth',emoji:'⚖️',color:T.amber},{id:'aggressive',label:'Aggressive',desc:'Max growth',emoji:'🚀',color:T.rose}];
+  const upd=(k,v)=>setProfile(p=>({...p,[k]:v}));
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Investor Profile</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+        {RISK.map(rp=>(
+          <GlassCard key={rp.id} onClick={()=>upd('risk',rp.id)} style={{padding:'14px 18px',flex:1,minWidth:130,cursor:'pointer',borderColor:profile.risk===rp.id?`${rp.color}55`:T.border,background:profile.risk===rp.id?`${rp.color}11`:T.surface}}>
+            <div style={{fontSize:22,marginBottom:6}}>{rp.emoji}</div>
+            <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:profile.risk===rp.id?rp.color:T.text}}>{rp.label}</div>
+            <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:3}}>{rp.desc}</div>
+          </GlassCard>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Time Horizon</div>
+          <Select value={profile.horizon} onChange={e=>upd('horizon',e.target.value)}>{['short','medium','long'].map(h=><option key={h}>{h}</option>)}</Select></div>
+        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Style</div>
+          <Select value={profile.style} onChange={e=>upd('style',e.target.value)}>{['passive','active','value','growth','dividend','momentum'].map(s=><option key={s}>{s}</option>)}</Select></div>
+        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Target Annual Return %</div>
+          <Input type="number" value={profile.target_return} onChange={e=>upd('target_return',Number(e.target.value))} /></div>
+      </div>
+      <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Investment Policy Notes</div>
+        <textarea value={profile.notes} onChange={e=>upd('notes',e.target.value)} placeholder="Your rules, thesis, constraints…" rows={3} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} /></div>
+      {totalVal>0&&(
+        <GlassCard style={{padding:'18px 20px'}}>
+          <SectionLabel>Current Allocation</SectionLabel>
+          {Object.entries(typeBreakdown).map(([type,val])=>{
+            const pct=(val/totalVal)*100;
+            const col={Stock:T.emerald,ETF:T.sky,Crypto:T.violet,Bond:T.amber,REIT:T.accent,Other:T.rose}[type]||T.textSub;
+            return (<div key={type} style={{marginBottom:10}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4,fontSize:11,fontFamily:T.fM}}><span style={{color:T.text}}>{type}</span><span style={{color:col,fontWeight:600}}>{cur}{fmtN(val)} ({pct.toFixed(0)}%)</span></div>
+              <ProgressBar pct={pct} color={col} height={5} />
+            </div>);
+          })}
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
+// ── ASSET DEPRECIATION ────────────────────────────────────────────────────────
+function AssetDepreciationTab({ data }) {
+  const {assets,settings}=data;
+  const cur=settings.currency||'$';
+  const depAssets=assets.filter(a=>['Vehicle','Other'].includes(a.type));
+  if(depAssets.length===0) return <GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add Vehicle or Other assets to see estimated depreciation.</div></GlassCard>;
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Straight-line depreciation estimates</div>
+      {depAssets.map((a,i)=>{
+        const life=a.type==='Vehicle'?10:7;
+        const annual=Number(a.value||0)/life;
+        const monthly=annual/12;
+        return (
+          <GlassCard key={a.id||i} style={{padding:'16px 20px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>{a.name}</div>
+                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{a.type} · {life}yr lifespan</div></div>
+              <Badge color={T.rose}>{cur}{fmtN(annual)}/yr</Badge>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,fontSize:10,fontFamily:T.fM}}>
+              {[['Current Value',cur+fmtN(a.value),T.text],['Monthly Cost',cur+fmtN(monthly),T.rose],['In 5 Years',cur+fmtN(Math.max(0,a.value-annual*5)),T.amber]].map(([l,v,c])=>(
+                <div key={l} style={{textAlign:'center',padding:8,background:T.surface,borderRadius:T.r}}>
+                  <div style={{color:T.textSub,marginBottom:2}}>{l}</div><div style={{color:c,fontWeight:600}}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── FOCUS BILLING ─────────────────────────────────────────────────────────────
+function FocusBillingTab({ data }) {
+  const {focusSessions,settings}=data;
+  const cur=settings.currency||'$';
+  const [rate,setRate]=useLocalStorage('los_hourly_rate',0);
+  const [clientFilter,setClientFilter]=useState('All');
+  const clients=['All',...new Set(focusSessions.filter(s=>s.client).map(s=>s.client))];
+  const filtered=clientFilter==='All'?focusSessions:focusSessions.filter(s=>s.client===clientFilter);
+  const totalMins=filtered.reduce((s,f)=>s+(Number(f.duration)||0),0);
+  const billable=(totalMins/60)*Number(rate||0);
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <SectionLabel>Focus Billing</SectionLabel>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Hourly Rate ({cur})</div>
+          <Input type="number" value={rate} onChange={e=>setRate(Number(e.target.value))} placeholder="e.g. 75" /></div>
+        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Filter by client</div>
+          <Select value={clientFilter} onChange={e=>setClientFilter(e.target.value)}>{clients.map(c=><option key={c}>{c}</option>)}</Select></div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+        {[{label:'Sessions',val:filtered.length,color:T.accent},{label:'Total Time',val:`${Math.floor(totalMins/60)}h ${totalMins%60}m`,color:T.violet},{label:'Billable',val:`${cur}${fmtN(billable)}`,color:T.emerald}].map((s,i)=>(
+          <GlassCard key={i} style={{padding:'12px',textAlign:'center'}}>
+            <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>{s.label}</div>
+            <div style={{fontSize:16,fontFamily:T.fD,fontWeight:700,color:s.color}}>{s.val}</div>
+          </GlassCard>
+        ))}
+      </div>
+      {focusSessions.length===0?<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Complete focus sessions to see billing data.</div></GlassCard>:(
+        <GlassCard style={{padding:'18px 20px'}}>
+          <SectionLabel>Session Log</SectionLabel>
+          {filtered.slice(0,20).map((s,i)=>{
+            const hrs=(Number(s.duration)||0)/60;
+            const bill=hrs*Number(rate||0);
+            return (<div key={s.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<filtered.length-1?`1px solid ${T.border}`:'none',fontSize:11,fontFamily:T.fM}}>
+              <div>
+                <div style={{color:T.text}}>{s.label||'Focus Session'}{s.client&&<span style={{marginLeft:6,fontSize:9,color:T.accent}}>@{s.client}</span>}</div>
+                <div style={{fontSize:9,color:T.textSub,marginTop:2}}>{s.date} · {Math.floor(hrs)}h {(Number(s.duration)||0)%60}m</div>
+              </div>
+              {rate>0&&<div style={{color:T.emerald,fontWeight:600}}>{cur}{fmtN(bill)}</div>}
+            </div>);
+          })}
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
+// ── VISION BOARD ─────────────────────────────────────────────────────────────
+function VisionBoardTab() {
+  const [items,setItems]=useLocalStorage('los_vision',[]);
+  const [text,setText]=useState(''); const [emoji,setEmoji]=useState('⭐'); const [cat,setCat]=useState('Life');
+  const VCATS=['Life','Career','Health','Finance','Travel','Relationships','Growth','Other'];
+  const COLS={Life:T.violet,Career:T.amber,Health:T.sky,Finance:T.emerald,Travel:T.accent,Relationships:T.rose,Growth:'#a78bfa',Other:T.textSub};
+  const add=()=>{ if(!text.trim())return; setItems(p=>[...p,{id:Date.now(),text:text.trim(),emoji,cat,done:false}]); setText(''); };
+  const toggle=(id)=>setItems(p=>p.map(i=>i.id===id?{...i,done:!i.done}:i));
+  const grouped=VCATS.reduce((acc,c)=>{ acc[c]=items.filter(i=>i.cat===c); return acc; },{});
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      <GlassCard style={{padding:'14px 18px'}}>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{width:52,textAlign:'center',fontSize:20}} />
+          <Input value={text} onChange={e=>setText(e.target.value)} placeholder="A dream, goal, or aspiration…" style={{flex:1,minWidth:160}} onKeyDown={e=>e.key==='Enter'&&add()} />
+          <Select value={cat} onChange={e=>setCat(e.target.value)} style={{minWidth:110}}>{VCATS.map(c=><option key={c}>{c}</option>)}</Select>
+          <Btn onClick={add} color={T.violet}>Add</Btn>
+        </div>
+      </GlassCard>
+      {VCATS.filter(c=>grouped[c]?.length>0).map(c=>(
+        <div key={c}>
+          <div style={{fontSize:9,fontFamily:T.fM,color:COLS[c]||T.textSub,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>{c}</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
+            {grouped[c].map(item=>(
+              <div key={item.id} style={{padding:16,borderRadius:T.r,background:`${COLS[item.cat]||T.accent}11`,border:`1px solid ${(COLS[item.cat]||T.accent)}33`,opacity:item.done?0.5:1,transition:'opacity 0.2s'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <span style={{fontSize:22}}>{item.emoji}</span>
+                  <div style={{display:'flex',gap:5}}>
+                    <button onClick={()=>toggle(item.id)} style={{padding:3,borderRadius:5,background:item.done?T.emerald+'22':T.surface,border:`1px solid ${item.done?T.emerald+'44':T.border}`,fontSize:10,color:item.done?T.emerald:T.textSub}}>✓</button>
+                    <button onClick={()=>setItems(p=>p.filter(x=>x.id!==item.id))} style={{padding:3,borderRadius:5,background:T.surface,border:`1px solid ${T.border}`,opacity:0.5}}><IcoTrash size={9} stroke={T.rose} /></button>
+                  </div>
+                </div>
+                <div style={{fontSize:12,fontFamily:T.fM,color:T.text,marginTop:8,lineHeight:1.4,textDecoration:item.done?'line-through':''}}>{item.text}</div>
+                {item.done&&<div style={{fontSize:9,fontFamily:T.fM,color:T.emerald,marginTop:6}}>✅ Achieved!</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {items.length===0&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Your vision board is empty. Add your first dream above.</div></GlassCard>}
+    </div>
+  );
+}
+
 export default function LifeOS() {
   const [page, setPage] = useState('home');
   const [cmdOpen, setCmdOpen] = useState(false);
   const [globalModal, setGlobalModal] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [pinUnlocked, setPinUnlocked] = useState(false);
 
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
@@ -4520,11 +5269,15 @@ export default function LifeOS() {
   };
 
   const lang = settings.language || 'en';
+  // First-launch check
+  useEffect(()=>{ if(!settings.onboarded&&!settings.name) setShowOnboarding(true); },[]);
   return (
     <LangContext.Provider value={lang}>
     <MoneyContext.Provider value={{ expenses, incomes, debts, assets, investments, budgets, subscriptions, bills, computed }}>
     <HealthContext.Provider value={{ vitals, habits, habitLogs }}>
     <GrowthContext.Provider value={{ goals, focusSessions, totalXP }}>
+    {settings.pin && !pinUnlocked && <PinLockOverlay pin={settings.pin} onUnlock={()=>setPinUnlocked(true)} />}
+    {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} actions={actions} settings={settings} />}
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
