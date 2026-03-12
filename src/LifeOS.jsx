@@ -1799,6 +1799,157 @@ function TimelinePage({ data }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── MONEY PAGE (Enhanced: Debts + Subscriptions + Budget) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
+
+// ── MONEY TOOLS TAB ───────────────────────────────────────────────────────────
+function MoneyToolsTab({ data, cur }) {
+  const { expenses, debts, subscriptions, assets, investments, settings } = data;
+  const monthExp = data.computed.monthExp;
+  const monthInc = data.computed.monthInc;
+// ── Compound Growth Simulator ──────────────────────────────────────────
+const [principal, setPrincipal] = useState(10000);
+const [rate, setRate]           = useState(7);
+const [years, setYears]         = useState(20);
+const [monthly, setMonthly]     = useState(500);
+const chartData = useMemo(() => {
+  const d = []; let val = principal;
+  for (let y = 0; y <= years; y++) {
+    d.push({ year:`Y${y}`, value:Math.round(val), noContrib:Math.round(principal * Math.pow(1+rate/100, y)) });
+    val = val * (1 + rate/100) + monthly * 12;
+  }
+  return d;
+}, [principal, rate, years, monthly]);
+const finalVal    = chartData[chartData.length-1]?.value||0;
+const totalIn     = principal + monthly * 12 * years;
+const totalGrowth = finalVal - totalIn;
+
+// ── Emergency Fund Tracker ─────────────────────────────────────────────
+const [efMonths, setEfMonths]   = useState(6);
+const [efCurrent, setEfCurrent] = useState(0);
+const monthlyFixed = (debts.reduce((s,d)=>s+Number(d.minPayment||0),0)) + (subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0));
+const efTarget    = monthlyFixed + monthExp;
+const efGoal      = efTarget * efMonths;
+const efPct       = efGoal > 0 ? Math.min(100, (efCurrent / efGoal) * 100) : 0;
+const efColor     = efPct >= 100 ? T.emerald : efPct >= 50 ? T.amber : T.rose;
+const EF_LEVELS   = [{ pct:25, label:'1mo' }, { pct:50, label:'3mo' }, { pct:100, label:`${efMonths}mo` }];
+
+// ── DTI Ratio ─────────────────────────────────────────────────────────
+const monthlyDebtPmts = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
+const dti = monthInc > 0 ? (monthlyDebtPmts / monthInc) * 100 : 0;
+const dtiColor = dti > 43 ? T.rose : dti > 28 ? T.amber : T.emerald;
+const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched' : dti > 20 ? 'Manageable' : 'Excellent';
+
+
+  return (
+<div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+  {/* DTI */}
+  <GlassCard style={{ padding:'20px 22px' }}>
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+      <div>
+        <SectionLabel>Debt-to-Income Ratio</SectionLabel>
+        <div style={{ fontSize:28, fontFamily:T.fM, fontWeight:700, color:dtiColor }}>{dti.toFixed(1)}%</div>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:dtiColor, marginTop:3 }}>{dtiLabel}</div>
+      </div>
+      <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, textAlign:'right', lineHeight:1.7 }}>
+        <div>Monthly debt payments: <span style={{ color:T.rose }}>{cur}{fmtN(monthlyDebtPmts)}</span></div>
+        <div>Monthly income: <span style={{ color:T.emerald }}>{cur}{fmtN(monthInc)}</span></div>
+      </div>
+    </div>
+    <ProgressBar pct={Math.min(dti/50*100,100)} color={dtiColor} height={8} />
+    <div style={{ display:'flex', justifyContent:'space-between', marginTop:8, fontSize:9, fontFamily:T.fM }}>
+      {[{p:0,l:'0%'},{p:20,l:'20% ideal'},{p:36,l:'36% caution'},{p:43,l:'43% limit'},{p:100,l:'50%+'}].map(m=>(
+        <span key={m.p} style={{ color:T.textMuted }}>{m.l}</span>
+      ))}
+    </div>
+  </GlassCard>
+
+  {/* Emergency Fund */}
+  <GlassCard style={{ padding:'20px 22px' }}>
+    <SectionLabel>Emergency Fund Tracker</SectionLabel>
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, marginBottom:18 }}>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Current savings ({cur})</div>
+        <input type="number" value={efCurrent} onChange={e=>setEfCurrent(Number(e.target.value)||0)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+      </div>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Target months</div>
+        <input type="number" min={1} max={24} value={efMonths} onChange={e=>setEfMonths(Number(e.target.value)||6)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+      </div>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Goal</div>
+        <div style={{ padding:'8px 10px', background:T.surface, borderRadius:T.r, fontSize:13, fontFamily:T.fM, fontWeight:700, color:efColor }}>{cur}{fmtN(efGoal)}</div>
+      </div>
+    </div>
+    <MilestoneProgressBar pct={efPct} color={efColor} height={10} milestones={EF_LEVELS} />
+    <div style={{ display:'flex', justifyContent:'space-between', marginTop:18, fontSize:11, fontFamily:T.fM }}>
+      <span style={{ color:T.textSub }}>Based on {cur}{fmtN(efTarget)}/month expenses + fixed costs</span>
+      <span style={{ color:efColor, fontWeight:600 }}>{efPct >= 100 ? '✓ Fully funded!' : `${cur}${fmtN(efGoal - efCurrent)} to go`}</span>
+    </div>
+  </GlassCard>
+
+  {/* Compound Growth Simulator */}
+  <GlassCard style={{ padding:'20px 22px' }}>
+    <SectionLabel>Compound Growth Simulator</SectionLabel>
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginBottom:18 }}>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Starting amount ({cur})</div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <input type="range" min={0} max={500000} step={1000} value={principal} onChange={e=>setPrincipal(Number(e.target.value))} style={{ flex:1, accentColor:T.violet }} />
+          <span style={{ fontSize:12, fontFamily:T.fM, color:T.violet, minWidth:70, textAlign:'right' }}>{cur}{fmtN(principal)}</span>
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Monthly contribution ({cur})</div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <input type="range" min={0} max={5000} step={50} value={monthly} onChange={e=>setMonthly(Number(e.target.value))} style={{ flex:1, accentColor:T.accent }} />
+          <span style={{ fontSize:12, fontFamily:T.fM, color:T.accent, minWidth:60, textAlign:'right' }}>{cur}{fmtN(monthly)}</span>
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Annual return (%)</div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <input type="range" min={1} max={20} step={0.5} value={rate} onChange={e=>setRate(Number(e.target.value))} style={{ flex:1, accentColor:T.emerald }} />
+          <span style={{ fontSize:12, fontFamily:T.fM, color:T.emerald, minWidth:50, textAlign:'right' }}>{rate}%</span>
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Time horizon (years)</div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <input type="range" min={1} max={50} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{ flex:1, accentColor:T.amber }} />
+          <span style={{ fontSize:12, fontFamily:T.fM, color:T.amber, minWidth:50, textAlign:'right' }}>{years}yr</span>
+        </div>
+      </div>
+    </div>
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12, marginBottom:18 }}>
+      {[{ label:'Final Value', val:`${cur}${fmtN(finalVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN(totalIn)}`, color:T.text }, { label:'Total Growth', val:`+${cur}${fmtN(totalGrowth)}`, color:T.emerald }].map((s,i)=>(
+        <div key={i} style={{ padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.08em' }}>{s.label}</div>
+          <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+        </div>
+      ))}
+    </div>
+    <ResponsiveContainer width="100%" height={200}>
+      <AreaChart data={chartData} margin={{top:4,right:0,left:0,bottom:0}}>
+        <defs>
+          <linearGradient id="cg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.violet} stopOpacity={0.3}/><stop offset="95%" stopColor={T.violet} stopOpacity={0}/></linearGradient>
+          <linearGradient id="cg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.accent} stopOpacity={0.2}/><stop offset="95%" stopColor={T.accent} stopOpacity={0}/></linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+        <XAxis dataKey="year" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+        <YAxis tickFormatter={v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:v} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+        <Tooltip content={<ChartTooltip prefix={cur} />} />
+        <Area type="monotone" dataKey="value" name="With contributions" stroke={T.violet} strokeWidth={2} fill="url(#cg1)" />
+        <Area type="monotone" dataKey="noContrib" name="No contributions" stroke={T.accent} strokeWidth={1.5} fill="url(#cg2)" strokeDasharray="4 2" />
+      </AreaChart>
+    </ResponsiveContainer>
+    <div style={{ display:'flex', gap:16, marginTop:10, fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:2, background:T.violet, display:'inline-block', borderRadius:2 }}/>With {cur}{fmtN(monthly)}/mo contributions</span>
+      <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:2, background:T.accent, display:'inline-block', borderRadius:2, borderTop:'2px dashed' }}/>Initial investment only</span>
+    </div>
+  </GlassCard>
+</div>
+  );
+}
+
 function MoneyPage({ data, actions }) {
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
@@ -2318,150 +2469,9 @@ function MoneyPage({ data, actions }) {
       {/* S4: What-If Financial Simulator tab */}
       {tab === 'simulator' && <WhatIfSimulator data={data} />}
 
-      {tab==='tools' && (() => {
-        // ── Compound Growth Simulator ──────────────────────────────────────────
-        const [principal, setPrincipal] = useState(10000);
-        const [rate, setRate]           = useState(7);
-        const [years, setYears]         = useState(20);
-        const [monthly, setMonthly]     = useState(500);
-        const chartData = useMemo(() => {
-          const d = []; let val = principal;
-          for (let y = 0; y <= years; y++) {
-            d.push({ year:`Y${y}`, value:Math.round(val), noContrib:Math.round(principal * Math.pow(1+rate/100, y)) });
-            val = val * (1 + rate/100) + monthly * 12;
-          }
-          return d;
-        }, [principal, rate, years, monthly]);
-        const finalVal    = chartData[chartData.length-1]?.value||0;
-        const totalIn     = principal + monthly * 12 * years;
-        const totalGrowth = finalVal - totalIn;
-
-        // ── Emergency Fund Tracker ─────────────────────────────────────────────
-        const [efMonths, setEfMonths]   = useState(6);
-        const [efCurrent, setEfCurrent] = useState(0);
-        const monthlyFixed = (debts.reduce((s,d)=>s+Number(d.minPayment||0),0)) + (subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0));
-        const efTarget    = monthlyFixed + monthExp;
-        const efGoal      = efTarget * efMonths;
-        const efPct       = efGoal > 0 ? Math.min(100, (efCurrent / efGoal) * 100) : 0;
-        const efColor     = efPct >= 100 ? T.emerald : efPct >= 50 ? T.amber : T.rose;
-        const EF_LEVELS   = [{ pct:25, label:'1mo' }, { pct:50, label:'3mo' }, { pct:100, label:`${efMonths}mo` }];
-
-        // ── DTI Ratio ─────────────────────────────────────────────────────────
-        const monthlyDebtPmts = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
-        const dti = monthInc > 0 ? (monthlyDebtPmts / monthInc) * 100 : 0;
-        const dtiColor = dti > 43 ? T.rose : dti > 28 ? T.amber : T.emerald;
-        const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched' : dti > 20 ? 'Manageable' : 'Excellent';
-
-        return (
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            {/* DTI */}
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
-                <div>
-                  <SectionLabel>Debt-to-Income Ratio</SectionLabel>
-                  <div style={{ fontSize:28, fontFamily:T.fM, fontWeight:700, color:dtiColor }}>{dti.toFixed(1)}%</div>
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:dtiColor, marginTop:3 }}>{dtiLabel}</div>
-                </div>
-                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, textAlign:'right', lineHeight:1.7 }}>
-                  <div>Monthly debt payments: <span style={{ color:T.rose }}>{cur}{fmtN(monthlyDebtPmts)}</span></div>
-                  <div>Monthly income: <span style={{ color:T.emerald }}>{cur}{fmtN(monthInc)}</span></div>
-                </div>
-              </div>
-              <ProgressBar pct={Math.min(dti/50*100,100)} color={dtiColor} height={8} />
-              <div style={{ display:'flex', justifyContent:'space-between', marginTop:8, fontSize:9, fontFamily:T.fM }}>
-                {[{p:0,l:'0%'},{p:20,l:'20% ideal'},{p:36,l:'36% caution'},{p:43,l:'43% limit'},{p:100,l:'50%+'}].map(m=>(
-                  <span key={m.p} style={{ color:T.textMuted }}>{m.l}</span>
-                ))}
-              </div>
-            </GlassCard>
-
-            {/* Emergency Fund */}
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Emergency Fund Tracker</SectionLabel>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, marginBottom:18 }}>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Current savings ({cur})</div>
-                  <input type="number" value={efCurrent} onChange={e=>setEfCurrent(Number(e.target.value)||0)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
-                </div>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Target months</div>
-                  <input type="number" min={1} max={24} value={efMonths} onChange={e=>setEfMonths(Number(e.target.value)||6)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
-                </div>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Goal</div>
-                  <div style={{ padding:'8px 10px', background:T.surface, borderRadius:T.r, fontSize:13, fontFamily:T.fM, fontWeight:700, color:efColor }}>{cur}{fmtN(efGoal)}</div>
-                </div>
-              </div>
-              <MilestoneProgressBar pct={efPct} color={efColor} height={10} milestones={EF_LEVELS} />
-              <div style={{ display:'flex', justifyContent:'space-between', marginTop:18, fontSize:11, fontFamily:T.fM }}>
-                <span style={{ color:T.textSub }}>Based on {cur}{fmtN(efTarget)}/month expenses + fixed costs</span>
-                <span style={{ color:efColor, fontWeight:600 }}>{efPct >= 100 ? '✓ Fully funded!' : `${cur}${fmtN(efGoal - efCurrent)} to go`}</span>
-              </div>
-            </GlassCard>
-
-            {/* Compound Growth Simulator */}
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Compound Growth Simulator</SectionLabel>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginBottom:18 }}>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Starting amount ({cur})</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <input type="range" min={0} max={500000} step={1000} value={principal} onChange={e=>setPrincipal(Number(e.target.value))} style={{ flex:1, accentColor:T.violet }} />
-                    <span style={{ fontSize:12, fontFamily:T.fM, color:T.violet, minWidth:70, textAlign:'right' }}>{cur}{fmtN(principal)}</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Monthly contribution ({cur})</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <input type="range" min={0} max={5000} step={50} value={monthly} onChange={e=>setMonthly(Number(e.target.value))} style={{ flex:1, accentColor:T.accent }} />
-                    <span style={{ fontSize:12, fontFamily:T.fM, color:T.accent, minWidth:60, textAlign:'right' }}>{cur}{fmtN(monthly)}</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Annual return (%)</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <input type="range" min={1} max={20} step={0.5} value={rate} onChange={e=>setRate(Number(e.target.value))} style={{ flex:1, accentColor:T.emerald }} />
-                    <span style={{ fontSize:12, fontFamily:T.fM, color:T.emerald, minWidth:50, textAlign:'right' }}>{rate}%</span>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Time horizon (years)</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <input type="range" min={1} max={50} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{ flex:1, accentColor:T.amber }} />
-                    <span style={{ fontSize:12, fontFamily:T.fM, color:T.amber, minWidth:50, textAlign:'right' }}>{years}yr</span>
-                  </div>
-                </div>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12, marginBottom:18 }}>
-                {[{ label:'Final Value', val:`${cur}${fmtN(finalVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN(totalIn)}`, color:T.text }, { label:'Total Growth', val:`+${cur}${fmtN(totalGrowth)}`, color:T.emerald }].map((s,i)=>(
-                  <div key={i} style={{ padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.08em' }}>{s.label}</div>
-                    <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
-                  </div>
-                ))}
-              </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={chartData} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <defs>
-                    <linearGradient id="cg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.violet} stopOpacity={0.3}/><stop offset="95%" stopColor={T.violet} stopOpacity={0}/></linearGradient>
-                    <linearGradient id="cg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.accent} stopOpacity={0.2}/><stop offset="95%" stopColor={T.accent} stopOpacity={0}/></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="year" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={v=>v>=1000000?`${(v/1000000).toFixed(1)}M`:v>=1000?`${(v/1000).toFixed(0)}K`:v} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  <Area type="monotone" dataKey="value" name="With contributions" stroke={T.violet} strokeWidth={2} fill="url(#cg1)" />
-                  <Area type="monotone" dataKey="noContrib" name="No contributions" stroke={T.accent} strokeWidth={1.5} fill="url(#cg2)" strokeDasharray="4 2" />
-                </AreaChart>
-              </ResponsiveContainer>
-              <div style={{ display:'flex', gap:16, marginTop:10, fontSize:10, fontFamily:T.fM, color:T.textSub }}>
-                <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:2, background:T.violet, display:'inline-block', borderRadius:2 }}/>With {cur}{fmtN(monthly)}/mo contributions</span>
-                <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:2, background:T.accent, display:'inline-block', borderRadius:2, borderTop:'2px dashed' }}/>Initial investment only</span>
-              </div>
-            </GlassCard>
-          </div>
-        );
-      })()}
+      {tab==='tools' && (
+        <MoneyToolsTab data={data} cur={cur} />
+      )}
     </div>
   );
 }
