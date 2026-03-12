@@ -1810,7 +1810,6 @@ function MoneyPage({ data, actions }) {
   const [editDebt, setEditDebt] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
-  const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   // Use pre-computed values from App root
@@ -2927,9 +2926,10 @@ function GrowthPage({ data, actions }) {
             })}
           </div>
         </div>
+      )}
+
       {tab==='vision' && (
         <VisionBoardTab />
-      )}
       )}
     </div>
   );
