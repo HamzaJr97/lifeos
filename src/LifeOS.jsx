@@ -28,7 +28,7 @@ import {
     @keyframes countUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
     @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
     @keyframes toastTimer { from { width:100%; } to { width:0%; } }
-    @keyframes xpPop { 0% { opacity:0; transform:translateY(12px) scale(0.8); } 18% { opacity:1; transform:translateY(-6px) scale(1.12); } 55% { opacity:1; transform:translateY(-12px) scale(1); } 100% { opacity:0; transform:translateY(-28px) scale(0.9); } }
+    @keyframes xpPop { 0% { opacity:0; transform:translateY(16px) scale(0.85); } 15% { opacity:1; transform:translateY(-4px) scale(1.06); } 30% { transform:translateY(0) scale(1); } 70% { opacity:1; transform:translateY(0) scale(1); } 100% { opacity:0; transform:translateY(-20px) scale(0.92); } }
     @keyframes fabItemIn { from { opacity:0; transform:scale(0.4); } to { opacity:1; transform:scale(1); } }
     @keyframes badgeIn { from { opacity:0; transform:scale(0.7) rotateY(90deg); } to { opacity:1; transform:scale(1) rotateY(0deg); } }
     @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
@@ -447,10 +447,11 @@ const MilestoneProgressBar = ({ pct, color=T.accent, height=4, milestones=[] }) 
 function XPPopContainer({ pops }) {
   if (!pops.length) return null;
   return (
-    <div style={{ position:'fixed', top:64, right:24, zIndex:9997, display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end', pointerEvents:'none' }}>
+    <div style={{ position:'fixed', top:62, right:20, zIndex:9997, display:'flex', flexDirection:'column', gap:8, alignItems:'flex-end', pointerEvents:'none' }}>
       {pops.map(pop => (
-        <div key={pop.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 13px', borderRadius:99, background:`${pop.color||T.violet}18`, border:`1px solid ${pop.color||T.violet}44`, color:pop.color||T.violet, fontFamily:T.fM, fontWeight:700, fontSize:13, letterSpacing:'0.03em', animation:'xpPop 1.8s ease forwards', whiteSpace:'nowrap' }}>
-          ⚡ {pop.label}
+        <div key={pop.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderRadius:12, background:`${T.bg2}f0`, border:`1.5px solid ${pop.color||T.violet}66`, boxShadow:`0 4px 20px rgba(0,0,0,0.5), 0 0 12px ${pop.color||T.violet}22`, color:pop.color||T.violet, fontFamily:T.fM, fontWeight:700, fontSize:13, letterSpacing:'0.02em', animation:'xpPop 1.9s ease forwards', whiteSpace:'nowrap', backdropFilter:'blur(12px)' }}>
+          <span style={{ fontSize:16, filter:`drop-shadow(0 0 6px ${pop.color||T.violet})` }}>⚡</span>
+          <span style={{ color:T.text }}>{pop.label}</span>
         </div>
       ))}
     </div>
@@ -504,7 +505,7 @@ const BOTTOM_NAV_DEFS = [
   { id:'growth',    Icon:IcoGrowth,   tKey:'growth'    },
   { id:'knowledge', Icon:IcoBook,     tKey:'knowledge' },
 ];
-function BottomNav({ active, onNav }) {
+function BottomNav({ active, onNav, onAI, showAI }) {
   const lang = useLang();
   const BOTTOM_NAV = BOTTOM_NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   return (
@@ -518,27 +519,34 @@ function BottomNav({ active, onNav }) {
           </button>
         );
       })}
+      {/* AI button */}
+      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', padding:'6px 0', position:'relative' }}>
+        <IcoBrain size={17} stroke={showAI?T.accent:T.textSub} />
+        {!showAI && <span style={{ position:'absolute', top:8, left:'50%', marginLeft:3, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+        <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em' }}>AI</span>
+      </button>
     </div>
   );
 }
 
 // ── TOAST / UNDO SYSTEM ───────────────────────────────────────────────────────
-function ToastContainer({ toasts, onUndo, onDismiss }) {
+function ToastContainer({ toasts, onUndo, onDismiss, isMobile }) {
   if (!toasts.length) return null;
   return (
-    <div style={{ position:'fixed', bottom:42, left:'50%', transform:'translateX(-50%)', zIndex:9998, display:'flex', flexDirection:'column', gap:8, alignItems:'center', pointerEvents:'none' }}>
+    <div style={{ position:'fixed', bottom:isMobile?72:38, left:'50%', transform:'translateX(-50%)', zIndex:9998, display:'flex', flexDirection:'column', gap:8, alignItems:'center', pointerEvents:'none' }}>
       {toasts.map(t => (
-        <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 18px', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:12, boxShadow:`0 8px 32px rgba(0,0,0,0.5)`, animation:'slideDown 0.25s ease', fontFamily:T.fM, fontSize:12, color:T.text, pointerEvents:'all', minWidth:280 }}>
-          <span style={{ flex:1 }}>{t.message}</span>
+        <div key={t.id} style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'10px 16px', background:`${T.bg2}f8`, border:`1px solid ${t.onUndo?T.amber+'55':T.border}`, borderRadius:12, boxShadow:`0 8px 32px rgba(0,0,0,0.55), ${t.onUndo?`0 0 20px ${T.amber}18`:''}`, animation:'slideDown 0.25s cubic-bezier(0.34,1.56,0.64,1)', fontFamily:T.fM, fontSize:12, color:T.text, pointerEvents:'all', minWidth:260, maxWidth:380, backdropFilter:'blur(16px)', overflow:'hidden' }}>
+          {t.onUndo && <span style={{ fontSize:16, flexShrink:0 }}>🗑️</span>}
+          <span style={{ flex:1, lineHeight:1.4 }}>{t.message}</span>
           {t.onUndo && (
-            <button onClick={()=>onUndo(t.id)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
-              <IcoUndo size={11} stroke={T.accent} /> Undo
+            <button onClick={()=>onUndo(t.id)} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px', borderRadius:7, background:T.amberDim, border:`1px solid ${T.amber}44`, color:T.amber, fontSize:11, fontFamily:T.fM, fontWeight:700, cursor:'pointer', flexShrink:0, transition:'all 0.15s' }}>
+              <IcoUndo size={11} stroke={T.amber} /> Undo
             </button>
           )}
-          <button onClick={()=>onDismiss(t.id)} style={{ color:T.textSub, padding:3 }}><IcoX size={13} stroke={T.textSub} /></button>
-          {/* Progress bar showing 6s timer */}
-          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, borderRadius:'0 0 12px 12px', overflow:'hidden', background:'rgba(255,255,255,0.06)' }}>
-            <div style={{ height:'100%', background:T.accent, animation:`toastTimer ${t.duration||6}s linear forwards` }} />
+          <button onClick={()=>onDismiss(t.id)} style={{ color:T.textSub, padding:4, borderRadius:5, background:'none', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}><IcoX size={13} stroke={T.textSub} /></button>
+          {/* Animated timer bar */}
+          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:'rgba(255,255,255,0.05)' }}>
+            <div style={{ height:'100%', background:t.onUndo?T.amber:T.accent, borderRadius:'0 0 12px 12px', animation:`toastTimer ${t.duration||6}s linear forwards` }} />
           </div>
         </div>
       ))}
@@ -561,7 +569,7 @@ const NAV_DEFS = [
   { id:'archive',   Icon:IcoArchive,    tKey:'archive'     },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
-function Sidebar({ active, onNav, userName }) {
+function Sidebar({ active, onNav, userName, onAI, showAI }) {
   const [hov, setHov] = useState(null);
   const lang = useLang();
   const NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
@@ -584,6 +592,14 @@ function Sidebar({ active, onNav, userName }) {
         );
       })}
       <div style={{ flex:1 }} />
+      {/* AI Coach button */}
+      <div style={{ position:'relative', width:'100%' }} onMouseEnter={()=>setHov('ai')} onMouseLeave={()=>setHov(null)}>
+        <button onClick={onAI} style={{ width:'100%', height:40, display:'flex', alignItems:'center', justifyContent:'center', background:showAI?T.accentDim:'transparent', color:showAI?T.accent:T.textSub, borderLeft:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', position:'relative' }}>
+          <IcoBrain size={15} stroke={showAI?T.accent:T.textSub} />
+          {!showAI && <span style={{ position:'absolute', top:8, right:14, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+        </button>
+        {hov==='ai' && <div style={{ position:'absolute', left:'100%', top:'50%', transform:'translateY(-50%)', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', zIndex:200, fontSize:10, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', marginLeft:6, pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>AI Coach (A)</div>}
+      </div>
       <div style={{ width:32, height:32, borderRadius:'50%', background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:T.bg, fontFamily:T.fD, border:`2px solid ${T.border}`, marginBottom:6 }}>{init}</div>
       <div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, boxShadow:`0 0 6px ${T.emerald}`, animation:'dotPulse 2s infinite', marginBottom:8 }} />
     </div>
@@ -1620,6 +1636,7 @@ function HomePage({ data, actions, onNav }) {
   const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, notes, budgets } = data;
   const [modal, setModal] = useState(null);
   const [showMoodBanner, setShowMoodBanner] = useState(() => !vitals.some(v=>v.date===today()));
+  const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
   const [weeklyFocusEdit, setWeeklyFocusEdit] = useState(false);
   const weeklyFocus = settings.weeklyFocus || ['','',''];
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
@@ -1658,18 +1675,42 @@ function HomePage({ data, actions, onNav }) {
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
       {showMoodBanner && (
-        <div style={{ marginBottom:14, padding:'12px 18px', borderRadius:T.r, background:`${T.sky}11`, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:18 }}>☀️</span>
-            <div>
-              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>Daily Check-in</div>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>You haven't logged vitals today. How are you feeling?</div>
+        <div style={{ marginBottom:14, borderRadius:T.rL, background:`linear-gradient(135deg,${T.sky}0e,${T.violet}0a)`, border:`1px solid ${T.sky}33`, overflow:'hidden', animation:'fadeUp 0.3s ease' }}>
+          {quickMood === null ? (
+            <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:20 }}>☀️</span>
+                <div>
+                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>Daily Check-in</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>How are you feeling right now?</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                {[['😩','1',T.rose],['😕','2',T.amber],['😐','3',T.textSub],['🙂','4',T.sky],['😄','5',T.emerald]].map(([emoji, val, color]) => (
+                  <button key={val} onClick={()=>setQuickMood(Number(val))} style={{ width:38, height:38, borderRadius:10, background:T.surface, border:`1px solid ${T.border}`, fontSize:20, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.15s' }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=color+'22';e.currentTarget.style.borderColor=color+'66';e.currentTarget.style.transform='scale(1.15)';}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform='scale(1)';}}>
+                    {emoji}
+                  </button>
+                ))}
+                <button onClick={()=>setShowMoodBanner(false)} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'4px 10px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, marginLeft:4, cursor:'pointer' }}>Later</button>
+              </div>
             </div>
-          </div>
-          <div style={{ display:'flex', gap:8 }}>
-            <Btn onClick={()=>{ setModal('vitals'); setShowMoodBanner(false); }} color={T.sky} style={{ padding:'5px 14px' }}>Log Now</Btn>
-            <button onClick={()=>setShowMoodBanner(false)} style={{ padding:'5px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Later</button>
-          </div>
+          ) : (
+            <div style={{ padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:22 }}>{['😩','😕','😐','🙂','😄'][quickMood-1]}</span>
+                <div>
+                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>Mood: {quickMood}/5 — {['Rough day','Below average','Neutral','Pretty good','Excellent!'][quickMood-1]}</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Log full vitals for sleep & energy too.</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <Btn onClick={()=>{ actions.addVitals({ id:Date.now(), date:today(), mood:quickMood*2, sleep:0, energy:quickMood*2, weight:'', steps:'', note:'Quick check-in' }); setShowMoodBanner(false); }} color={T.sky} style={{ padding:'5px 14px' }}>Save Quick</Btn>
+                <Btn onClick={()=>{ setModal('vitals'); setShowMoodBanner(false); }} color={T.violet} style={{ padding:'5px 14px' }}>Full Log</Btn>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div style={{ marginBottom:26 }}>
@@ -1697,6 +1738,24 @@ function HomePage({ data, actions, onNav }) {
           </GlassCard>
         ))}
       </div>
+      {/* Recent Achievements Strip */}
+      {(() => {
+        const unlocked = ACHIEVEMENTS.filter(a => a.check(data)).slice(-3).reverse();
+        if (!unlocked.length) return null;
+        return (
+          <div style={{ marginBottom:16, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', flexShrink:0 }}>Recent badges</span>
+            {unlocked.map((a,i) => (
+              <div key={a.id} title={`${a.name} — ${a.desc}`} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:99, background:`${a.color}12`, border:`1px solid ${a.color}33`, animation:`badgeIn 0.3s ease ${i*0.08}s both`, cursor:'default' }}>
+                <span style={{ fontSize:15, filter:`drop-shadow(0 0 4px ${a.color}66)` }}>{a.emoji}</span>
+                <span style={{ fontSize:10, fontFamily:T.fM, fontWeight:600, color:a.color }}>{a.name}</span>
+              </div>
+            ))}
+            <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer', marginLeft:'auto' }}>All badges →</button>
+          </div>
+        );
+      })()}
+
       {/* Weekly Focus Intentions */}
       <GlassCard style={{ padding:'18px 22px', marginBottom:16 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
@@ -1795,32 +1854,41 @@ function HomePage({ data, actions, onNav }) {
           <GlassCard style={{ padding:'18px', flex:1 }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <SectionLabel>Today's Habits</SectionLabel>
-              <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                <span style={{ fontSize:10, fontFamily:T.fM, color:todayDone===habits.length&&habits.length>0?T.emerald:T.textSub }}>{todayDone}/{habits.length}</span>
+                <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
+              </div>
             </div>
             {habits.length === 0 ? (
               <div style={{ textAlign:'center', padding:'16px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.<br/><button onClick={()=>setModal('habit')} style={{ color:T.accent, fontSize:11, fontFamily:T.fM, marginTop:6, cursor:'pointer' }}>+ Add habit</button></div>
             ) : (
-              habits.map((h,i) => {
+              habits.slice(0, 7).map((h,i) => {
                 const done = (habitLogs[h.id]||[]).includes(today());
                 const streak = getStreak(h.id, habitLogs);
                 const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
                 const hc = HCOLORS[i%HCOLORS.length];
                 return (
-                  <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 6px', borderRadius:8, borderBottom:`1px solid ${T.border}`, transition:'background 0.15s', marginBottom:2 }}>
-                    <button onClick={()=>!done&&actions.logHabit(h.id)} style={{ width:22, height:22, borderRadius:6, flexShrink:0, background:done?hc+'33':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.18s' }}>
-                      {done && <span style={{ fontSize:11, color:hc }}>✓</span>}
+                  <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 4px', borderRadius:8, transition:'background 0.15s', marginBottom:1 }}>
+                    <button onClick={()=>{ if(!done) actions.logHabit(h.id); }} style={{ width:24, height:24, borderRadius:7, flexShrink:0, background:done?hc+'22':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.2s cubic-bezier(0.34,1.56,0.64,1)', transform:done?'scale(1)':'scale(0.95)' }}
+                      onMouseEnter={e=>{ if(!done) e.currentTarget.style.borderColor=hc; }}
+                      onMouseLeave={e=>{ if(!done) e.currentTarget.style.borderColor=T.border; }}>
+                      {done && <span style={{ fontSize:12, color:hc }}>✓</span>}
                     </button>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:done?T.textSub:T.text, textDecoration:done?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.emoji||'🔥'} {h.name}</div>
                     </div>
-                    <span style={{ fontSize:9, fontFamily:T.fM, color:streak>0?hc:T.textMuted, flexShrink:0 }}>🔥 {streak}d</span>
+                    {streak > 0 && <span style={{ fontSize:9, fontFamily:T.fM, color:streak>=7?T.amber:hc, flexShrink:0, fontWeight:streak>=7?700:400 }}>🔥{streak}d</span>}
                   </div>
                 );
               })
             )}
-            <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{todayDone}/{habits.length} done today</span>
-              <ProgressBar pct={habits.length>0?(todayDone/habits.length)*100:0} color={T.accent} height={4} />
+            {habits.length > 7 && (
+              <div style={{ marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', cursor:'pointer' }} onClick={()=>onNav('growth')}>+{habits.length-7} more → view all</div>
+            )}
+            <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>{todayDone}/{habits.length} done today</span>
+              <div style={{ flex:1 }}><ProgressBar pct={habits.length>0?(todayDone/habits.length)*100:0} color={todayDone===habits.length&&habits.length>0?T.emerald:T.accent} height={4} /></div>
+              {todayDone===habits.length&&habits.length>0 && <span style={{ fontSize:10, color:T.emerald, flexShrink:0 }}>🎉 All done!</span>}
             </div>
           </GlassCard>
           <GlassCard style={{ padding:'18px', flex:1 }}>
@@ -3243,12 +3311,13 @@ function KnowledgePage({ data, actions }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
               {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
-                <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1 }}>
+                <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${note.priority===1?T.rose:note.priority===2?T.amber:tc}88`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                     <div style={{ display:'flex', gap:5, alignItems:'center', flexWrap:'wrap' }}>
                       <Badge color={tc}>{note.tag||'General'}</Badge>
                       {note.type && note.type!=='note' && <Badge color={note.type==='task'?T.sky:note.type==='idea'?T.violet:T.amber}>{note.type}</Badge>}
-                      {note.priority && note.priority===1 && <span style={{ fontSize:9, color:T.rose }}>🔴</span>}
+                      {note.priority === 1 && <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 7px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.roseDim, border:`1px solid ${T.rose}44`, color:T.rose }}>🔴 High</span>}
+                      {note.priority === 2 && <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 7px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:T.amberDim, border:`1px solid ${T.amber}33`, color:T.amber }}>🟡 Med</span>}
                       {note.dueDate && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>📅 {note.dueDate}</span>}
                       {note.done && <Badge color={T.emerald}>✅ Done</Badge>}
                     </div>
@@ -5047,12 +5116,222 @@ function VisionBoardTab() {
   );
 }
 
+// ── ACHIEVEMENT BADGE UNLOCK MODAL ───────────────────────────────────────────
+function BadgeUnlockModal({ badge, onClose }) {
+  useEffect(() => {
+    if (!badge) return;
+    const t = setTimeout(onClose, 4200);
+    return () => clearTimeout(t);
+  }, [badge, onClose]);
+  if (!badge) return null;
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9996, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', animation:'fadeIn 0.2s ease' }} />
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9997, textAlign:'center', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+        {/* Confetti rings */}
+        <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:200, height:200, borderRadius:'50%', border:`2px solid ${badge.color}33`, animation:'glowPulse 1s ease infinite', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:240, height:240, borderRadius:'50%', border:`1px solid ${badge.color}18`, animation:'glowPulse 1.5s ease infinite 0.3s', pointerEvents:'none' }} />
+        <div style={{ padding:'40px 52px', background:T.bg1, border:`2px solid ${badge.color}55`, borderRadius:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7), 0 0 60px ${badge.color}22`, minWidth:320, position:'relative' }}>
+          {/* Glow halo */}
+          <div style={{ position:'absolute', top:-1, left:-1, right:-1, height:4, background:`linear-gradient(90deg,transparent,${badge.color},transparent)`, borderRadius:'24px 24px 0 0' }} />
+          <div style={{ fontSize:9, fontFamily:T.fM, color:badge.color, letterSpacing:'0.2em', textTransform:'uppercase', marginBottom:20, fontWeight:700 }}>🏆 Achievement Unlocked</div>
+          <div style={{ fontSize:72, marginBottom:16, filter:`drop-shadow(0 0 20px ${badge.color}88)`, animation:'badgeIn 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.1s both' }}>{badge.emoji}</div>
+          <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:T.text, marginBottom:10 }}>{badge.name}</div>
+          <div style={{ fontSize:13, fontFamily:T.fM, color:T.textSub, lineHeight:1.6, marginBottom:24 }}>{badge.desc}</div>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'8px 20px', borderRadius:99, background:`${badge.color}18`, border:`1px solid ${badge.color}44` }}>
+            <span style={{ fontSize:14, filter:`drop-shadow(0 0 6px ${badge.color})` }}>⚡</span>
+            <span style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:badge.color }}>+50 Bonus XP</span>
+          </div>
+          <div style={{ marginTop:20 }}>
+            <button onClick={onClose} style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, background:'none', border:'none', cursor:'pointer', letterSpacing:'0.08em' }}>TAP TO DISMISS</button>
+          </div>
+          {/* Progress bar auto-dismiss */}
+          <div style={{ position:'absolute', bottom:0, left:0, right:0, height:3, borderRadius:'0 0 24px 24px', overflow:'hidden', background:'rgba(255,255,255,0.05)' }}>
+            <div style={{ height:'100%', background:badge.color, animation:'toastTimer 4.2s linear forwards' }} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── GLOBAL AI PANEL — slide-in assistant accessible from every page ──────────
+function GlobalAIPanel({ open, onClose, data }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open && inputRef.current) setTimeout(() => inputRef.current?.focus(), 320);
+  }, [open]);
+
+  useEffect(() => {
+    if (endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  const buildSystemPrompt = () => {
+    const { settings, computed, habits, goals, expenses, debts, vitals, investments, subscriptions } = data;
+    const cur = settings?.currency || '$';
+    const recentExpenses = (expenses || []).slice(0, 5).map(e => `${e.category} ${cur}${e.amount}`).join(', ');
+    const goalsList = (goals || []).slice(0, 3).map(g => `${g.name} (${Math.round((Number(g.current||0)/Number(g.target||1))*100)}%)`).join(', ');
+    const habitsList = (habits || []).slice(0, 5).map(h => h.name).join(', ');
+    const subsCost = (subscriptions || []).reduce((s, sub) => s + Number(sub.amount || 0), 0);
+    return `You are LifeOS AI, a sharp, context-aware personal life coach embedded directly in the user's life management app. You have real-time access to their data.
+
+Be warm but concise. Lead with the most useful insight. Use bullet points sparingly — prefer 2-4 sentence answers unless depth is requested.
+
+USER SNAPSHOT:
+• Name: ${settings?.name || 'there'}
+• Net worth: ${cur}${fmtN(computed?.nw || 0)}
+• This month: Income ${cur}${fmtN(computed?.monthInc || 0)} · Expenses ${cur}${fmtN(computed?.monthExp || 0)} · Savings rate ${(computed?.savRate || 0).toFixed(1)}%
+• Active habits: ${habits?.length || 0} (${habitsList || 'none tracked'})
+• Goals: ${goals?.length || 0} active (${goalsList || 'none set'})
+• Total debt: ${cur}${fmtN((debts || []).reduce((s,d)=>s+Number(d.balance||0),0))} across ${debts?.length || 0} accounts
+• Subscriptions: ${cur}${fmtN(subsCost)}/mo across ${subscriptions?.length || 0} services
+• Last vitals: mood ${vitals?.[0]?.mood || '—'}/10, sleep ${vitals?.[0]?.sleep || '—'}h, energy ${vitals?.[0]?.energy || '—'}/10
+• Recent spending: ${recentExpenses || 'none logged'}
+• Portfolio: ${investments?.length || 0} positions
+
+Answer questions about their data directly and helpfully. Flag any concerns you notice. Be their financial and life advisor.`;
+  };
+
+  const send = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: 'user', content: input.trim() };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput('');
+    setLoading(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: buildSystemPrompt(),
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        }),
+      });
+      const d = await res.json();
+      const text = d.content?.[0]?.text || 'Something went wrong. Please try again.';
+      setMessages(p => [...p, { role: 'assistant', content: text }]);
+    } catch {
+      setMessages(p => [...p, { role: 'assistant', content: 'Connection error — check your network and try again.' }]);
+    }
+    setLoading(false);
+  };
+
+  const SUGGESTIONS = [
+    { label: "How's my financial health?", emoji: '💰' },
+    { label: "What should I focus on this week?", emoji: '🎯' },
+    { label: "Analyze my spending habits", emoji: '📊' },
+    { label: "Am I on track with my goals?", emoji: '🏆' },
+  ];
+
+  return (
+    <>
+      {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9994, background:'rgba(0,0,0,0.35)', backdropFilter:'blur(2px)', animation:'fadeIn 0.2s ease' }} />}
+      <div style={{ position:'fixed', top:0, right:0, height:'100vh', width:clamp(340,380,460), background:T.bg1, borderLeft:`1px solid ${T.borderLit}`, display:'flex', flexDirection:'column', zIndex:9995, transform:open?'translateX(0)':'translateX(100%)', transition:'transform 0.3s cubic-bezier(0.32,0.72,0,1)', boxShadow:open?`-20px 0 60px rgba(0,0,0,0.6),-1px 0 0 ${T.accent}18`:'none' }}>
+        {/* Header */}
+        <div style={{ padding:'14px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+          <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`, border:`1px solid ${T.accent}44`, display:'flex', alignItems:'center', justifyContent:'center', animation:'glowPulse 3s infinite', flexShrink:0 }}>
+            <IcoBrain size={16} stroke={T.accent} />
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, lineHeight:1 }}>LifeOS AI</div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginTop:3 }}>CONTEXT-AWARE LIFE COACH</div>
+          </div>
+          {messages.length > 0 && (
+            <button onClick={()=>setMessages([])} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 8px', cursor:'pointer' }}>Clear</button>
+          )}
+          <button onClick={onClose} style={{ padding:6, borderRadius:7, color:T.textSub, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <IcoX size={13} stroke={T.textSub} />
+          </button>
+        </div>
+
+        {/* Messages area */}
+        <div style={{ flex:1, overflowY:'auto', padding:'14px 16px', display:'flex', flexDirection:'column', gap:12 }}>
+          {messages.length === 0 && (
+            <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', gap:18, paddingBottom:20 }}>
+              <div style={{ textAlign:'center' }}>
+                <div style={{ fontSize:36, marginBottom:12 }}>🧠</div>
+                <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>Your AI Life Coach</div>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.7, maxWidth:260 }}>Ask about your finances, habits, goals, wellbeing — I have full context on your data.</div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:7, width:'100%' }}>
+                {SUGGESTIONS.map(s => (
+                  <button key={s.label} onClick={()=>setInput(s.label)} style={{ padding:'10px 14px', borderRadius:9, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:11, fontFamily:T.fM, textAlign:'left', cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:9 }}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accent+'44';e.currentTarget.style.color=T.text;e.currentTarget.style.background=T.surfaceHi;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textSub;e.currentTarget.style.background=T.surface;}}>
+                    <span style={{fontSize:16}}>{s.emoji}</span>{s.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center', lineHeight:1.6 }}>
+                Powered by Claude · Your data never leaves your device
+              </div>
+            </div>
+          )}
+
+          {messages.map((m, i) => (
+            <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:m.role==='user'?'flex-end':'flex-start', animation:'fadeUp 0.2s ease' }}>
+              {m.role === 'assistant' && (
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, marginBottom:4, letterSpacing:'0.08em' }}>✦ LifeOS AI</div>
+              )}
+              <div style={{ maxWidth:'88%', padding:'10px 14px', borderRadius:m.role==='user'?'14px 14px 4px 14px':'14px 14px 14px 4px', background:m.role==='user'?T.accentDim:T.surface, border:`1px solid ${m.role==='user'?T.accent+'33':T.border}`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
+                {m.content}
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', animation:'fadeUp 0.2s ease' }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, marginBottom:4, letterSpacing:'0.08em' }}>✦ LifeOS AI</div>
+              <div style={{ padding:'12px 16px', borderRadius:'14px 14px 14px 4px', background:T.surface, border:`1px solid ${T.border}`, display:'flex', gap:5, alignItems:'center' }}>
+                {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:'50%',background:T.accent,opacity:0.7,animation:`dotPulse 1.2s infinite ${i*0.2}s`}} />)}
+              </div>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+
+        {/* Input area */}
+        <div style={{ padding:'12px 16px', borderTop:`1px solid ${T.border}`, display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e=>{ setInput(e.target.value); e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,96)+'px'; }}
+              onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} }}
+              placeholder="Ask your AI coach… (Enter to send)"
+              rows={1}
+              style={{ flex:1, background:T.surface, border:`1px solid ${input.trim()?T.accent+'44':T.border}`, borderRadius:10, padding:'9px 12px', fontSize:12, fontFamily:T.fM, color:T.text, resize:'none', lineHeight:1.5, maxHeight:96, overflowY:'auto', transition:'border-color 0.15s' }}
+            />
+            <button onClick={send} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:10, background:input.trim()?T.accentDim:T.surface, border:`1px solid ${input.trim()?T.accent+'55':T.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, opacity:loading?0.5:1, transition:'all 0.15s', cursor:input.trim()&&!loading?'pointer':'default' }}>
+              <IcoSend size={14} stroke={input.trim()&&!loading?T.accent:T.textSub} />
+            </button>
+          </div>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>
+            Press <kbd style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:3,padding:'1px 4px',fontSize:8}}>A</kbd> anywhere to toggle · <kbd style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:3,padding:'1px 4px',fontSize:8}}>Esc</kbd> to close
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+function clamp(min, val, max) { return Math.max(min, Math.min(max, val)); }
+
 export default function LifeOS() {
   const [page, setPage] = useState('home');
   const [cmdOpen, setCmdOpen] = useState(false);
   const [globalModal, setGlobalModal] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [showMonthlyReview, setShowMonthlyReview] = useState(false);
 
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
@@ -5143,6 +5422,9 @@ export default function LifeOS() {
         if (e.key === 'n') setGlobalModal('note');
         if (e.key === 'h') setGlobalModal('habit');
         if (e.key === 'v') setGlobalModal('vitals');
+        if (e.key === 'a') setShowAIPanel(v => !v);
+        if (e.key === 'm') setShowMonthlyReview(v => !v);
+        if (e.key === 'Escape') { setShowAIPanel(false); setShowMonthlyReview(false); }
       }
     };
     window.addEventListener('keydown', handler);
@@ -5524,23 +5806,44 @@ export default function LifeOS() {
     addNote(n); addXPPop('+5 XP — Note Saved 📝', T.amber);
   }, [addNote, addXPPop]);
 
-  // Achievement unlock detection
+  const addExpenseWithPop = useCallback((e) => {
+    addExpense(e); addXPPop('+5 XP — Expense Logged 💳', T.rose);
+  }, [addExpense, addXPPop]);
+
+  const addIncomeWithPop = useCallback((i) => {
+    addIncome(i); addXPPop('+10 XP — Income Recorded 💰', T.emerald);
+  }, [addIncome, addXPPop]);
+
+  const addVitalsWithPop = useCallback((v) => {
+    addVitals(v); addXPPop('+8 XP — Vitals Logged ❤️', T.sky);
+  }, [addVitals, addXPPop]);
+
+  // Achievement unlock detection — badge modal queue
   const [prevUnlocked, setPrevUnlocked] = useState(() => new Set());
+  const [badgeQueue, setBadgeQueue] = useState([]);
+  const [showBadge, setShowBadge] = useState(null); // current badge being shown
   useEffect(() => {
     const newly = ACHIEVEMENTS.filter(a => a.check(data) && !prevUnlocked.has(a.id));
     if (newly.length) {
-      newly.forEach((a, i) => setTimeout(() => addXPPop(`🏆 ${a.name} unlocked!`, a.color), i * 700));
+      setBadgeQueue(q => [...q, ...newly]);
       setPrevUnlocked(prev => new Set([...prev, ...newly.map(a => a.id)]));
     }
   }, [data]);
+  // Drain queue one badge at a time
+  useEffect(() => {
+    if (!showBadge && badgeQueue.length > 0) {
+      setShowBadge(badgeQueue[0]);
+      setBadgeQueue(q => q.slice(1));
+    }
+  }, [showBadge, badgeQueue]);
 
   // ── S2: Mobile state ────────────────────────────────────────────────────────
   const eb = (child) => <ErrorBoundary key={page}>{child}</ErrorBoundary>;
   const VIEW = {
-    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop}} onNav={setPage} />),
+    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onNav={setPage} />),
     timeline:  eb(<TimelinePage  data={data} />),
-    money:     eb(<MoneyPage     data={data} actions={actions} />),
-    health:    eb(<HealthPage    data={data} actions={actions} />),
+    money:     eb(<MoneyPage     data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} />),
+    health:    eb(<HealthPage    data={data} actions={{...actions, addVitals:addVitalsWithPop}} />),
     growth:    eb(<GrowthPage    data={data} actions={{...actions, logHabit:logHabitWithPop, addGoal:addGoalWithPop}} />),
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
     career:    eb(<CareerPage    data={data} actions={actions} />),
@@ -5566,6 +5869,9 @@ export default function LifeOS() {
     <GrowthContext.Provider value={{ goals, focusSessions, totalXP }}>
     {settings.pin && !pinUnlocked && <PinLockOverlay pin={settings.pin} onUnlock={()=>setPinUnlocked(true)} />}
     {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} actions={actions} settings={settings} />}
+    <GlobalAIPanel open={showAIPanel} onClose={()=>setShowAIPanel(false)} data={data} />
+    <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
+    <BadgeUnlockModal badge={showBadge} onClose={()=>setShowBadge(null)} />
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
@@ -5577,7 +5883,7 @@ export default function LifeOS() {
       <CommandPalette open={cmdOpen} onClose={()=>setCmdOpen(false)} data={data} onNav={(p)=>{setPage(p);setCmdOpen(false);}} onModal={handleGlobalModal} />
 
       {/* Toast/Undo notifications — S1 */}
-      <ToastContainer toasts={toasts} onUndo={handleUndo} onDismiss={dismissToast} />
+      <ToastContainer toasts={toasts} onUndo={handleUndo} onDismiss={dismissToast} isMobile={isMobile} />
 
       {/* XP Pop notifications — S2 */}
       <XPPopContainer pops={xpPops} />
@@ -5586,20 +5892,20 @@ export default function LifeOS() {
       <QuickCaptureFAB onAction={handleGlobalModal} isMobile={isMobile} />
 
       {/* Bottom Nav — S2 mobile */}
-      <BottomNav active={page} onNav={setPage} />
+      <BottomNav active={page} onNav={setPage} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
 
       {/* Global modals triggered from Command Palette / FAB */}
-      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addExpense(e);setGlobalModal(null);}} />
-      <LogIncomeModal open={globalModal==='income'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addIncome(e);setGlobalModal(null);}} />
+      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpenseWithPop(e);setGlobalModal(null);}} />
+      <LogIncomeModal open={globalModal==='income'} onClose={()=>setGlobalModal(null)} onSave={e=>{addIncomeWithPop(e);setGlobalModal(null);}} />
       <LogHabitModal open={globalModal==='habit'} onClose={()=>setGlobalModal(null)} habits={habits} habitLogs={habitLogs} onLog={logHabitWithPop} onAddHabit={actions.addHabit} />
-      <LogVitalsModal open={globalModal==='vitals'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addVitals(e);setGlobalModal(null);}} />
+      <LogVitalsModal open={globalModal==='vitals'} onClose={()=>setGlobalModal(null)} onSave={e=>{addVitalsWithPop(e);setGlobalModal(null);}} />
       <AddNoteModal open={globalModal==='note'} onClose={()=>setGlobalModal(null)} onSave={e=>{addNoteWithPop(e);setGlobalModal(null);}} />
       <AddGoalModal open={globalModal==='goal'} onClose={()=>setGlobalModal(null)} onSave={e=>{addGoalWithPop(e);setGlobalModal(null);}} />
       <AddDebtModal open={globalModal==='debt'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addDebt(e);setGlobalModal(null);}} />
       <AddInvestmentModal open={globalModal==='investment'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addInvestment(e);setGlobalModal(null);}} />
       <AddSubscriptionModal open={globalModal==='subscription'} onClose={()=>setGlobalModal(null)} onSave={e=>{actions.addSubscription(e);setGlobalModal(null);}} />
 
-      <Sidebar active={page} onNav={setPage} userName={settings.name} />
+      <Sidebar active={page} onNav={setPage} userName={settings.name} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
 
       <div style={{ flex:1, marginLeft:isMobile?0:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
         {/* Topbar */}
@@ -5626,6 +5932,19 @@ export default function LifeOS() {
               {!isMobile && 'All Systems Online'}
             </div>
             <SmartAlertsButton alerts={smartAlerts} />
+            {/* Monthly Review trigger */}
+            <button onClick={()=>setShowMonthlyReview(true)} title="Monthly Review (M)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.text;}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+              <IcoCalendar size={15} stroke="currentColor" />
+            </button>
+            {/* Global AI Panel trigger */}
+            <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Life Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s infinite' }}
+              onMouseEnter={e=>{if(!showAIPanel){e.currentTarget.style.background=T.accentDim;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}}
+              onMouseLeave={e=>{if(!showAIPanel){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}}>
+              <IcoBrain size={15} stroke="currentColor" />
+              {!showAIPanel && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+            </button>
             {!isMobile && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>}
           </div>
         </div>
