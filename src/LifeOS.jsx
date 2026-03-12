@@ -746,6 +746,28 @@ function LogExpenseModal({ open, onClose, onSave }) {
   );
 }
 
+function EditIncomeModal({ open, onClose, income, onSave }) {
+  const [amt, setAmt] = useState(''); const [note, setNote] = useState(''); const [date, setDate] = useState(today());
+  const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
+  useEffect(() => { if (income && open) { setAmt(String(income.amount||'')); setNote(income.note||''); setDate(income.date||today()); setRecurring(income.recurring||false); setFrequency(income.frequency||'monthly'); } }, [income, open]);
+  const save = () => { if (!amt) return; onSave(income.id, { amount:Number(amt), note, date, recurring, frequency:recurring?frequency:null }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Income">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Source (Salary, Freelance...)" />
+        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+          <input type="checkbox" checked={recurring} onChange={e=>setRecurring(e.target.checked)} />
+          <span>Recurring income</span>
+          {recurring && <Select value={frequency} onChange={e=>setFrequency(e.target.value)} style={{ marginLeft:8, padding:'2px 6px' }}>{['weekly','bi-weekly','monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>}
+        </label>
+        <Btn full onClick={save} color={T.emerald}>Save Changes</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 function LogIncomeModal({ open, onClose, onSave }) {
   const [amt, setAmt] = useState(''); const [note, setNote] = useState(''); const [date, setDate] = useState(today());
   const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
@@ -816,18 +838,24 @@ function SleepStars({ value, onChange, size=18 }) {
   );
 }
 
-function LogVitalsModal({ open, onClose, onSave }) {
+function LogVitalsModal({ open, onClose, onSave, existingDates=[] }) {
   const [sleep, setSleep] = useState(''); const [sleepQuality, setSleepQuality] = useState(0);
   const [mood, setMood] = useState(''); const [energy, setEnergy] = useState('');
   const [weight, setWeight] = useState(''); const [steps, setSteps] = useState('');
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(''); const [date, setDate] = useState(today());
+  const alreadyLogged = existingDates.includes(date) && date === today();
   const save = () => {
-    onSave({ id:Date.now(), date:today(), sleep:Number(sleep)||0, sleepQuality, mood:Number(mood)||0, energy:Number(energy)||0, weight:Number(weight)||0, steps:Number(steps)||0, note });
-    setSleep(''); setSleepQuality(0); setMood(''); setEnergy(''); setWeight(''); setSteps(''); setNote(''); onClose();
+    onSave({ id:Date.now(), date, sleep:Number(sleep)||0, sleepQuality, mood:Number(mood)||0, energy:Number(energy)||0, weight:Number(weight)||0, steps:Number(steps)||0, note });
+    setSleep(''); setSleepQuality(0); setMood(''); setEnergy(''); setWeight(''); setSteps(''); setNote(''); setDate(today()); onClose();
   };
   return (
     <Modal open={open} onClose={onClose} title="❤️ Log Vitals">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Date</div>
+          <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+          {existingDates.includes(date) && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:4 }}>⚠ Existing entry for this date will be overwritten</div>}
+        </div>
         <div>
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Sleep hours</div>
           <Input type="number" value={sleep} onChange={e=>setSleep(e.target.value)} placeholder="e.g. 7.5" />
@@ -842,6 +870,39 @@ function LogVitalsModal({ open, onClose, onSave }) {
         <Input type="number" value={steps} onChange={e=>setSteps(e.target.value)} placeholder="Steps today (optional)" />
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Btn full onClick={save} color={T.sky}>Save Vitals</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function EditVitalsModal({ open, onClose, vitals, onSave }) {
+  const [sleep, setSleep] = useState(''); const [sleepQuality, setSleepQuality] = useState(0);
+  const [mood, setMood] = useState(''); const [energy, setEnergy] = useState('');
+  const [weight, setWeight] = useState(''); const [steps, setSteps] = useState('');
+  const [note, setNote] = useState(''); const [date, setDate] = useState('');
+  useEffect(() => { if (vitals && open) { setSleep(String(vitals.sleep||'')); setSleepQuality(vitals.sleepQuality||0); setMood(String(vitals.mood||'')); setEnergy(String(vitals.energy||'')); setWeight(String(vitals.weight||'')); setSteps(String(vitals.steps||'')); setNote(vitals.note||''); setDate(vitals.date||today()); } }, [vitals, open]);
+  const save = () => { onSave(vitals.id, { date, sleep:Number(sleep)||0, sleepQuality, mood:Number(mood)||0, energy:Number(energy)||0, weight:Number(weight)||0, steps:Number(steps)||0, note }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Vitals">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Date</div>
+          <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        </div>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Sleep hours</div>
+          <Input type="number" value={sleep} onChange={e=>setSleep(e.target.value)} placeholder="e.g. 7.5" />
+        </div>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Sleep quality</div>
+          <SleepStars value={sleepQuality} onChange={setSleepQuality} />
+        </div>
+        <Input type="number" value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood (1–10)" />
+        <Input type="number" value={energy} onChange={e=>setEnergy(e.target.value)} placeholder="Energy (1–10)" />
+        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="Weight (lbs/kg, optional)" />
+        <Input type="number" value={steps} onChange={e=>setSteps(e.target.value)} placeholder="Steps today (optional)" />
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
+        <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
       </div>
     </Modal>
   );
@@ -2019,6 +2080,7 @@ function MoneyPage({ data, actions }) {
   const debouncedExtraPayment = useDebounce(extraPayment, 300);
   const [editExpense, setEditExpense] = useState(null);
   const [editDebt, setEditDebt] = useState(null);
+  const [editIncome, setEditIncome] = useState(null);
   const [editingSub, setEditingSub] = useState(null);
   const [editingBill, setEditingBill] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
@@ -2071,6 +2133,7 @@ function MoneyPage({ data, actions }) {
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
+      <EditIncomeModal open={!!editIncome} onClose={()=>setEditIncome(null)} income={editIncome} onSave={(id,patch)=>{actions.updateIncome(id,patch);setEditIncome(null);}} />
       <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}} />
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
       <AddDebtModal open={modal==='debt'} onClose={()=>setModal(null)} onSave={e=>{actions.addDebt(e);setModal(null);}} />
@@ -2243,6 +2306,32 @@ function MoneyPage({ data, actions }) {
               </div>
             )}
           </GlassCard>
+
+          {/* Income list for selected month */}
+          {(() => { const selMonthIncomes = [...incomes].filter(i=>i.date?.startsWith(selectedMonth)).sort((a,b)=>a.date<b.date?1:-1); return selMonthIncomes.length > 0 && (
+            <GlassCard style={{ padding:'20px 22px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                <SectionLabel>Income — {selectedMonth} ({selMonthIncomes.length})</SectionLabel>
+                <span style={{ fontSize:12, fontFamily:T.fM, color:T.emerald, fontWeight:700 }}>{cur}{fmtN(selMonthInc)}</span>
+              </div>
+              {selMonthIncomes.map((inc,i)=>(
+                <div key={inc.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<selMonthIncomes.length-1?`1px solid ${T.border}`:'none' }}>
+                  <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:T.emerald, flexShrink:0 }} />
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.note||'Income'}</div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{inc.date}{inc.recurring?` · 🔄 ${inc.frequency}`:''}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                    <span style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.emerald }}>+{cur}{fmtN(inc.amount)}</span>
+                    <button onClick={()=>setEditIncome(inc)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={11} stroke={T.sky} /></button>
+                    <button onClick={()=>actions.removeIncome(inc.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
+                  </div>
+                </div>
+              ))}
+            </GlassCard>
+          ); })()}
         </div>
       )}
 
@@ -2559,6 +2648,7 @@ function MoneyPage({ data, actions }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function HealthPage({ data, actions }) {
   const [modal, setModal] = useState(null);
+  const [editingVitals, setEditingVitals] = useState(null);
   const [focusActive, setFocusActive] = useState(false);
   const [focusTime, setFocusTime] = useState(25*60);
   const [elapsed, setElapsed] = useState(0);
@@ -2592,7 +2682,8 @@ function HealthPage({ data, actions }) {
   const STAR_COLORS = { 5:T.emerald, 4:T.accent, 3:T.amber, 2:T.rose, 1:T.rose };
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={vitals.map(v=>v.date)} />
+      <EditVitalsModal open={!!editingVitals} onClose={()=>setEditingVitals(null)} vitals={editingVitals} onSave={(id,patch)=>{actions.updateVitals(id,patch);setEditingVitals(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1></div>
       <div style={{ display:'flex', gap:10, marginBottom:18 }}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
@@ -2645,12 +2736,16 @@ function HealthPage({ data, actions }) {
             {sorted.slice(0,8).map((v,i)=>(
               <div key={v.id||i} style={{ display:'flex', gap:14, justifyContent:'space-between', padding:'8px 0', borderBottom:i<7?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM, alignItems:'center' }}>
                 <span style={{ color:T.textSub, flexShrink:0 }}>{v.date}</span>
-                <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'flex-end', alignItems:'center' }}>
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'flex-end', alignItems:'center', flex:1 }}>
                   {v.sleep>0&&<span style={{ color:T.sky }}>😴 {v.sleep}h</span>}
                   {v.sleepQuality>0&&<span style={{ color:STAR_COLORS[v.sleepQuality]||T.amber, fontSize:10 }}>{'⭐'.repeat(v.sleepQuality)} <span style={{ fontSize:9, color:T.textSub }}>quality</span></span>}
                   {v.mood>0&&<span style={{ color:T.violet }}>😊 {v.mood}/10</span>}
                   {v.energy>0&&<span style={{ color:T.accent }}>⚡ {v.energy}/10</span>}
                   {v.weight>0&&<span style={{ color:T.emerald }}>⚖️ {v.weight}</span>}
+                </div>
+                <div style={{ display:'flex', gap:5, flexShrink:0 }}>
+                  <button onClick={()=>setEditingVitals(v)} style={{ padding:4, borderRadius:5, background:T.surface, border:`1px solid ${T.border}` }} title="Edit"><IcoPencil size={10} stroke={T.accent} /></button>
+                  <button onClick={()=>actions.removeVitals(v.id)} style={{ padding:4, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }} title="Delete"><IcoTrash size={10} stroke={T.rose} /></button>
                 </div>
               </div>
             ))}
@@ -5095,6 +5190,19 @@ export default function LifeOS() {
     pushEvent({ type:'income', title:i.note||'Income received', value:`+${settings.currency||'$'}${i.amount}`, color:T.emerald, domain:'money' });
   }, [pushEvent, settings.currency]);
 
+  const removeIncome = useCallback((incId) => {
+    const inc = incomes.find(i => i.id === incId);
+    if (!inc) return;
+    setIncomes(p => p.filter(i => i.id !== incId));
+    addToast(`Income deleted: ${settings.currency||'$'}${fmtN(inc.amount)}`, () => setIncomes(p => [inc, ...p]));
+    pushEvent({ type:'income_removed', title:'Income deleted', value:'', color:T.textSub, domain:'money' });
+  }, [incomes, pushEvent, addToast, settings.currency]);
+
+  const updateIncome = useCallback((incId, patch) => {
+    setIncomes(p => p.map(i => i.id === incId ? { ...i, ...patch } : i));
+    pushEvent({ type:'income_edited', title:'Income updated', value:'', color:T.emerald, domain:'money' });
+  }, [pushEvent]);
+
   const addHabit = useCallback((name, opts={}) => {
     const h = { id: Date.now(), name, frequency:opts.frequency||'daily', emoji:opts.emoji||'🔥', xp:opts.xp||10, category:opts.category||'' };
     setHabits(p => [...p, h]);
@@ -5134,6 +5242,15 @@ export default function LifeOS() {
     setTotalXP(x => Number(x) + 8);
     pushEvent({ type:'vitals', title:'Vitals logged', value:`😴 ${v.sleep}h · 😊 ${v.mood}/10`, color:T.sky, domain:'health' });
   }, [pushEvent]);
+
+  const removeVitals = useCallback((vId) => {
+    setVitals(p => p.filter(v => v.id !== vId));
+    addToast('Vitals entry deleted', null, 3);
+  }, [addToast]);
+
+  const updateVitals = useCallback((vId, patch) => {
+    setVitals(p => p.map(v => v.id === vId ? { ...v, ...patch } : v));
+  }, []);
 
   const addChronicle = useCallback((c) => {
     setChronicles(p => [c, ...p]);
@@ -5342,8 +5459,8 @@ export default function LifeOS() {
   }, [incomes, expenses, investments, assets, debts, _thisMonth, totalXP]);
 
   const actions = {
-    addExpense, addIncome, addHabit, logHabit, removeHabit,
-    addVitals, addNote, addGoal, removeGoal, addAsset,
+    addExpense, addIncome, removeIncome, updateIncome, addHabit, logHabit, removeHabit,
+    addVitals, removeVitals, updateVitals, addNote, addGoal, removeGoal, addAsset,
     updateGoalProgress, updateSettings,
     addDebt, payDebt, removeDebt,
     addInvestment, removeInvestment,
