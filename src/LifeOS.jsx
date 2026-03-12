@@ -323,7 +323,7 @@ const EXPENSE_COLORS = {
   '🍽️ Food':T.emerald,'🍔 Fast Food':T.amber,'🚗 Transport':T.sky,
   '❤️ Health':T.rose,'🏠 Housing':T.violet,'💳 Debts':T.rose,
   '💰 Savings':T.accent,'🎮 Leisure':T.amber,'👕 Shopping':T.violet,
-  '🔧 Other':T.textSub,'✈️ Travel':T.sky,'🚬 Tobacco':T.textMuted,
+  '🔧 Other':T.textSub,'✈️ Travel':T.sky,'🚬 Tabac':T.textMuted,
 };
 const getCatColor = (cat) => {
   if (!cat) return T.textSub;
@@ -725,7 +725,7 @@ function buildSearchIndex(data) {
 // ── MODALS ─────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel'];
+const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel','🚬 Tabac'];
 // Resolve active categories — uses custom list if configured
 const getActiveCats = () => { try { const s=JSON.parse(localStorage.getItem('los_settings')||'{}'); return s.customCats?.length ? s.customCats : CATS; } catch { return CATS; } };
 
@@ -1001,6 +1001,66 @@ function AddInvestmentModal({ open, onClose, onSave }) {
 }
 
 // Phase 2 — Add Subscription Modal
+function EditSubscriptionModal({ open, onClose, sub, onSave }) {
+  const [name, setName] = useState(''); const [amount, setAmount] = useState('');
+  const [cycle, setCycle] = useState('monthly'); const [category, setCategory] = useState('Entertainment');
+  const [nextDate, setNextDate] = useState(today()); const [emoji, setEmoji] = useState('📺');
+  useEffect(() => { if (sub && open) { setName(sub.name||''); setAmount(String(sub.amount||'')); setCycle(sub.cycle||'monthly'); setCategory(sub.category||'Entertainment'); setNextDate(sub.nextDate||today()); setEmoji(sub.emoji||'📺'); } }, [sub, open]);
+  const save = () => { if (!name.trim() || !amount) return; onSave(sub.id, { name:name.trim(), amount:Number(amount), cycle, category, nextDate, emoji }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Subscription">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'48px 1fr', gap:8 }}>
+          <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{ textAlign:'center', fontSize:18 }} />
+          <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Service name" />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" />
+          <Select value={cycle} onChange={e=>setCycle(e.target.value)}>{['monthly','yearly','weekly'].map(c=><option key={c}>{c}</option>)}</Select>
+        </div>
+        <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Entertainment','Software','Health','Finance','Education','Shopping','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Next billing date</div>
+          <Input type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)} />
+        </div>
+        <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function EditBillModal({ open, onClose, bill, onSave }) {
+  const [name, setName] = useState(''); const [amount, setAmount] = useState('');
+  const [dueDay, setDueDay] = useState('1'); const [category, setCategory] = useState('Utilities');
+  const [emoji, setEmoji] = useState('🧾'); const [autoPay, setAutoPay] = useState(false);
+  const [nextDate, setNextDate] = useState(today());
+  useEffect(() => { if (bill && open) { setName(bill.name||''); setAmount(String(bill.amount||'')); setDueDay(String(bill.dueDay||1)); setCategory(bill.category||'Utilities'); setEmoji(bill.emoji||'🧾'); setAutoPay(bill.autoPay||false); setNextDate(bill.nextDate||today()); } }, [bill, open]);
+  const save = () => { if (!name.trim() || !amount) return; onSave(bill.id, { name:name.trim(), amount:Number(amount), dueDay:Number(dueDay), category, emoji, autoPay, nextDate }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Bill">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'48px 1fr', gap:8 }}>
+          <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{ textAlign:'center', fontSize:18 }} />
+          <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Bill name" />
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" />
+          <Input type="number" value={dueDay} onChange={e=>setDueDay(e.target.value)} placeholder="Due day (1-31)" min="1" max="31" />
+        </div>
+        <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Utilities','Rent/Mortgage','Insurance','Phone','Internet','Transportation','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Next due date</div>
+          <Input type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)} />
+        </div>
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer' }}>
+          <input type="checkbox" checked={autoPay} onChange={e=>setAutoPay(e.target.checked)} /> Auto-pay enabled
+        </label>
+        <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 function AddSubscriptionModal({ open, onClose, onSave }) {
   const [name, setName] = useState(''); const [amount, setAmount] = useState('');
   const [cycle, setCycle] = useState('monthly'); const [category, setCategory] = useState('Entertainment');
@@ -1959,6 +2019,8 @@ function MoneyPage({ data, actions }) {
   const debouncedExtraPayment = useDebounce(extraPayment, 300);
   const [editExpense, setEditExpense] = useState(null);
   const [editDebt, setEditDebt] = useState(null);
+  const [editingSub, setEditingSub] = useState(null);
+  const [editingBill, setEditingBill] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
@@ -2004,7 +2066,7 @@ function MoneyPage({ data, actions }) {
   const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const TABS = ['overview','spending','debts','investments','trades','watchlist','investor','depreciation','goals','assets','subscriptions','bills','tools','simulator'];
+  const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
@@ -2016,6 +2078,8 @@ function MoneyPage({ data, actions }) {
       <AddInvestmentModal open={modal==='investment'} onClose={()=>setModal(null)} onSave={e=>{actions.addInvestment(e);setModal(null);}} />
       <AddSubscriptionModal open={modal==='subscription'} onClose={()=>setModal(null)} onSave={e=>{actions.addSubscription(e);setModal(null);}} />
       <AddBillModal open={modal==='bill'} onClose={()=>setModal(null)} onSave={e=>{actions.addBill(e);setModal(null);}} />
+      <EditSubscriptionModal open={!!editingSub} onClose={()=>setEditingSub(null)} sub={editingSub} onSave={(id,patch)=>{actions.updateSubscription(id,patch);setEditingSub(null);}} />
+      <EditBillModal open={!!editingBill} onClose={()=>setEditingBill(null)} bill={editingBill} onSave={(id,patch)=>{actions.updateBill(id,patch);setEditingBill(null);}} />
       <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} />
       <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
       <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
@@ -2369,102 +2433,116 @@ function MoneyPage({ data, actions }) {
         </div>
       )}
 
-      {tab==='subscriptions' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-            <Btn onClick={()=>setModal('subscription')} color={T.sky}>+ Add Subscription</Btn>
-            {subscriptions.length>0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Monthly total: <span style={{ color:T.sky, fontWeight:600 }}>{cur}{fmtN(monthlySubTotal)}</span> · Annual: <span style={{ color:T.sky }}>{cur}{fmtN(monthlySubTotal*12)}</span></div>}
-          </div>
-          {subscriptions.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:28, marginBottom:12 }}>🔄</div>
-              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>No subscriptions tracked</div>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Track your recurring subscriptions to see where your money goes each month.</div>
-            </GlassCard>
-          ) : (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Active Subscriptions</SectionLabel>
-              {subscriptions.map((sub,i)=>{ const monthly=sub.cycle==='yearly'?Number(sub.amount)/12:sub.cycle==='weekly'?Number(sub.amount)*4.33:Number(sub.amount); return (
-                <div key={sub.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0', borderBottom:i<subscriptions.length-1?`1px solid ${T.border}`:'none' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                    <span style={{ fontSize:22 }}>{sub.emoji||'📺'}</span>
-                    <div>
-                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{sub.name}</div>
-                      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{sub.category} · {sub.cycle} · Next: {sub.nextDate}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.sky }}>{cur}{fmtN(sub.amount)}/{sub.cycle==='monthly'?'mo':sub.cycle==='yearly'?'yr':'wk'}</div>
-                      {sub.cycle!=='monthly'&&<div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{cur}{fmtN(monthly)}/mo</div>}
-                    </div>
-                    <button onClick={()=>actions.removeSubscription(sub.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={12} stroke={T.rose} /></button>
-                  </div>
+      {tab==='recurring' && (() => {
+        const billTotal = billsArr.reduce((s,b)=>s+Number(b.amount||0),0);
+        const combinedMonthly = monthlySubTotal + billTotal;
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+            {/* Summary bar */}
+            {(subscriptions.length>0||billsArr.length>0) && (
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                <div style={{ flex:1, minWidth:140, padding:'10px 14px', background:T.skyDim, borderRadius:T.r, border:`1px solid ${T.sky}22` }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>TOTAL RECURRING / MONTH</div>
+                  <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.sky }}>{cur}{fmtN(combinedMonthly)}</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{cur}{fmtN(combinedMonthly*12)}/year{monthInc>0?` · ${((combinedMonthly/monthInc)*100).toFixed(1)}% of income`:''}</div>
                 </div>
-              ); })}
-              <div style={{ marginTop:14, padding:'12px 14px', background:T.skyDim, borderRadius:T.r, border:`1px solid ${T.sky}22` }}>
-                <div style={{ fontSize:11, fontFamily:T.fM, color:T.sky, fontWeight:600 }}>📊 Subscription Analysis</div>
-                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>{subscriptions.length} services · {cur}{fmtN(monthlySubTotal)}/month · {cur}{fmtN(monthlySubTotal*12)}/year{monthInc>0?` · ${((monthlySubTotal/monthInc)*100).toFixed(1)}% of income`:''}</div>
+                <div style={{ flex:1, minWidth:120, padding:'10px 14px', background:T.surface, borderRadius:T.r, border:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>SUBSCRIPTIONS</div>
+                  <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{subscriptions.length} · {cur}{fmtN(monthlySubTotal)}/mo</div>
+                </div>
+                <div style={{ flex:1, minWidth:120, padding:'10px 14px', background:T.surface, borderRadius:T.r, border:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:4 }}>BILLS</div>
+                  <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{billsArr.filter(b=>!b.paid).length} pending · {cur}{fmtN(billTotal)}/mo</div>
+                </div>
               </div>
-            </GlassCard>
-          )}
-        </div>
-      )}
-      {tab==='bills' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-            <Btn onClick={()=>setModal('bill')} color={T.sky}>+ Add Bill</Btn>
-            {billsArr.length>0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Monthly total: <span style={{ color:T.sky, fontWeight:600 }}>{cur}{fmtN(billsArr.reduce((s,b)=>s+Number(b.amount||0),0))}</span></div>}
-          </div>
-          {billsArr.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}>
-              <div style={{ fontSize:28, marginBottom:12 }}>🧾</div>
-              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>No bills tracked</div>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Add your recurring bills — rent, utilities, insurance — to never miss a due date.</div>
-            </GlassCard>
-          ) : (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Upcoming Bills</SectionLabel>
-              {upcomingBills.map((bill,i)=>{
-                const daysUntil = Math.ceil((new Date(bill.nextDate)-new Date())/(1000*60*60*24));
-                const isOverdue = daysUntil < 0;
-                const isUrgent = daysUntil <= 3 && daysUntil >= 0;
-                const statusColor = isOverdue ? T.rose : isUrgent ? T.amber : T.text;
-                return (
-                  <div key={bill.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0', borderBottom:i<upcomingBills.length-1?`1px solid ${T.border}`:'none' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      <div style={{ width:38, height:38, borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{bill.emoji||'🧾'}</div>
-                      <div>
-                        <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{bill.name}</div>
-                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{bill.category} · Due: {bill.nextDate}{bill.autoPay?' · ✓ Auto-pay':''}</div>
+            )}
+
+            {/* Subscriptions section */}
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, fontWeight:600, letterSpacing:'0.08em' }}>🔄 SUBSCRIPTIONS</div>
+                <Btn onClick={()=>setModal('subscription')} color={T.sky} style={{ padding:'4px 12px', fontSize:11 }}>+ Add</Btn>
+              </div>
+              {subscriptions.length===0 ? (
+                <GlassCard style={{ padding:24, textAlign:'center' }}>
+                  <div style={{ fontSize:22, marginBottom:8 }}>🔄</div>
+                  <div style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>No subscriptions tracked yet</div>
+                </GlassCard>
+              ) : (
+                <GlassCard style={{ padding:'14px 18px' }}>
+                  {subscriptions.map((sub,i)=>{ const monthly=sub.cycle==='yearly'?Number(sub.amount)/12:sub.cycle==='weekly'?Number(sub.amount)*4.33:Number(sub.amount); return (
+                    <div key={sub.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<subscriptions.length-1?`1px solid ${T.border}`:'none' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <span style={{ fontSize:20 }}>{sub.emoji||'📺'}</span>
+                        <div>
+                          <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{sub.name}</div>
+                          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{sub.category} · {sub.cycle} · Next: {sub.nextDate}</div>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <div style={{ textAlign:'right' }}>
+                          <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:T.sky }}>{cur}{fmtN(sub.amount)}/{sub.cycle==='monthly'?'mo':sub.cycle==='yearly'?'yr':'wk'}</div>
+                          {sub.cycle!=='monthly'&&<div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{cur}{fmtN(monthly)}/mo</div>}
+                        </div>
+                        <button onClick={()=>setEditingSub(sub)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}` }} title="Edit"><IcoPencil size={11} stroke={T.accent} /></button>
+                        <button onClick={()=>actions.removeSubscription(sub.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
                       </div>
                     </div>
-                    <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.sky }}>{cur}{fmtN(bill.amount)}</div>
-                        <div style={{ fontSize:10, fontFamily:T.fM, color:statusColor, fontWeight:isOverdue||isUrgent?600:400 }}>{isOverdue?`${-daysUntil}d overdue`:isUrgent?`Due in ${daysUntil}d`:`${daysUntil}d away`}</div>
-                      </div>
-                      <button onClick={()=>actions.markBillPaid(bill.id)} style={{ padding:'4px 9px', borderRadius:6, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, fontSize:10, fontFamily:T.fM, color:T.emerald, cursor:'pointer' }}>✓ Pay</button>
-                      <button onClick={()=>actions.removeBill(bill.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={12} stroke={T.rose} /></button>
-                    </div>
-                  </div>
-                );
-              })}
-              {billsArr.filter(b=>b.paid).length > 0 && (
-                <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${T.border}` }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:10, letterSpacing:'0.08em' }}>PAID THIS CYCLE</div>
-                  {billsArr.filter(b=>b.paid).map((bill,i)=>(
-                    <div key={bill.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', opacity:0.5 }}>
-                      <div style={{ display:'flex', gap:10, alignItems:'center' }}><span>{bill.emoji||'🧾'}</span><span style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textDecoration:'line-through' }}>{bill.name}</span></div>
-                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>✓ Paid · {cur}{fmtN(bill.amount)}</div>
-                    </div>
-                  ))}
-                </div>
+                  ); })}
+                </GlassCard>
               )}
-            </GlassCard>
-          )}
-        </div>
-      )}
+            </div>
+
+            {/* Bills section */}
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, fontWeight:600, letterSpacing:'0.08em' }}>🧾 BILLS</div>
+                <Btn onClick={()=>setModal('bill')} color={T.amber} style={{ padding:'4px 12px', fontSize:11 }}>+ Add</Btn>
+              </div>
+              {billsArr.length===0 ? (
+                <GlassCard style={{ padding:24, textAlign:'center' }}>
+                  <div style={{ fontSize:22, marginBottom:8 }}>🧾</div>
+                  <div style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>No bills tracked yet</div>
+                </GlassCard>
+              ) : (
+                <GlassCard style={{ padding:'14px 18px' }}>
+                  {upcomingBills.map((bill,i)=>{ const daysUntil=Math.ceil((new Date(bill.nextDate)-new Date())/(1000*60*60*24)); const isOverdue=daysUntil<0; const isUrgent=daysUntil<=3&&daysUntil>=0; const statusColor=isOverdue?T.rose:isUrgent?T.amber:T.textSub; return (
+                    <div key={bill.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<upcomingBills.length-1?`1px solid ${T.border}`:'none' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <div style={{ width:34, height:34, borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>{bill.emoji||'🧾'}</div>
+                        <div>
+                          <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{bill.name}</div>
+                          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{bill.category} · Due: {bill.nextDate}{bill.autoPay?' · ✓ Auto-pay':''}</div>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <div style={{ textAlign:'right' }}>
+                          <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:T.sky }}>{cur}{fmtN(bill.amount)}</div>
+                          <div style={{ fontSize:10, fontFamily:T.fM, color:statusColor, fontWeight:isOverdue||isUrgent?600:400 }}>{isOverdue?`${-daysUntil}d overdue`:isUrgent?`Due in ${daysUntil}d`:`${daysUntil}d away`}</div>
+                        </div>
+                        <button onClick={()=>actions.markBillPaid(bill.id)} style={{ padding:'3px 8px', borderRadius:6, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, fontSize:10, fontFamily:T.fM, color:T.emerald, cursor:'pointer' }}>✓</button>
+                        <button onClick={()=>setEditingBill(bill)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}` }} title="Edit"><IcoPencil size={11} stroke={T.accent} /></button>
+                        <button onClick={()=>actions.removeBill(bill.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
+                      </div>
+                    </div>
+                  ); })}
+                  {billsArr.filter(b=>b.paid).length>0&&(
+                    <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}` }}>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:8, letterSpacing:'0.08em' }}>PAID THIS CYCLE</div>
+                      {billsArr.filter(b=>b.paid).map((bill)=>(
+                        <div key={bill.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', opacity:0.5 }}>
+                          <div style={{ display:'flex', gap:8, alignItems:'center' }}><span>{bill.emoji||'🧾'}</span><span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, textDecoration:'line-through' }}>{bill.name}</span></div>
+                          <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>✓ {cur}{fmtN(bill.amount)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </GlassCard>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* S4: What-If Financial Simulator tab */}
       {tab === 'simulator' && <WhatIfSimulator data={data} />}
@@ -2945,10 +3023,57 @@ function GrowthPage({ data, actions }) {
   );
 }
 
+// ── EDIT NOTE MODAL ────────────────────────────────────────────────────────────
+function EditNoteModal({ open, onClose, note, onSave }) {
+  const [title, setTitle] = useState(''); const [body, setBody] = useState('');
+  const [tag, setTag] = useState('General'); const [type, setType] = useState('note');
+  const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (note && open) {
+      setTitle(note.title || ''); setBody(note.body || ''); setTag(note.tag || 'General');
+      setType(note.type || 'note'); setPriority(note.priority || 2);
+      setDueDate(note.dueDate || ''); setDone(!!note.done);
+    }
+  }, [note, open]);
+  const save = () => {
+    if (!title.trim()) return;
+    onSave(note.id, { title: title.trim(), body: body.trim(), tag, type, priority, dueDate, done });
+    onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Note">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <Select value={type} onChange={e=>setType(e.target.value)}>{['note','task','idea','bookmark'].map(t=><option key={t}>{t}</option>)}</Select>
+          <Select value={tag} onChange={e=>setTag(e.target.value)}>{['General','Finance','Health','Career','Growth','Ideas'].map(t=><option key={t}>{t}</option>)}</Select>
+        </div>
+        <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" />
+        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." rows={4} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>Priority:</div>
+          {[1,2,3].map(p=><button key={p} onClick={()=>setPriority(p)} style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, background:priority===p?[T.rose,T.amber,T.sky][p-1]+'33':'transparent', color:priority===p?[T.rose,T.amber,T.sky][p-1]:T.textSub, border:`1px solid ${priority===p?[T.rose,T.amber,T.sky][p-1]+'55':T.border}` }}>{['🔴 High','🟡 Med','🔵 Low'][p-1]}</button>)}
+        </div>
+        {type==='task' && (
+          <>
+            <Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} placeholder="Due date" />
+            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:done?T.emeraldDim:T.surface, border:`1px solid ${done?T.emerald+'44':T.border}` }}>
+              <input type="checkbox" checked={done} onChange={e=>setDone(e.target.checked)} />
+              <span>{done ? '✅ Task completed' : 'Mark as done'}</span>
+            </label>
+          </>
+        )}
+        <Btn full onClick={save} color={T.amber}>Save Changes</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function KnowledgePage({ data, actions }) {
   const [tab, setTab] = useState('notes');
   const [modal, setModal] = useState(null);
+  const [editingNote, setEditingNote] = useState(null);
   const [noteTypeFilter, setNoteTypeFilter] = useState('all');
   const [notePriorityFilter, setNotePriorityFilter] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
@@ -2996,6 +3121,7 @@ function KnowledgePage({ data, actions }) {
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
       <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
+      <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
         {['notes','quick notes','courses','capsule','ai assistant'].map(t=>(
@@ -3022,21 +3148,28 @@ function KnowledgePage({ data, actions }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
               {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
-                <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
+                <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${tc}55`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                     <div style={{ display:'flex', gap:5, alignItems:'center', flexWrap:'wrap' }}>
                       <Badge color={tc}>{note.tag||'General'}</Badge>
                       {note.type && note.type!=='note' && <Badge color={note.type==='task'?T.sky:note.type==='idea'?T.violet:T.amber}>{note.type}</Badge>}
                       {note.priority && note.priority===1 && <span style={{ fontSize:9, color:T.rose }}>🔴</span>}
                       {note.dueDate && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>📅 {note.dueDate}</span>}
+                      {note.done && <Badge color={T.emerald}>✅ Done</Badge>}
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center' }}>
                       <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt}</span>
+                      {note.type==='task' && (
+                        <button onClick={e=>{e.stopPropagation();actions.updateNote(note.id,{done:!note.done});}} title={note.done?'Mark undone':'Mark done'} style={{ padding:'2px 8px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:note.done?T.emeraldDim:T.surface, border:`1px solid ${note.done?T.emerald+'44':T.border}`, color:note.done?T.emerald:T.textSub }}>
+                          {note.done?'✓ Done':'Mark done'}
+                        </button>
+                      )}
+                      <button onClick={e=>{e.stopPropagation();setEditingNote(note);}} title="Edit" style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.7 }}><IcoPencil size={10} stroke={T.accent} /></button>
                       <button onClick={e=>{e.stopPropagation();actions.updateNote?actions.updateNote(note.id,{archived:!note.archived}):null;}} title={note.archived?'Unarchive':'Archive'} style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5, fontSize:10 }}>{note.archived?'📤':'📦'}</button>
                       <button onClick={e=>{e.stopPropagation();actions.removeNote(note.id);}} style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={10} stroke={T.rose} /></button>
                     </div>
                   </div>
-                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7 }}>{note.title}</div>
+                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7, textDecoration:note.done?'line-through':'' }}>{note.title}</div>
                   <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body||note.content||note.text||''}</div>
                 </GlassCard>
               ); })}
@@ -3336,6 +3469,23 @@ function ArchivePage({ data }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ── CUSTOM CATEGORY INPUT ─────────────────────────────────────────────────────
+function CustomCatInput({ onAdd }) {
+  const [val, setVal] = useState('');
+  return (
+    <>
+      <Input
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        placeholder="New category (e.g. 🚬 Tabac)…"
+        onKeyDown={e => { if (e.key === 'Enter' && val.trim()) { onAdd(val.trim()); setVal(''); } }}
+        style={{ flex: 1 }}
+      />
+      <Btn onClick={() => { if (val.trim()) { onAdd(val.trim()); setVal(''); } }} color={T.accent}>Add</Btn>
+    </>
   );
 }
 
@@ -5078,6 +5228,11 @@ export default function LifeOS() {
     pushEvent({ type:'subscription_removed', title:'Subscription cancelled', value:'', color:T.textSub, domain:'money' });
   }, [pushEvent]);
 
+  const updateSubscription = useCallback((subId, patch) => {
+    setSubscriptions(p => p.map(s => s.id === subId ? { ...s, ...patch } : s));
+    pushEvent({ type:'subscription_edited', title:'Subscription updated', value:'', color:T.sky, domain:'money' });
+  }, [pushEvent]);
+
   // Phase 2 — Budget Actions
   const setBudgets = useCallback((b) => { setBudgetsStore(b); }, []);
 
@@ -5122,6 +5277,11 @@ export default function LifeOS() {
     setBills(p => p.filter(b => b.id !== billId));
     addToast(`Bill removed: "${bill.name}"`, () => setBills(p => [bill, ...p]));
   }, [bills, addToast]);
+
+  const updateBill = useCallback((billId, patch) => {
+    setBills(p => p.map(b => b.id === billId ? { ...b, ...patch } : b));
+    pushEvent({ type:'bill_edited', title:'Bill updated', value:'', color:T.sky, domain:'money' });
+  }, [pushEvent]);
 
   const markBillPaid = useCallback((billId) => {
     setBills(p => p.map(b => {
@@ -5187,11 +5347,11 @@ export default function LifeOS() {
     updateGoalProgress, updateSettings,
     addDebt, payDebt, removeDebt,
     addInvestment, removeInvestment,
-    addSubscription, removeSubscription,
+    addSubscription, removeSubscription, updateSubscription,
     setBudgets,
     // S1
     removeExpense, updateExpense, updateDebt, removeNote, updateNote,
-    addBill, removeBill, markBillPaid,
+    addBill, removeBill, markBillPaid, updateBill,
     addQuickNote, removeQuickNote,
     // S2
     updateHabit,
@@ -5207,6 +5367,7 @@ export default function LifeOS() {
     habits, habitLogs, vitals, notes, totalXP, settings,
     netWorthHistory, eventLog, focusSessions, quickNotes,
     subscriptions, budgets, bills, career,
+    chronicles, challenges,  // ← required by GrowthPage
     computed, // ← centralised derived stats
     isMobile,  // ← passed to all pages for responsive layouts
   };
