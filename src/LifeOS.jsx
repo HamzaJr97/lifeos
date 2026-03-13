@@ -3550,8 +3550,8 @@ function GrowthPage({ data, actions }) {
               ); })}
             </div>
           )}
-        </div>);
-      })()}
+        </div>
+      )}
 
       {tab==='chronicles' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
