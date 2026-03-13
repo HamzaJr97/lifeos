@@ -3289,8 +3289,8 @@ function HealthPage({ data, actions }) {
         <div style={{ marginTop:14 }}>
           <FocusBillingTab data={data} />
         </div>
-      </div>
-    </div>}
+      </div>}
+    </div>
   );
 }
 
