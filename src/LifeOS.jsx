@@ -866,9 +866,16 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, apiKey, currenc
 }
 
 function LogExpenseModal({ open, onClose, onSave }) {
+  const [regret, setRegret] = useState(false);
+  const [subcategory, setSubcategory] = useState('');
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
-  const save = () => { if (!amt) return; onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date }); setAmt(''); setNote(''); onClose(); };
+  const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
+  const save = () => {
+    if (!amt) return;
+    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date, recurring, frequency:recurring?frequency:null, regret:!!regret, subcategory:subcategory.trim() });
+    setAmt(''); setNote(''); setRecurring(false); setRegret(false); setSubcategory(''); onClose();
+  };
   return (
     <Modal open={open} onClose={onClose} title="💳 Log Expense">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -876,6 +883,16 @@ function LogExpenseModal({ open, onClose, onSave }) {
         <Select value={cat} onChange={e=>setCat(e.target.value)}>{getActiveCats().map(c=><option key={c}>{c}</option>)}</Select>
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <Input value={subcategory} onChange={e=>setSubcategory(e.target.value)} placeholder="Subcategory (e.g. Groceries, Gym — optional)" />
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontFamily:T.fM, color:T.textSub, cursor:'pointer', padding:'4px 2px' }}>
+          <input type="checkbox" checked={recurring} onChange={e=>setRecurring(e.target.checked)} style={{ accentColor:T.sky }} />
+          <span>Recurring</span>
+          {recurring && <Select value={frequency} onChange={e=>setFrequency(e.target.value)} style={{ marginLeft:4, padding:'2px 6px', fontSize:10 }}>{['weekly','bi-weekly','monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>}
+        </label>
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontFamily:T.fM, color:T.textSub, cursor:'pointer', padding:'4px 2px' }}>
+          <input type="checkbox" checked={regret} onChange={e=>setRegret(e.target.checked)} style={{ accentColor:T.rose }} />
+          <span>🤦 Regret this purchase</span>
+        </label>
         <Btn full onClick={save} color={T.rose}>{t('save')}</Btn>
       </div>
     </Modal>
@@ -1167,19 +1184,20 @@ function LogDebtPaymentModal({ open, onClose, debts, onPay }) {
 
 // Phase 4 — Add Investment Modal
 function AddInvestmentModal({ open, onClose, onSave }) {
+  const [thesis, setThesis] = useState('');
   const [symbol, setSymbol] = useState(''); const [name, setName] = useState('');
   const [qty, setQty] = useState(''); const [buyPrice, setBuyPrice] = useState('');
   const [currentPrice, setCurrentPrice] = useState(''); const [type, setType] = useState('Stock');
   const [date, setDate] = useState(today()); const [notes, setNotes] = useState('');
   const save = () => {
     if (!qty || !buyPrice) return;
-    onSave({ id:Date.now(), symbol:symbol.trim().toUpperCase(), name:name.trim()||symbol.trim(), quantity:Number(qty), buyPrice:Number(buyPrice), currentPrice:Number(currentPrice)||Number(buyPrice), type, date, notes:notes.trim() });
-    setSymbol(''); setName(''); setQty(''); setBuyPrice(''); setCurrentPrice(''); setNotes(''); onClose();
+    onSave({ id:Date.now(), symbol:symbol.trim().toUpperCase(), name:name.trim()||symbol.trim(), quantity:Number(qty), buyPrice:Number(buyPrice), currentPrice:Number(currentPrice)||Number(buyPrice), type, date, notes:notes.trim(), thesis:thesis.trim() });
+    setSymbol(''); setName(''); setQty(''); setBuyPrice(''); setCurrentPrice(''); setNotes(''); setThesis(''); onClose();
   };
   return (
     <Modal open={open} onClose={onClose} title="📈 Add Investment">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        <Select value={type} onChange={e=>setType(e.target.value)}>{['Stock','ETF','Crypto','Bond','REIT','Other'].map(t=><option key={t}>{t}</option>)}</Select>
+        <Select value={type} onChange={e=>setType(e.target.value)}>{['Stock','ETF','Crypto','Bond','REIT','Commodity','Real Estate','Other'].map(t=><option key={t}>{t}</option>)}</Select>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
           <Input value={symbol} onChange={e=>setSymbol(e.target.value)} placeholder="Ticker (e.g. AAPL)" />
           <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name (optional)" />
@@ -1755,6 +1773,10 @@ function HomePage({ data, actions, onNav }) {
   const [showMoodBanner, setShowMoodBanner] = useState(() => !vitals.some(v=>v.date===today()));
   const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
   const [weeklyFocusEdit, setWeeklyFocusEdit] = useState(false);
+  // Stored Weekly AI Brief
+  const [storedBrief, setStoredBrief] = useLocalStorage('los_weekly_brief', { week:'', content:'', loading:false });
+  const currentWeek = (() => { const d=new Date(); const jan1=new Date(d.getFullYear(),0,1); return `${d.getFullYear()}-W${Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7)}`; })();
+  const briefOutdated = storedBrief.week !== currentWeek;
   const weeklyFocus = settings.weeklyFocus || ['','',''];
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   const hour = new Date().getHours();
@@ -1950,27 +1972,77 @@ function HomePage({ data, actions, onNav }) {
         );
       })()}
 
+      {/* ── Smart Alerts Dashboard Widget ──────────────────────────────────── */}
+      {(() => {
+        const alerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc: monthInc||0, savRate: savRate||0 });
+        if (!alerts.length) return null;
+        const urgent = alerts.slice(0,3);
+        const ALERT_ICONS = { budget:'💸', bill:'📆', emergency:'🆘', habit:'🔥', savings:'💡', default:'⚠️' };
+        return (
+          <GlassCard style={{ padding:'18px 22px', marginBottom:16, borderLeft:`3px solid ${T.amber}55` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <SectionLabel>Smart Alerts</SectionLabel>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:T.amberDim, borderRadius:99, padding:'2px 8px', border:`1px solid ${T.amber}33` }}>{alerts.length} active</span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {urgent.map((a,i)=>(
+                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 12px', borderRadius:T.r, background:`${a.color||T.amber}0a`, border:`1px solid ${a.color||T.amber}22` }}>
+                  <span style={{ fontSize:16, flexShrink:0 }}>{ALERT_ICONS[a.type]||ALERT_ICONS.default}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{a.title}</div>
+                    {a.body && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2, lineHeight:1.4 }}>{a.body}</div>}
+                  </div>
+                </div>
+              ))}
+              {alerts.length > 3 && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{alerts.length-3} more alerts · check TopBar bell</div>}
+            </div>
+          </GlassCard>
+        );
+      })()}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:16 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {/* Smart Alerts — now rendered in TopBar bell icon (S3) */}
           <GlassCard style={{ padding:'20px 22px' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:14 }}>
-              <div style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:'dotPulse 2s infinite' }} />
-              <span style={{ fontSize:9, fontFamily:T.fM, letterSpacing:'0.1em', color:'#c084fc', textTransform:'uppercase' }}>AI Daily Brief</span>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                <div style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:'dotPulse 2s infinite' }} />
+                <span style={{ fontSize:9, fontFamily:T.fM, letterSpacing:'0.1em', color:'#c084fc', textTransform:'uppercase' }}>AI Weekly Brief</span>
+              </div>
+              {settings.aiApiKey && briefOutdated && (() => {
+                const generateBrief = async () => {
+                  setStoredBrief(b=>({...b, loading:true}));
+                  try {
+                    const ctx = `Monthly income: ${cur}${fmtN(monthInc)}, expenses: ${cur}${fmtN(monthExp)}, savings rate: ${savRate.toFixed(1)}%, NW: ${cur}${fmtN(netWorth)}, habits done today: ${todayDone}/${habits.length}, best streak: ${bestStreak}d.`;
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                      method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+                      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:250, messages:[{ role:'user', content:`Generate a 3-sentence motivational weekly financial+habits brief for this user. Be specific, warm, and actionable. Data: ${ctx}` }] })
+                    });
+                    const json = await res.json();
+                    setStoredBrief({ week:currentWeek, content:json.content?.[0]?.text||'Keep pushing!', loading:false });
+                  } catch { setStoredBrief(b=>({...b, loading:false})); }
+                };
+                return <button onClick={generateBrief} style={{ fontSize:9, fontFamily:T.fM, color:'#c084fc', padding:'2px 8px', borderRadius:6, background:'#c084fc22', border:'1px solid #c084fc33' }}>Refresh</button>;
+              })()}
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-              {[
-                { icon:'💰', label:'Finance', msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent!`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Rate: ${savRate.toFixed(1)}%.` },
-                { icon:'❤️', label:'Health', msg:lastVitals?`Last logged: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10. ${lastVitals.sleep>=7?'Great rest!':'Aim for 7–8h.'}`:'Log your vitals today to track health trends.' },
-                { icon:'🔥', label:'Habits', msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start building streaks.'}` },
-              ].map((item,i)=>(
-                <div key={i} style={{ background:T.accentLo, borderRadius:T.r, padding:'12px 14px', border:`1px solid ${T.border}`, animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both` }}>
-                  <div style={{ fontSize:16, marginBottom:5 }}>{item.icon}</div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:3 }}>{item.label.toUpperCase()}</div>
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{item.msg}</div>
-                </div>
-              ))}
-            </div>
+            {storedBrief.loading ? (
+              <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, fontStyle:'italic', padding:'8px 0' }}>Generating your weekly brief…</div>
+            ) : storedBrief.content && !briefOutdated ? (
+              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, borderLeft:`3px solid #c084fc55`, paddingLeft:12 }}>{storedBrief.content}</div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+                {[
+                  { icon:'💰', label:'Finance', msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent!`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Rate: ${savRate.toFixed(1)}%.` },
+                  { icon:'❤️', label:'Health', msg:lastVitals?`Last logged: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10. ${lastVitals.sleep>=7?'Great rest!':'Aim for 7–8h.'}`:'Log your vitals today to track health trends.' },
+                  { icon:'🔥', label:'Habits', msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start building streaks.'}` },
+                ].map((item,i)=>(
+                  <div key={i} style={{ background:T.accentLo, borderRadius:T.r, padding:'12px 14px', border:`1px solid ${T.border}`, animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both` }}>
+                    <div style={{ fontSize:16, marginBottom:5 }}>{item.icon}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:3 }}>{item.label.toUpperCase()}</div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{item.msg}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Quick Actions</SectionLabel>
@@ -2506,7 +2578,7 @@ function MoneyPage({ data, actions }) {
                   <div style={{ width:8, height:8, borderRadius:'50%', background:getCatColor(e.category), flexShrink:0 }} />
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.note||e.category}</div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category} · {e.date}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category}{e.subcategory?` · ${e.subcategory}`:''} · {e.date}{e.regret&&<span title="Regret" style={{ marginLeft:6 }}>🤦</span>}{e.autoLogged&&<span title="Auto-logged" style={{ marginLeft:4, color:T.sky }}>🔄</span>}</div>
                   </div>
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
@@ -2675,14 +2747,26 @@ function MoneyPage({ data, actions }) {
       )}
 
 
-      {tab==='goals' && (
+      {tab==='goals' && (() => {
+        const [goalCatFilter, setGoalCatFilter] = React.useState('all');
+        const allCats = ['all', ...new Set(goals.map(g=>g.cat||'other').filter(Boolean))];
+        const filteredGoals = goalCatFilter==='all' ? goals : goals.filter(g=>(g.cat||'other')===goalCatFilter);
+        const catColors = { finance:T.accent, health:T.sky, growth:T.violet, career:T.amber, other:T.textSub };
+        return (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ display:'flex', justifyContent:'flex-end' }}><Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn></div>
-          {goals.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first financial goal.</div></GlassCard>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
+            <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+              {allCats.map(cat=>(
+                <button key={cat} onClick={()=>setGoalCatFilter(cat)} style={{ padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:goalCatFilter===cat?(catColors[cat]||T.amber)+'22':'transparent', color:goalCatFilter===cat?(catColors[cat]||T.amber):T.textSub, border:`1px solid ${goalCatFilter===cat?(catColors[cat]||T.amber)+'55':T.border}`, cursor:'pointer' }}>{cat}</button>
+              ))}
+            </div>
+            <Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn>
+          </div>
+          {filteredGoals.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{goalCatFilter==='all'?'No goals yet. Create your first financial goal.':'No goals in this category.'}</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
-              {goals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.accent;
+              {filteredGoals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.accent;
                 const remaining = Math.max(0, Number(goal.target||0) - Number(goal.current||0));
                 const monthsLeft = goal.deadline ? Math.max(1, Math.round((new Date(goal.deadline)-new Date())/(1000*60*60*24*30.4))) : null;
                 const monthlyNeeded = monthsLeft ? (remaining / monthsLeft) : null;
@@ -2917,6 +3001,10 @@ function MoneyPage({ data, actions }) {
 // ── HEALTH PAGE ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function HealthPage({ data, actions }) {
+  const [mealPlan, setMealPlan] = useLocalStorage('los_mealplan', null);
+  const [mealPlanLoading, setMealPlanLoading] = useState(false);
+  const [sleepCoachTips, setSleepCoachTips] = useLocalStorage('los_sleep_tips', null);
+  const [sleepCoachLoading, setSleepCoachLoading] = useState(false);
   const [modal, setModal] = useState(null);
   const [editingVitals, setEditingVitals] = useState(null);
   const [focusActive, setFocusActive] = useState(false);
@@ -2942,6 +3030,7 @@ function HealthPage({ data, actions }) {
 
   const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   const remaining = focusTime - elapsed; const fpct = (elapsed / focusTime) * 100;
+  const [healthTab, setHealthTab] = useState('overview');
   const sorted = [...vitals].sort((a,b)=>a.date<b.date?1:-1);
   const recent7 = sorted.slice(0,7).reverse();
   const avgSleep    = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.sleep||0),0)/recent7.length).toFixed(1) : '—';
@@ -2971,7 +3060,16 @@ function HealthPage({ data, actions }) {
           </GlassCard>
         ))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
+      <div style={{ display:'flex', gap:2, marginBottom:18, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
+        {[{id:'overview',l:'Overview'},{id:'mealplan',l:'🍽 Meal Planner'},{id:'sleepcoach',l:'😴 Sleep Coach'}].map(({id,l})=>(
+          <button key={id} className="los-tab" onClick={()=>setHealthTab(id)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:healthTab===id?T.skyDim:'transparent', color:healthTab===id?T.sky:T.textSub, border:`1px solid ${healthTab===id?T.sky+'33':'transparent'}`, transition:'all 0.18s' }}>{l}</button>
+        ))}
+      </div>
+
+      {healthTab==='mealplan' && <AIMealPlannerTab data={data} mealPlan={mealPlan} setMealPlan={setMealPlan} mealPlanLoading={mealPlanLoading} setMealPlanLoading={setMealPlanLoading} />}
+      {healthTab==='sleepcoach' && <AISleepCoachTab data={data} sleepCoachTips={sleepCoachTips} setSleepCoachTips={setSleepCoachTips} sleepCoachLoading={sleepCoachLoading} setSleepCoachLoading={setSleepCoachLoading} />}
+
+      {healthTab==='overview' && <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Sleep History</SectionLabel>
@@ -3142,7 +3240,7 @@ function HealthPage({ data, actions }) {
           <FocusBillingTab data={data} />
         </div>
       </div>
-    </div>
+    </div>}
   );
 }
 
@@ -3195,7 +3293,7 @@ function GrowthPage({ data, actions }) {
       <AddChronicleModal open={chronicleModal} onClose={()=>setChronicleModal(false)} onSave={c=>{actions.addChronicle(c);setChronicleModal(false);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {['character','habits','goals','achievements','chronicles','challenges','vision'].map(t=>(
+        {['character','habits','goals','achievements','chronicles','challenges','social','vision'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
             {t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
             {t==='chronicles'&&chronicles.length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{chronicles.length}</span>}
@@ -3243,6 +3341,18 @@ function GrowthPage({ data, actions }) {
             </ResponsiveContainer>
           </GlassCard>
         </div>
+      )}
+
+      {tab==='fincoach' && (
+        <FinCoachTab data={data} settings={settings} coachMessages={coachMessages} setCoachMessages={setCoachMessages} coachInput={coachInput} setCoachInput={setCoachInput} coachLoading={coachLoading} setCoachLoading={setCoachLoading} />
+      )}
+
+      {tab==='aiadvice' && (
+        <AIInvestmentAdvisor data={data} />
+      )}
+
+      {tab==='recurring' && (
+        <RecurringDetectedCard detectedRecurring={detectedRecurring} cur={cur} actions={{}} />
       )}
 
       {tab==='habits' && (
@@ -3390,8 +3500,8 @@ function GrowthPage({ data, actions }) {
               ); })}
             </div>
           )}
-        </div>
-      )}
+        </div>);
+      })()}
 
       {tab==='chronicles' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -3515,6 +3625,10 @@ function GrowthPage({ data, actions }) {
         </div>
       )}
 
+      {tab==='social' && (
+        <SocialChallengesTab data={data} actions={actions} />
+      )}
+
       {tab==='vision' && (
         <VisionBoardTab />
       )}
@@ -3570,6 +3684,8 @@ function EditNoteModal({ open, onClose, note, onSave }) {
 
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function KnowledgePage({ data, actions }) {
+  const [noteAnalysis, setNoteAnalysis] = useLocalStorage('los_note_analysis', null);
+  const [noteAnalysisLoading, setNoteAnalysisLoading] = useState(false);
   const [tab, setTab] = useState('notes');
   const [modal, setModal] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
@@ -3616,6 +3732,21 @@ function KnowledgePage({ data, actions }) {
     }).sort((a,b) => ((a.priority||2)-(b.priority||2)) || (a.date<b.date?1:-1));
   },[notes, noteSearch, noteTypeFilter, notePriorityFilter, showArchived]);
   const STICKY_COLORS = ['#fbbf24','#34d399','#38bdf8','#8b5cf6','#fb7185','#00f5d4'];
+  const analyzeNotes = async () => {
+    if (noteAnalysisLoading || !notes.length) return;
+    setNoteAnalysisLoading(true);
+    const noteSummary = notes.slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': data.settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns, 2) Top 3 actionable insights, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }] })
+      });
+      const json = await res.json();
+      setNoteAnalysis({ text: json.content?.[0]?.text||'No response', ts: today(), count: notes.length });
+    } catch { setNoteAnalysis({ text:'Error — check API key in Settings.', ts:today(), count:0 }); }
+    setNoteAnalysisLoading(false);
+  };
+
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
@@ -3623,7 +3754,7 @@ function KnowledgePage({ data, actions }) {
       <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['notes','quick notes','courses','capsule','ai assistant'].map(t=>(
+        {['notes','quick notes','courses','capsule','note analysis','ai assistant'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
@@ -3708,6 +3839,9 @@ function KnowledgePage({ data, actions }) {
         <TimeCapsuleTab data={data} actions={actions} />
       )}
 
+      {tab==='note analysis' && (
+        <AINotesAnalysisCard notes={notes} settings={data.settings} noteAnalysis={noteAnalysis} setNoteAnalysis={setNoteAnalysis} noteAnalysisLoading={noteAnalysisLoading} setNoteAnalysisLoading={setNoteAnalysisLoading} />
+      )}
       {tab==='ai assistant' && (
         <GlassCard style={{ display:'flex', flexDirection:'column', height:540 }}>
           {!apiKey && (
@@ -3804,11 +3938,15 @@ function ScenarioCard({ cur, monthInc, savRate }) {
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
 function IntelligencePage({ data }) {
   const [tab, setTab] = useState('overview');
+  const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
+  const [coachInput, setCoachInput] = useState('');
+  const [coachLoading, setCoachLoading] = useState(false);
   const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings, netWorthHistory } = data;
   const cur = settings.currency||'$';
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, nw, savRate, thisMonth, topCatEntry, level: lvl } = data.computed;
   const topCat = topCatEntry; // from data.computed
+  
   const avgSleep7 = useMemo(()=>{ const v=vitals.slice(-7); return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?'; },[vitals]);
   const level = lvl; // from data.computed
   const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
@@ -3837,6 +3975,36 @@ function IntelligencePage({ data }) {
     }));
     return [...months, ...projected];
   }, [netWorthHistory]);
+
+  // Detected recurring transactions (appear 2+ months at similar amount)
+  const detectedRecurring = useMemo(() => {
+    const byNote = {};
+    expenses.forEach(e => {
+      const key = (e.note||e.category||'').toLowerCase().trim().slice(0,30);
+      if (!key) return;
+      if (!byNote[key]) byNote[key] = [];
+      byNote[key].push(e);
+    });
+    return Object.entries(byNote)
+      .filter(([,list]) => {
+        if (list.length < 2) return false;
+        const months = [...new Set(list.map(e=>e.date?.slice(0,7)))];
+        if (months.length < 2) return false;
+        const amounts = list.map(e=>Number(e.amount||0));
+        const avg = amounts.reduce((s,a)=>s+a,0)/amounts.length;
+        const allClose = amounts.every(a => Math.abs(a-avg)/Math.max(avg,1) < 0.15);
+        return allClose;
+      })
+      .map(([key,list]) => ({
+        name: list[0].note||list[0].category||key,
+        category: list[0].category,
+        avgAmount: list.reduce((s,e)=>s+Number(e.amount||0),0)/list.length,
+        count: list.length,
+        months: [...new Set(list.map(e=>e.date?.slice(0,7)))].sort().slice(-3),
+      }))
+      .sort((a,b) => b.avgAmount - a.avgAmount)
+      .slice(0,8);
+  }, [expenses]);
 
   // Habit weekly analytics — last 8 weeks consistency %
   const habitAnalytics = useMemo(() => {
@@ -3881,8 +4049,8 @@ function IntelligencePage({ data }) {
       </div>
       {/* Tab nav */}
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {['overview','spending','net worth','habits'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?'#c084fc22':'transparent', color:tab===t?'#c084fc':T.textSub, border:`1px solid ${tab===t?'#c084fc33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
+        {[{id:'overview',l:'Overview'},{id:'spending',l:'Spending'},{id:'net worth',l:'Net Worth'},{id:'habits',l:'Habits'},{id:'fincoach',l:'💬 Coach'},{id:'aiadvice',l:'🤖 Portfolio AI'},{id:'recurring',l:'🔄 Recurring'}].map(({id:t,l})=>(
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?'#c084fc22':'transparent', color:tab===t?'#c084fc':T.textSub, border:`1px solid ${tab===t?'#c084fc33':'transparent'}`, transition:'all 0.15s' }}>{l}</button>
         ))}
       </div>
 
@@ -4417,6 +4585,7 @@ function SettingsPage({ data, actions }) {
               </div>
             ))}
             <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
+            <Btn full onClick={()=>{ const d = { los_habits:data.habits, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes }; navigator.clipboard.writeText(JSON.stringify(d,null,2)).then(()=>alert('Data copied to clipboard!')).catch(()=>alert('Clipboard copy failed — try Export JSON instead')); }} color={T.textSub}>📋 Copy Data to Clipboard</Btn>
             <Btn full onClick={exportCSV} color={T.emerald}>📊 Export Expenses CSV</Btn>
             <label style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'10px 20px', borderRadius:T.r, background:T.violetDim, color:T.violet, border:`1px solid ${T.violet}44`, fontSize:12, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
               📥 Import Backup (JSON)
@@ -4425,6 +4594,30 @@ function SettingsPage({ data, actions }) {
             <div style={{ marginTop:8, paddingTop:12, borderTop:`1px solid ${T.border}` }}>
               <Btn full onClick={()=>{ actions.updateSettings({...settings, onboarded:false, name:''}); window.location.reload(); }} color={T.amber}>🧭 Restart Onboarding Wizard</Btn>
             </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard style={{ padding:'24px' }}>
+          <SectionLabel>🔔 Smart Reminders</SectionLabel>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:12 }}>Configure daily nudges (uses browser Notification API when available).</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {[
+              { key:'remindExpense',  label:'💳 Daily expense log reminder',    def:true  },
+              { key:'remindHabit',    label:'🔥 Habit check-in reminder',       def:true  },
+              { key:'remindVitals',   label:'❤️ Vitals log reminder',           def:false },
+              { key:'remindWeekly',   label:'📅 Weekly review reminder (Mon)',  def:false },
+              { key:'remindBudget',   label:'💸 Budget alert when over 80%',    def:true  },
+            ].map(({key,label,def})=>{
+              const enabled = settings[key]!==undefined ? settings[key] : def;
+              return (
+                <label key={key} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}>
+                  <input type='checkbox' checked={enabled} onChange={e=>actions.updateSettings({...settings, [key]:e.target.checked})} style={{ accentColor:T.accent, width:14, height:14 }} />
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.text, flex:1 }}>{label}</span>
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:enabled?T.accent:T.textMuted }}>{enabled?'On':'Off'}</span>
+                </label>
+              );
+            })}
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4, lineHeight:1.5 }}>Browser notifications require permission. LifeOS checks these flags to surface smart alerts in the top bar and dashboard widget.</div>
           </div>
         </GlassCard>
 
@@ -4439,8 +4632,8 @@ function SettingsPage({ data, actions }) {
             ))}
           </div>
           <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v7 — S4 + S5 Upgrades Active</div>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 Themes (Dark/Light/AMOLED/Solarized), AI Provider selection (Claude/Ollama/GPT-4o), i18n (EN/FR), Recurring auto-log.</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v60 — S4 + S5 + S6 Upgrades Active</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 Themes, AI Provider selection, i18n (EN/FR). S6: Smart Alerts Widget, AI Financial Coach, AI Investment Advisor, AI Meal Planner, AI Sleep Coach, AI Note Analysis, Social Challenges, Bond Tracker, Investment Thesis Notes, Expense Regret Tags, Recurring Transaction Detection, Subcategory Support, Goal Category Filter, Clipboard Export, Smart Reminders, Recurring Auto-Log.</div>
           </div>
         </GlassCard>
       </div>
@@ -6028,6 +6221,360 @@ Answer questions about their data directly and helpfully. Flag any concerns you 
     </>
   );
 }
+
+// ── AI FINANCIAL COACH CHAT ───────────────────────────────────────────────────
+function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInput, setCoachInput, coachLoading, setCoachLoading }) {
+  const cur = settings.currency||'$';
+  const { expenses, incomes, debts, goals, investments, computed } = data;
+  const { monthExp, monthInc, savRate, nw } = computed||{};
+  const messagesEndRef = React.useRef(null);
+  React.useEffect(()=>{ messagesEndRef.current?.scrollIntoView({behavior:'smooth'}); },[coachMessages]);
+
+  const buildContext = () => {
+    const topExp = [...(expenses||[])].sort((a,b)=>Number(b.amount||0)-Number(a.amount||0)).slice(0,5).map(e=>`${e.category}: ${cur}${e.amount}`).join(', ');
+    return `You are a personal financial coach AI embedded in LifeOS. Be concise, specific, and action-oriented. User financial snapshot: Monthly income ${cur}${fmtN(monthInc||0)}, Monthly expenses ${cur}${fmtN(monthExp||0)}, Savings rate ${(savRate||0).toFixed(1)}%, Net worth ${cur}${fmtN(nw||0)}, Active debts: ${(debts||[]).length}, Top expenses: ${topExp||'none'}, Goals: ${(goals||[]).map(g=>g.name).join(', ')||'none'}. Give practical, numbered advice when possible.`;
+  };
+
+  const sendMessage = async () => {
+    if (!coachInput.trim() || coachLoading) return;
+    const userMsg = { role:'user', content:coachInput.trim() };
+    const updated = [...coachMessages, userMsg];
+    setCoachMessages(updated);
+    setCoachInput('');
+    setCoachLoading(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system: buildContext(), messages: updated.map(m=>({role:m.role,content:m.content})) })
+      });
+      const json = await res.json();
+      const reply = json.content?.[0]?.text || 'No response — check your API key in Settings.';
+      setCoachMessages(p=>[...p,{role:'assistant',content:reply}]);
+    } catch { setCoachMessages(p=>[...p,{role:'assistant',content:'Error connecting to AI. Check API key in Settings.'}]); }
+    setCoachLoading(false);
+  };
+
+  const STARTERS = ['What are my top spending categories this month?','How can I improve my savings rate?','Should I pay off debt or invest first?','Analyze my financial health score','Create a 90-day budget plan for me'];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div><SectionLabel>AI Financial Coach</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Ask anything about your finances. Context-aware and data-driven.</div></div>
+        {coachMessages.length>0 && <button onClick={()=>setCoachMessages([])} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'3px 8px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}` }}>Clear chat</button>}
+      </div>
+      {coachMessages.length===0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+          {STARTERS.map((s,i)=>(
+            <button key={i} onClick={()=>{ setCoachInput(s); }} style={{ padding:'7px 13px', borderRadius:T.r, background:T.accentLo, border:`1px solid ${T.accent}22`, fontSize:10, fontFamily:T.fM, color:T.accent, cursor:'pointer', textAlign:'left', transition:'all 0.15s' }}>{s}</button>
+          ))}
+        </div>
+      )}
+      <GlassCard style={{ padding:'18px', display:'flex', flexDirection:'column', gap:0, minHeight:320, maxHeight:480, overflowY:'auto' }}>
+        {coachMessages.length===0 && <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Your financial data is loaded as context. Ask anything.</div>}
+        {coachMessages.map((m,i)=>(
+          <div key={i} style={{ display:'flex', gap:10, marginBottom:14, justifyContent:m.role==='user'?'flex-end':'flex-start' }}>
+            {m.role==='assistant' && <div style={{ width:28, height:28, borderRadius:8, background:T.accentDim, border:`1px solid ${T.accent}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0 }}>🤖</div>}
+            <div style={{ maxWidth:'80%', padding:'10px 14px', borderRadius:12, background:m.role==='user'?T.accentDim:T.surface, border:`1px solid ${m.role==='user'?T.accent+'44':T.border}`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{m.content}</div>
+          </div>
+        ))}
+        {coachLoading && <div style={{ display:'flex', gap:5, padding:'10px 14px', borderRadius:12, background:T.surface, border:`1px solid ${T.border}`, width:'fit-content' }}>{[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:'50%', background:T.accent, animation:`dotPulse 1.2s ease ${i*0.2}s infinite` }}/>)}</div>}
+        <div ref={messagesEndRef} />
+      </GlassCard>
+      <div style={{ display:'flex', gap:8 }}>
+        <input value={coachInput} onChange={e=>setCoachInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()} placeholder="Ask your financial coach..." style={{ flex:1, padding:'10px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
+        <Btn onClick={sendMessage} color={T.accent} style={{ padding:'10px 18px' }}>{coachLoading?'…':'Send'}</Btn>
+      </div>
+      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add an Anthropic API key in Settings → AI Provider to enable the coach.</div>}
+    </div>
+  );
+}
+
+// ── AI INVESTMENT ADVISOR ────────────────────────────────────────────────────
+function AIInvestmentAdvisor({ data }) {
+  const { investments, settings } = data;
+  const [advice, setAdvice] = useLocalStorage('los_inv_advice', null);
+  const [loading, setLoading] = useState(false);
+  const cur = settings.currency||'$';
+
+  const getAdvice = async () => {
+    if (loading) return;
+    setLoading(true);
+    const portfolio = investments.map(i=>`${i.symbol||i.name} (${i.type}): qty ${i.quantity} @ buy ${cur}${i.buyPrice}, current ${cur}${i.currentPrice||i.buyPrice}`).join('\n');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:700, messages:[{ role:'user', content:`You are an investment analyst. Analyze this portfolio and give 3–5 actionable insights. Be specific about diversification, risk, and potential optimizations. Portfolio:\n${portfolio||'No investments yet'}. Keep response concise and practical.` }] })
+      });
+      const json = await res.json();
+      setAdvice({ text: json.content?.[0]?.text||'No response', ts: today() });
+    } catch { setAdvice({ text:'Error — check API key in Settings.', ts: today() }); }
+    setLoading(false);
+  };
+
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <div><SectionLabel>AI Investment Advisor</SectionLabel><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>AI analysis of your portfolio composition and strategy.</div></div>
+        <Btn onClick={getAdvice} color={T.violet} style={{ padding:'6px 14px', fontSize:11 }}>{loading?'Analyzing…':'Analyze Portfolio'}</Btn>
+      </div>
+      {advice ? (
+        <div>
+          <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, whiteSpace:'pre-wrap', borderLeft:`3px solid ${T.violet}55`, paddingLeft:14 }}>{advice.text}</div>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:10 }}>Generated {advice.ts} · Click Analyze to refresh</div>
+        </div>
+      ) : (
+        <div style={{ textAlign:'center', padding:'24px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{investments.length===0?'Add investments first to get AI analysis.':'Click "Analyze Portfolio" to get personalized investment insights.'}</div>
+      )}
+      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI advisor.</div>}
+    </GlassCard>
+  );
+}
+
+// ── AI MEAL PLANNER ─────────────────────────────────────────────────────────
+function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMealPlanLoading }) {
+  const { settings, vitals } = data;
+  const [prefs, setPrefs] = useState('');
+  const avgCal = vitals.slice(-7).reduce((s,v)=>s+Number(v.calories||0),0) / Math.max(1, vitals.filter(v=>v.calories).slice(-7).length);
+
+  const generate = async () => {
+    if (mealPlanLoading) return;
+    setMealPlanLoading(true);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, messages:[{ role:'user', content:`Create a practical 7-day meal plan${prefs?` considering: ${prefs}`:''}. Format as: Day 1: Breakfast | Lunch | Dinner. Be specific with meals. Keep it healthy, realistic, and varied. Add a brief weekly nutrition summary at the end.` }] })
+      });
+      const json = await res.json();
+      setMealPlan({ text: json.content?.[0]?.text||'No response', ts: today(), prefs });
+    } catch { setMealPlan({ text:'Error — check API key in Settings.', ts:today(), prefs }); }
+    setMealPlanLoading(false);
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      <div><SectionLabel>AI Meal Planner</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Generate a personalized 7-day meal plan powered by AI.</div></div>
+      <GlassCard style={{ padding:'18px 22px' }}>
+        <div style={{ marginBottom:10 }}><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Dietary preferences / restrictions (optional)</div>
+          <input value={prefs} onChange={e=>setPrefs(e.target.value)} placeholder="e.g. vegetarian, no dairy, high protein, 2000 calories/day…" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} /></div>
+        <Btn full onClick={generate} color={T.emerald}>{mealPlanLoading?'Generating…':'Generate 7-Day Meal Plan'}</Btn>
+        {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:8 }}>⚠️ Add API key in Settings to use AI features.</div>}
+      </GlassCard>
+      {mealPlan && (
+        <GlassCard style={{ padding:'20px 22px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <SectionLabel>Your Meal Plan</SectionLabel>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Generated {mealPlan.ts}</div>
+          </div>
+          <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.8, whiteSpace:'pre-wrap' }}>{mealPlan.text}</div>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
+// ── AI SLEEP COACH ───────────────────────────────────────────────────────────
+function AISleepCoachTab({ data, sleepCoachTips, setSleepCoachTips, sleepCoachLoading, setSleepCoachLoading }) {
+  const { settings, vitals } = data;
+  const recent14 = vitals.slice(-14);
+  const avgSleep = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.sleep||0),0)/recent14.length).toFixed(1) : null;
+  const avgSleepQuality = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.sleepQuality||0),0)/recent14.length).toFixed(1) : null;
+  const avgMood = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.mood||0),0)/recent14.length).toFixed(1) : null;
+
+  const analyze = async () => {
+    if (sleepCoachLoading) return;
+    setSleepCoachLoading(true);
+    const sleepData = recent14.map(v=>`${v.date}: ${v.sleep}h sleep, quality ${v.sleepQuality||'?'}/5, mood ${v.mood||'?'}/10`).join('\n');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:700, messages:[{ role:'user', content:`You are a sleep coach. Analyze this 14-day sleep log and give 4–5 personalized recommendations to improve sleep quality and duration. Be specific and practical. Data:\n${sleepData||'No sleep data logged yet'}. Average sleep: ${avgSleep}h, avg quality: ${avgSleepQuality}/5, avg mood: ${avgMood}/10.` }] })
+      });
+      const json = await res.json();
+      setSleepCoachTips({ text: json.content?.[0]?.text||'No response', ts: today() });
+    } catch { setSleepCoachTips({ text:'Error — check API key in Settings.', ts:today() }); }
+    setSleepCoachLoading(false);
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      <div><SectionLabel>AI Sleep Coach</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>AI-powered analysis of your sleep patterns and personalized tips.</div></div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
+        {[
+          { label:'Avg Sleep (14d)', val:avgSleep?`${avgSleep}h`:'—', color:avgSleep&&Number(avgSleep)>=7?T.emerald:T.amber },
+          { label:'Avg Quality (14d)', val:avgSleepQuality?`${avgSleepQuality}/5`:'—', color:T.sky },
+          { label:'Avg Mood (14d)', val:avgMood?`${avgMood}/10`:'—', color:T.violet },
+          { label:'Entries Logged', val:String(recent14.length), color:T.accent },
+        ].map((s,i)=>(
+          <GlassCard key={i} style={{ padding:'14px', textAlign:'center' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:6 }}>{s.label.toUpperCase()}</div>
+            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+          </GlassCard>
+        ))}
+      </div>
+      <Btn full onClick={analyze} color={T.sky}>{sleepCoachLoading?'Analyzing sleep patterns…':'Get AI Sleep Analysis & Tips'}</Btn>
+      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add API key in Settings to enable AI coach.</div>}
+      {sleepCoachTips && (
+        <GlassCard style={{ padding:'20px 22px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <SectionLabel>Sleep Coach Recommendations</SectionLabel>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{sleepCoachTips.ts}</div>
+          </div>
+          <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.8, whiteSpace:'pre-wrap', borderLeft:`3px solid ${T.sky}44`, paddingLeft:14 }}>{sleepCoachTips.text}</div>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
+// ── AI NOTE ANALYSIS ─────────────────────────────────────────────────────────
+function AINotesAnalysisCard({ notes, settings, noteAnalysis, setNoteAnalysis, noteAnalysisLoading, setNoteAnalysisLoading }) {
+  const analyze = async () => {
+    if (noteAnalysisLoading || !notes.length) return;
+    setNoteAnalysisLoading(true);
+    const noteSummary = notes.slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns (2-3 sentences), 2) Top 3 actionable insights you notice, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }] })
+      });
+      const json = await res.json();
+      setNoteAnalysis({ text: json.content?.[0]?.text||'No response', ts: today(), count: notes.length });
+    } catch { setNoteAnalysis({ text:'Error — check API key in Settings.', ts:today(), count:0 }); }
+    setNoteAnalysisLoading(false);
+  };
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+        <div><SectionLabel>AI Note Analysis</SectionLabel><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Discover patterns and insights across your {notes.length} notes.</div></div>
+        <Btn onClick={analyze} color={T.amber} style={{ padding:'5px 13px', fontSize:11 }}>{noteAnalysisLoading?'Analyzing…':'Analyze Notes'}</Btn>
+      </div>
+      {notes.length === 0 ? (
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'16px 0' }}>Add notes first to enable AI analysis.</div>
+      ) : noteAnalysis ? (
+        <div>
+          <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, whiteSpace:'pre-wrap', borderLeft:`3px solid ${T.amber}55`, paddingLeft:12 }}>{noteAnalysis.text}</div>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:10 }}>Analyzed {noteAnalysis.count} notes on {noteAnalysis.ts}</div>
+        </div>
+      ) : (
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Click "Analyze Notes" to discover patterns in your knowledge base.</div>
+      )}
+      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI analysis.</div>}
+    </GlassCard>
+  );
+}
+
+// ── SOCIAL CHALLENGES ────────────────────────────────────────────────────────
+function SocialChallengesTab({ data, actions }) {
+  const { challenges, settings } = data;
+  const [shareCode, setShareCode] = useLocalStorage('los_share_code', null);
+  const [friends, setFriends] = useLocalStorage('los_challenge_friends', []);
+  const [newFriend, setNewFriend] = useState('');
+  const [friendCode, setFriendCode] = useState('');
+
+  const myCode = shareCode || (() => {
+    const code = Math.random().toString(36).slice(2,8).toUpperCase();
+    setShareCode(code);
+    return code;
+  })();
+
+  const myActive = challenges.filter(c=>c.challengeId);
+  const addFriend = () => {
+    if (!newFriend.trim() || !friendCode.trim()) return;
+    setFriends(p=>[...p, { name:newFriend.trim(), code:friendCode.trim().toUpperCase(), challenges:[], joined:today() }]);
+    setNewFriend(''); setFriendCode('');
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div><SectionLabel>Social Challenges</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Share your challenge progress and compete with friends.</div></div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <GlassCard style={{ padding:'18px 22px' }}>
+          <SectionLabel>Your Share Code</SectionLabel>
+          <div style={{ fontSize:32, fontFamily:T.fM, fontWeight:700, color:T.accent, letterSpacing:'0.2em', textAlign:'center', padding:'16px 0', background:T.accentLo, borderRadius:T.r, border:`1px solid ${T.accent}22`, marginBottom:10 }}>{myCode}</div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, textAlign:'center', marginBottom:10 }}>Share this code with friends to compare challenge progress</div>
+          <Btn full onClick={()=>navigator.clipboard.writeText(myCode)} color={T.accent} style={{ fontSize:11 }}>Copy Code</Btn>
+        </GlassCard>
+        <GlassCard style={{ padding:'18px 22px' }}>
+          <SectionLabel>Your Active Challenges</SectionLabel>
+          {myActive.length===0 ? (
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'20px 0' }}>Join challenges in the Challenges tab to appear here.</div>
+          ) : (
+            myActive.slice(0,4).map((c,i)=>{
+              const catalog = CHALLENGES_CATALOG.find(x=>x.id===c.challengeId);
+              if (!catalog) return null;
+              const pct = Math.round((c.done?.length||0)/catalog.days*100);
+              return (
+                <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:i<myActive.length-1?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
+                  <span style={{ color:T.text }}>{catalog.emoji} {catalog.title.slice(0,22)}</span>
+                  <span style={{ color:T.accent, fontWeight:600 }}>{pct}%</span>
+                </div>
+              );
+            })
+          )}
+        </GlassCard>
+      </div>
+      <GlassCard style={{ padding:'18px 22px' }}>
+        <SectionLabel>Challenge Friends</SectionLabel>
+        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+          <input value={newFriend} onChange={e=>setNewFriend(e.target.value)} placeholder="Friend's name" style={{ flex:1, minWidth:120, padding:'8px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
+          <input value={friendCode} onChange={e=>setFriendCode(e.target.value)} placeholder="Their code" style={{ width:100, padding:'8px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
+          <Btn onClick={addFriend} color={T.sky}>Add</Btn>
+        </div>
+        {friends.length===0 ? (
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'16px 0' }}>No friends added yet. Share your code above to start competing!</div>
+        ) : (
+          friends.map((f,i)=>(
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<friends.length-1?`1px solid ${T.border}`:'none' }}>
+              <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                <div style={{ width:32, height:32, borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>👤</div>
+                <div>
+                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{f.name}</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Code: {f.code} · Since {f.joined}</div>
+                </div>
+              </div>
+              <button onClick={()=>setFriends(p=>p.filter((_,j)=>j!==i))} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={10} stroke={T.rose} /></button>
+            </div>
+          ))
+        )}
+      </GlassCard>
+    </div>
+  );
+}
+
+// ── RECURRING TRANSACTIONS DETECTED CARD ────────────────────────────────────
+function RecurringDetectedCard({ detectedRecurring, cur, actions }) {
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? detectedRecurring : detectedRecurring.slice(0,4);
+  if (!detectedRecurring.length) return null;
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <div><SectionLabel>Detected Recurring Transactions</SectionLabel><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{detectedRecurring.length} patterns found in expense history</div></div>
+        {detectedRecurring.length>4&&<button onClick={()=>setShowAll(s=>!s)} style={{ fontSize:9, fontFamily:T.fM, color:T.accent }}>{showAll?'Show less':'Show all'}</button>}
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {shown.map((r,i)=>(
+          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:T.skyDim, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>🔄</div>
+              <div>
+                <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{r.name}</div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{r.category} · {r.count} occurrences · Last: {r.months.slice(-1)[0]}</div>
+              </div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:T.rose }}>{cur}{fmtN(r.avgAmount)}/mo</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{cur}{fmtN(r.avgAmount*12)}/yr</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </GlassCard>
+  );
+}
+
+
 function clamp(min, val, max) { return Math.max(min, Math.min(max, val)); }
 
 export default function LifeOS() {
@@ -6063,6 +6610,42 @@ export default function LifeOS() {
   const [career,        setCareer        ] = useLocalStorage('los_career',        { jobs:[], skills:[], rex:[], cv:{} });
   const [chronicles,    setChronicles    ] = useLocalStorage('los_chronicles',   []);
   const [challenges,    setChallenges    ] = useLocalStorage('los_challenges',   []);
+
+  // ── Auto-log recurring expenses once per day ──────────────────────────────
+  useEffect(() => {
+    const AUTO_KEY = 'los_autoexp_last';
+    const todayStr = today();
+    if (localStorage.getItem(AUTO_KEY) === todayStr) return;
+    const recurring = expenses.filter(e => e.recurring);
+    if (!recurring.length) return;
+    const newExps = [];
+    recurring.forEach(exp => {
+      const freq = exp.frequency || 'monthly';
+      // Find last auto-generated instance
+      const lastDate = new Date(exp.date);
+      const now = new Date();
+      let nextDate = new Date(lastDate);
+      if (freq === 'monthly')    nextDate.setMonth(nextDate.getMonth()+1);
+      else if (freq === 'weekly')nextDate.setDate(nextDate.getDate()+7);
+      else if (freq === 'bi-weekly') nextDate.setDate(nextDate.getDate()+14);
+      else if (freq === 'yearly')  nextDate.setFullYear(nextDate.getFullYear()+1);
+      else nextDate.setMonth(nextDate.getMonth()+1);
+      if (nextDate <= now) {
+        const nextStr = nextDate.toISOString().slice(0,10);
+        // Only add if not already logged for that date+note combo
+        const alreadyLogged = expenses.some(e => e.date===nextStr && e.note===exp.note && e.category===exp.category);
+        if (!alreadyLogged) {
+          newExps.push({ ...exp, id:Date.now()+Math.random(), date:nextStr, autoLogged:true });
+        }
+      }
+    });
+    if (newExps.length) {
+      setExpenses(p => [...newExps, ...p]);
+      addToast(`Auto-logged ${newExps.length} recurring expense${newExps.length>1?'s':''}`, null, 5);
+    }
+    localStorage.setItem(AUTO_KEY, todayStr);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── S1: Toast/Undo system ──────────────────────────────────────────────────
   const [toasts, setToasts] = useState([]);
