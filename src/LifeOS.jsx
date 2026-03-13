@@ -5007,7 +5007,7 @@ function CalendarPage({ data }) {
         ))}
       </div>
       {gcalTab==='gcal' && <GoogleCalendarTab data={data} />}
-      {gcalTab==='local' && <div style={{ marginBottom:22 }}><SectionLabel>Calendar Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Monthly Overview</h1></div>
+      {gcalTab==='local' && <div><div style={{ marginBottom:22 }}><SectionLabel>Calendar Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Monthly Overview</h1></div>
 
       {/* Stats row */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
