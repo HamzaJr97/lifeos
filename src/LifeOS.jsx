@@ -1814,7 +1814,7 @@ class ErrorBoundary extends React.Component {
 }
 
 function HomePage({ data, actions, onNav }) {
-  const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, notes, budgets } = data;
+  const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, notes, budgets, bills } = data;
   const [modal, setModal] = useState(null);
   const [showMoodBanner, setShowMoodBanner] = useState(() => !vitals.some(v=>v.date===today()));
   const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
@@ -2419,6 +2419,7 @@ function MoneyPage({ data, actions }) {
   const [editingSub, setEditingSub] = useState(null);
   const [editingBill, setEditingBill] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
+  const [goalCatFilter, setGoalCatFilter] = useState('all');
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
@@ -2797,7 +2798,6 @@ function MoneyPage({ data, actions }) {
 
 
       {tab==='goals' && (() => {
-        const [goalCatFilter, setGoalCatFilter] = React.useState('all');
         const allCats = ['all', ...new Set(goals.map(g=>g.cat||'other').filter(Boolean))];
         const filteredGoals = goalCatFilter==='all' ? goals : goals.filter(g=>(g.cat||'other')===goalCatFilter);
         const catColors = { finance:T.accent, health:T.sky, growth:T.violet, career:T.amber, other:T.textSub };
@@ -4395,6 +4395,18 @@ function IntelligencePage({ data }) {
             )}
           </GlassCard>
         </div>
+      )}
+
+      {tab==='fincoach' && (
+        <FinCoachTab data={data} settings={settings} coachMessages={coachMessages} setCoachMessages={setCoachMessages} coachInput={coachInput} setCoachInput={setCoachInput} coachLoading={coachLoading} setCoachLoading={setCoachLoading} />
+      )}
+
+      {tab==='aiadvice' && (
+        <AIInvestmentAdvisor data={data} />
+      )}
+
+      {tab==='recurring' && (
+        <RecurringDetectedCard detectedRecurring={detectedRecurring} cur={cur} actions={{}} />
       )}
     </div>
   );
