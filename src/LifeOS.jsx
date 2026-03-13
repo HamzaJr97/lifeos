@@ -2851,7 +2851,7 @@ function MoneyPage({ data, actions }) {
             </div>
           )}
         </div>
-      )}
+      )})()} 
 
       {tab==='assets' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
