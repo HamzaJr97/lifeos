@@ -132,6 +132,84 @@ const THEMES = {
   },
 };
 
+// ── AI ROUTER ─────────────────────────────────────────────────────────────────
+// Single entry point for all AI calls. Routes to Ollama, OpenAI, or Anthropic
+// based on settings.aiProvider. Add new providers here — nowhere else.
+async function callAI(settings, { system, messages, max_tokens = 1000 }) {
+  const provider = settings?.aiProvider || 'claude';
+
+  // ── OLLAMA (local) ──────────────────────────────────────────────────────────
+  if (provider === 'ollama') {
+    const model = settings?.ollamaModel || 'llama3.2';
+    const res = await fetch('http://localhost:11434/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          ...messages,
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => res.statusText);
+      throw new Error(`Ollama error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    return data.message?.content || '';
+  }
+
+  // ── OPENAI ──────────────────────────────────────────────────────────────────
+  if (provider === 'openai') {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings?.aiApiKey || ''}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        max_tokens,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          ...messages,
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `OpenAI error ${res.status}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  // ── ANTHROPIC (default) ─────────────────────────────────────────────────────
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': settings?.aiApiKey || '',
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens,
+      system,
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Anthropic error ${res.status}`);
+  }
+  const data = await res.json();
+  return data.content?.[0]?.text || '';
+}
+
 // ── S5: THEME BOOT — apply saved theme before first render ───────────────────
 // Reads localStorage synchronously at module load so T is correct on the very
 // first paint — no flash of wrong theme (FOWT) on refresh or cold start.
@@ -792,7 +870,9 @@ function SplitExpenseModal({ open, onClose, expense, onSave, cur }) {
 }
 
 // ── RECEIPT SCANNER MODAL (AI OCR) ───────────────────────────────────────────
-function ReceiptScannerModal({ open, onClose, onExpenseDetected, apiKey, currency }) {
+function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, currency }) {
+  const apiKey = settings?.aiApiKey || '';
+  const provider = settings?.aiProvider || 'claude';
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -807,6 +887,7 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, apiKey, currenc
 
   const scan = async (file) => {
     if (!file) return;
+    if (provider === 'ollama') { setError('Receipt Scanner requires a vision model. Switch to Anthropic or OpenAI in Settings → AI Provider.'); return; }
     if (!apiKey) { setError('Add your API key in Settings → AI Provider to use Receipt Scanner.'); return; }
     setScanning(true); setError(''); setResult(null);
     const reader = new FileReader();
@@ -814,23 +895,31 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, apiKey, currenc
       const b64 = e.target.result.split(',')[1];
       setImgPreview(e.target.result);
       try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 400,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'image', source: { type: 'base64', media_type: file.type||'image/jpeg', data: b64 } },
-                { type: 'text', text: 'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.' }
-              ]
-            }]
-          })
-        });
-        const data = await res.json();
-        const text = data.content?.find(b=>b.type==='text')?.text || '';
+        let text = '';
+        if (provider === 'openai') {
+          const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model:'gpt-4o', max_tokens:400, messages:[{ role:'user', content:[
+              { type:'image_url', image_url:{ url:`data:${file.type||'image/jpeg'};base64,${b64}` } },
+              { type:'text', text:'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.' }
+            ]}] })
+          });
+          const d = await res.json();
+          text = d.choices?.[0]?.message?.content || '';
+        } else {
+          // Anthropic (default)
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+            body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:400, messages:[{ role:'user', content:[
+              { type:'image', source:{ type:'base64', media_type:file.type||'image/jpeg', data:b64 } },
+              { type:'text', text:'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.' }
+            ]}] })
+          });
+          const d = await res.json();
+          text = d.content?.find(b=>b.type==='text')?.text || '';
+        }
         const clean = text.replace(/```json?|```/g,'').trim();
         const parsed = JSON.parse(clean);
         setResult(parsed);
@@ -2059,12 +2148,11 @@ function HomePage({ data, actions, onNav }) {
                   setStoredBrief(b=>({...b, loading:true}));
                   try {
                     const ctx = `Monthly income: ${cur}${fmtN(monthInc)}, expenses: ${cur}${fmtN(monthExp)}, savings rate: ${savRate.toFixed(1)}%, NW: ${cur}${fmtN(netWorth)}, habits done today: ${todayDone}/${habits.length}, best streak: ${bestStreak}d.`;
-                    const res = await fetch('https://api.anthropic.com/v1/messages', {
-                      method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-                      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:250, messages:[{ role:'user', content:`Generate a 3-sentence motivational weekly financial+habits brief for this user. Be specific, warm, and actionable. Data: ${ctx}` }] })
+                    const text = await callAI(settings, {
+                      max_tokens: 250,
+                      messages:[{ role:'user', content:`Generate a 3-sentence motivational weekly financial+habits brief for this user. Be specific, warm, and actionable. Data: ${ctx}` }]
                     });
-                    const json = await res.json();
-                    setStoredBrief({ week:currentWeek, content:json.content?.[0]?.text||'Keep pushing!', loading:false });
+                    setStoredBrief({ week:currentWeek, content:text||'Keep pushing!', loading:false });
                   } catch { setStoredBrief(b=>({...b, loading:false})); }
                 };
                 return <button onClick={generateBrief} style={{ fontSize:9, fontFamily:T.fM, color:'#c084fc', padding:'2px 8px', borderRadius:6, background:'#c084fc22', border:'1px solid #c084fc33' }}>Refresh</button>;
@@ -2467,7 +2555,7 @@ function MoneyPage({ data, actions }) {
   const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} apiKey={data.settings?.aiApiKey} currency={cur} />
+      <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} settings={data.settings} currency={cur} />
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <EditIncomeModal open={!!editIncome} onClose={()=>setEditIncome(null)} income={editIncome} onSave={(id,patch)=>{actions.updateIncome(id,patch);setEditIncome(null);}} />
@@ -3757,15 +3845,18 @@ function KnowledgePage({ data, actions }) {
   const send = async () => {
     if (!input.trim()||loading) return;
     if (!apiKey) {
-      setMessages(p=>[...p,{role:'assistant',content:'⚠️ No API key configured. Go to Settings → AI Provider and enter your Anthropic API key. Your key is stored locally and never sent anywhere except Anthropic\'s API.'}]);
+      setMessages(p=>[...p,{role:'assistant',content:'⚠️ No AI provider configured. Go to Settings → AI Provider and select Anthropic, OpenAI, or Ollama. Your key is stored locally only.'}]);
       return;
     }
     const um={role:'user',content:input}; setMessages(p=>[...p,um]); setInput(''); setLoading(true);
     try {
-      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,messages:[...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}))})});
-      const d=await res.json();
-      if (d.error) throw new Error(d.error.message||'API error');
-      const text=d.content?.map(b=>b.text||'').join('')||'Unable to respond.'; setMessages(p=>[...p,{role:'assistant',content:text}]);
+      const text = await callAI(settings, {
+        max_tokens: 1000,
+        system: `You are a Life Intelligence Engine for a personal Life OS. ${buildContext()} Give insightful, data-driven advice. Be concise and direct. Reference the user's real data.`,
+        messages: [...messages,um].filter(m=>m.role!=='system').map(m=>({role:m.role,content:m.content}))
+      });
+      if (!text) throw new Error('Empty response');
+      setMessages(p=>[...p,{role:'assistant',content:text}]);
     } catch(err) { setMessages(p=>[...p,{role:'assistant',content:`Connection error: ${err.message||'Please try again.'}`}]); }
     finally { setLoading(false); }
   };
@@ -3787,13 +3878,12 @@ function KnowledgePage({ data, actions }) {
     setNoteAnalysisLoading(true);
     const noteSummary = notes.slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': data.settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns, 2) Top 3 actionable insights, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }] })
+      const text = await callAI(data.settings, {
+        max_tokens: 600,
+        messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns, 2) Top 3 actionable insights, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }]
       });
-      const json = await res.json();
-      setNoteAnalysis({ text: json.content?.[0]?.text||'No response', ts: today(), count: notes.length });
-    } catch { setNoteAnalysis({ text:'Error — check API key in Settings.', ts:today(), count:0 }); }
+      setNoteAnalysis({ text: text||'No response', ts: today(), count: notes.length });
+    } catch { setNoteAnalysis({ text:'Error — check AI settings.', ts:today(), count:0 }); }
     setNoteAnalysisLoading(false);
   };
 
@@ -3900,7 +3990,7 @@ function KnowledgePage({ data, actions }) {
           {!apiKey && (
             <div style={{ padding:'10px 18px', background:T.amberDim, borderBottom:`1px solid ${T.amber}33`, display:'flex', alignItems:'center', gap:10, fontSize:11, fontFamily:T.fM, color:T.amber }}>
               <span>⚠️</span>
-              <span>AI Assistant requires an Anthropic API key. <strong onClick={()=>{}} style={{cursor:'pointer',textDecoration:'underline'}} >Go to Settings → AI Provider to add yours.</strong></span>
+              <span>AI Assistant requires an API key or Ollama. <strong onClick={()=>{}} style={{cursor:'pointer',textDecoration:'underline'}} >Go to Settings → AI Provider to configure.</strong></span>
             </div>
           )}
           <div style={{ flex:1, overflowY:'auto', padding:'18px', display:'flex', flexDirection:'column', gap:12 }}>
@@ -4634,7 +4724,17 @@ function SettingsPage({ data, actions }) {
               <Input value={aiApiKey} onChange={e=>setAiApiKey(e.target.value)} placeholder={`${aiProvider==='openai'?'OpenAI':'Anthropic'} API Key (optional)`} type="password" />
             )}
             {aiProvider === 'ollama' && (
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>Make sure Ollama is running at <code style={{ color:T.accent }}>localhost:11434</code></div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                  Make sure Ollama is running at <code style={{ color:T.accent }}>localhost:11434</code>. Note: Ollama only works when running LifeOS locally — not in Codespaces.
+                </div>
+                <Input
+                  value={settings.ollamaModel||'llama3.2'}
+                  onChange={e=>actions.updateSettings({...settings, ollamaModel:e.target.value})}
+                  placeholder="Model name e.g. llama3.2, mistral, phi3, llama3.2:1b"
+                />
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Run <code style={{ color:T.accent }}>ollama list</code> in your terminal to see available models</div>
+              </div>
             )}
             <Btn full onClick={save} color={T.violet}>Save AI Settings</Btn>
           </div>
@@ -6178,21 +6278,14 @@ Answer questions about their data directly and helpfully. Flag any concerns you 
     setInput('');
     setLoading(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: buildSystemPrompt(),
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        }),
+      const text = await callAI(data.settings, {
+        max_tokens: 1000,
+        system: buildSystemPrompt(),
+        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
       });
-      const d = await res.json();
-      const text = d.content?.[0]?.text || 'Something went wrong. Please try again.';
-      setMessages(p => [...p, { role: 'assistant', content: text }]);
+      setMessages(p => [...p, { role: 'assistant', content: text || 'Something went wrong. Please try again.' }]);
     } catch {
-      setMessages(p => [...p, { role: 'assistant', content: 'Connection error — check your network and try again.' }]);
+      setMessages(p => [...p, { role: 'assistant', content: 'Connection error — check your AI settings and try again.' }]);
     }
     setLoading(false);
   };
@@ -6317,15 +6410,13 @@ function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInp
     setCoachInput('');
     setCoachLoading(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system: buildContext(), messages: updated.map(m=>({role:m.role,content:m.content})) })
+      const reply = await callAI(settings, {
+        max_tokens: 600,
+        system: buildContext(),
+        messages: updated.map(m=>({role:m.role,content:m.content}))
       });
-      const json = await res.json();
-      const reply = json.content?.[0]?.text || 'No response — check your API key in Settings.';
-      setCoachMessages(p=>[...p,{role:'assistant',content:reply}]);
-    } catch { setCoachMessages(p=>[...p,{role:'assistant',content:'Error connecting to AI. Check API key in Settings.'}]); }
+      setCoachMessages(p=>[...p,{role:'assistant',content:reply||'No response — check your AI settings.'}]);
+    } catch { setCoachMessages(p=>[...p,{role:'assistant',content:'Error connecting to AI. Check AI settings.'}]); }
     setCoachLoading(false);
   };
 
@@ -6358,7 +6449,7 @@ function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInp
         <input value={coachInput} onChange={e=>setCoachInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()} placeholder="Ask your financial coach..." style={{ flex:1, padding:'10px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
         <Btn onClick={sendMessage} color={T.accent} style={{ padding:'10px 18px' }}>{coachLoading?'…':'Send'}</Btn>
       </div>
-      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add an Anthropic API key in Settings → AI Provider to enable the coach.</div>}
+      {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add an Anthropic API key in Settings → AI Provider to enable the coach.</div>}
     </div>
   );
 }
@@ -6375,14 +6466,12 @@ function AIInvestmentAdvisor({ data }) {
     setLoading(true);
     const portfolio = investments.map(i=>`${i.symbol||i.name} (${i.type}): qty ${i.quantity} @ buy ${cur}${i.buyPrice}, current ${cur}${i.currentPrice||i.buyPrice}`).join('\n');
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:700, messages:[{ role:'user', content:`You are an investment analyst. Analyze this portfolio and give 3–5 actionable insights. Be specific about diversification, risk, and potential optimizations. Portfolio:\n${portfolio||'No investments yet'}. Keep response concise and practical.` }] })
+      const text = await callAI(settings, {
+        max_tokens: 700,
+        messages:[{ role:'user', content:`You are an investment analyst. Analyze this portfolio and give 3–5 actionable insights. Be specific about diversification, risk, and potential optimizations. Portfolio:\n${portfolio||'No investments yet'}. Keep response concise and practical.` }]
       });
-      const json = await res.json();
-      setAdvice({ text: json.content?.[0]?.text||'No response', ts: today() });
-    } catch { setAdvice({ text:'Error — check API key in Settings.', ts: today() }); }
+      setAdvice({ text: text||'No response', ts: today() });
+    } catch { setAdvice({ text:'Error — check AI settings.', ts: today() }); }
     setLoading(false);
   };
 
@@ -6400,7 +6489,7 @@ function AIInvestmentAdvisor({ data }) {
       ) : (
         <div style={{ textAlign:'center', padding:'24px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{investments.length===0?'Add investments first to get AI analysis.':'Click "Analyze Portfolio" to get personalized investment insights.'}</div>
       )}
-      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI advisor.</div>}
+      {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI advisor.</div>}
     </GlassCard>
   );
 }
@@ -6415,13 +6504,12 @@ function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMea
     if (mealPlanLoading) return;
     setMealPlanLoading(true);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, messages:[{ role:'user', content:`Create a practical 7-day meal plan${prefs?` considering: ${prefs}`:''}. Format as: Day 1: Breakfast | Lunch | Dinner. Be specific with meals. Keep it healthy, realistic, and varied. Add a brief weekly nutrition summary at the end.` }] })
+      const text = await callAI(settings, {
+        max_tokens: 800,
+        messages:[{ role:'user', content:`Create a practical 7-day meal plan${prefs?` considering: ${prefs}`:''}. Format as: Day 1: Breakfast | Lunch | Dinner. Be specific with meals. Keep it healthy, realistic, and varied. Add a brief weekly nutrition summary at the end.` }]
       });
-      const json = await res.json();
-      setMealPlan({ text: json.content?.[0]?.text||'No response', ts: today(), prefs });
-    } catch { setMealPlan({ text:'Error — check API key in Settings.', ts:today(), prefs }); }
+      setMealPlan({ text: text||'No response', ts: today(), prefs });
+    } catch { setMealPlan({ text:'Error — check AI settings.', ts:today(), prefs }); }
     setMealPlanLoading(false);
   };
 
@@ -6432,7 +6520,7 @@ function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMea
         <div style={{ marginBottom:10 }}><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Dietary preferences / restrictions (optional)</div>
           <input value={prefs} onChange={e=>setPrefs(e.target.value)} placeholder="e.g. vegetarian, no dairy, high protein, 2000 calories/day…" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} /></div>
         <Btn full onClick={generate} color={T.emerald}>{mealPlanLoading?'Generating…':'Generate 7-Day Meal Plan'}</Btn>
-        {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:8 }}>⚠️ Add API key in Settings to use AI features.</div>}
+        {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:8 }}>⚠️ Add API key in Settings to use AI features.</div>}
       </GlassCard>
       {mealPlan && (
         <GlassCard style={{ padding:'20px 22px' }}>
@@ -6460,13 +6548,12 @@ function AISleepCoachTab({ data, sleepCoachTips, setSleepCoachTips, sleepCoachLo
     setSleepCoachLoading(true);
     const sleepData = recent14.map(v=>`${v.date}: ${v.sleep}h sleep, quality ${v.sleepQuality||'?'}/5, mood ${v.mood||'?'}/10`).join('\n');
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:700, messages:[{ role:'user', content:`You are a sleep coach. Analyze this 14-day sleep log and give 4–5 personalized recommendations to improve sleep quality and duration. Be specific and practical. Data:\n${sleepData||'No sleep data logged yet'}. Average sleep: ${avgSleep}h, avg quality: ${avgSleepQuality}/5, avg mood: ${avgMood}/10.` }] })
+      const text = await callAI(settings, {
+        max_tokens: 700,
+        messages:[{ role:'user', content:`You are a sleep coach. Analyze this 14-day sleep log and give 4–5 personalized recommendations to improve sleep quality and duration. Be specific and practical. Data:\n${sleepData||'No sleep data logged yet'}. Average sleep: ${avgSleep}h, avg quality: ${avgSleepQuality}/5, avg mood: ${avgMood}/10.` }]
       });
-      const json = await res.json();
-      setSleepCoachTips({ text: json.content?.[0]?.text||'No response', ts: today() });
-    } catch { setSleepCoachTips({ text:'Error — check API key in Settings.', ts:today() }); }
+      setSleepCoachTips({ text: text||'No response', ts: today() });
+    } catch { setSleepCoachTips({ text:'Error — check AI settings.', ts:today() }); }
     setSleepCoachLoading(false);
   };
 
@@ -6487,7 +6574,7 @@ function AISleepCoachTab({ data, sleepCoachTips, setSleepCoachTips, sleepCoachLo
         ))}
       </div>
       <Btn full onClick={analyze} color={T.sky}>{sleepCoachLoading?'Analyzing sleep patterns…':'Get AI Sleep Analysis & Tips'}</Btn>
-      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add API key in Settings to enable AI coach.</div>}
+      {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add API key in Settings to enable AI coach.</div>}
       {sleepCoachTips && (
         <GlassCard style={{ padding:'20px 22px' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
@@ -6508,13 +6595,12 @@ function AINotesAnalysisCard({ notes, settings, noteAnalysis, setNoteAnalysis, n
     setNoteAnalysisLoading(true);
     const noteSummary = notes.slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns (2-3 sentences), 2) Top 3 actionable insights you notice, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }] })
+      const text = await callAI(settings, {
+        max_tokens: 600,
+        messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns (2-3 sentences), 2) Top 3 actionable insights you notice, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }]
       });
-      const json = await res.json();
-      setNoteAnalysis({ text: json.content?.[0]?.text||'No response', ts: today(), count: notes.length });
-    } catch { setNoteAnalysis({ text:'Error — check API key in Settings.', ts:today(), count:0 }); }
+      setNoteAnalysis({ text: text||'No response', ts: today(), count: notes.length });
+    } catch { setNoteAnalysis({ text:'Error — check AI settings.', ts:today(), count:0 }); }
     setNoteAnalysisLoading(false);
   };
   return (
@@ -6533,7 +6619,7 @@ function AINotesAnalysisCard({ notes, settings, noteAnalysis, setNoteAnalysis, n
       ) : (
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Click "Analyze Notes" to discover patterns in your knowledge base.</div>
       )}
-      {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI analysis.</div>}
+      {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI analysis.</div>}
     </GlassCard>
   );
 }
@@ -6748,12 +6834,11 @@ function GmailIntegrationTab({ data }) {
     setSummaryLoading(true);
     try {
       const emailList = emails.map(e=>`From: ${e.from}\nSubject: ${e.subject}\nPreview: ${e.preview}`).join('\n---\n');
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:500, messages:[{ role:'user', content:`Summarize these emails in 3-4 sentences. Highlight any urgent items, action needed, or financial relevance:\n${emailList}` }] })
+      const text = await callAI(settings, {
+        max_tokens: 500,
+        messages:[{ role:'user', content:`Summarize these emails in 3-4 sentences. Highlight any urgent items, action needed, or financial relevance:\n${emailList}` }]
       });
-      const json = await res.json();
-      setSummary(json.content?.[0]?.text||'No summary');
+      setSummary(text||'No summary');
     } catch { setSummary('Error generating summary.'); }
     setSummaryLoading(false);
   };
@@ -6767,7 +6852,7 @@ function GmailIntegrationTab({ data }) {
           <Btn onClick={fetchEmails} color={T.sky}>{loading?'Loading…':'Fetch'}</Btn>
         </div>
         {error && <div style={{ fontSize:11, fontFamily:T.fM, color:T.rose, padding:'8px 12px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33`, marginBottom:8 }}>{error}</div>}
-        {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:4 }}>⚠️ Add API key in Settings and connect Gmail MCP to use this feature.</div>}
+        {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:4 }}>⚠️ Add API key in Settings and connect Gmail MCP to use this feature.</div>}
         {['is:unread','label:bills','label:finance','from:bank','is:important'].map(q=>(
           <button key={q} onClick={()=>setQuery(q)} style={{ marginRight:6, marginBottom:6, padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:query===q?T.skyDim:T.surface, color:query===q?T.sky:T.textSub, border:`1px solid ${query===q?T.sky+'33':T.border}` }}>{q}</button>
         ))}
@@ -6838,12 +6923,11 @@ function GoogleCalendarTab({ data }) {
     setSummaryLoading(true);
     const list = events.slice(0,15).map(e=>`${e.title} — ${new Date(e.start).toLocaleString()}`).join('\n');
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:400, messages:[{ role:'user', content:`Analyze this 2-week schedule and give: 1) busiest days, 2) any scheduling conflicts or overload, 3) recommended focus/recovery days, 4) one productivity tip:\n${list}` }] })
+      const text = await callAI(settings, {
+        max_tokens: 400,
+        messages:[{ role:'user', content:`Analyze this 2-week schedule and give: 1) busiest days, 2) any scheduling conflicts or overload, 3) recommended focus/recovery days, 4) one productivity tip:\n${list}` }]
       });
-      const json = await res.json();
-      setSummary(json.content?.[0]?.text||'No summary');
+      setSummary(text||'No summary');
     } catch { setSummary('Error generating schedule analysis.'); }
     setSummaryLoading(false);
   };
@@ -6857,7 +6941,7 @@ function GoogleCalendarTab({ data }) {
       <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
         <Btn onClick={fetchEvents} color={T.accent}>{loading?'Loading…':'Sync Calendar'}</Btn>
         {events.length>0&&<Btn onClick={aiSchedule} color={T.violet} style={{ fontSize:11 }}>{summaryLoading?'Analyzing…':'AI Schedule Analysis'}</Btn>}
-        {!settings.aiApiKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber }}>⚠️ Add API key in Settings and connect Google Calendar MCP.</div>}
+        {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber }}>⚠️ Add API key in Settings and connect Google Calendar MCP.</div>}
       </div>
       {error && <div style={{ fontSize:11, fontFamily:T.fM, color:T.rose, padding:'10px 14px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33` }}>{error}</div>}
       {summary && (
