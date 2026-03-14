@@ -3497,9 +3497,9 @@ function GrowthPage({ data, actions }) {
       <AddChronicleModal open={chronicleModal} onClose={()=>setChronicleModal(false)} onSave={c=>{actions.addChronicle(c);setChronicleModal(false);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {['character','habits','goals','achievements','chronicles','challenges','social','vision'].map(t=>(
+        {['character','habits','goals','achievements','chronicles','challenges','social','vision','lifemap'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
-            {t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
+            {t==='lifemap'?'🗺️ Map':t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
             {t==='chronicles'&&chronicles.length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{chronicles.length}</span>}
           </button>
         ))}
@@ -3836,6 +3836,10 @@ function GrowthPage({ data, actions }) {
       {tab==='vision' && (
         <VisionBoardTab />
       )}
+
+      {tab==='lifemap' && (
+        <LifeMapTab data={data} actions={actions} />
+      )}
     </div>
   );
 }
@@ -4144,8 +4148,501 @@ function ScenarioCard({ cur, monthInc, savRate }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 🗺️ LIFE MAP — force-directed SVG goal/habit graph ────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function LifeMapTab({ data, actions }) {
+  const { goals, habits, settings } = data;
+  const cur = settings.currency || '$';
+  const DOMAIN_COLORS = { Finance:T.emerald, Health:T.sky, Growth:T.violet, Mind:T.accent, Learning:T.amber, Career:T.rose, Social:'#c084fc', Body:T.sky };
+
+  const buildGraph = useCallback(() => {
+    const W=700, H=480;
+    const nodes=[], edges=[];
+    const domains=['Finance','Health','Growth','Mind','Career','Learning'];
+    domains.forEach((d,i)=>{
+      const angle=(i/domains.length)*Math.PI*2-Math.PI/2, r=140;
+      nodes.push({ id:`domain-${d}`, label:d, type:'domain', color:DOMAIN_COLORS[d]||T.accent, x:W/2+Math.cos(angle)*r, y:H/2+Math.sin(angle)*r, r:32 });
+    });
+    goals.slice(0,12).forEach((g,i)=>{
+      const dom=nodes.find(n=>n.id===`domain-${g.cat||'Growth'}`) || nodes[i%domains.length];
+      const angle=Math.random()*Math.PI*2, dist=80+Math.random()*40;
+      const progress=g.target>0?Math.min(1,(g.current||0)/g.target):0;
+      nodes.push({ id:`goal-${g.id}`, label:g.name, type:'goal', color:dom.color, x:dom.x+Math.cos(angle)*dist, y:dom.y+Math.sin(angle)*dist, r:22, goalData:g, progress });
+      edges.push({ from:`domain-${g.cat||'Growth'}`, to:`goal-${g.id}` });
+    });
+    habits.slice(0,16).forEach((h,i)=>{
+      const dom=nodes.find(n=>n.id===`domain-${h.category||'Growth'}`) || nodes[i%domains.length];
+      const angle=Math.random()*Math.PI*2, dist=60+Math.random()*30;
+      nodes.push({ id:`habit-${h.id}`, label:h.name, type:'habit', color:T.textSub, x:dom.x+Math.cos(angle)*dist, y:dom.y+Math.sin(angle)*dist, r:14, emoji:h.emoji||'🔥' });
+      edges.push({ from:`domain-${h.category||'Growth'}`, to:`habit-${h.id}` });
+    });
+    return { nodes, edges };
+  }, [goals, habits]);
+
+  const [graph, setGraph] = useState(()=>buildGraph());
+  const [dragging, setDragging] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [simRunning, setSimRunning] = useState(true);
+  const svgRef = useRef(null);
+  const rafRef = useRef(null);
+  const velRef = useRef({});
+
+  useEffect(()=>{
+    if (!simRunning) return;
+    const W=700, H=480;
+    const SPRING_K=0.022, REST=115, REP=2800, DAMP=0.82, GRAV=0.08;
+    let iters=0;
+    const tick=()=>{
+      setGraph(prev=>{
+        const nodes=prev.nodes.map(n=>({...n}));
+        const vel=velRef.current;
+        nodes.forEach(n=>{ if (!vel[n.id]) vel[n.id]={vx:0,vy:0}; });
+        prev.edges.forEach(e=>{
+          const a=nodes.find(n=>n.id===e.from), b=nodes.find(n=>n.id===e.to);
+          if (!a||!b) return;
+          const dx=b.x-a.x, dy=b.y-a.y, dist=Math.sqrt(dx*dx+dy*dy)||1;
+          const f=SPRING_K*(dist-REST), fx=f*dx/dist, fy=f*dy/dist;
+          vel[a.id].vx+=fx; vel[a.id].vy+=fy;
+          vel[b.id].vx-=fx; vel[b.id].vy-=fy;
+        });
+        for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
+          const a=nodes[i], b=nodes[j];
+          const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy||1, d=Math.sqrt(d2);
+          const f=REP/d2, fx=f*dx/d, fy=f*dy/d;
+          vel[a.id].vx-=fx; vel[a.id].vy-=fy;
+          vel[b.id].vx+=fx; vel[b.id].vy+=fy;
+        }
+        nodes.forEach(n=>{
+          vel[n.id].vx+=(W/2-n.x)*GRAV;
+          vel[n.id].vy+=(H/2-n.y)*GRAV;
+        });
+        nodes.forEach(n=>{
+          if (dragging&&dragging.nodeId===n.id) { vel[n.id]={vx:0,vy:0}; return; }
+          vel[n.id].vx*=DAMP; vel[n.id].vy*=DAMP;
+          n.x=Math.max(n.r+10,Math.min(W-n.r-10,n.x+vel[n.id].vx));
+          n.y=Math.max(n.r+10,Math.min(H-n.r-10,n.y+vel[n.id].vy));
+        });
+        return {...prev, nodes};
+      });
+      iters++;
+      if (iters<150) rafRef.current=requestAnimationFrame(tick);
+      else setSimRunning(false);
+    };
+    rafRef.current=requestAnimationFrame(tick);
+    return ()=>{ if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [simRunning, dragging]);
+
+  const handleMouseDown=useCallback((e,nodeId)=>{
+    e.stopPropagation();
+    const svg=svgRef.current; if (!svg) return;
+    const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    const sp=pt.matrixTransform(svg.getScreenCTM().inverse());
+    const node=graph.nodes.find(n=>n.id===nodeId);
+    setDragging({nodeId, offsetX:sp.x-node.x, offsetY:sp.y-node.y});
+    setSelected(nodeId); setSimRunning(false);
+  },[graph.nodes]);
+
+  const handleMouseMove=useCallback((e)=>{
+    if (!dragging) return;
+    const svg=svgRef.current; if (!svg) return;
+    const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    const sp=pt.matrixTransform(svg.getScreenCTM().inverse());
+    setGraph(prev=>({ ...prev, nodes:prev.nodes.map(n=>n.id===dragging.nodeId ? {...n, x:Math.max(n.r+10,Math.min(690-n.r,sp.x-dragging.offsetX)), y:Math.max(n.r+10,Math.min(470-n.r,sp.y-dragging.offsetY))} : n) }));
+  },[dragging]);
+
+  const handleMouseUp=useCallback(()=>setDragging(null),[]);
+  const resetLayout=()=>{ velRef.current={}; setGraph(buildGraph()); setSimRunning(true); setSelected(null); };
+  const selectedNode=selected?graph.nodes.find(n=>n.id===selected):null;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:10 }}>
+        <div>
+          <SectionLabel>🗺️ Life Map</SectionLabel>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Goals and habits as a connected graph. Drag nodes to rearrange.</div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <Btn onClick={resetLayout} color={T.textSub} style={{ fontSize:10, padding:'5px 12px' }}>Reset Layout</Btn>
+          <Btn onClick={()=>{velRef.current={}; setSimRunning(true);}} color={T.accent} style={{ fontSize:10, padding:'5px 12px' }}>▶ Simulate</Btn>
+        </div>
+      </div>
+
+      {goals.length===0&&habits.length===0 ? (
+        <GlassCard style={{ padding:40, textAlign:'center' }}>
+          <div style={{ fontSize:36, marginBottom:12 }}>🗺️</div>
+          <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No map yet</div>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Add goals and habits — they'll appear here as a connected life graph.</div>
+        </GlassCard>
+      ) : (
+        <GlassCard style={{ padding:'6px', overflow:'hidden' }}>
+          <svg ref={svgRef} viewBox="0 0 700 480"
+            style={{ width:'100%', height:'auto', cursor:dragging?'grabbing':'default', background:'transparent', userSelect:'none', display:'block' }}
+            onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+            <defs>
+              <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor={T.accent} stopOpacity="0.04"/>
+                <stop offset="100%" stopColor={T.accent} stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+            <rect width="700" height="480" fill="url(#mapGlow)" />
+            {/* Edges */}
+            {graph.edges.map((e,i)=>{
+              const a=graph.nodes.find(n=>n.id===e.from), b=graph.nodes.find(n=>n.id===e.to);
+              if (!a||!b) return null;
+              return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={a.color+'33'} strokeWidth={1.5} strokeDasharray={b.type==='habit'?'3 3':'none'} />;
+            })}
+            {/* Nodes */}
+            {graph.nodes.map(node=>(
+              <g key={node.id} transform={`translate(${node.x},${node.y})`} onMouseDown={e=>handleMouseDown(e,node.id)} style={{ cursor:'grab' }}>
+                {selected===node.id&&<circle r={node.r+7} fill="none" stroke={node.color} strokeWidth={1.5} opacity={0.4} />}
+                {node.type==='goal'&&node.progress>0&&(
+                  <circle r={node.r+4} fill="none" stroke={node.color} strokeWidth={3}
+                    strokeDasharray={`${node.progress*2*Math.PI*(node.r+4)} ${2*Math.PI*(node.r+4)}`}
+                    strokeLinecap="round" transform="rotate(-90)" opacity={0.85} />
+                )}
+                <circle r={node.r}
+                  fill={node.type==='domain'?node.color+'1e':node.type==='goal'?node.color+'14':T.surface}
+                  stroke={selected===node.id?node.color:node.color+(node.type==='domain'?'88':'44')}
+                  strokeWidth={selected===node.id?2.5:node.type==='domain'?2:1.5} />
+                {node.type==='habit'&&<text textAnchor="middle" dominantBaseline="central" fontSize={12} style={{ pointerEvents:'none' }}>{node.emoji}</text>}
+                {node.type==='domain'&&<text textAnchor="middle" dominantBaseline="central" fontSize={10} fill={node.color} fontWeight={700} fontFamily={T.fM} letterSpacing="-0.5" style={{ pointerEvents:'none' }}>{node.label.slice(0,3)}</text>}
+                {node.type==='goal'&&<text textAnchor="middle" dominantBaseline="central" fontSize={8} fill={node.color} fontWeight={600} fontFamily={T.fM} style={{ pointerEvents:'none' }}>{Math.round((node.progress||0)*100)}%</text>}
+                <text y={node.r+12} textAnchor="middle" fontSize={node.type==='domain'?9:8}
+                  fill={node.type==='domain'?node.color:T.textSub} fontFamily={T.fM}
+                  fontWeight={node.type==='domain'?700:400} style={{ pointerEvents:'none' }}>
+                  {node.label.length>15?node.label.slice(0,14)+'…':node.label}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </GlassCard>
+      )}
+
+      {selectedNode&&(
+        <GlassCard style={{ padding:'14px 18px', borderLeft:`3px solid ${selectedNode.color}55`, animation:'slideDown 0.2s ease' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{selectedNode.type}</div>
+              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text }}>{selectedNode.label}</div>
+              {selectedNode.type==='goal'&&selectedNode.goalData&&(
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
+                  {cur}{fmtN(selectedNode.goalData.current||0)} / {cur}{fmtN(selectedNode.goalData.target||0)} · {Math.round((selectedNode.progress||0)*100)}% complete
+                </div>
+              )}
+            </div>
+            <button onClick={()=>setSelected(null)} style={{ color:T.textSub, padding:4, background:'none', border:'none', cursor:'pointer', marginTop:2 }}><IcoX size={13} stroke={T.textSub} /></button>
+          </div>
+        </GlassCard>
+      )}
+
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+        {[{l:'Domain node',s:'⬡',c:T.accent},{l:'Goal (ring = % complete)',s:'◎',c:T.violet},{l:'Habit',s:'●',c:T.textSub}].map(x=>(
+          <span key={x.l} style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ color:x.c, fontSize:12 }}>{x.s}</span>{x.l}</span>
+        ))}
+        <span style={{ marginLeft:'auto', color:T.textMuted }}>Drag to rearrange · Click to inspect</span>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 🔮 LIFE FORECAST ENGINE ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function LifeForecastTab({ data }) {
+  const { settings, vitals, habits, habitLogs, netWorthHistory } = data;
+  const cur = settings.currency || '$';
+  const { monthInc, monthExp, nw: netWorth, savRate } = data.computed;
+
+  // Net worth projection (conservative / base / optimistic)
+  const nwForecast = useMemo(()=>{
+    const annualSavings = Math.max(0,(monthInc-monthExp)*12);
+    const hist = netWorthHistory.slice(-12);
+    const histMonthlyGrowth = hist.length>=2 ? (hist[hist.length-1].value-hist[0].value)/Math.max(1,hist.length-1) : 0;
+    const annualHistRate = netWorth!==0 ? Math.min(0.25,Math.max(-0.2,(histMonthlyGrowth*12)/Math.max(1,Math.abs(netWorth)))) : 0.04;
+    return [1,2,3,5,10,15,20].map(yr=>({
+      year:`${yr}yr`,
+      conservative: Math.round(netWorth + annualSavings*yr),
+      base:          Math.round(netWorth*Math.pow(1+Math.max(0,annualHistRate),yr) + annualSavings*((Math.pow(1+0.05,yr)-1)/0.05)),
+      optimistic:    Math.round(netWorth*Math.pow(1.07,yr)                         + annualSavings*((Math.pow(1.07,yr)-1)/0.07)),
+    }));
+  },[netWorth,monthInc,monthExp,netWorthHistory]);
+
+  // FI date calculation
+  const fiCalc = useMemo(()=>{
+    const annualExp = monthExp*12;
+    const fiNumber  = annualExp*25;
+    const annualSav = Math.max(0,(monthInc-monthExp)*12);
+    if (annualSav<=0||fiNumber<=0) return { years:null, fiNumber, pct:0 };
+    let years=0, projected=netWorth;
+    while (projected<fiNumber&&years<100) { projected=projected*1.07+annualSav; years++; }
+    return { years, fiNumber, date:new Date().getFullYear()+years, pct:Math.min(100,(netWorth/Math.max(1,fiNumber))*100) };
+  },[netWorth,monthInc,monthExp]);
+
+  // Habit completion vs mood correlation
+  const habitMoodData = useMemo(()=>{
+    return vitals
+      .filter(v=>v.mood&&v.date)
+      .map(v=>({
+        date:v.date,
+        mood:Number(v.mood),
+        completion:habits.length>0?Math.round((habits.filter(h=>(habitLogs[h.id]||[]).includes(v.date)).length/habits.length)*100):0,
+      }))
+      .sort((a,b)=>a.date>b.date?1:-1).slice(-30);
+  },[vitals,habits,habitLogs]);
+
+  const correlation = useMemo(()=>{
+    const pts=habitMoodData.filter(p=>p.completion>0); if (pts.length<4) return null;
+    const n=pts.length;
+    const mx=pts.reduce((s,p)=>s+p.completion,0)/n, my=pts.reduce((s,p)=>s+p.mood,0)/n;
+    const cov=pts.reduce((s,p)=>s+(p.completion-mx)*(p.mood-my),0)/n;
+    const sdx=Math.sqrt(pts.reduce((s,p)=>s+Math.pow(p.completion-mx,2),0)/n);
+    const sdy=Math.sqrt(pts.reduce((s,p)=>s+Math.pow(p.mood-my,2),0)/n);
+    return sdx>0&&sdy>0?(cov/(sdx*sdy)).toFixed(2):null;
+  },[habitMoodData]);
+
+  const corrLabel = correlation===null?'—':Number(correlation)>0.5?'Strong positive':Number(correlation)>0.2?'Moderate positive':Number(correlation)<-0.2?'Negative':'Weak';
+  const corrColor = correlation===null?T.textSub:Number(correlation)>0.2?T.emerald:Number(correlation)<-0.2?T.rose:T.textSub;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <div>
+        <SectionLabel>🔮 Life Forecast Engine</SectionLabel>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Projections built from your real data — accuracy improves the longer you track.</div>
+      </div>
+
+      {/* KPI Row */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:12 }}>
+        {[
+          { label:'FI Number (25× expenses)', val:fiCalc.fiNumber>0?`${cur}${fmtN(fiCalc.fiNumber)}`:'—', sub:'The 4% rule target', color:T.accent },
+          { label:'FI Progress', val:`${fiCalc.pct.toFixed(1)}%`, sub:fiCalc.pct>=100?'🎉 Financial independence reached!':`${cur}${fmtN(Math.max(0,fiCalc.fiNumber-netWorth))} remaining`, color:T.emerald, pct:fiCalc.pct },
+          { label:'Estimated FI Year', val:fiCalc.years!==null?(fiCalc.years<1?'Now! 🎉':`${fiCalc.date}`):'—', sub:fiCalc.years!==null?`~${fiCalc.years} year${fiCalc.years!==1?'s':''} at current rate`:'Log income to project', color:T.violet },
+          { label:'Habit → Mood r', val:correlation!==null?correlation:'—', sub:`${corrLabel}${habitMoodData.length<5?' (need more data)':''}`, color:corrColor },
+        ].map((m,i)=>(
+          <GlassCard key={i} style={{ padding:'16px 18px' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:m.pct!=null?8:0 }}>{m.sub}</div>
+            {m.pct!=null&&<ProgressBar pct={m.pct} color={T.emerald} height={4} />}
+          </GlassCard>
+        ))}
+      </div>
+
+      {/* NW Projection Chart */}
+      <GlassCard style={{ padding:'20px 22px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+          <SectionLabel>Net Worth Projection</SectionLabel>
+          <div style={{ display:'flex', gap:14, fontSize:9, fontFamily:T.fM }}>
+            {[{l:'Conservative',c:T.sky},{l:'Base',c:T.accent},{l:'Optimistic (7%)',c:T.emerald}].map(x=>(
+              <span key={x.l} style={{ display:'flex', alignItems:'center', gap:4, color:T.textSub }}>
+                <span style={{ width:8, height:8, borderRadius:'50%', background:x.c, display:'inline-block' }} />{x.l}
+              </span>
+            ))}
+          </div>
+        </div>
+        {monthInc>0||netWorth!==0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={nwForecast} margin={{top:4,right:0,left:0,bottom:0}}>
+              <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+              <XAxis dataKey="year" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip content={<ChartTooltip prefix={cur} />} />
+              <Line type="monotone" dataKey="conservative" name="Conservative" stroke={T.sky}     strokeWidth={2}   dot={{fill:T.sky,r:3}}     strokeDasharray="5 3" />
+              <Line type="monotone" dataKey="base"         name="Base"         stroke={T.accent}  strokeWidth={2.5} dot={{fill:T.accent,r:4}} />
+              <Line type="monotone" dataKey="optimistic"   name="Optimistic"   stroke={T.emerald} strokeWidth={2}   dot={{fill:T.emerald,r:3}} strokeDasharray="5 3" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ height:100, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income and expenses to generate projections.</div>
+        )}
+        {monthInc>0&&(
+          <div style={{ marginTop:10, display:'flex', gap:20, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+            <span>Monthly savings: <b style={{ color:T.accent }}>{cur}{fmtN(Math.max(0,monthInc-monthExp))}</b></span>
+            <span>Annual savings: <b style={{ color:T.accent }}>{cur}{fmtN(Math.max(0,monthInc-monthExp)*12)}</b></span>
+            <span>Savings rate: <b style={{ color:savRate>20?T.emerald:T.amber }}>{savRate.toFixed(1)}%</b></span>
+          </div>
+        )}
+      </GlassCard>
+
+      {/* Habit / Mood Correlation Chart */}
+      <GlassCard style={{ padding:'20px 22px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+          <SectionLabel>Habit Completion vs Mood</SectionLabel>
+          {correlation!==null&&(
+            <span style={{ fontSize:10, fontFamily:T.fM, color:corrColor, background:corrColor+'18', padding:'3px 10px', borderRadius:99, border:`1px solid ${corrColor}33` }}>r = {correlation} · {corrLabel}</span>
+          )}
+        </div>
+        {habitMoodData.length>=4 ? (
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={habitMoodData} margin={{top:4,right:0,left:0,bottom:0}}>
+              <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+              <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip content={<ChartTooltip />} />
+              <Line type="monotone" dataKey="mood"       name="Mood /10"   stroke={T.violet} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="completion" name="Habit %"    stroke={T.accent} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>
+            Log vitals (mood) and complete habits for 4+ days to see your correlation pattern.
+          </div>
+        )}
+        {correlation!==null&&(
+          <div style={{ marginTop:10, fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6, borderLeft:`3px solid ${corrColor}44`, paddingLeft:12 }}>
+            {Number(correlation)>0.5
+              ? `Strong evidence that completing habits boosts your mood. Your best habit days correlate with noticeably higher energy and mood scores.`
+              : Number(correlation)>0.2
+              ? `Moderate positive link between habit completion and mood. Keep the streak going.`
+              : Number(correlation)<-0.2
+              ? `Your data shows a negative correlation — you may be over-committed. Consider reducing habits to reduce fatigue.`
+              : `Weak or unclear correlation so far. Keep logging to reveal the pattern.`
+            }
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 📡 PASSIVE DATA INGEST ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function DataIngestTab({ data, actions }) {
+  const { settings } = data;
+  const cur = settings.currency || '$';
+  const [stage, setStage] = useState('idle'); // idle | loading | review | done
+  const [fileName, setFileName] = useState('');
+  const [parsed, setParsed] = useState([]);
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(0);
+  const fileRef = useRef(null);
+
+  const readAsBase64 = (file) => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=()=>rej(new Error('Read failed')); r.readAsDataURL(file); });
+  const readAsText  = (file) => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('Read failed')); r.readAsText(file); });
+
+  const handleFile = async (e) => {
+    const file=e.target.files[0]; if (!file) return;
+    if (!settings.aiApiKey&&settings.aiProvider!=='ollama') { setError('Add an API key in Settings → AI Provider to use Data Ingest.'); return; }
+    setFileName(file.name); setStage('loading'); setError(null);
+    const PROMPT=`Extract every financial transaction. Return ONLY a JSON array (no markdown) where each item: {"type":"expense"|"income","amount":number,"date":"YYYY-MM-DD","note":"description","category":"one of: 🍔 Food|🏠 Housing|🚗 Transport|💳 Shopping|📱 Subscriptions|💊 Health|🎉 Entertainment|💰 Salary|💸 Transfer|Other"}. Use today ${today()} if no date found.`;
+    try {
+      const isPdf = file.name.toLowerCase().endsWith('.pdf');
+      let messages;
+      if (isPdf&&(settings.aiProvider==='claude'||!settings.aiProvider)) {
+        const b64=await readAsBase64(file);
+        messages=[{ role:'user', content:[
+          { type:'document', source:{ type:'base64', media_type:'application/pdf', data:b64 }},
+          { type:'text', text:PROMPT }
+        ]}];
+      } else {
+        const text=await readAsText(file);
+        messages=[{ role:'user', content:`${PROMPT}\n\nDocument:\n${text.slice(0,10000)}` }];
+      }
+      const raw=await callAI(settings,{ max_tokens:2000, messages });
+      const clean=raw.replace(/```json|```/g,'').trim();
+      const items=JSON.parse(clean);
+      if (!Array.isArray(items)) throw new Error('Unexpected AI response format');
+      setParsed(items.map((item,i)=>({ ...item, _id:i, _accepted:true })));
+      setStage('review');
+    } catch(err) { setError(`Parse failed: ${err.message}`); setStage('idle'); }
+    if (fileRef.current) fileRef.current.value='';
+  };
+
+  const saveAccepted = () => {
+    const accepted=parsed.filter(p=>p._accepted);
+    accepted.forEach(item=>{
+      const base={ id:Date.now()+Math.random(), amount:Number(item.amount)||0, date:item.date||today(), note:item.note||'', category:item.category||'Other' };
+      if (item.type==='income') actions.addIncome({ ...base, note:item.note||'Imported' });
+      else actions.addExpense(base);
+    });
+    setSaved(accepted.length); setStage('done'); setParsed([]);
+  };
+
+  const toggle=(id)=>setParsed(p=>p.map(x=>x._id===id?{...x,_accepted:!x._accepted}:x));
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+      <div>
+        <SectionLabel>📡 Passive Data Ingest</SectionLabel>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>Upload a bank statement, receipt, or email export. AI extracts every transaction and queues them for review before anything is saved.</div>
+      </div>
+
+      {(stage==='idle'||stage==='loading') && (
+        <GlassCard style={{ padding:'40px', textAlign:'center' }}>
+          {stage==='loading' ? (
+            <>
+              <div style={{ fontSize:36, marginBottom:14, display:'inline-block', animation:'spin 1.8s linear infinite' }}>⚙️</div>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>Parsing {fileName}…</div>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>AI is reading and extracting transactions — usually 5–15s</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize:44, marginBottom:14 }}>📂</div>
+              <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>Drop a document to parse</div>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginBottom:22 }}>Bank PDF · Credit card statement · Receipt · Invoice · .eml email</div>
+              <label style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'10px 24px', borderRadius:T.r, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:12, fontFamily:T.fM, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}>
+                📎 Choose File (.pdf · .eml · .txt)
+                <input ref={fileRef} type="file" accept=".pdf,.eml,.txt,.csv" onChange={handleFile} style={{ display:'none' }} />
+              </label>
+              {error&&<div style={{ marginTop:16, fontSize:11, fontFamily:T.fM, color:T.rose, padding:'8px 12px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33` }}>{error}</div>}
+              {(!settings.aiApiKey&&settings.aiProvider!=='ollama')&&<div style={{ marginTop:12, fontSize:10, fontFamily:T.fM, color:T.amber }}>⚠️ Requires an API key in Settings → AI Provider.</div>}
+              <div style={{ marginTop:20, fontSize:9, fontFamily:T.fM, color:T.textMuted }}>PDF requires Claude · .eml/.txt/.csv works with any provider</div>
+            </>
+          )}
+        </GlassCard>
+      )}
+
+      {stage==='review' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <GlassCard style={{ padding:'18px 22px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:8 }}>
+              <div>
+                <SectionLabel>Review {parsed.length} Parsed Items</SectionLabel>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{parsed.filter(p=>p._accepted).length} selected — click to toggle</div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <Btn onClick={()=>setParsed(p=>p.map(x=>({...x,_accepted:true})))}  color={T.sky}     style={{ fontSize:10, padding:'5px 12px' }}>All</Btn>
+                <Btn onClick={()=>setParsed(p=>p.map(x=>({...x,_accepted:false})))} color={T.textSub} style={{ fontSize:10, padding:'5px 12px' }}>None</Btn>
+                <Btn onClick={()=>{setStage('idle');setParsed([]);}} color={T.textSub} style={{ fontSize:10, padding:'5px 12px' }}>Cancel</Btn>
+                <Btn onClick={saveAccepted} color={T.accent} style={{ fontSize:10, padding:'5px 14px' }}>Save {parsed.filter(p=>p._accepted).length} →</Btn>
+              </div>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:7, maxHeight:420, overflowY:'auto' }}>
+              {parsed.map(item=>(
+                <div key={item._id} onClick={()=>toggle(item._id)}
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', borderRadius:T.r, background:item._accepted?(item.type==='income'?T.emeraldDim:T.roseDim):T.surface, border:`1px solid ${item._accepted?(item.type==='income'?T.emerald+'44':T.rose+'44'):T.border}`, cursor:'pointer', transition:'all 0.12s', opacity:item._accepted?1:0.4 }}>
+                  <div style={{ width:18, height:18, borderRadius:5, background:item._accepted?(item.type==='income'?T.emerald:T.rose):'transparent', border:`2px solid ${item._accepted?(item.type==='income'?T.emerald:T.rose):T.textMuted}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:10, color:T.bg, fontWeight:700 }}>{item._accepted?'✓':''}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.note||item.category}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{item.category} · {item.date}</div>
+                  </div>
+                  <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:item.type==='income'?T.emerald:T.rose, flexShrink:0 }}>{item.type==='income'?'+':'-'}{cur}{fmtN(item.amount)}</div>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+            <span>Income: {cur}{fmtN(parsed.filter(p=>p._accepted&&p.type==='income').reduce((s,p)=>s+Number(p.amount||0),0))}</span>
+            <span>Expenses: {cur}{fmtN(parsed.filter(p=>p._accepted&&p.type==='expense').reduce((s,p)=>s+Number(p.amount||0),0))}</span>
+          </div>
+        </div>
+      )}
+
+      {stage==='done' && (
+        <GlassCard style={{ padding:'48px', textAlign:'center' }}>
+          <div style={{ fontSize:44, marginBottom:12 }}>✅</div>
+          <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.emerald, marginBottom:6 }}>{saved} transaction{saved!==1?'s':''} saved</div>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginBottom:22 }}>All accepted items added to your records and reflected in your dashboards.</div>
+          <Btn onClick={()=>{setStage('idle');setSaved(0);}} color={T.accent}>Parse Another File</Btn>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
-function IntelligencePage({ data }) {
+function IntelligencePage({ data, actions={} }) {
   const [tab, setTab] = useState('overview');
   const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
   const [coachInput, setCoachInput] = useState('');
@@ -4258,7 +4755,7 @@ function IntelligencePage({ data }) {
       </div>
       {/* Tab nav */}
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {[{id:'overview',l:'Overview'},{id:'spending',l:'Spending'},{id:'net worth',l:'Net Worth'},{id:'habits',l:'Habits'},{id:'fincoach',l:'💬 Coach'},{id:'aiadvice',l:'🤖 Portfolio AI'},{id:'recurring',l:'🔄 Recurring'}].map(({id:t,l})=>(
+        {[{id:'overview',l:'Overview'},{id:'spending',l:'Spending'},{id:'net worth',l:'Net Worth'},{id:'habits',l:'Habits'},{id:'fincoach',l:'💬 Coach'},{id:'aiadvice',l:'🤖 Portfolio AI'},{id:'recurring',l:'🔄 Recurring'},{id:'forecast',l:'🔮 Forecast'},{id:'ingest',l:'📡 Ingest'}].map(({id:t,l})=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?'#c084fc22':'transparent', color:tab===t?'#c084fc':T.textSub, border:`1px solid ${tab===t?'#c084fc33':'transparent'}`, transition:'all 0.15s' }}>{l}</button>
         ))}
       </div>
@@ -4563,6 +5060,14 @@ function IntelligencePage({ data }) {
 
       {tab==='recurring' && (
         <RecurringDetectedCard detectedRecurring={detectedRecurring} cur={cur} actions={{}} />
+      )}
+
+      {tab==='forecast' && (
+        <LifeForecastTab data={data} />
+      )}
+
+      {tab==='ingest' && (
+        <DataIngestTab data={data} actions={actions} />
       )}
     </div>
   );
@@ -7732,7 +8237,7 @@ export default function LifeOS() {
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
     career:    eb(<CareerPage    data={data} actions={actions} />),
     calendar:  eb(<CalendarPage  data={data} />),
-    intel:     eb(<IntelligencePage data={data} />),
+    intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} />),
     archive:   eb(<ArchivePage   data={data} />),
     settings:  eb(<SettingsPage  data={data} actions={actions} />),
   };
