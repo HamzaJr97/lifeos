@@ -4354,29 +4354,30 @@ function LifeForecastTab({ data }) {
   const cur = settings.currency || '$';
   const { monthInc, monthExp, nw: netWorth, savRate } = data.computed;
 
+  const annualSavings = Math.max(0,(monthInc-monthExp)*12);
+  const hist = netWorthHistory.slice(-12);
+  const histMonthlyGrowth = hist.length>=2 ? (hist[hist.length-1].value-hist[0].value)/Math.max(1,hist.length-1) : 0;
+  const annualHistRate = netWorth!==0 ? Math.min(0.25,Math.max(-0.2,(histMonthlyGrowth*12)/Math.max(1,Math.abs(netWorth)))) : 0.04;
+
   // Net worth projection (conservative / base / optimistic)
   const nwForecast = useMemo(()=>{
-    const annualSavings = Math.max(0,(monthInc-monthExp)*12);
-    const hist = netWorthHistory.slice(-12);
-    const histMonthlyGrowth = hist.length>=2 ? (hist[hist.length-1].value-hist[0].value)/Math.max(1,hist.length-1) : 0;
-    const annualHistRate = netWorth!==0 ? Math.min(0.25,Math.max(-0.2,(histMonthlyGrowth*12)/Math.max(1,Math.abs(netWorth)))) : 0.04;
     return [1,2,3,5,10,15,20].map(yr=>({
       year:`${yr}yr`,
       conservative: Math.round(netWorth + annualSavings*yr),
       base:          Math.round(netWorth*Math.pow(1+Math.max(0,annualHistRate),yr) + annualSavings*((Math.pow(1+0.05,yr)-1)/0.05)),
       optimistic:    Math.round(netWorth*Math.pow(1.07,yr)                         + annualSavings*((Math.pow(1.07,yr)-1)/0.07)),
     }));
-  },[netWorth,monthInc,monthExp,netWorthHistory]);
+  },[netWorth,annualSavings,annualHistRate]);
 
   // FI date calculation
   const fiCalc = useMemo(()=>{
     const annualExp = monthExp*12;
     const fiNumber  = annualExp*25;
     const annualSav = Math.max(0,(monthInc-monthExp)*12);
-    if (annualSav<=0||fiNumber<=0) return { years:null, fiNumber, pct:0 };
+    if (annualSav<=0||fiNumber<=0) return { years:null, fiNumber, pct:0, annualExp, annualSav };
     let years=0, projected=netWorth;
     while (projected<fiNumber&&years<100) { projected=projected*1.07+annualSav; years++; }
-    return { years, fiNumber, date:new Date().getFullYear()+years, pct:Math.min(100,(netWorth/Math.max(1,fiNumber))*100) };
+    return { years, fiNumber, date:new Date().getFullYear()+years, pct:Math.min(100,(netWorth/Math.max(1,fiNumber))*100), annualExp, annualSav };
   },[netWorth,monthInc,monthExp]);
 
   // Habit completion vs mood correlation
@@ -4403,6 +4404,29 @@ function LifeForecastTab({ data }) {
 
   const corrLabel = correlation===null?'—':Number(correlation)>0.5?'Strong positive':Number(correlation)>0.2?'Moderate positive':Number(correlation)<-0.2?'Negative':'Weak';
   const corrColor = correlation===null?T.textSub:Number(correlation)>0.2?T.emerald:Number(correlation)<-0.2?T.rose:T.textSub;
+
+  // Collapsible methodology panel state
+  const [showNWMethod,   setShowNWMethod  ] = useState(false);
+  const [showFIMethod,   setShowFIMethod  ] = useState(false);
+  const [showCorrMethod, setShowCorrMethod] = useState(false);
+
+  // Reusable methodology toggle button
+  const MethodBtn = ({open, onToggle}) => (
+    <button onClick={onToggle} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM, color:open?T.accent:T.textSub, background:open?T.accentDim:'transparent', border:`1px solid ${open?T.accent+'44':T.border}`, borderRadius:99, padding:'3px 10px', cursor:'pointer', transition:'all 0.15s', flexShrink:0 }}>
+      🔬 {open?'Hide':'How calculated?'}
+    </button>
+  );
+
+  // Reusable input row for methodology panels
+  const MRow = ({label, val, sub}) => (
+    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', padding:'7px 0', borderBottom:`1px solid ${T.border}` }}>
+      <div>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{label}</div>
+        {sub&&<div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>{sub}</div>}
+      </div>
+      <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, flexShrink:0, marginLeft:16 }}>{val}</div>
+    </div>
+  );
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
@@ -4432,14 +4456,42 @@ function LifeForecastTab({ data }) {
       <GlassCard style={{ padding:'20px 22px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
           <SectionLabel>Net Worth Projection</SectionLabel>
-          <div style={{ display:'flex', gap:14, fontSize:9, fontFamily:T.fM }}>
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
             {[{l:'Conservative',c:T.sky},{l:'Base',c:T.accent},{l:'Optimistic (7%)',c:T.emerald}].map(x=>(
-              <span key={x.l} style={{ display:'flex', alignItems:'center', gap:4, color:T.textSub }}>
+              <span key={x.l} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
                 <span style={{ width:8, height:8, borderRadius:'50%', background:x.c, display:'inline-block' }} />{x.l}
               </span>
             ))}
+            <MethodBtn open={showNWMethod} onToggle={()=>setShowNWMethod(v=>!v)} />
           </div>
         </div>
+
+        {/* NW Methodology panel */}
+        {showNWMethod&&(
+          <div style={{ marginBottom:16, padding:'14px 16px', borderRadius:T.r, background:T.accentLo, border:`1px solid ${T.accent}22`, animation:'slideDown 0.2s ease' }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:10 }}>Inputs used from your data</div>
+            <MRow label="Current net worth" val={`${cur}${fmtN(netWorth)}`} sub="Assets + investments − debts (snapshot today)" />
+            <MRow label="Monthly savings" val={`${cur}${fmtN(Math.max(0,monthInc-monthExp))}`} sub={`This month's income (${cur}${fmtN(monthInc)}) − expenses (${cur}${fmtN(monthExp)})`} />
+            <MRow label="Annual savings" val={`${cur}${fmtN(annualSavings)}`} sub="Monthly savings × 12 — held constant across all scenarios" />
+            <MRow label="Net worth history" val={`${hist.length} months`} sub={hist.length>=2?`Used to derive your personal growth rate of ${(annualHistRate*100).toFixed(1)}%/yr`:'Not enough history yet — base scenario defaults to 5%/yr'} />
+            <div style={{ marginTop:14, display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Formulas</div>
+              {[
+                { label:'🔵 Conservative', formula:`NW + (annual savings × years)`, note:'Savings only, zero investment growth — worst realistic case' },
+                { label:'⚡ Base', formula:`NW × (1 + ${hist.length>=2?(annualHistRate*100).toFixed(1):5}%)^yr + savings × FV-annuity(5%)`, note:`Your historical rate (${hist.length>=2?(annualHistRate*100).toFixed(1):5}%) on existing wealth, new savings compounding at 5%` },
+                { label:'🟢 Optimistic', formula:`NW × (1.07)^yr + savings × FV-annuity(7%)`, note:'7% annual growth on all wealth — long-run global equity average' },
+              ].map(s=>(
+                <div key={s.label} style={{ padding:'9px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{s.label}</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, marginBottom:3 }}>{s.formula}</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{s.note}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop:10, fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.5 }}>⚠ These are mathematical projections, not financial advice. They assume constant savings and do not model inflation, taxes, or major life events.</div>
+          </div>
+        )}
+
         {monthInc>0||netWorth!==0 ? (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={nwForecast} margin={{top:4,right:0,left:0,bottom:0}}>
@@ -4464,14 +4516,113 @@ function LifeForecastTab({ data }) {
         )}
       </GlassCard>
 
+      {/* FI Calculation Card */}
+      <GlassCard style={{ padding:'20px 22px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+          <SectionLabel>Financial Independence Calculation</SectionLabel>
+          <MethodBtn open={showFIMethod} onToggle={()=>setShowFIMethod(v=>!v)} />
+        </div>
+
+        {showFIMethod&&(
+          <div style={{ marginBottom:16, padding:'14px 16px', borderRadius:T.r, background:T.violetDim, border:`1px solid ${T.violet}22`, animation:'slideDown 0.2s ease' }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.violet, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:10 }}>Inputs used from your data</div>
+            <MRow label="Monthly expenses" val={`${cur}${fmtN(monthExp)}`}    sub="Your logged expenses this calendar month" />
+            <MRow label="Annual expenses"  val={`${cur}${fmtN(fiCalc.annualExp)}`} sub="Monthly expenses × 12" />
+            <MRow label="FI number"        val={`${cur}${fmtN(fiCalc.fiNumber)}`}  sub="Annual expenses × 25  (the 4% withdrawal rule)" />
+            <MRow label="Current net worth" val={`${cur}${fmtN(netWorth)}`}   sub="Your starting point for the simulation" />
+            <MRow label="Annual savings"   val={fiCalc.annualSav>0?`${cur}${fmtN(fiCalc.annualSav)}`:'—'} sub={fiCalc.annualSav>0?`(${cur}${fmtN(monthInc-monthExp)}/mo) × 12`:'Negative — expenses exceed income'} />
+            <div style={{ marginTop:14, display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.violet, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>How the year estimate works</div>
+              <div style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.7 }}>
+                Starting from your current net worth of <b style={{ color:T.text }}>{cur}{fmtN(netWorth)}</b>, the engine runs a year-by-year simulation:
+                <br/><br/>
+                <span style={{ color:T.violet, fontFamily:T.fM }}>wealth(year+1) = wealth(year) × 1.07 + {cur}{fmtN(fiCalc.annualSav)}</span>
+                <br/><br/>
+                It repeats until wealth ≥ <b style={{ color:T.text }}>{cur}{fmtN(fiCalc.fiNumber)}</b> (your FI number) or 100 years pass. The 7% growth rate is used as a base assumption — consistent with the optimistic NW scenario above.
+              </div>
+              <div style={{ padding:'9px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+                <b style={{ color:T.text }}>Why 25× expenses?</b> The 4% rule (Trinity Study, 1998) found that a portfolio withdrawing 4% per year survived 30+ years in 96% of historical scenarios. 1 ÷ 4% = 25 — so 25× your annual spending is the amount you need invested to live off returns alone.
+              </div>
+            </div>
+            <div style={{ marginTop:10, fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.5 }}>⚠ Assumes expenses stay constant, 7% real return, and no major life events. Actual FI date will shift as your income, expenses, and market returns change.</div>
+          </div>
+        )}
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:10 }}>
+          {[
+            { label:'Annual expenses', val:`${cur}${fmtN(fiCalc.annualExp)}`, color:T.rose },
+            { label:'FI target',       val:fiCalc.fiNumber>0?`${cur}${fmtN(fiCalc.fiNumber)}`:'—', color:T.accent },
+            { label:'Gap remaining',   val:`${cur}${fmtN(Math.max(0,fiCalc.fiNumber-netWorth))}`, color:T.amber },
+            { label:'Years to FI',     val:fiCalc.years!==null?(fiCalc.years<1?'Now!':fiCalc.years):'—', color:T.violet },
+          ].map((m,i)=>(
+            <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:5 }}>{m.label}</div>
+              <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+            </div>
+          ))}
+        </div>
+        {fiCalc.pct>0&&(
+          <div style={{ marginTop:14 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:5 }}>
+              <span>FI progress</span><span style={{ color:T.emerald }}>{fiCalc.pct.toFixed(1)}%</span>
+            </div>
+            <ProgressBar pct={fiCalc.pct} color={T.emerald} height={6} />
+          </div>
+        )}
+      </GlassCard>
+
       {/* Habit / Mood Correlation Chart */}
       <GlassCard style={{ padding:'20px 22px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
           <SectionLabel>Habit Completion vs Mood</SectionLabel>
-          {correlation!==null&&(
-            <span style={{ fontSize:10, fontFamily:T.fM, color:corrColor, background:corrColor+'18', padding:'3px 10px', borderRadius:99, border:`1px solid ${corrColor}33` }}>r = {correlation} · {corrLabel}</span>
-          )}
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            {correlation!==null&&(
+              <span style={{ fontSize:10, fontFamily:T.fM, color:corrColor, background:corrColor+'18', padding:'3px 10px', borderRadius:99, border:`1px solid ${corrColor}33` }}>r = {correlation} · {corrLabel}</span>
+            )}
+            <MethodBtn open={showCorrMethod} onToggle={()=>setShowCorrMethod(v=>!v)} />
+          </div>
         </div>
+
+        {showCorrMethod&&(
+          <div style={{ marginBottom:16, padding:'14px 16px', borderRadius:T.r, background:`${corrColor}0a`, border:`1px solid ${corrColor}22`, animation:'slideDown 0.2s ease' }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:corrColor, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:10 }}>Inputs used from your data</div>
+            <MRow label="Vitals entries analysed" val={`${habitMoodData.length} days`}    sub="Days where both a mood score and at least one habit log exist" />
+            <MRow label="Habits tracked"          val={`${habits.length}`}                sub="Each day's completion % = habits done ÷ total habits × 100" />
+            <MRow label="Mood range"              val="1–10 scale"                        sub="From your logged vitals entries" />
+            <MRow label="Window"                  val="Last 30 days"                      sub="Older data not included — your patterns change over time" />
+            <div style={{ marginTop:14, display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:corrColor, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>Formula: Pearson r</div>
+              <div style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.8 }}>
+                For each day, two values are paired: <b style={{ color:T.text }}>habit completion %</b> and <b style={{ color:T.text }}>mood score</b>. Pearson r measures how linearly they move together:
+                <br/><br/>
+                <span style={{ color:corrColor, fontFamily:T.fM }}>r = Σ[(x−x̄)(y−ȳ)] ÷ (n × σx × σy)</span>
+                <br/><br/>
+                where x = habit %, y = mood, x̄/ȳ = means, σ = standard deviations. Result is always between −1 and +1.
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                {[
+                  { range:'r > 0.5',       label:'Strong positive', note:'High habit days reliably match high mood', c:T.emerald },
+                  { range:'0.2 < r < 0.5', label:'Moderate positive', note:'Some tendency, but noisy', c:T.accent },
+                  { range:'-0.2 < r < 0.2',label:'Weak / no link',  note:'No clear pattern in your data', c:T.textSub },
+                  { range:'r < -0.2',      label:'Negative',        note:'May signal over-commitment or fatigue', c:T.rose },
+                ].map(s=>(
+                  <div key={s.range} style={{ padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${s.c}33` }}>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:s.c, fontWeight:700 }}>{s.range}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.text, marginTop:2 }}>{s.label}</div>
+                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{s.note}</div>
+                  </div>
+                ))}
+              </div>
+              {correlation!==null&&(
+                <div style={{ padding:'9px 12px', borderRadius:T.r, background:`${corrColor}12`, border:`1px solid ${corrColor}33`, fontSize:10, fontFamily:T.fM, color:T.text }}>
+                  Your result: <b style={{ color:corrColor }}>r = {correlation}</b> based on <b>{habitMoodData.filter(p=>p.completion>0).length} paired data points</b>. {habitMoodData.length<10?'More data will make this more reliable — keep logging daily.':'Confidence is reasonable at this sample size.'}
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop:10, fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.5 }}>⚠ Correlation is not causation. Other variables (sleep, stress, weekends) also influence mood. Use this as one signal, not a verdict.</div>
+          </div>
+        )}
+
         {habitMoodData.length>=4 ? (
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={habitMoodData} margin={{top:4,right:0,left:0,bottom:0}}>
