@@ -1,3 +1,22 @@
+// ══════════════════════════════════════════════════════════════════════════════
+// LifeOS — Personal Life Operating System  |  v64
+// ──────────────────────────────────────────────────────────────────────────────
+// ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
+// portability and zero-build deployment. When complexity exceeds ~10k lines or
+// a build step is acceptable, split into these logical modules:
+//
+//   core/        tokens.js · themes.js · i18n.js · hooks.js · helpers.js
+//   engine/      ai.js · debtWorker.js · computed.js
+//   components/  primitives/ · modals/ · charts/ · layout/
+//   pages/       Home · Money · Health · Growth · Knowledge
+//                Career · Calendar · Intel · Archive · Settings
+//   app.jsx      Root — state, actions, routing
+//
+// SEARCH GUIDE  (⌘F these markers to jump to sections):
+//   ── DESIGN TOKENS     ── AI ROUTER        ── ENGINE
+//   ── PRIMITIVES        ── MODALS           ── PAGES
+//   ── SIDEBAR           ── SETTINGS PAGE    ── ROOT (LifeOS export default)
+// ══════════════════════════════════════════════════════════════════════════════
 import React, { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, memo } from "react";
 import PropTypes from "prop-types";
 import {
@@ -48,9 +67,14 @@ import {
     .los-row:hover { background:rgba(255,255,255,0.03) !important; }
     .los-cmd:hover { background:rgba(255,255,255,0.06) !important; }
     .los-heat:hover { transform:scale(1.4); z-index:10; }
+    /* UX fix: keep outline:none for mouse users but restore visible focus ring for
+       keyboard/AT users via :focus-visible. Previously ALL focus indicators were
+       removed, making keyboard navigation effectively invisible. */
     input, textarea, select { outline:none; font-family:inherit; }
     input:focus, textarea:focus, select:focus { border-color:rgba(0,245,212,0.5) !important; }
     button { cursor:pointer; border:none; background:none; font-family:inherit; transition:all 0.18s ease; }
+    button:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 6px; }
+    a:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 4px; }
     select option { background:#0b0b1a; color:#dde0f2; }
   `;
   document.head.appendChild(style);
@@ -253,7 +277,11 @@ const LOCALES = {
     quickActions:'Actions Rapides', smartAlerts:'Alertes Intelligentes',
   },
 };
-let currentLang = 'en';
+// Bug-fix: removed `currentLang` mutable global. The t() function now always
+// requires an explicit lang argument (defaulting to 'en'). All call-sites already
+// pass lang via useLang(), so this is a no-op in practice — but it eliminates
+// the race where currentLang lagged behind the LangContext value.
+const t = (key, lang = 'en') => LOCALES[lang]?.[key] || LOCALES.en[key] || key;
 const LangContext = createContext('en');
 function useLang() { return useContext(LangContext); }
 
@@ -267,10 +295,6 @@ function useMoney() { return useContext(MoneyContext); }
 function useHealth() { return useContext(HealthContext); }
 /** Hook for growth-domain components */
 function useGrowth() { return useContext(GrowthContext); }
-const t = (key, lang) => {
-  const l = lang || currentLang;
-  return LOCALES[l]?.[key] || LOCALES.en[key] || key;
-};
 
 // ── LOCAL STORAGE HOOK ────────────────────────────────────────────────────────
 function useLocalStorage(key, defaultVal) {
@@ -342,6 +366,19 @@ function useMobile() {
     return () => mq.removeEventListener('change', handler);
   }, []);
   return mobile;
+}
+
+// ── useClock hook ──────────────────────────────────────────────────────────────
+// UX fix: the topbar clock was evaluated once at render time and never updated.
+// This hook ticks every 30 seconds so the displayed time stays accurate.
+function useClock() {
+  const fmt = () => new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  const [time, setTime] = useState(fmt);
+  useEffect(() => {
+    const id = setInterval(() => setTime(fmt()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
 }
 
 // ── useDebounce hook ───────────────────────────────────────────────────────────
@@ -1126,7 +1163,7 @@ function SleepStars({ value, onChange, size=18 }) {
   );
 }
 
-function LogVitalsModal({ open, onClose, onSave, existingDates=[] }) {
+function LogVitalsModal({ open, onClose, onSave, existingDates=[], weightUnit='lbs' }) {
   const [sleep, setSleep] = useState(''); const [sleepQuality, setSleepQuality] = useState(0);
   const [mood, setMood] = useState(''); const [energy, setEnergy] = useState('');
   const [weight, setWeight] = useState(''); const [steps, setSteps] = useState('');
@@ -1154,7 +1191,7 @@ function LogVitalsModal({ open, onClose, onSave, existingDates=[] }) {
         </div>
         <Input type="number" value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood (1–10)" />
         <Input type="number" value={energy} onChange={e=>setEnergy(e.target.value)} placeholder="Energy (1–10)" />
-        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="Weight (lbs/kg, optional)" />
+        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder={`Weight (${weightUnit}, optional)`} />
         <Input type="number" value={steps} onChange={e=>setSteps(e.target.value)} placeholder="Steps today (optional)" />
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Btn full onClick={save} color={T.sky}>Save Vitals</Btn>
@@ -1163,7 +1200,7 @@ function LogVitalsModal({ open, onClose, onSave, existingDates=[] }) {
   );
 }
 
-function EditVitalsModal({ open, onClose, vitals, onSave }) {
+function EditVitalsModal({ open, onClose, vitals, onSave, weightUnit='lbs' }) {
   const [sleep, setSleep] = useState(''); const [sleepQuality, setSleepQuality] = useState(0);
   const [mood, setMood] = useState(''); const [energy, setEnergy] = useState('');
   const [weight, setWeight] = useState(''); const [steps, setSteps] = useState('');
@@ -1187,7 +1224,7 @@ function EditVitalsModal({ open, onClose, vitals, onSave }) {
         </div>
         <Input type="number" value={mood} onChange={e=>setMood(e.target.value)} placeholder="Mood (1–10)" />
         <Input type="number" value={energy} onChange={e=>setEnergy(e.target.value)} placeholder="Energy (1–10)" />
-        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="Weight (lbs/kg, optional)" />
+        <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder={`Weight (${weightUnit}, optional)`} />
         <Input type="number" value={steps} onChange={e=>setSteps(e.target.value)} placeholder="Steps today (optional)" />
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
@@ -2006,6 +2043,34 @@ function HomePage({ data, actions, onNav }) {
           {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{ color:T.emerald }}>●</span> {habits.length} habits · <span style={{ color:T.accent }}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K to search</span>
         </div>
       </div>
+      {/* UX Fix 4: Empty-state guidance strip — shown only when the user has no data
+          at all. Each pill disappears once its domain has at least one entry.
+          Avoids the "six zeroes and silence" problem on a fresh install. */}
+      {(() => {
+        const steps = [
+          { done: expenses.length > 0 || incomes.length > 0, emoji:'💳', label:'Log your first expense or income', modal:'expense', color:T.rose },
+          { done: habits.length > 0,                          emoji:'🔥', label:'Create a habit to track',          modal:'habit',   color:T.accent },
+          { done: vitals.some(v=>v.date===today()),           emoji:'❤️', label:'Log today\'s vitals',              modal:'vitals',  color:T.sky },
+          { done: assets.length > 0 || investments.length > 0,emoji:'💎', label:'Add an asset to track net worth', modal:null,      color:T.violet, nav:'money' },
+        ];
+        const remaining = steps.filter(s => !s.done);
+        if (!remaining.length) return null;
+        return (
+          <div style={{ marginBottom:18, padding:'14px 18px', borderRadius:T.rL, background:`linear-gradient(135deg,${T.accent}06,${T.violet}04)`, border:`1px solid ${T.accent}22`, animation:'fadeUp 0.35s ease' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>Get started — {remaining.length} step{remaining.length>1?'s':''} remaining</div>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {remaining.map((s,i) => (
+                <button key={i} onClick={()=> s.modal ? setModal(s.modal) : onNav(s.nav||'money')}
+                  style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 14px', borderRadius:99, background:`${s.color}10`, border:`1px solid ${s.color}33`, fontSize:11, fontFamily:T.fM, color:s.color, cursor:'pointer', transition:'all 0.15s', whiteSpace:'nowrap' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=`${s.color}22`;e.currentTarget.style.transform='translateY(-1px)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=`${s.color}10`;e.currentTarget.style.transform='none';}}>
+                  <span>{s.emoji}</span> {s.label} <span style={{ opacity:0.5 }}>→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {[
           { label:'Net Worth', value:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent, icon:'💎', pct:null },
@@ -3150,6 +3215,7 @@ function HealthPage({ data, actions }) {
   const [focusHabitId, setFocusHabitId] = useState('');
   const [focusComplete, setFocusComplete] = useState(false);
   const { vitals, habits, habitLogs } = data;
+  const wu = data.settings?.weightUnit || 'lbs'; // UX fix: weight unit from settings
 
   useEffect(() => {
     if (!focusActive) return;
@@ -3178,8 +3244,8 @@ function HealthPage({ data, actions }) {
   const STAR_COLORS = { 5:T.emerald, 4:T.accent, 3:T.amber, 2:T.rose, 1:T.rose };
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={vitals.map(v=>v.date)} />
-      <EditVitalsModal open={!!editingVitals} onClose={()=>setEditingVitals(null)} vitals={editingVitals} onSave={(id,patch)=>{actions.updateVitals(id,patch);setEditingVitals(null);}} />
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={vitals.map(v=>v.date)} weightUnit={wu} />
+      <EditVitalsModal open={!!editingVitals} onClose={()=>setEditingVitals(null)} vitals={editingVitals} onSave={(id,patch)=>{actions.updateVitals(id,patch);setEditingVitals(null);}} weightUnit={wu} />
       <div style={{ marginBottom:22 }}><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1></div>
       <div style={{ display:'flex', gap:10, marginBottom:18 }}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
@@ -3187,7 +3253,7 @@ function HealthPage({ data, actions }) {
           { label:'Avg Sleep (7d)', val:`${avgSleep}h`, sub:avgSleepQ?`Quality: ${avgSleepQ}/5 ⭐`:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h', color:T.sky },
           { label:'Avg Mood (7d)',  val:`${avgMood}/10`, sub:'Emotional wellbeing', color:T.violet },
           { label:'Avg Energy (7d)',val:`${avgEnergy}/10`, sub:'Vitality level', color:T.accent },
-          { label:'Current Weight', val:latestWeight?`${latestWeight.weight} lbs`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
+          { label:'Current Weight', val:latestWeight?`${latestWeight.weight} ${wu}`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
           { label:'Avg Steps (7d)', val:(() => { const s=recent7.filter(v=>v.steps>0); return s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length).toLocaleString():'—'; })(), sub:'Daily step count', color:T.amber },
         ].map((m,i)=>(
           <GlassCard key={i} style={{ padding:'16px 18px' }}>
@@ -3284,21 +3350,21 @@ function HealthPage({ data, actions }) {
               <GlassCard style={{ padding:'20px 22px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                   <SectionLabel>Weight Trend</SectionLabel>
-                  <span style={{ fontSize:10, fontFamily:T.fM, color:deltaColor, fontWeight:600 }}>{delta>0?'+':''}{delta.toFixed(1)} lbs</span>
+                  <span style={{ fontSize:10, fontFamily:T.fM, color:deltaColor, fontWeight:600 }}>{delta>0?'+':''}{delta.toFixed(1)} {wu}</span>
                 </div>
                 <ResponsiveContainer width="100%" height={120}>
                   <LineChart data={weightData} margin={{top:4,right:0,left:0,bottom:0}}>
                     <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
                     <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis domain={[minW - (range||5)*0.3, maxW + (range||5)*0.3]} hide />
-                    <Tooltip content={<ChartTooltip suffix=" lbs" />} />
+                    <Tooltip content={<ChartTooltip suffix={` ${wu}`} />} />
                     <Line type="monotone" dataKey="weight" name="Weight" stroke={T.emerald} strokeWidth={2} dot={{fill:T.emerald,r:3}} />
                   </LineChart>
                 </ResponsiveContainer>
                 <div style={{ display:'flex', gap:20, marginTop:6, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
-                  <span>Low: {minW} lbs</span>
-                  <span>High: {maxW} lbs</span>
-                  <span>Latest: {weightData[weightData.length-1].weight} lbs</span>
+                  <span>Low: {minW} {wu}</span>
+                  <span>High: {maxW} {wu}</span>
+                  <span>Latest: {weightData[weightData.length-1].weight} {wu}</span>
                 </div>
               </GlassCard>
             );
@@ -4580,12 +4646,14 @@ function SettingsPage({ data, actions }) {
   const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
   const [aiApiKey, setAiApiKey] = useState(settings.aiApiKey||'');
+  // UX fix: weightUnit persisted in settings so Health charts use the correct label
+  const [weightUnit, setWeightUnit] = useState(settings.weightUnit||'lbs');
 
   const save = () => {
-    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:pin.length===4?pin:'' });
-    // Apply theme immediately
+    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:pin.length===4?pin:'', weightUnit });
+    // Apply theme immediately so inline styles re-read T before next paint
     Object.assign(T, THEMES[theme] || THEMES.dark);
-    currentLang = language;
+    // Note: currentLang global removed (Bug 5 fix) — language flows via LangContext
   };
   const exportCSV = () => {
     const headers = ['Date','Amount','Category','Note'];
@@ -4595,22 +4663,71 @@ function SettingsPage({ data, actions }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=url; a.download=`lifeos-expenses-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
   };
+  // Architecture fix: all 18 localStorage keys are now exported — previously
+  // los_bills, los_career, los_qnotes, and los_eventlog were silently omitted.
   const exportData = () => {
-    const d = { los_habits:data.habits, los_habitlogs:data.habitLogs, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_assets:data.assets, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes, los_xp:data.totalXP, los_nwhistory:data.netWorthHistory, los_settings:settings, los_focus:data.focusSessions, los_subs:data.subscriptions, los_budgets:data.budgets, los_chronicles:data.chronicles, los_challenges:data.challenges };
-    const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`lifeos_backup_${today()}.json`; a.click(); URL.revokeObjectURL(url);
+    const d = {
+      los_habits:       data.habits,
+      los_habitlogs:    data.habitLogs,
+      los_expenses:     data.expenses,
+      los_incomes:      data.incomes,
+      los_debts:        data.debts,
+      los_goals:        data.goals,
+      los_assets:       data.assets,
+      los_investments:  data.investments,
+      los_vitals:       data.vitals,
+      los_notes:        data.notes,
+      los_xp:           data.totalXP,
+      los_nwhistory:    data.netWorthHistory,
+      los_settings:     settings,
+      los_focus:        data.focusSessions,
+      los_subs:         data.subscriptions,
+      los_budgets:      data.budgets,
+      los_bills:        data.bills,
+      los_career:       data.career,
+      los_qnotes:       data.quickNotes,
+      los_chronicles:   data.chronicles,
+      los_challenges:   data.challenges,
+      los_eventlog:     data.eventLog,
+    };
+    const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`lifeos_backup_${today()}.json`; a.click();
+    URL.revokeObjectURL(url);
   };
   const importData = (e) => {
     const file = e.target.files[0]; if (!file) return;
+    // Architecture fix: added confirmation dialog — previously reloaded blindly
+    const confirmed = window.confirm(
+      `Import "${file.name}"?\n\nThis will overwrite ALL current data and reload the app. This cannot be undone.\n\nMake sure you have a backup of your current data first.`
+    );
+    if (!confirmed) { e.target.value = ''; return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const d = JSON.parse(ev.target.result);
-        Object.entries(d).forEach(([key, val]) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} });
+        // Only write known los_ keys to avoid polluting localStorage
+        const KNOWN_KEYS = ['los_habits','los_habitlogs','los_expenses','los_incomes','los_debts','los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp','los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills','los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog'];
+        Object.entries(d).forEach(([key, val]) => {
+          if (KNOWN_KEYS.includes(key)) {
+            try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+          }
+        });
         window.location.reload();
-      } catch { alert('Invalid backup file'); }
+      } catch { alert('Import failed — the file is not a valid LifeOS backup.'); }
     };
     reader.readAsText(file);
   };
+  // Architecture fix: show localStorage usage so users know before they hit the ~5MB wall
+  const lsUsageKB = (() => {
+    try {
+      let total = 0;
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('los_')) total += (localStorage.getItem(key)||'').length;
+      }
+      return Math.round(total / 1024);
+    } catch { return 0; }
+  })();
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <div style={{ marginBottom:22 }}><SectionLabel>System</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Settings</h1></div>
@@ -4619,7 +4736,15 @@ function SettingsPage({ data, actions }) {
           <SectionLabel>Profile</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" />
-            <Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['$','€','£','¥','₹','₩','Fr','A$','C$'].map(c=><option key={c}>{c}</option>)}</Select>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['$','€','£','¥','₹','₩','Fr','A$','C$'].map(c=><option key={c}>{c}</option>)}</Select>
+              {/* UX fix: weight unit selector — previously stored raw numbers with no unit context */}
+              <div style={{ display:'flex', gap:4 }}>
+                {['lbs','kg'].map(u=>(
+                  <button key={u} onClick={()=>setWeightUnit(u)} style={{ flex:1, padding:'9px', borderRadius:T.r, background:weightUnit===u?T.skyDim:T.surface, border:`1px solid ${weightUnit===u?T.sky+'55':T.border}`, fontSize:11, fontFamily:T.fM, color:weightUnit===u?T.sky:T.textSub, transition:'all 0.15s' }}>{u}</button>
+                ))}
+              </div>
+            </div>
             <Input type="number" value={incomeTarget} onChange={e=>setIncomeTarget(e.target.value)} placeholder="Monthly income target" />
             <Input type="number" value={savingsTarget} onChange={e=>setSavingsTarget(e.target.value)} placeholder="Savings rate target (%)" />
             <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${T.border}` }}>
@@ -4693,7 +4818,7 @@ function SettingsPage({ data, actions }) {
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:8, marginBottom:2 }}>Language</div>
             <div style={{ display:'flex', gap:8 }}>
               {[{id:'en',label:'🇬🇧 English'},{id:'fr',label:'🇫🇷 Français'}].map(lang=>(
-                <button key={lang.id} onClick={()=>{ setLanguage(lang.id); currentLang=lang.id; actions.updateSettings({...settings, language:lang.id, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, aiProvider, aiApiKey, pin:pin.length===4?pin:''}); }} style={{ flex:1, padding:'8px', borderRadius:8, background:language===lang.id?T.accentDim:T.surface, border:`1px solid ${language===lang.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:language===lang.id?T.accent:T.text }}>
+                <button key={lang.id} onClick={()=>{ setLanguage(lang.id); actions.updateSettings({...settings, language:lang.id, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, aiProvider, aiApiKey, pin:pin.length===4?pin:''}); }} style={{ flex:1, padding:'8px', borderRadius:8, background:language===lang.id?T.accentDim:T.surface, border:`1px solid ${language===lang.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:language===lang.id?T.accent:T.text }}>
                   {lang.label}
                 </button>
               ))}
@@ -4721,7 +4846,13 @@ function SettingsPage({ data, actions }) {
               </div>
             ))}
             {aiProvider !== 'ollama' && (
-              <Input value={aiApiKey} onChange={e=>setAiApiKey(e.target.value)} placeholder={`${aiProvider==='openai'?'OpenAI':'Anthropic'} API Key (optional)`} type="password" />
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <Input value={aiApiKey} onChange={e=>setAiApiKey(e.target.value)} placeholder={`${aiProvider==='openai'?'OpenAI':'Anthropic'} API Key (optional)`} type="password" />
+                {/* Architecture fix: explicit security notice — key is stored plaintext in localStorage */}
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'7px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, lineHeight:1.5 }}>
+                  🔑 Your API key is stored in browser localStorage — visible to browser extensions and any script on this page. Do not use a key with high billing limits. Consider creating a dedicated low-budget key for LifeOS.
+                </div>
+              </div>
             )}
             {aiProvider === 'ollama' && (
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -4749,6 +4880,17 @@ function SettingsPage({ data, actions }) {
                 <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:item.color }}>{item.val}</div>
               </div>
             ))}
+            {/* Architecture fix: localStorage quota indicator — browser limit is ~5MB per origin */}
+            <div style={{ padding:'10px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${lsUsageKB>3500?T.rose+'55':lsUsageKB>2000?T.amber+'55':T.border}` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Storage used (LifeOS data)</div>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:lsUsageKB>3500?T.rose:lsUsageKB>2000?T.amber:T.emerald, fontWeight:600 }}>{lsUsageKB} KB / ~5 MB</div>
+              </div>
+              <div style={{ width:'100%', height:4, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${Math.min((lsUsageKB/5120)*100,100)}%`, borderRadius:99, background:lsUsageKB>3500?T.rose:lsUsageKB>2000?T.amber:T.emerald, transition:'width 0.5s ease' }} />
+              </div>
+              {lsUsageKB > 3500 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose, marginTop:5 }}>⚠ Approaching browser storage limit — export a backup now.</div>}
+            </div>
             <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
             <Btn full onClick={()=>{ const d = { los_habits:data.habits, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes }; navigator.clipboard.writeText(JSON.stringify(d,null,2)).then(()=>alert('Data copied to clipboard!')).catch(()=>alert('Clipboard copy failed — try Export JSON instead')); }} color={T.textSub}>📋 Copy Data to Clipboard</Btn>
             <Btn full onClick={exportCSV} color={T.emerald}>📊 Export Expenses CSV</Btn>
@@ -6933,7 +7075,9 @@ function GoogleCalendarTab({ data }) {
   };
 
   const upcoming = [...events].sort((a,b)=>new Date(a.start)-new Date(b.start));
-  const today = new Date().toDateString();
+  // Bug-fix: renamed from `today` (which shadowed the module-level today() fn)
+  // to todayDateStr to avoid confusion and future "today is not a function" crashes.
+  const todayDateStr = new Date().toDateString();
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -6957,7 +7101,7 @@ function GoogleCalendarTab({ data }) {
             {upcoming.map((e,i)=>{
               const start = new Date(e.start);
               const end = new Date(e.end||e.start);
-              const isToday = start.toDateString()===today;
+              const isToday = start.toDateString()===todayDateStr;
               const dur = Math.round((end-start)/60000);
               return (
                 <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'12px 14px', borderRadius:T.r, background:isToday?T.accentLo:T.surface, border:`1px solid ${isToday?T.accent+'44':T.border}` }}>
@@ -6994,6 +7138,9 @@ export default function LifeOS() {
   const [page, setPage] = useState('home');
   const [cmdOpen, setCmdOpen] = useState(false);
   const [globalModal, setGlobalModal] = useState(null);
+  // ── Bug-fix: themeVersion forces a re-render after T is mutated so all
+  // inline-style references to T.bg / T.accent etc. pick up the new values.
+  const [themeVersion, setThemeVersion] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -7070,11 +7217,18 @@ export default function LifeOS() {
   }, []);
   const dismissToast = useCallback((id) => setToasts(p => p.filter(t => t.id !== id)), []);
   const handleUndo = useCallback((toastId) => {
-    setToasts(p => p.map(t => t.id === toastId ? { ...t, undone: true } : t));
-    const t = toasts.find(t => t.id === toastId);
-    if (t?.onUndo) t.onUndo();
+    // Bug-fix: read onUndo from inside the functional updater so we always have
+    // the latest state, eliminating the stale-closure risk on the old `toasts` dep.
+    let undoFn = null;
+    setToasts(p => {
+      const found = p.find(t => t.id === toastId);
+      if (found?.onUndo) undoFn = found.onUndo;
+      return p.map(t => t.id === toastId ? { ...t, undone: true } : t);
+    });
+    // Execute after the state update is flushed
+    setTimeout(() => { if (undoFn) undoFn(); }, 0);
     dismissToast(toastId);
-  }, [toasts, dismissToast]);
+  }, [dismissToast]);
 
   // ── Timeline — monthly prune: keep only last 3 months, run once per calendar day ──
   useEffect(() => {
@@ -7134,20 +7288,27 @@ export default function LifeOS() {
   }, []);
 
   // ── S5: Apply theme + language reactively on settings change ─────────────────
+  // Object.assign mutates T (used in all inline styles) but React doesn't know
+  // about it. Bumping themeVersion causes LifeOS to re-render, which cascades
+  // to all children and lets them read the updated T values.
   useEffect(() => {
     const savedTheme = settings.theme || 'dark';
     Object.assign(T, THEMES[savedTheme] || THEMES.dark);
-    currentLang = settings.language || 'en';
-  }, [settings.theme, settings.language]);
+    setThemeVersion(v => v + 1);
+  }, [settings.theme]);
 
   // ── S5: Recurring Expense Auto-log ────────────────────────────────────────
+  // Bug-fix: added the same daily date-guard used by the expenses effect below
+  // so this can't fire twice on the same day (e.g. React StrictMode double-mount).
   useEffect(() => {
+    const SUB_AUTO_KEY = 'los_subautoexp_last';
     const todayStr = today();
+    if (localStorage.getItem(SUB_AUTO_KEY) === todayStr) return;
     const toAutoLog = (subscriptions || []).filter(sub => {
       if (!sub.nextDate || sub.paused) return false;
       return sub.nextDate <= todayStr;
     });
-    if (!toAutoLog.length) return;
+    if (!toAutoLog.length) { localStorage.setItem(SUB_AUTO_KEY, todayStr); return; }
     toAutoLog.forEach(sub => {
       const expense = { id:Date.now()+Math.random(), amount:Number(sub.amount||0), category:'💳 Subscriptions', note:`Auto: ${sub.name}`, date:todayStr };
       setExpenses(p => [expense, ...p]);
@@ -7158,6 +7319,7 @@ export default function LifeOS() {
       else next.setDate(next.getDate()+7);
       setSubscriptions(p => p.map(s => s.id===sub.id ? { ...s, nextDate:next.toISOString().slice(0,10) } : s));
     });
+    localStorage.setItem(SUB_AUTO_KEY, todayStr);
     if (toAutoLog.length) addToast(`Auto-logged ${toAutoLog.length} recurring expense${toAutoLog.length>1?'s':''}`, null, 5);
   }, []);
 
@@ -7411,8 +7573,7 @@ export default function LifeOS() {
   const updateSettings = useCallback((s) => {
     // Apply theme immediately so the re-render sees the new T values
     if (s.theme && THEMES[s.theme]) Object.assign(T, THEMES[s.theme]);
-    // Apply language immediately so t() returns correct strings on re-render
-    if (s.language) currentLang = s.language;
+    // Note: currentLang global removed (Bug 5 fix) — language flows via LangContext
     setSettings(s);
   }, []);
 
@@ -7473,6 +7634,7 @@ export default function LifeOS() {
   };
 
   const isMobile = useMobile();
+  const clockTime = useClock(); // UX fix: live-updating topbar clock
   const data = {
     expenses, incomes, assets, investments, debts, goals,
     habits, habitLogs, vitals, notes, totalXP, settings,
@@ -7667,7 +7829,7 @@ export default function LifeOS() {
               <IcoBrain size={15} stroke="currentColor" />
               {!showAIPanel && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
             </button>
-            {!isMobile && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>}
+            {!isMobile && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{clockTime}</div>}
           </div>
         </div>
 
