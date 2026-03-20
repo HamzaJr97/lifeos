@@ -8457,7 +8457,7 @@ Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Nev
   return (
     <>
       {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9994, background:'rgba(0,0,0,0.35)', backdropFilter:'blur(2px)', animation:'fadeIn 0.2s ease' }} />}
-      <div style={{ position:'fixed', top:0, right:0, height:'100vh', width:clamp(340,380,460), background:T.bg1, borderLeft:`1px solid ${T.borderLit}`, display:'flex', flexDirection:'column', zIndex:9995, transform:open?'translateX(0)`:'translateX(100%)', transition:'transform 0.3s cubic-bezier(0.32,0.72,0,1)', boxShadow:open?`-20px 0 60px rgba(0,0,0,0.6),-1px 0 0 ${T.accent}18`:'none' }}>
+      <div style={{ position:'fixed', top:0, right:0, height:'100vh', width:clamp(340,380,460), background:T.bg1, borderLeft:`1px solid ${T.borderLit}`, display:'flex', flexDirection:'column', zIndex:9995, transform:open?'translateX(0)':'translateX(100%)', transition:'transform 0.3s cubic-bezier(0.32,0.72,0,1)', boxShadow:open?`-20px 0 60px rgba(0,0,0,0.6),-1px 0 0 ${T.accent}18`:'none' }}>
         <div style={{ padding:'14px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`, border:`1px solid ${T.accent}44`, display:'flex', alignItems:'center', justifyContent:'center', animation:'glowPulse 3s infinite', flexShrink:0 }}>
             <IcoBrain size={16} stroke={T.accent} />
