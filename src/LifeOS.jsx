@@ -2125,7 +2125,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
     computeDailyBrief({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings }),
     // Recompute when key data changes — not on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [expenses.length, incomes.length, habits.length, Object.values(habitLogs).flat().length, vitals.length, goals.length, bills.length, JSON.stringify(budgets)]
+    [expenses.length, incomes.length, habits.length, Object.values(habitLogs).flat().length, vitals.length, goals.length, bills.length, Object.keys(budgets||{}).length, Object.values(budgets||{}).reduce((s,v)=>s+Number(v||0),0)]
   );
 
   const SEV_COLORS = { urgent: T.rose, high: T.amber, medium: T.accent, low: T.emerald, neutral: T.textSub };
@@ -2283,7 +2283,7 @@ function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vital
       alerts.push({
         id: `budget-pace-${cat}`, type:'budget', severity:'warn',
         title: `${cat} on pace to overshoot`,
-        body: `At current pace: projected to exceed budget by ${T.rose}. ${daysLeft} days left to adjust.`,
+        body: `At current pace: projected to exceed limit by ~${Math.round(overshoot)} (${Math.round(pct)}% used so far). ${daysLeft} days left to adjust.`,
         action: 'See budget', actionNav: 'money',
         dismissKey: `budget-pace-${cat}-${today_}`,
         color: T.amber,
@@ -2623,6 +2623,24 @@ function HomePage({ data, actions, onNav }) {
     return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,6);
   },[expenses,incomes,habits,habitLogs,lastVitals,cur]);
 
+  const [dismissed, setDismissed] = useLocalStorage('los_alerts_dismissed', {});
+  // Clean up dismissed keys older than today on mount
+  useEffect(() => {
+    const today_ = today();
+    setDismissed(prev => {
+      const clean = {};
+      Object.entries(prev||{}).forEach(([k,v]) => { if (v === today_) clean[k] = v; });
+      return clean;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const dismissAlert  = (key) => setDismissed(prev => ({ ...prev, [key]: today() }));
+  const dismissAllAlerts = (alerts) => setDismissed(prev => {
+    const next = { ...prev };
+    alerts.forEach(a => { next[a.dismissKey] = today(); });
+    return next;
+  });
+
   const QUICK_ACTIONS = [
     { label:'Log Expense', emoji:'💳', modal:'expense' }, { label:'Log Income', emoji:'💰', modal:'income' },
     { label:'Log Habit',   emoji:'🔥', modal:'habit'   }, { label:'Log Vitals', emoji:'❤️', modal:'vitals' },
@@ -2920,17 +2938,12 @@ function HomePage({ data, actions, onNav }) {
       {/* ── Step 3: Proactive Alerts Panel — action buttons, dismissable, positive included */}
       {(()=>{
         const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets });
-        const [dismissed, setDismissed] = [
-          JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'),
-          (prev) => { localStorage.setItem('los_alerts_dismissed', JSON.stringify(typeof prev==='function'?prev(JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}')):prev)); },
-        ];
         const active = allAlerts.filter(a => !dismissed[a.dismissKey]);
         if (!active.length) return null;
         const SEV_COLOR = { urgent:T.rose, warn:T.amber, positive:T.emerald, info:T.sky };
-        const urgent  = active.filter(a=>a.severity==='urgent'||a.severity==='warn');
+        const urgent   = active.filter(a=>a.severity==='urgent'||a.severity==='warn');
         const positive = active.filter(a=>a.severity==='positive');
-        const info    = active.filter(a=>a.severity==='info');
-        const borderC = urgent.length ? T.amber : positive.length ? T.emerald : T.sky;
+        const borderC  = urgent.length ? T.amber : positive.length ? T.emerald : T.sky;
         return (
           <GlassCard style={{ padding:'18px 22px', marginBottom:16, borderLeft:`3px solid ${borderC}55` }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
@@ -2938,12 +2951,7 @@ function HomePage({ data, actions, onNav }) {
                 <SectionLabel style={{ marginBottom:0 }}>{urgent.length ? `⚠️ ${urgent.length} action${urgent.length>1?'s':''} needed` : positive.length ? '🌟 Momentum' : '💡 Insights'}</SectionLabel>
                 {active.length > 1 && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{active.length} total</span>}
               </div>
-              <button onClick={()=>{
-                const d = JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}');
-                active.forEach(a=>{ d[a.dismissKey]=today(); });
-                localStorage.setItem('los_alerts_dismissed', JSON.stringify(d));
-                // Force re-render via a toast
-              }} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>Dismiss all</button>
+              <button onClick={()=>dismissAllAlerts(active)} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>Dismiss all</button>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
               {active.slice(0,4).map((a,i)=>(
@@ -2962,7 +2970,7 @@ function HomePage({ data, actions, onNav }) {
                         {a.action} →
                       </button>
                     )}
-                    <button onClick={()=>{ const d=JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'); d[a.dismissKey]=today(); localStorage.setItem('los_alerts_dismissed',JSON.stringify(d)); }}
+                    <button onClick={()=>dismissAlert(a.dismissKey)}
                       style={{ padding:'5px 7px', borderRadius:99, background:'transparent', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted, cursor:'pointer', lineHeight:1 }}>×</button>
                   </div>
                 </div>
@@ -8298,7 +8306,7 @@ function buildAIBriefing(data) {
     } else if (f.severity === 'good') {
       parts.push(`**Finance:** ${f.signal}. ${f.detail}`);
     } else if (monthInc > 0) {
-      parts.push(`**Finance:** Spending ${cur}${fmtN(monthExp)} against ${cur}${fmtN(monthInc)} income this month — savings rate ${savRate.toFixed(1)}%.${avgSavRate!=null ? \` Your 3-month average is ${avgSavRate.toFixed(1)}%.\` : ''}`);
+      parts.push(`**Finance:** Spending ${cur}${fmtN(monthExp)} against ${cur}${fmtN(monthInc)} income this month — savings rate ${savRate.toFixed(1)}%.` + (avgSavRate!=null ? ` Your 3-month average is ${avgSavRate.toFixed(1)}%.` : ''));
     }
   }
 
