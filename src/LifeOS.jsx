@@ -1814,67 +1814,707 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── S3: SMART ALERTS ENGINE (shared by TopBar + HomePage) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc, savRate }) {
+// ══════════════════════════════════════════════════════════════════════════════
+// ── DAILY BRIEF ENGINE — Step 1 of the "what's about to happen" shift ─────────
+// Pure deterministic computation. No AI, no API. Runs on every Home render.
+// Answers three questions: what's the financial trajectory, what habit is at
+// risk, and what is the single most valuable thing to do today.
+// ══════════════════════════════════════════════════════════════════════════════
+function computeDailyBrief({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings }) {
+  const cur    = settings?.currency || '$';
   const today_ = today();
-  const alerts = [];
-  // Bills due / overdue
-  (bills||[]).filter(b=>!b.paid).forEach(b => {
-    const d = Math.ceil((new Date(b.nextDate)-new Date())/(1000*60*60*24));
-    if (d <= 3) alerts.push({ icon:d<0?'🚨':'⏰', msg:`${b.name} bill ${d<0?'overdue by '+(-d)+'d':'due in '+d+'d'}`, color:d<0?T.rose:T.amber, priority:d<0?0:1 });
+  const thisM  = today_.slice(0, 7);
+  const now    = new Date();
+  const dayOfMonth   = now.getDate();
+  const daysInMonth  = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const daysLeft     = daysInMonth - dayOfMonth;
+  const monthPct     = (dayOfMonth / daysInMonth) * 100;
+
+  // ── Trailing 3-month averages ──────────────────────────────────────────────
+  const trailing = [1,2,3].map(i => {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const m = d.toISOString().slice(0,7);
+    const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+    const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+    return { inc, exp, saved: Math.max(0, inc-exp) };
   });
-  // Budget over 90%
-  Object.entries(budgets||{}).forEach(([cat, limit]) => {
-    const spent = expenses.filter(e=>e.date?.startsWith(thisMonth)&&e.category?.includes(cat.split(' ')[1]||cat)).reduce((s,e)=>s+Number(e.amount||0),0);
-    const pct = limit>0?(spent/limit)*100:0;
-    if (pct>=90) alerts.push({ icon:pct>=100?'🔴':'🟡', msg:`${cat} ${pct>=100?'over budget':'at '+Math.round(pct)+'% of budget'}`, color:pct>=100?T.rose:T.amber, priority:pct>=100?0:2 });
-  });
-  // Streak at risk (logged yesterday but not today, after 18:00)
-  habits.forEach(h => {
-    const logs = habitLogs[h.id]||[];
-    const yday = new Date(); yday.setDate(yday.getDate()-1);
-    const ys = yday.toISOString().slice(0,10);
-    if (logs.includes(ys) && !logs.includes(today_) && new Date().getHours() >= 18) {
-      alerts.push({ icon:'🔥', msg:`${h.name} streak at risk! Log today`, color:T.accent, priority:1 });
+  const avgInc  = trailing.reduce((s,t)=>s+t.inc,0)  / Math.max(1, trailing.filter(t=>t.inc>0).length || 1);
+  const avgExp  = trailing.reduce((s,t)=>s+t.exp,0)  / Math.max(1, trailing.filter(t=>t.exp>0).length || 1);
+  const avgSave = trailing.reduce((s,t)=>s+t.saved,0) / Math.max(1, trailing.filter(t=>t.saved>0).length || 1);
+
+  // This month so far
+  const monthInc = incomes.filter(i=>i.date?.startsWith(thisM)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const monthExp = expenses.filter(e=>e.date?.startsWith(thisM)).reduce((s,e)=>s+Number(e.amount||0),0);
+
+  // ── Financial signal ───────────────────────────────────────────────────────
+  let financial = null;
+  if (monthInc > 0 || avgInc > 0) {
+    const projExp  = monthPct > 0 ? (monthExp / (monthPct/100)) : 0; // extrapolate to full month
+    const projSave = Math.max(0, monthInc - projExp);
+    const expDelta = avgExp > 0 ? ((projExp - avgExp) / avgExp) * 100 : 0;
+    const saveDelta= avgSave > 0 ? projSave - avgSave : 0;
+    const severity = expDelta > 25 ? 'warn' : expDelta > 10 ? 'notice' : expDelta < -10 ? 'good' : 'neutral';
+
+    // Budget pace — find the most over-tracked budget
+    let budgetSignal = null;
+    Object.entries(budgets||{}).forEach(([cat, limit]) => {
+      const spent = expenses.filter(e=>e.date?.startsWith(thisM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+      const pct   = limit>0 ? (spent/Number(limit))*100 : 0;
+      const proj  = monthPct > 0 ? (spent / (monthPct/100)) : 0;
+      if (proj > Number(limit)*1.05) {
+        const overshoot = Math.round(proj - Number(limit));
+        if (!budgetSignal || overshoot > budgetSignal.overshoot) {
+          budgetSignal = { cat, pct: Math.round(pct), overshoot, daysLeft };
+        }
+      }
+    });
+
+    if (budgetSignal) {
+      financial = {
+        severity: 'warn',
+        emoji: '💸',
+        signal: `${budgetSignal.cat} budget on track to overshoot`,
+        detail: `${Math.round(monthPct)}% through the month, ${Math.round(budgetSignal.pct)}% of budget used — projects ${cur}${fmtN(budgetSignal.overshoot)} over by month-end.`,
+        projection: `${daysLeft} days left to course-correct`,
+        action: 'Review budget', actionNav: 'money',
+      };
+    } else if (severity === 'warn') {
+      financial = {
+        severity: 'warn',
+        emoji: '📉',
+        signal: `Spending ${Math.abs(Math.round(expDelta))}% above your average`,
+        detail: `Projected month-end spend: ${cur}${fmtN(Math.round(projExp))} vs your ${cur}${fmtN(Math.round(avgExp))} average. Projected savings: ${cur}${fmtN(Math.round(projSave))}.`,
+        projection: saveDelta < 0 ? `${cur}${fmtN(Math.abs(Math.round(saveDelta)))} less than your usual savings` : `On track`,
+        action: 'See spending', actionNav: 'money',
+      };
+    } else if (severity === 'good') {
+      financial = {
+        severity: 'good',
+        emoji: '📈',
+        signal: `Savings pace above average`,
+        detail: `Projected to save ${cur}${fmtN(Math.round(projSave))} this month — ${cur}${fmtN(Math.abs(Math.round(saveDelta)))} more than your usual ${cur}${fmtN(Math.round(avgSave))}.`,
+        projection: `Best savings month in ${trailing.length}+ months`,
+        action: 'View forecast', actionNav: 'intel',
+      };
+    } else {
+      financial = {
+        severity: 'neutral',
+        emoji: '💰',
+        signal: `Savings on track`,
+        detail: `${cur}${fmtN(monthInc)} income · ${cur}${fmtN(monthExp)} spent so far. Projected savings: ${cur}${fmtN(Math.round(projSave))}.`,
+        projection: `Near your ${cur}${fmtN(Math.round(avgSave))} monthly average`,
+        action: 'Log expense', actionModal: 'expense',
+      };
     }
-  });
-  // Low savings rate
-  if (monthInc > 0 && savRate < 10) alerts.push({ icon:'📉', msg:`Savings rate only ${savRate.toFixed(0)}% this month`, color:T.amber, priority:3 });
-  // No vitals in 3 days
-  if (vitals.length > 0) {
-    const lastV = [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0];
-    const daysSince = Math.round((new Date()-new Date(lastV.date))/(1000*60*60*24));
-    if (daysSince >= 3) alerts.push({ icon:'❤️', msg:`No vitals logged in ${daysSince} days`, color:T.sky, priority:3 });
+
+    if (monthInc === 0 && avgInc > 0) {
+      financial = {
+        severity: 'warn',
+        emoji: '⚠️',
+        signal: `No income logged this month`,
+        detail: `All projections depend on income data. Your 3-month average was ${cur}${fmtN(Math.round(avgInc))}/mo.`,
+        projection: `Log income to restore forecast accuracy`,
+        action: 'Log income', actionModal: 'income',
+      };
+    }
+  } else {
+    financial = {
+      severity: 'neutral',
+      emoji: '💳',
+      signal: `Start tracking to see your forecast`,
+      detail: `Log a few months of income and expenses — the brief builds itself from your real patterns.`,
+      projection: ``,
+      action: 'Log income', actionModal: 'income',
+    };
   }
-  return [...alerts].sort((a,b)=>a.priority-b.priority).slice(0,6);
+
+  // ── Habit signal ───────────────────────────────────────────────────────────
+  let habit = null;
+  if (habits.length > 0) {
+    const BREAK_RISK_LENGTHS = [3, 7, 14, 21, 30]; // research-backed streak break points
+    const DOW = now.getDay(); // 0=Sun, 6=Sat
+    const isWeekend = DOW === 0 || DOW === 6;
+
+    // Build per-habit streak history to detect personal break patterns
+    const habitRisks = habits.map(h => {
+      const logs   = (habitLogs[h.id] || []).sort();
+      const streak = getStreak(h.id, habitLogs);
+      const doneToday = logs.includes(today_);
+
+      // How many times has this habit broken on a weekend?
+      let weekendBreaks = 0, totalBreaks = 0;
+      for (let i = 1; i < logs.length; i++) {
+        const prev = new Date(logs[i-1]), curr = new Date(logs[i]);
+        const gap  = Math.round((curr - prev) / 86400000);
+        if (gap > 1) {
+          totalBreaks++;
+          const breakDay = new Date(prev); breakDay.setDate(breakDay.getDate()+1);
+          if (breakDay.getDay()===0||breakDay.getDay()===6) weekendBreaks++;
+        }
+      }
+      const weekendBreakRate = totalBreaks > 0 ? weekendBreaks/totalBreaks : 0;
+
+      // Risk score: streak at break-point length + weekend pattern + not done today
+      const atBreakLength = BREAK_RISK_LENGTHS.includes(streak) || BREAK_RISK_LENGTHS.some(l => Math.abs(streak-l)<=1);
+      const riskScore = (
+        (doneToday ? 0 : 3) +
+        (atBreakLength ? 2 : 0) +
+        (isWeekend && weekendBreakRate > 0.4 ? 2 : 0) +
+        (streak >= 7 ? 1 : 0) // higher stakes for longer streaks
+      );
+
+      return { h, streak, doneToday, riskScore, weekendBreakRate, atBreakLength };
+    }).sort((a,b) => b.riskScore - a.riskScore);
+
+    const topRisk = habitRisks[0];
+    const allDone = habitRisks.every(r => r.doneToday);
+    const doneSoFar = habitRisks.filter(r => r.doneToday).length;
+
+    if (allDone && habits.length > 0) {
+      habit = {
+        severity: 'good',
+        emoji: '🔥',
+        signal: `All ${habits.length} habits done today`,
+        detail: `Perfect day. Best streak: ${Math.max(...habitRisks.map(r=>r.streak))} days.`,
+        projection: `Keep the momentum into tomorrow`,
+        action: null,
+      };
+    } else if (topRisk && topRisk.riskScore >= 3) {
+      const weekendNote = isWeekend && topRisk.weekendBreakRate > 0.4
+        ? ` You've broken this habit on ${Math.round(topRisk.weekendBreakRate*100)}% of past weekends.` : '';
+      const breakNote   = topRisk.atBreakLength ? ` Day ${topRisk.streak} is a historically common break point.` : '';
+      habit = {
+        severity: topRisk.streak >= 7 ? 'warn' : 'notice',
+        emoji: '🎯',
+        signal: `${topRisk.h.emoji||'🔥'} ${topRisk.h.name} — ${topRisk.streak}d streak at risk`,
+        detail: `${doneSoFar}/${habits.length} habits logged today.${weekendNote}${breakNote}`,
+        projection: topRisk.streak >= 14 ? `A ${topRisk.streak}-day streak is worth protecting` : `Build consistency — log it now`,
+        action: 'Log habit', actionModal: 'habit',
+        habitName: topRisk.h.name,
+      };
+    } else {
+      habit = {
+        severity: 'neutral',
+        emoji: '✅',
+        signal: `${doneSoFar}/${habits.length} habits logged today`,
+        detail: `${habits.length - doneSoFar} remaining. Best streak: ${Math.max(1,...habitRisks.map(r=>r.streak))} days.`,
+        projection: `Log remaining habits to maintain streaks`,
+        action: doneSoFar < habits.length ? 'Log habits' : null,
+        actionModal: 'habit',
+      };
+    }
+  }
+
+  // ── Health signal ──────────────────────────────────────────────────────────
+  let health = null;
+  if (vitals.length >= 3) {
+    const recent7 = [...vitals].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,7);
+    const avgMood  = recent7.reduce((s,v)=>s+Number(v.mood||0),0) / recent7.length;
+    const avgSleep = recent7.reduce((s,v)=>s+Number(v.sleep||0),0) / recent7.length;
+    const lastVit  = recent7[0];
+    const daysSince= Math.round((now - new Date(lastVit.date)) / 86400000);
+
+    // Trend: compare last 3 days vs prior 4 days
+    const last3 = recent7.slice(0,3);
+    const prev4  = recent7.slice(3,7);
+    const moodTrend  = prev4.length > 0 ? (last3.reduce((s,v)=>s+Number(v.mood||0),0)/last3.length) - (prev4.reduce((s,v)=>s+Number(v.mood||0),0)/prev4.length) : 0;
+    const sleepTrend = prev4.length > 0 ? (last3.reduce((s,v)=>s+Number(v.sleep||0),0)/last3.length) - (prev4.reduce((s,v)=>s+Number(v.sleep||0),0)/prev4.length) : 0;
+
+    if (daysSince >= 3) {
+      health = {
+        severity: 'notice',
+        emoji: '❤️',
+        signal: `No vitals logged in ${daysSince} days`,
+        detail: `Last entry: sleep ${lastVit.sleep}h, mood ${lastVit.mood}/10.`,
+        projection: `Consistent logging reveals mood & energy patterns`,
+        action: 'Log vitals', actionModal: 'vitals',
+      };
+    } else if (moodTrend <= -1.5) {
+      health = {
+        severity: 'notice',
+        emoji: '😶',
+        signal: `Mood trending down over 3 days`,
+        detail: `Recent avg: ${(last3.reduce((s,v)=>s+Number(v.mood||0),0)/last3.length).toFixed(1)}/10 vs prior ${(prev4.reduce((s,v)=>s+Number(v.mood||0),0)/prev4.length).toFixed(1)}/10.`,
+        projection: sleepTrend < -0.5 ? `Sleep also declining — may be connected` : `Worth noting`,
+        action: 'Log vitals', actionModal: 'vitals',
+      };
+    } else if (avgSleep < 6.5 && avgSleep > 0) {
+      health = {
+        severity: 'notice',
+        emoji: '😴',
+        signal: `Average sleep below 7h this week`,
+        detail: `${avgSleep.toFixed(1)}h average over last ${recent7.length} entries. Sleep deficit builds over days.`,
+        projection: `Research links sub-7h sleep to reduced discipline and impulse spending`,
+        action: 'Log vitals', actionModal: 'vitals',
+      };
+    } else if (moodTrend >= 1.5) {
+      health = {
+        severity: 'good',
+        emoji: '🌟',
+        signal: `Mood trending up — strong 3-day run`,
+        detail: `Recent avg ${(last3.reduce((s,v)=>s+Number(v.mood||0),0)/last3.length).toFixed(1)}/10. Sleep: ${avgSleep.toFixed(1)}h avg.`,
+        projection: `Good window to tackle hard goals or financial decisions`,
+        action: null,
+      };
+    } else {
+      health = {
+        severity: 'neutral',
+        emoji: '💚',
+        signal: `Health tracking consistent`,
+        detail: `7-day avg: mood ${avgMood.toFixed(1)}/10, sleep ${avgSleep.toFixed(1)}h.`,
+        projection: ``,
+        action: !vitals.some(v=>v.date===today_) ? 'Log today' : null,
+        actionModal: 'vitals',
+      };
+    }
+  }
+
+  // ── Top action — the single highest-leverage thing to do right now ─────────
+  // Priority: overdue bill > budget bust > no income > high habit risk > mood drop > goal behind
+  let topAction = null;
+
+  const overdueBill = (bills||[]).find(b => !b.paid && b.nextDate && b.nextDate < today_);
+  if (overdueBill) {
+    topAction = { emoji:'🚨', text:`${overdueBill.name} is overdue — mark it paid or log the payment`, severity:'urgent', nav:'money' };
+  }
+
+  if (!topAction && financial?.severity === 'warn' && financial.actionModal === 'income') {
+    topAction = { emoji:'💰', text:`Log this month's income — every projection is off without it`, severity:'high', modal:'income' };
+  }
+
+  if (!topAction && habit?.severity === 'warn') {
+    topAction = { emoji:'🔥', text:`Log ${habit.habitName || 'your habits'} before the streak breaks`, severity:'high', modal:'habit' };
+  }
+
+  if (!topAction && financial?.severity === 'warn') {
+    topAction = { emoji:'💸', text:financial.signal, severity:'medium', nav: financial.actionNav };
+  }
+
+  if (!topAction && health?.severity === 'notice') {
+    topAction = { emoji:'❤️', text:health.signal, severity:'medium', modal: health.actionModal };
+  }
+
+  // Goal behind pace
+  if (!topAction) {
+    const behindGoal = goals.find(g => {
+      if (!g.deadline || !g.target) return false;
+      const daysTotal = Math.round((new Date(g.deadline) - new Date(g.date||today_)) / 86400000);
+      const daysGone  = Math.round((now - new Date(g.date||today_)) / 86400000);
+      const pctTime   = daysTotal > 0 ? daysGone/daysTotal : 0;
+      const pctDone   = (g.current||0) / g.target;
+      return pctTime - pctDone > 0.2; // more than 20% behind pace
+    });
+    if (behindGoal) {
+      topAction = { emoji:'🎯', text:`"${behindGoal.name}" is behind pace — update your progress`, severity:'medium', nav:'growth' };
+    }
+  }
+
+  if (!topAction && financial?.action) {
+    topAction = { emoji: financial.emoji, text: `Good time to ${financial.action.toLowerCase()}`, severity:'low', modal: financial.actionModal, nav: financial.actionNav };
+  }
+
+  return { financial, habit, health, topAction };
 }
 
-// ── SmartAlertsButton — appears in TopBar ─────────────────────────────────────
-function SmartAlertsButton({ alerts }) {
+// ── DAILY BRIEF CARD ──────────────────────────────────────────────────────────
+function DailyBriefCard({ data, onNav, onModal }) {
+  const { expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings } = data;
+  const [collapsed, setCollapsed] = useLocalStorage('los_brief_collapsed', false);
+
+  const brief = useMemo(() =>
+    computeDailyBrief({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings }),
+    // Recompute when key data changes — not on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expenses.length, incomes.length, habits.length, Object.values(habitLogs).flat().length, vitals.length, goals.length, bills.length, JSON.stringify(budgets)]
+  );
+
+  const SEV_COLORS = { urgent: T.rose, high: T.amber, medium: T.accent, low: T.emerald, neutral: T.textSub };
+  const SEV_BG     = { urgent: T.roseDim, high: T.amberDim, medium: T.accentDim, low: T.emeraldDim, neutral: T.surface };
+
+  // Severity of the overall brief = highest individual severity
+  const overallSev = brief.topAction?.severity || 'neutral';
+  const borderColor = SEV_COLORS[overallSev] || T.border;
+
+  const Signal = ({ s, onAction }) => {
+    if (!s) return null;
+    const sColor = { good: T.emerald, warn: T.amber, notice: T.sky, neutral: T.textSub }[s.severity] || T.textSub;
+    return (
+      <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+        <span style={{ fontSize:18, flexShrink:0, lineHeight:1.3 }}>{s.emoji}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:2 }}>{s.signal}</div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{s.detail}</div>
+          {s.projection && <div style={{ fontSize:9, fontFamily:T.fM, color:sColor, marginTop:3, fontWeight:600 }}>{s.projection}</div>}
+        </div>
+        {s.action && (
+          <button onClick={onAction} style={{ flexShrink:0, padding:'4px 10px', borderRadius:99, background:sColor+'18', border:`1px solid ${sColor}33`, fontSize:9, fontFamily:T.fM, color:sColor, cursor:'pointer', whiteSpace:'nowrap', alignSelf:'center', transition:'all 0.15s' }}
+            onMouseEnter={e=>{e.currentTarget.style.background=sColor+'30';}}
+            onMouseLeave={e=>{e.currentTarget.style.background=sColor+'18';}}>
+            {s.action} →
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const handleAction = (s) => {
+    if (!s) return;
+    if (s.actionModal) onModal(s.actionModal);
+    else if (s.actionNav)  onNav(s.actionNav);
+  };
+
+  return (
+    <div style={{ marginBottom:18, borderRadius:T.rL, border:`1px solid ${borderColor}44`, background:`linear-gradient(135deg,${borderColor}06,transparent)`, overflow:'hidden', animation:'fadeUp 0.35s ease' }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 18px', borderBottom: collapsed ? 'none' : `1px solid ${T.border}` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ width:6, height:6, borderRadius:'50%', background:borderColor, animation:'dotPulse 3s infinite', flexShrink:0 }} />
+          <span style={{ fontSize:10, fontFamily:T.fM, color:borderColor, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase' }}>Today's Brief</span>
+          <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>
+            {new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}
+          </span>
+        </div>
+        <button onClick={()=>setCollapsed(v=>!v)} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer', padding:'2px 8px', borderRadius:6, transition:'color 0.15s' }}
+          onMouseEnter={e=>{e.currentTarget.style.color=T.text;}}
+          onMouseLeave={e=>{e.currentTarget.style.color=T.textSub;}}>
+          {collapsed ? '▾ Show' : '▴ Collapse'}
+        </button>
+      </div>
+
+      {!collapsed && (
+        <div style={{ padding:'14px 18px', display:'flex', flexDirection:'column', gap:8 }}>
+          {/* Three signals */}
+          <Signal s={brief.financial} onAction={()=>handleAction(brief.financial)} />
+          {brief.habit  && <Signal s={brief.habit}   onAction={()=>handleAction(brief.habit)} />}
+          {brief.health && <Signal s={brief.health}  onAction={()=>handleAction(brief.health)} />}
+
+          {/* Top action — the one thing */}
+          {brief.topAction && (
+            <div style={{ marginTop:4, display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderRadius:T.r, background:SEV_BG[brief.topAction.severity]||T.surface, border:`1px solid ${SEV_COLORS[brief.topAction.severity]||T.border}44` }}>
+              <span style={{ fontSize:20, flexShrink:0 }}>{brief.topAction.emoji}</span>
+              <div style={{ flex:1, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>
+                <span style={{ fontSize:9, fontFamily:T.fM, color:SEV_COLORS[brief.topAction.severity]||T.textSub, textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:700, display:'block', marginBottom:2 }}>Best thing to do now</span>
+                {brief.topAction.text}
+              </div>
+              <button
+                onClick={()=>{
+                  if (brief.topAction.modal)  onModal(brief.topAction.modal);
+                  else if (brief.topAction.nav) onNav(brief.topAction.nav);
+                }}
+                style={{ flexShrink:0, padding:'7px 16px', borderRadius:T.r, background:SEV_COLORS[brief.topAction.severity]+'22'||T.accentDim, border:`1px solid ${SEV_COLORS[brief.topAction.severity]+'44'||T.accent+'44'}`, fontSize:10, fontFamily:T.fM, fontWeight:700, color:SEV_COLORS[brief.topAction.severity]||T.accent, cursor:'pointer', transition:'all 0.15s' }}
+                onMouseEnter={e=>{e.currentTarget.style.filter='brightness(1.2)';}}
+                onMouseLeave={e=>{e.currentTarget.style.filter='none';}}>
+                Do it →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── STEP 3: PROACTIVE ALERTS ENGINE ──────────────────────────────────────────
+// Alerts now lead with CONSEQUENCE not FACT. Each alert has:
+//   severity  — urgent | warn | positive | info
+//   title     — what is happening (short)
+//   body      — why it matters + what happens if ignored/acted on
+//   action    — label for the CTA button
+//   actionModal / actionNav — where the CTA goes
+//   dismissKey — unique key for daily snooze
+// ══════════════════════════════════════════════════════════════════════════════
+function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc, savRate, incomes, assets, goals, netWorth }) {
+  const today_ = today();
+  const now    = new Date();
+  const dayOfMonth  = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const daysLeft    = daysInMonth - dayOfMonth;
+  const monthPct    = dayOfMonth / daysInMonth;
+  const alerts = [];
+
+  // ── 1. Overdue bills (urgent) ──────────────────────────────────────────────
+  (bills||[]).filter(b=>!b.paid && b.nextDate).forEach(b => {
+    const daysAgo = Math.round((now - new Date(b.nextDate)) / 86400000);
+    if (daysAgo > 0) {
+      alerts.push({
+        id: `bill-overdue-${b.id}`, type:'bill', severity:'urgent',
+        title: `${b.name} is ${daysAgo}d overdue`,
+        body: `Mark it paid or the missed payment may incur late fees.`,
+        action: 'View bills', actionNav: 'money',
+        dismissKey: `bill-overdue-${b.id}-${today_}`,
+        color: T.rose,
+      });
+    }
+  });
+
+  // ── 2. Bills due soon ──────────────────────────────────────────────────────
+  (bills||[]).filter(b=>!b.paid && b.nextDate).forEach(b => {
+    const daysUntil = Math.round((new Date(b.nextDate) - now) / 86400000);
+    if (daysUntil >= 0 && daysUntil <= 5) {
+      alerts.push({
+        id: `bill-due-${b.id}`, type:'bill', severity:'warn',
+        title: `${b.name} due in ${daysUntil === 0 ? 'today' : daysUntil+'d'}`,
+        body: `Make sure funds are available before the due date.`,
+        action: 'View bills', actionNav: 'money',
+        dismissKey: `bill-due-${b.id}-${today_}`,
+        color: T.amber,
+      });
+    }
+  });
+
+  // ── 3. Budget about to bust — PROJECTED overshoot ─────────────────────────
+  Object.entries(budgets||{}).forEach(([cat, limit]) => {
+    const spent = expenses.filter(e=>e.date?.startsWith(thisMonth)&&e.category===cat)
+      .reduce((s,e)=>s+Number(e.amount||0),0);
+    const pct   = limit>0 ? (spent/Number(limit))*100 : 0;
+    const proj  = monthPct > 0.05 ? spent / monthPct : spent; // extrapolate
+    const overshoot = Math.round(proj - Number(limit));
+    if (pct >= 100) {
+      alerts.push({
+        id: `budget-over-${cat}`, type:'budget', severity:'urgent',
+        title: `${cat} budget exceeded`,
+        body: `Spent ${Math.round(pct)}% of budget. Every new purchase adds to the overage.`,
+        action: 'Review spending', actionNav: 'money',
+        dismissKey: `budget-over-${cat}-${thisMonth}`,
+        color: T.rose,
+      });
+    } else if (overshoot > 0 && pct >= 65) {
+      alerts.push({
+        id: `budget-pace-${cat}`, type:'budget', severity:'warn',
+        title: `${cat} on pace to overshoot`,
+        body: `At current pace: projected to exceed budget by ${T.rose}. ${daysLeft} days left to adjust.`,
+        action: 'See budget', actionNav: 'money',
+        dismissKey: `budget-pace-${cat}-${today_}`,
+        color: T.amber,
+      });
+    }
+  });
+
+  // ── 4. Habit streak at risk ────────────────────────────────────────────────
+  habits.forEach(h => {
+    const logs   = (habitLogs[h.id]||[]).sort();
+    const streak = getStreak(h.id, habitLogs);
+    const doneToday = logs.includes(today_);
+    if (!doneToday && streak >= 3) {
+      const hour = now.getHours();
+      // Only surface after midday to avoid nagging at 7am
+      if (hour >= 12) {
+        alerts.push({
+          id: `habit-risk-${h.id}`, type:'habit', severity: streak >= 7 ? 'warn' : 'info',
+          title: `${h.emoji||'🔥'} ${h.name} — ${streak}d streak at risk`,
+          body: streak >= 14
+            ? `A ${streak}-day streak is serious momentum. Log it before midnight.`
+            : `${streak} days in. Don't break the chain.`,
+          action: 'Log habit', actionModal: 'habit',
+          dismissKey: `habit-risk-${h.id}-${today_}`,
+          color: streak >= 7 ? T.amber : T.accent,
+        });
+      }
+    }
+  });
+
+  // ── 5. No income logged this month ────────────────────────────────────────
+  if (monthInc === 0 && dayOfMonth >= 5) {
+    // Check if they ever had income — not just a new user
+    const hasHistoricalIncome = (incomes||[]).length > 0;
+    if (hasHistoricalIncome) {
+      alerts.push({
+        id: `no-income-${thisMonth}`, type:'income', severity:'warn',
+        title: `No income logged this month`,
+        body: `All projections (forecast, FI date, savings rate) are unreliable without income data.`,
+        action: 'Log income', actionModal: 'income',
+        dismissKey: `no-income-${thisMonth}`,
+        color: T.amber,
+      });
+    }
+  }
+
+  // ── 6. Savings rate critically low ────────────────────────────────────────
+  if (monthInc > 0 && savRate < 5 && dayOfMonth >= 10) {
+    alerts.push({
+      id: `savrate-low-${thisMonth}`, type:'savings', severity:'warn',
+      title: `Savings rate at ${savRate.toFixed(0)}%`,
+      body: `Less than 5% saved this month. At this rate you'll save ${T.amber} less than your average.`,
+      action: 'See forecast', actionNav: 'intel',
+      dismissKey: `savrate-low-${thisMonth}`,
+      color: T.amber,
+    });
+  }
+
+  // ── 7. Goal behind pace ───────────────────────────────────────────────────
+  (goals||[]).forEach(g => {
+    if (!g.deadline || !g.target || !g.current) return;
+    const start     = new Date(g.date || g.createdAt || thisMonth);
+    const end       = new Date(g.deadline);
+    const daysTotal = Math.max(1, Math.round((end - start) / 86400000));
+    const daysGone  = Math.round((now - start) / 86400000);
+    const pctTime   = Math.min(1, daysGone / daysTotal);
+    const pctDone   = Math.min(1, Number(g.current) / Number(g.target));
+    const lag       = pctTime - pctDone;
+    const daysToGo  = Math.round((end - now) / 86400000);
+    if (lag > 0.25 && daysToGo > 0 && daysToGo < 90) {
+      alerts.push({
+        id: `goal-lag-${g.id}`, type:'goal', severity:'info',
+        title: `"${g.name}" is behind pace`,
+        body: `${Math.round(pctDone*100)}% done with ${Math.round(pctTime*100)}% of time elapsed. ${daysToGo}d to deadline.`,
+        action: 'Update goal', actionNav: 'growth',
+        dismissKey: `goal-lag-${g.id}-${today_}`,
+        color: T.violet,
+      });
+    }
+  });
+
+  // ── 8. No vitals in 3+ days ────────────────────────────────────────────────
+  if ((vitals||[]).length > 0) {
+    const lastV     = [...vitals].sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const daysSince = Math.round((now - new Date(lastV.date)) / 86400000);
+    if (daysSince >= 3) {
+      alerts.push({
+        id: `vitals-gap-${lastV.date}`, type:'health', severity:'info',
+        title: `No vitals logged in ${daysSince} days`,
+        body: `Health tracking gaps make it harder to spot mood and sleep patterns early.`,
+        action: 'Log vitals', actionModal: 'vitals',
+        dismissKey: `vitals-gap-${today_}`,
+        color: T.sky,
+      });
+    }
+  }
+
+  // ── 9. POSITIVE: Best savings month upcoming ───────────────────────────────
+  if (monthInc > 0 && savRate > 0) {
+    // Trailing 3-month average
+    const trail = [1,2,3].map(i => {
+      const d = new Date(); d.setMonth(d.getMonth()-i);
+      const m = d.toISOString().slice(0,7);
+      const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      return inc > 0 ? ((inc-exp)/inc)*100 : null;
+    }).filter(r=>r!=null);
+    const avgSR = trail.length ? trail.reduce((s,r)=>s+r,0)/trail.length : 0;
+    if (savRate >= avgSR + 8 && dayOfMonth >= 15) {
+      alerts.push({
+        id: `savrate-high-${thisMonth}`, type:'positive', severity:'positive',
+        title: `On track for best savings month`,
+        body: `${savRate.toFixed(1)}% savings rate vs your ${avgSR.toFixed(1)}% average. Adding just a bit more this week could make it a personal record.`,
+        action: 'See forecast', actionNav: 'intel',
+        dismissKey: `savrate-high-${thisMonth}`,
+        color: T.emerald,
+      });
+    }
+  }
+
+  // ── 10. POSITIVE: Habit streak milestone ─────────────────────────────────
+  habits.forEach(h => {
+    const streak = getStreak(h.id, habitLogs);
+    const logs   = (habitLogs[h.id]||[]);
+    const doneToday = logs.includes(today_);
+    if (doneToday && [7,14,21,30,60,90,100].includes(streak)) {
+      alerts.push({
+        id: `streak-milestone-${h.id}-${streak}`, type:'positive', severity:'positive',
+        title: `${h.emoji||'🔥'} ${streak}-day streak on "${h.name}"`,
+        body: `This is a significant milestone. Habits at ${streak} days are significantly more likely to stick permanently.`,
+        action: null,
+        dismissKey: `streak-milestone-${h.id}-${streak}`,
+        color: T.emerald,
+      });
+    }
+  });
+
+  // Sort: urgent first, then warn, positive last, then info
+  const ORDER = { urgent:0, warn:1, positive:2, info:3 };
+  return [...alerts].sort((a,b) => (ORDER[a.severity]||3) - (ORDER[b.severity]||3));
+}
+
+// ── SMART ALERTS BUTTON — Step 3 rebuilt ─────────────────────────────────────
+// Now shows the top alert title inline when urgent/warn alerts exist.
+// Dismissed alerts tracked in localStorage per-day so they stop reappearing.
+function SmartAlertsButton({ alerts, onNav, onModal }) {
   const [open, setOpen] = useState(false);
-  if (!alerts.length) return (
-    <button style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center' }} title="No alerts">
+  const [dismissed, setDismissed] = useLocalStorage('los_alerts_dismissed', {});
+
+  // Filter out today-dismissed alerts
+  const active = alerts.filter(a => !dismissed[a.dismissKey]);
+  const urgent = active.filter(a => a.severity === 'urgent' || a.severity === 'warn');
+  const positive = active.filter(a => a.severity === 'positive');
+  const top = urgent[0] || positive[0] || null;
+
+  const dismiss = (dismissKey, e) => {
+    e?.stopPropagation();
+    setDismissed(prev => ({ ...prev, [dismissKey]: today() }));
+  };
+
+  // Clean up old dismiss keys (older than today)
+  useEffect(() => {
+    const today_ = today();
+    setDismissed(prev => {
+      const clean = {};
+      Object.entries(prev).forEach(([k,v]) => { if (v === today_) clean[k] = v; });
+      return clean;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const SEV_COLOR = { urgent: T.rose, warn: T.amber, positive: T.emerald, info: T.sky };
+
+  if (!active.length) return (
+    <button style={{ padding:'5px 7px', borderRadius:7, background:'transparent', border:'1px solid transparent', color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center' }} title="No alerts">
       <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
     </button>
   );
+
   return (
     <div style={{ position:'relative' }}>
-      <button onClick={()=>setOpen(v=>!v)} style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:open?T.amberDim:'transparent', border:`1px solid ${open?T.amber+'44':'transparent'}`, color:T.amber, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }} title={`${alerts.length} alert${alerts.length>1?'s':''}`}>
-        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span style={{ position:'absolute', top:-3, right:-3, width:14, height:14, borderRadius:'50%', background:T.rose, border:`1.5px solid ${T.bg}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontFamily:T.fM, fontWeight:700, color:'#fff' }}>{alerts.length}</span>
+      {/* Bell + inline top-alert preview */}
+      <button onClick={()=>setOpen(v=>!v)}
+        style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 8px', borderRadius:7, background:open?`${SEV_COLOR[top?.severity]||T.amber}18`:`${SEV_COLOR[top?.severity]||T.amber}10`, border:`1px solid ${open?SEV_COLOR[top?.severity]||T.amber:SEV_COLOR[top?.severity]||T.amber}33`, color:SEV_COLOR[top?.severity]||T.amber, transition:'all 0.15s', cursor:'pointer' }}
+        title={`${active.length} alert${active.length>1?'s':''}`}>
+        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        {/* Inline preview of top alert — visible even before clicking */}
+        {top && !open && (
+          <span style={{ fontSize:9, fontFamily:T.fM, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight:600 }}>
+            {top.title}
+          </span>
+        )}
+        <span style={{ width:14, height:14, borderRadius:'50%', background:SEV_COLOR[top?.severity]||T.amber, display:'flex', alignItems:'center', justifyContent:'center', fontSize:7, fontFamily:T.fM, fontWeight:700, color:T.bg, flexShrink:0 }}>{active.length}</span>
       </button>
+
+      {/* Dropdown panel */}
       {open && (
         <>
           <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:498 }} />
-          <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, width:320, background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:12, boxShadow:`0 12px 40px rgba(0,0,0,0.5)`, zIndex:499, animation:'slideDown 0.18s ease', overflow:'hidden' }}>
-            <div style={{ padding:'10px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:7 }}>
-              <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700 }}>⚠️ Smart Alerts · {alerts.length}</span>
+          <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, width:340, background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:14, boxShadow:`0 16px 48px rgba(0,0,0,0.55)`, zIndex:499, animation:'slideDown 0.18s ease', overflow:'hidden' }}>
+            <div style={{ padding:'10px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.text, letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700 }}>
+                {urgent.length > 0 ? `⚠️ ${urgent.length} action${urgent.length>1?'s':''} needed` : `✅ All clear · ${positive.length} positive`}
+              </span>
+              {active.length > 0 && (
+                <button onClick={()=>{ active.forEach(a=>dismiss(a.dismissKey)); setOpen(false); }} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>
+                  Dismiss all
+                </button>
+              )}
             </div>
-            <div style={{ padding:'8px 0', maxHeight:320, overflowY:'auto' }}>
-              {alerts.map((a,i)=>(
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderBottom:i<alerts.length-1?`1px solid ${T.border}`:'none' }}>
-                  <span style={{ fontSize:16, flexShrink:0 }}>{a.icon}</span>
-                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.45 }}>{a.msg}</span>
-                  <span style={{ marginLeft:'auto', width:6, height:6, borderRadius:'50%', flexShrink:0, background:a.color }} />
+            <div style={{ padding:'6px 0', maxHeight:380, overflowY:'auto' }}>
+              {active.map((a,i)=>(
+                <div key={a.id} style={{ padding:'10px 14px', borderBottom:i<active.length-1?`1px solid ${T.border}`:'none', background: a.severity==='positive'?`${T.emerald}06`:'' }}>
+                  <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                    <div style={{ width:3, borderRadius:2, alignSelf:'stretch', flexShrink:0, background:SEV_COLOR[a.severity]||T.border, minHeight:36 }} />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:6, marginBottom:3 }}>
+                        <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, lineHeight:1.3 }}>{a.title}</div>
+                        <button onClick={(e)=>dismiss(a.dismissKey,e)} style={{ fontSize:11, color:T.textMuted, background:'none', border:'none', cursor:'pointer', flexShrink:0, lineHeight:1, padding:'1px 3px' }}>×</button>
+                      </div>
+                      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, marginBottom: a.action?8:0 }}>{a.body}</div>
+                      {a.action && (
+                        <button onClick={()=>{ if(a.actionModal&&onModal) onModal(a.actionModal); else if(a.actionNav&&onNav) onNav(a.actionNav); setOpen(false); }}
+                          style={{ padding:'4px 12px', borderRadius:99, background:`${SEV_COLOR[a.severity]||T.accent}18`, border:`1px solid ${SEV_COLOR[a.severity]||T.accent}33`, fontSize:9, fontFamily:T.fM, color:SEV_COLOR[a.severity]||T.accent, cursor:'pointer', fontWeight:600, transition:'all 0.12s' }}
+                          onMouseEnter={e=>{e.currentTarget.style.background=`${SEV_COLOR[a.severity]||T.accent}30`;}}
+                          onMouseLeave={e=>{e.currentTarget.style.background=`${SEV_COLOR[a.severity]||T.accent}18`;}}>
+                          {a.action} →
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2043,6 +2683,8 @@ function HomePage({ data, actions, onNav }) {
           {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{ color:T.emerald }}>●</span> {habits.length} habits · <span style={{ color:T.accent }}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K to search</span>
         </div>
       </div>
+      {/* ── Step 1: Daily Brief — the front door of the "what's about to happen" shift */}
+      <DailyBriefCard data={data} onNav={onNav} onModal={setModal} />
       {/* UX Fix 4: Empty-state guidance strip — shown only when the user has no data
           at all. Each pill disappears once its domain has at least one entry.
           Avoids the "six zeroes and silence" problem on a fresh install. */}
@@ -2071,42 +2713,145 @@ function HomePage({ data, actions, onNav }) {
           </div>
         );
       })()}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
-        {[
-          { label:'Net Worth', value:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent, icon:'💎', pct:null },
-          { label:'Financial Health', value:`${fhs}/100`, sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention', color:T.emerald, icon:'📊', pct:fhs, detail:fhsDetail },
-          { label:`Life XP — Lv ${level}`, value:`${Number(totalXP).toLocaleString()} XP`, sub:`${Math.round(xpForNext-Number(totalXP))} to Lv ${level+1}`, color:T.violet, icon:'⚡', pct:xpPct },
-          { label:'Savings Rate', value:`${savRate.toFixed(1)}%`, sub:`${cur}${fmtN(monthInc-monthExp)} saved this month`, color:T.sky, icon:'🎯', pct:savRate },
-        ].map((m,i)=>(
-          <GlassCard key={i} style={{ padding:'18px 20px', animation:`fadeUp 0.4s ease ${i*0.08}s both` }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
-              <span style={{ fontSize:16, opacity:0.7 }}>{m.icon}</span>
-            </div>
-            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1, marginBottom:6 }}>{m.value}</div>
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:m.pct!=null?10:0 }}>{m.sub}</div>
-            {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
-            {m.detail && (
-              <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:4, borderTop:`1px solid ${T.border}`, paddingTop:8 }}>
-                {[
-                  { label:'Savings Rate', score:m.detail.savScore, max:m.detail.savMax, hint:`${savRate.toFixed(0)}%` },
-                  { label:'Debt-to-Income', score:m.detail.dtiScore, max:m.detail.dtiMax, hint:`${m.detail.dti}% DTI` },
-                  { label:'Emergency Fund', score:m.detail.efScore, max:m.detail.efMax, hint:`${m.detail.ef}mo` },
-                  { label:'Net Worth', score:m.detail.nwScore, max:m.detail.nwMax, hint:netWorth>0?'Positive':'—' },
-                ].map(sub => (
-                  <div key={sub.label}>
-                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>
-                      <span>{sub.label}</span>
-                      <span style={{ color:m.color }}>{sub.score}/{sub.max} · {sub.hint}</span>
-                    </div>
-                    <ProgressBar pct={(sub.score/sub.max)*100} color={m.color} height={3} />
+      {/* ── Step 2: Trajectory-aware stat cards ─────────────────────────────── */}
+      {(()=>{
+        // ── Compute trajectories from historical data ─────────────────────────
+        // Net worth: monthly delta from NW history snapshots
+        const nwHist = data.netWorthHistory || [];
+        const nwMonthlyDelta = nwHist.length >= 2
+          ? (nwHist[nwHist.length-1].value - nwHist[nwHist.length-2].value)
+          : null;
+        const nwProj90 = nwMonthlyDelta != null ? Math.round(netWorth + nwMonthlyDelta * 3) : null;
+
+        // Savings rate: compare this month vs 3-month trailing average
+        const trailSavRates = [1,2,3].map(i => {
+          const d = new Date(); d.setMonth(d.getMonth()-i);
+          const m = d.toISOString().slice(0,7);
+          const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+          const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+          return inc > 0 ? ((inc-exp)/inc)*100 : null;
+        }).filter(r => r !== null);
+        const avgSavRate   = trailSavRates.length ? trailSavRates.reduce((s,r)=>s+r,0)/trailSavRates.length : null;
+        const savRateDelta = avgSavRate != null ? savRate - avgSavRate : null;
+
+        // XP: compare last 30 days vs prior 30 days
+        const now30 = new Date(); now30.setDate(now30.getDate()-30);
+        const now60 = new Date(); now60.setDate(now60.getDate()-60);
+        const xpLogs30 = Object.values(habitLogs).flat().filter(d => d >= now30.toISOString().slice(0,10)).length;
+        const xpLogs60 = Object.values(habitLogs).flat().filter(d => d >= now60.toISOString().slice(0,10) && d < now30.toISOString().slice(0,10)).length;
+        const xpTrend  = xpLogs60 > 0 ? ((xpLogs30 - xpLogs60) / xpLogs60) * 100 : null;
+
+        // Financial Health: month-over-month
+        const prevM = (() => { const d = new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
+        const prevInc = incomes.filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
+        const prevExp = expenses.filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
+        const prevSavRate = prevInc > 0 ? ((prevInc-prevExp)/prevInc)*100 : 0;
+        const fhsTrend = fhs - (prevSavRate > 0 ? Math.min(100, Math.round(prevSavRate*1.5)) : fhs);
+
+        // ── Arrow helper ──────────────────────────────────────────────────────
+        const Arrow = ({ delta, fmt, suffix='', invert=false }) => {
+          if (delta == null || Math.abs(delta) < 0.5) return (
+            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'inline-flex', alignItems:'center', gap:2 }}>
+              → stable
+            </span>
+          );
+          const up      = invert ? delta < 0 : delta > 0;
+          const color   = up ? T.emerald : T.rose;
+          const arrow   = delta > 0 ? '↑' : '↓';
+          const display = fmt ? fmt(Math.abs(delta)) : `${Math.abs(delta).toFixed(1)}${suffix}`;
+          return (
+            <span style={{ fontSize:9, fontFamily:T.fM, color, display:'inline-flex', alignItems:'center', gap:2, fontWeight:600 }}>
+              {arrow} {display}
+              <span style={{ fontSize:8, color, opacity:0.7 }}>vs avg</span>
+            </span>
+          );
+        };
+
+        // ── Projection chip ───────────────────────────────────────────────────
+        const ProjChip = ({ label, color }) => (
+          <span style={{ fontSize:8, fontFamily:T.fM, color, background:color+'14', border:`1px solid ${color}30`, borderRadius:99, padding:'1px 7px', whiteSpace:'nowrap' }}>
+            {label}
+          </span>
+        );
+
+        const cards = [
+          {
+            label:'Net Worth', icon:'💎', color:T.accent,
+            value:`${cur}${fmtN(netWorth)}`,
+            sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`,
+            arrow: <Arrow delta={nwMonthlyDelta} fmt={d=>`${cur}${fmtN(Math.round(d))}/mo`} />,
+            proj:  nwProj90 != null ? <ProjChip label={`90d → ${cur}${fmtN(nwProj90)}`} color={nwProj90 >= netWorth ? T.emerald : T.rose} /> : null,
+            pct:   null,
+          },
+          {
+            label:'Financial Health', icon:'📊', color:T.emerald,
+            value:`${fhs}/100`,
+            sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention',
+            arrow: <Arrow delta={fhsTrend} suffix=' pts' />,
+            proj:  <ProjChip label={fhs>=70?'On track':'Improve savings rate'} color={fhs>=70?T.emerald:T.amber} />,
+            pct:   fhs, detail: fhsDetail,
+          },
+          {
+            label:`Life XP — Lv ${level}`, icon:'⚡', color:T.violet,
+            value:`${Number(totalXP).toLocaleString()} XP`,
+            sub:`${Math.round(xpForNext-Number(totalXP))} XP to Lv ${level+1}`,
+            arrow: xpTrend != null ? <Arrow delta={xpTrend} suffix='%' fmt={d=>`${d.toFixed(0)}% more active`} /> : null,
+            proj:  <ProjChip label={xpLogs30 > xpLogs60 ? '↑ More active than last month' : xpLogs30 < xpLogs60 ? '↓ Less active than last month' : '→ Same pace'} color={xpLogs30 >= xpLogs60 ? T.violet : T.textSub} />,
+            pct:   xpPct,
+          },
+          {
+            label:'Savings Rate', icon:'🎯', color:T.sky,
+            value:`${savRate.toFixed(1)}%`,
+            sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved this month`,
+            arrow: <Arrow delta={savRateDelta} suffix=' pts' />,
+            proj:  avgSavRate != null ? <ProjChip label={`3-mo avg ${avgSavRate.toFixed(1)}%`} color={savRate >= avgSavRate ? T.emerald : T.amber} /> : null,
+            pct:   savRate,
+          },
+        ];
+
+        return (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
+            {cards.map((m,i)=>(
+              <GlassCard key={i} style={{ padding:'18px 20px', animation:`fadeUp 0.4s ease ${i*0.08}s both` }}>
+                {/* Label + icon row */}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
+                  <span style={{ fontSize:16, opacity:0.7 }}>{m.icon}</span>
+                </div>
+                {/* Big value */}
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1, marginBottom:5 }}>{m.value}</div>
+                {/* Sub-label */}
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>{m.sub}</div>
+                {/* Trajectory arrow + projection chip */}
+                <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', marginBottom:m.pct!=null?8:0 }}>
+                  {m.arrow}
+                  {m.proj}
+                </div>
+                {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
+                {/* Financial Health breakdown */}
+                {m.detail && (
+                  <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:4, borderTop:`1px solid ${T.border}`, paddingTop:8 }}>
+                    {[
+                      { label:'Savings Rate',   score:m.detail.savScore, max:m.detail.savMax, hint:`${savRate.toFixed(0)}%` },
+                      { label:'Debt-to-Income', score:m.detail.dtiScore, max:m.detail.dtiMax, hint:`${m.detail.dti}% DTI` },
+                      { label:'Emergency Fund', score:m.detail.efScore,  max:m.detail.efMax,  hint:`${m.detail.ef}mo` },
+                      { label:'Net Worth',      score:m.detail.nwScore,  max:m.detail.nwMax,  hint:netWorth>0?'Positive':'—' },
+                    ].map(sub => (
+                      <div key={sub.label}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>
+                          <span>{sub.label}</span>
+                          <span style={{ color:m.color }}>{sub.score}/{sub.max} · {sub.hint}</span>
+                        </div>
+                        <ProgressBar pct={(sub.score/sub.max)*100} color={m.color} height={3} />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </GlassCard>
-        ))}
-      </div>
+                )}
+              </GlassCard>
+            ))}
+          </div>
+        );
+      })()}
       {/* Recent Achievements Strip */}
       {(() => {
         const unlocked = ACHIEVEMENTS.filter(a => a.check(data)).slice(-3).reverse();
@@ -2172,29 +2917,61 @@ function HomePage({ data, actions, onNav }) {
         );
       })()}
 
-      {/* ── Smart Alerts Dashboard Widget ──────────────────────────────────── */}
-      {(() => {
-        const alerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc: monthInc||0, savRate: savRate||0 });
-        if (!alerts.length) return null;
-        const urgent = alerts.slice(0,3);
-        const ALERT_ICONS = { budget:'💸', bill:'📆', emergency:'🆘', habit:'🔥', savings:'💡', default:'⚠️' };
+      {/* ── Step 3: Proactive Alerts Panel — action buttons, dismissable, positive included */}
+      {(()=>{
+        const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets });
+        const [dismissed, setDismissed] = [
+          JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'),
+          (prev) => { localStorage.setItem('los_alerts_dismissed', JSON.stringify(typeof prev==='function'?prev(JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}')):prev)); },
+        ];
+        const active = allAlerts.filter(a => !dismissed[a.dismissKey]);
+        if (!active.length) return null;
+        const SEV_COLOR = { urgent:T.rose, warn:T.amber, positive:T.emerald, info:T.sky };
+        const urgent  = active.filter(a=>a.severity==='urgent'||a.severity==='warn');
+        const positive = active.filter(a=>a.severity==='positive');
+        const info    = active.filter(a=>a.severity==='info');
+        const borderC = urgent.length ? T.amber : positive.length ? T.emerald : T.sky;
         return (
-          <GlassCard style={{ padding:'18px 22px', marginBottom:16, borderLeft:`3px solid ${T.amber}55` }}>
+          <GlassCard style={{ padding:'18px 22px', marginBottom:16, borderLeft:`3px solid ${borderC}55` }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <SectionLabel>Smart Alerts</SectionLabel>
-              <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:T.amberDim, borderRadius:99, padding:'2px 8px', border:`1px solid ${T.amber}33` }}>{alerts.length} active</span>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <SectionLabel style={{ marginBottom:0 }}>{urgent.length ? `⚠️ ${urgent.length} action${urgent.length>1?'s':''} needed` : positive.length ? '🌟 Momentum' : '💡 Insights'}</SectionLabel>
+                {active.length > 1 && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{active.length} total</span>}
+              </div>
+              <button onClick={()=>{
+                const d = JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}');
+                active.forEach(a=>{ d[a.dismissKey]=today(); });
+                localStorage.setItem('los_alerts_dismissed', JSON.stringify(d));
+                // Force re-render via a toast
+              }} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>Dismiss all</button>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {urgent.map((a,i)=>(
-                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 12px', borderRadius:T.r, background:`${a.color||T.amber}0a`, border:`1px solid ${a.color||T.amber}22` }}>
-                  <span style={{ fontSize:16, flexShrink:0 }}>{ALERT_ICONS[a.type]||ALERT_ICONS.default}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{a.title}</div>
-                    {a.body && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2, lineHeight:1.4 }}>{a.body}</div>}
+              {active.slice(0,4).map((a,i)=>(
+                <div key={a.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px', borderRadius:T.r, background:`${SEV_COLOR[a.severity]||T.amber}08`, border:`1px solid ${SEV_COLOR[a.severity]||T.amber}22`, animation:`fadeUp 0.25s ease ${i*0.06}s both` }}>
+                  <div style={{ width:3, borderRadius:2, alignSelf:'stretch', flexShrink:0, background:SEV_COLOR[a.severity]||T.amber, minHeight:32 }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:2 }}>{a.title}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{a.body}</div>
+                  </div>
+                  <div style={{ display:'flex', gap:6, flexShrink:0, alignSelf:'center' }}>
+                    {a.action && (
+                      <button onClick={()=>{ if(a.actionModal) setModal(a.actionModal); else if(a.actionNav) onNav(a.actionNav); }}
+                        style={{ padding:'5px 12px', borderRadius:99, background:`${SEV_COLOR[a.severity]||T.accent}18`, border:`1px solid ${SEV_COLOR[a.severity]||T.accent}33`, fontSize:9, fontFamily:T.fM, color:SEV_COLOR[a.severity]||T.accent, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', transition:'all 0.12s' }}
+                        onMouseEnter={e=>{e.currentTarget.style.filter='brightness(1.2)';}}
+                        onMouseLeave={e=>{e.currentTarget.style.filter='none';}}>
+                        {a.action} →
+                      </button>
+                    )}
+                    <button onClick={()=>{ const d=JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'); d[a.dismissKey]=today(); localStorage.setItem('los_alerts_dismissed',JSON.stringify(d)); }}
+                      style={{ padding:'5px 7px', borderRadius:99, background:'transparent', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted, cursor:'pointer', lineHeight:1 }}>×</button>
                   </div>
                 </div>
               ))}
-              {alerts.length > 3 && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{alerts.length-3} more alerts · check TopBar bell</div>}
+              {active.length > 4 && (
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'4px 0' }}>
+                  +{active.length-4} more in the topbar bell →
+                </div>
+              )}
             </div>
           </GlassCard>
         );
@@ -6611,6 +7388,294 @@ function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
 }
 
 // ── MONTHLY REVIEW MODAL ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// ── STEP 4: WEEKLY REVIEW — auto-generated every Sunday ──────────────────────
+// Answers 5 questions:
+//   1. What moved  — 3 metrics that changed most this week (up or down)
+//   2. What you did — habits, expenses, income, vitals logged
+//   3. What's coming — next week's budget pace, bills, habit risk days
+//   4. The gap     — actual vs what last week's trajectory predicted
+//   5. One question — weekly rotating reflection prompt
+// Auto-saves to Chronicles on close. Can be dismissed without saving.
+// ══════════════════════════════════════════════════════════════════════════════
+function computeWeeklySnapshot({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, netWorthHistory, settings }) {
+  const cur = settings?.currency || '$';
+  const now  = new Date();
+
+  // Week boundaries — Mon to Sun
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // last Monday
+  weekStart.setHours(0,0,0,0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const prevWeekStart = new Date(weekStart);
+  prevWeekStart.setDate(weekStart.getDate() - 7);
+  const prevWeekEnd   = new Date(weekStart);
+  prevWeekEnd.setDate(weekStart.getDate() - 1);
+
+  const inWeek  = (d, s, e) => { const dt = new Date(d); return dt >= s && dt <= e; };
+  const wStr    = d => d.toISOString().slice(0,10);
+
+  // This week's data
+  const thisWeekExp  = expenses.filter(e => inWeek(e.date, weekStart, weekEnd));
+  const thisWeekInc  = incomes.filter(i  => inWeek(i.date, weekStart, weekEnd));
+  const thisWeekVit  = vitals.filter(v   => inWeek(v.date, weekStart, weekEnd));
+  const prevWeekExp  = expenses.filter(e => inWeek(e.date, prevWeekStart, prevWeekEnd));
+  const prevWeekInc  = incomes.filter(i  => inWeek(i.date, prevWeekStart, prevWeekEnd));
+
+  const thisExpTotal = thisWeekExp.reduce((s,e)=>s+Number(e.amount||0),0);
+  const thisIncTotal = thisWeekInc.reduce((s,i)=>s+Number(i.amount||0),0);
+  const prevExpTotal = prevWeekExp.reduce((s,e)=>s+Number(e.amount||0),0);
+  const prevIncTotal = prevWeekInc.reduce((s,i)=>s+Number(i.amount||0),0);
+  const thisSaved    = Math.max(0, thisIncTotal - thisExpTotal);
+
+  // Habit consistency this week (Mon–Sun)
+  const weekDays = Array.from({length:7},(_,i)=>{
+    const d=new Date(weekStart); d.setDate(weekStart.getDate()+i);
+    return wStr(d);
+  });
+  const habitConsistency = habits.length > 0
+    ? Math.round((weekDays.reduce((s,d)=>s+habits.filter(h=>(habitLogs[h.id]||[]).includes(d)).length,0) / (habits.length*7))*100)
+    : 0;
+  const prevWeekDays = Array.from({length:7},(_,i)=>{
+    const d=new Date(prevWeekStart); d.setDate(prevWeekStart.getDate()+i);
+    return wStr(d);
+  });
+  const prevHabitCons = habits.length > 0
+    ? Math.round((prevWeekDays.reduce((s,d)=>s+habits.filter(h=>(habitLogs[h.id]||[]).includes(d)).length,0) / (habits.length*7))*100)
+    : 0;
+
+  // Avg mood & sleep this week
+  const avgMood  = thisWeekVit.length ? (thisWeekVit.reduce((s,v)=>s+Number(v.mood||0),0)/thisWeekVit.length).toFixed(1) : null;
+  const avgSleep = thisWeekVit.length ? (thisWeekVit.reduce((s,v)=>s+Number(v.sleep||0),0)/thisWeekVit.length).toFixed(1) : null;
+
+  // ── Section 1: What moved ──────────────────────────────────────────────────
+  const moved = [];
+  if (prevExpTotal > 0) {
+    const delta = thisExpTotal - prevExpTotal;
+    moved.push({ label:'Weekly spending', value:`${cur}${fmtN(thisExpTotal)}`, delta, deltaLabel:`${delta>0?'+':'-'}${cur}${fmtN(Math.abs(delta))} vs last week`, good: delta <= 0 });
+  }
+  if (habits.length > 0 && prevHabitCons > 0) {
+    const delta = habitConsistency - prevHabitCons;
+    moved.push({ label:'Habit consistency', value:`${habitConsistency}%`, delta, deltaLabel:`${delta>0?'+':'-'}${Math.abs(delta)} pts vs last week`, good: delta >= 0 });
+  }
+  if (avgMood) {
+    moved.push({ label:'Avg mood', value:`${avgMood}/10`, delta: null, deltaLabel: `${avgSleep}h avg sleep`, good: Number(avgMood) >= 6 });
+  }
+  if (thisIncTotal > 0) {
+    moved.push({ label:'Income logged', value:`${cur}${fmtN(thisIncTotal)}`, delta: thisIncTotal - prevIncTotal, deltaLabel:`${cur}${fmtN(thisSaved)} saved`, good: thisSaved > 0 });
+  }
+
+  // ── Section 2: What you did ────────────────────────────────────────────────
+  const habitsLoggedToday = habits.filter(h=>(habitLogs[h.id]||[]).some(d=>weekDays.includes(d))).length;
+  const did = [
+    habits.length > 0 && `${habitsLoggedToday}/${habits.length} habits logged this week`,
+    thisWeekExp.length > 0 && `${thisWeekExp.length} expenses tracked (${cur}${fmtN(thisExpTotal)})`,
+    thisWeekInc.length > 0 && `${cur}${fmtN(thisIncTotal)} income logged`,
+    thisWeekVit.length > 0 && `${thisWeekVit.length} vitals entries`,
+    thisWeekVit.length === 0 && `No vitals logged this week`,
+  ].filter(Boolean);
+
+  // ── Section 3: What's coming next week ────────────────────────────────────
+  const nextWeekStart = new Date(weekEnd); nextWeekStart.setDate(weekEnd.getDate()+1);
+  const nextWeekEnd   = new Date(nextWeekStart); nextWeekEnd.setDate(nextWeekStart.getDate()+6);
+  const comingBills   = (bills||[]).filter(b => !b.paid && b.nextDate && inWeek(b.nextDate, nextWeekStart, nextWeekEnd));
+  const thisM         = now.toISOString().slice(0,7);
+  const daysInM       = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const daysPast      = now.getDate();
+  const monthExp      = expenses.filter(e=>e.date?.startsWith(thisM)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const projMonthExp  = daysPast > 0 ? Math.round(monthExp / (daysPast/daysInM)) : 0;
+
+  const coming = [
+    comingBills.length > 0 && `${comingBills.length} bill${comingBills.length>1?'s':''} due next week: ${comingBills.map(b=>b.name).join(', ')}`,
+    Object.entries(budgets||{}).some(([cat,lim]) => {
+      const spent = expenses.filter(e=>e.date?.startsWith(thisM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+      return daysPast > 0 && (spent/(daysPast/daysInM)) > Number(lim)*1.05;
+    }) && `Budget overshoot risk — review spending before month-end`,
+  ].filter(Boolean);
+
+  // Habit risk days next week
+  const riskDays = habits.flatMap(h => {
+    const logs = (habitLogs[h.id]||[]).sort();
+    let weekendBreaks=0, total=0;
+    for(let i=1;i<logs.length;i++){
+      const gap=Math.round((new Date(logs[i])-new Date(logs[i-1]))/86400000);
+      if(gap>1){ total++; const bd=new Date(logs[i-1]); bd.setDate(bd.getDate()+1); if(bd.getDay()===0||bd.getDay()===6) weekendBreaks++; }
+    }
+    const rate = total > 0 ? weekendBreaks/total : 0;
+    return rate > 0.4 ? [`${h.emoji||'🔥'} ${h.name} (weekend risk)`] : [];
+  });
+  if (riskDays.length) coming.push(`Watch: ${riskDays.slice(0,2).join(', ')} historically break on weekends`);
+
+  // ── Section 4: The gap — actual vs what was predicted ─────────────────────
+  // Predict last week's savings from the week before that trajectory
+  let gap = null;
+  if (prevExpTotal > 0 && thisExpTotal > 0) {
+    const twoWeekAgoStart = new Date(prevWeekStart); twoWeekAgoStart.setDate(twoWeekAgoStart.getDate()-7);
+    const twoWeekAgoEnd   = new Date(prevWeekStart); twoWeekAgoEnd.setDate(twoWeekAgoEnd.getDate()-1);
+    const twoAgoExp = expenses.filter(e=>inWeek(e.date,twoWeekAgoStart,twoWeekAgoEnd)).reduce((s,e)=>s+Number(e.amount||0),0);
+    if (twoAgoExp > 0) {
+      const predicted = twoAgoExp; // last week should have been similar to week before
+      const actual    = thisExpTotal;
+      const diff      = actual - predicted;
+      if (Math.abs(diff) > 20) {
+        gap = {
+          label: diff > 0 ? `Spent ${cur}${fmtN(Math.abs(Math.round(diff)))} more than expected` : `Spent ${cur}${fmtN(Math.abs(Math.round(diff)))} less than expected`,
+          good: diff <= 0,
+        };
+      }
+    }
+  }
+
+  // ── Section 5: One rotating reflection question ────────────────────────────
+  const QUESTIONS = [
+    "What was the one decision this week that had the most impact — positive or negative?",
+    "Where did your time and money go that surprised you?",
+    "Which habit is getting easier, and which one still feels like work?",
+    "What would you tell yourself on Monday if you could go back?",
+    "What's one thing you'd want to repeat next week, and one thing to skip?",
+    "Did your spending this week reflect your actual priorities?",
+    "What was the hardest moment this week, and how did you handle it?",
+    "If you could only keep one habit going next week, which one matters most?",
+  ];
+  const weekNum   = Math.floor((now - new Date(now.getFullYear(),0,1)) / (7*86400000));
+  const question  = QUESTIONS[weekNum % QUESTIONS.length];
+
+  return {
+    weekLabel: `${wStr(weekStart)} – ${wStr(weekEnd)}`,
+    weekStart: wStr(weekStart),
+    moved, did, coming, gap, question,
+    raw: { thisExpTotal, thisIncTotal, thisSaved, habitConsistency, avgMood, avgSleep, vitalsCount: thisWeekVit.length },
+    cur,
+  };
+}
+
+function WeeklyReviewModal({ open, onClose, data, actions }) {
+  const snap  = useMemo(() => open ? computeWeeklySnapshot(data) : null, [open]);
+  const [reflection, setReflection] = useState('');
+  const [saved, setSaved]           = useState(false);
+
+  useEffect(() => { if (open) { setReflection(''); setSaved(false); } }, [open]);
+
+  const save = () => {
+    if (!snap) return;
+    const body = [
+      `📊 What moved: ${snap.moved.map(m=>m.label+' '+m.value).join(' · ')}`,
+      `✅ Did: ${snap.did.join(' · ')}`,
+      snap.coming.length ? `🔭 Coming: ${snap.coming.join(' · ')}` : '',
+      snap.gap ? `📐 Gap: ${snap.gap.label}` : '',
+      reflection ? `💬 Reflection: ${reflection}` : '',
+    ].filter(Boolean).join('\n');
+    actions.addChronicle({ id:Date.now(), emoji:'📋', title:`Weekly Review — ${snap.weekLabel}`, body, date:today() });
+    setSaved(true);
+    setTimeout(onClose, 900);
+  };
+
+  if (!open || !snap) return null;
+
+  const { moved, did, coming, gap, question, weekLabel, raw, cur } = snap;
+  const SEV = (good) => good ? T.emerald : T.rose;
+
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(6px)' }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:'100%', maxWidth:600, maxHeight:'92vh', overflowY:'auto', borderRadius:22, background:T.bg1, border:`1px solid ${T.border}`, animation:'modalIn 0.28s ease' }}>
+        {/* Header */}
+        <div style={{ padding:'22px 28px 0', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5, fontWeight:700 }}>📋 Weekly Review</div>
+            <h2 style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:T.text }}>{weekLabel}</h2>
+          </div>
+          <button onClick={onClose} style={{ color:T.textSub, background:'none', border:'none', cursor:'pointer', fontSize:20, lineHeight:1, padding:'2px 4px' }}>×</button>
+        </div>
+
+        <div style={{ padding:'18px 28px 28px', display:'flex', flexDirection:'column', gap:20 }}>
+
+          {/* Section 1 — What moved */}
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10, fontWeight:700 }}>1 · What moved this week</div>
+            {moved.length === 0 ? (
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses, habits, or vitals to see what moved.</div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:8 }}>
+                {moved.map((m,i) => (
+                  <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${SEV(m.good)}33` }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>{m.label}</div>
+                    <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:SEV(m.good), marginBottom:3 }}>{m.value}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:m.delta!=null?(m.good?T.emerald:T.rose):T.textSub }}>{m.deltaLabel}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 2 — What you did */}
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10, fontWeight:700 }}>2 · What you did</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              {did.map((d,i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                  <span style={{ color:T.accent, fontSize:12, flexShrink:0 }}>✓</span>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{d}</span>
+                </div>
+              ))}
+              {did.length === 0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Nothing logged this week yet.</div>}
+            </div>
+          </div>
+
+          {/* Section 3 — What's coming */}
+          {coming.length > 0 && (
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10, fontWeight:700 }}>3 · What's coming next week</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                {coming.map((c,i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}25` }}>
+                    <span style={{ color:T.amber, fontSize:12, flexShrink:0 }}>→</span>
+                    <span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{c}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Section 4 — The gap */}
+          {gap && (
+            <div style={{ padding:'12px 16px', borderRadius:T.r, background:`${SEV(gap.good)}08`, border:`1px solid ${SEV(gap.good)}33`, display:'flex', gap:10, alignItems:'center' }}>
+              <span style={{ fontSize:18, flexShrink:0 }}>{gap.good ? '📉' : '📈'}</span>
+              <div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:3, fontWeight:700 }}>4 · vs last week's trajectory</div>
+                <div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{gap.label}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Section 5 — One question */}
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:'#c084fc', letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8, fontWeight:700 }}>5 · Reflection</div>
+            <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:10, lineHeight:1.5 }}>{question}</div>
+            <textarea
+              value={reflection}
+              onChange={e=>setReflection(e.target.value)}
+              placeholder="Your answer (optional — saved to Chronicles)"
+              rows={3}
+              style={{ width:'100%', padding:'10px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical', lineHeight:1.6 }}
+            />
+          </div>
+
+          {/* Actions */}
+          <div style={{ display:'flex', gap:10 }}>
+            <button onClick={onClose} style={{ padding:'10px 20px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>
+              Skip
+            </button>
+            <button onClick={save} style={{ flex:1, padding:'10px 20px', borderRadius:T.r, background:saved?T.emeraldDim:T.accentDim, border:`1px solid ${saved?T.emerald:T.accent}44`, fontFamily:T.fM, fontSize:11, fontWeight:700, color:saved?T.emerald:T.accent, cursor:'pointer', transition:'all 0.2s' }}>
+              {saved ? '✓ Saved to Chronicles!' : 'Save to Chronicles'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MonthlyReviewModal({ open, onClose, data, actions }) {
   const {expenses,incomes,habits,habitLogs,vitals,goals,settings}=data;
   const cur=settings.currency||'$';
@@ -7191,50 +8256,143 @@ function BadgeUnlockModal({ badge, onClose }) {
 }
 
 // ── GLOBAL AI PANEL — slide-in assistant accessible from every page ──────────
+// ── STEP 5: BUILD AI BRIEFING FROM DETERMINISTIC INSIGHTS ────────────────────
+// Converts Steps 1-4 data into a natural-language opening message.
+// Zero API calls — generated in <1ms from existing computations.
+function buildAIBriefing(data) {
+  const { settings, computed, habits, habitLogs, vitals, expenses, incomes,
+          goals, debts, bills, budgets, assets, investments } = data;
+  const cur      = settings?.currency || '$';
+  const { monthInc=0, monthExp=0, savRate=0, nw=0 } = computed || {};
+  const name     = settings?.name || null;
+  const today_   = today();
+  const thisM    = today_.slice(0,7);
+
+  const brief = computeDailyBrief({ expenses, incomes, habits, habitLogs,
+    vitals, goals, bills, budgets, assets, investments, debts, settings });
+
+  const dismissed = (() => { try { return JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'); } catch { return {}; } })();
+  const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits,
+    habitLogs, vitals, incomes, goals, thisMonth:thisM, monthInc, savRate,
+    netWorth:nw, assets });
+  const activeAlerts  = allAlerts.filter(a => !dismissed[a.dismissKey]);
+  const urgentAlert   = activeAlerts.find(a => a.severity==='urgent'||a.severity==='warn');
+  const positiveAlert = activeAlerts.find(a => a.severity==='positive');
+
+  const trail = [1,2,3].map(i => {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const m = d.toISOString().slice(0,7);
+    const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+    const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+    return inc > 0 ? ((inc-exp)/inc)*100 : null;
+  }).filter(r=>r!=null);
+  const avgSavRate = trail.length ? trail.reduce((s,r)=>s+r,0)/trail.length : null;
+
+  const greeting = name ? `Here's what I'm seeing right now, ${name}.` : `Here's what I'm seeing right now.`;
+  const parts = [];
+
+  if (brief.financial) {
+    const f = brief.financial;
+    if (f.severity === 'warn') {
+      parts.push(`**Finance:** ${f.signal}. ${f.detail}${f.projection ? ' ' + f.projection + '.' : ''}`);
+    } else if (f.severity === 'good') {
+      parts.push(`**Finance:** ${f.signal}. ${f.detail}`);
+    } else if (monthInc > 0) {
+      parts.push(`**Finance:** Spending ${cur}${fmtN(monthExp)} against ${cur}${fmtN(monthInc)} income this month — savings rate ${savRate.toFixed(1)}%.${avgSavRate!=null ? \` Your 3-month average is ${avgSavRate.toFixed(1)}%.\` : ''}`);
+    }
+  }
+
+  if (brief.habit) {
+    const h = brief.habit;
+    if (h.severity === 'warn' || h.severity === 'notice' || h.severity === 'good') {
+      parts.push(`**Habits:** ${h.signal}. ${h.detail}`);
+    } else if (habits.length > 0) {
+      const done = habits.filter(h=>(habitLogs[h.id]||[]).includes(today_)).length;
+      const best = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+      parts.push(`**Habits:** ${done}/${habits.length} done today. Best streak: ${best} days.`);
+    }
+  }
+
+  if (brief.health && brief.health.severity !== 'neutral') {
+    parts.push(`**Health:** ${brief.health.signal}. ${brief.health.detail}`);
+  }
+
+  if (urgentAlert && !parts.some(p=>p.toLowerCase().includes(urgentAlert.title.toLowerCase().slice(0,15)))) {
+    parts.push(`**Alert:** ${urgentAlert.title} — ${urgentAlert.body}`);
+  } else if (positiveAlert && !urgentAlert) {
+    parts.push(`**Momentum:** ${positiveAlert.title} — ${positiveAlert.body}`);
+  }
+
+  const topAct = brief.topAction;
+  const closing = topAct
+    ? `The most useful thing right now is probably **${topAct.text.toLowerCase()}**. Want to dig into that — or is there something else on your mind?`
+    : `What would you like to work through today?`;
+
+  if (parts.length === 0) {
+    return `${greeting}\n\nI don't have enough data yet for a useful briefing. Start by logging income, expenses, and a few habit days — then I'll have real context.\n\n${closing}`;
+  }
+  return `${greeting}\n\n${parts.join('\n\n')}\n\n${closing}`;
+}
+
 function GlobalAIPanel({ open, onClose, data }) {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const endRef = useRef(null);
+  const [input,    setInput   ] = useState('');
+  const [loading,  setLoading ] = useState(false);
+  const [briefed,  setBriefed ] = useState(false);
+  const endRef   = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
+    if (open && !briefed && messages.length === 0) {
+      const briefing = buildAIBriefing(data);
+      setMessages([{ role:'assistant', content:briefing, isBriefing:true }]);
+      setBriefed(true);
+    }
     if (open && inputRef.current) setTimeout(() => inputRef.current?.focus(), 320);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const clearMessages = () => { setMessages([]); setBriefed(false); };
+
   useEffect(() => {
-    if (endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' });
   }, [messages, loading]);
 
   const buildSystemPrompt = () => {
-    const { settings, computed, habits, goals, expenses, debts, vitals, investments, subscriptions } = data;
+    const { settings, computed, habits, habitLogs, goals, expenses, debts,
+            vitals, investments, subscriptions, incomes, bills, budgets, assets } = data;
     const cur = settings?.currency || '$';
-    const recentExpenses = (expenses || []).slice(0, 5).map(e => `${e.category} ${cur}${e.amount}`).join(', ');
-    const goalsList = (goals || []).slice(0, 3).map(g => `${g.name} (${Math.round((Number(g.current||0)/Number(g.target||1))*100)}%)`).join(', ');
-    const habitsList = (habits || []).slice(0, 5).map(h => h.name).join(', ');
-    const subsCost = (subscriptions || []).reduce((s, sub) => s + Number(sub.amount || 0), 0);
-    return `You are LifeOS AI, a sharp, context-aware personal life coach embedded directly in the user's life management app. You have real-time access to their data.
+    const briefText = buildAIBriefing(data).replace(/\*\*/g,'');
+    const today_  = today();
+    const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+    const todayDone  = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today_)).length;
+    const recentExp  = (expenses||[]).slice(0,8).map(e=>`${e.category} ${cur}${e.amount} (${e.date})`).join(', ');
+    const goalsList  = (goals||[]).map(g=>`${g.name}: ${Math.round((Number(g.current||0)/Number(g.target||1))*100)}%`).join(', ');
+    const subsCost   = (subscriptions||[]).reduce((s,sub)=>s+Number(sub.amount||0),0);
+    const invVal     = (investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+    const lastVitals = (vitals||[]).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const overdueBills = (bills||[]).filter(b=>!b.paid&&b.nextDate&&b.nextDate<today_).map(b=>b.name).join(', ');
+    return `You are LifeOS AI — a sharp, context-aware personal life coach. You have already delivered a briefing to the user. Continue with the same authority and specificity.
 
-Be warm but concise. Lead with the most useful insight. Use bullet points sparingly — prefer 2-4 sentence answers unless depth is requested.
+BRIEFING YOU SENT:
+${briefText}
 
-USER SNAPSHOT:
-• Name: ${settings?.name || 'there'}
-• Net worth: ${cur}${fmtN(computed?.nw || 0)}
-• This month: Income ${cur}${fmtN(computed?.monthInc || 0)} · Expenses ${cur}${fmtN(computed?.monthExp || 0)} · Savings rate ${(computed?.savRate || 0).toFixed(1)}%
-• Active habits: ${habits?.length || 0} (${habitsList || 'none tracked'})
-• Goals: ${goals?.length || 0} active (${goalsList || 'none set'})
-• Total debt: ${cur}${fmtN((debts || []).reduce((s,d)=>s+Number(d.balance||0),0))} across ${debts?.length || 0} accounts
-• Subscriptions: ${cur}${fmtN(subsCost)}/mo across ${subscriptions?.length || 0} services
-• Last vitals: mood ${vitals?.[0]?.mood || '—'}/10, sleep ${vitals?.[0]?.sleep || '—'}h, energy ${vitals?.[0]?.energy || '—'}/10
-• Recent spending: ${recentExpenses || 'none logged'}
-• Portfolio: ${investments?.length || 0} positions
+DATA SNAPSHOT:
+• Net worth: ${cur}${fmtN(computed?.nw||0)} | Investable: ${cur}${fmtN(invVal)}
+• This month: Income ${cur}${fmtN(computed?.monthInc||0)} · Expenses ${cur}${fmtN(computed?.monthExp||0)} · Savings rate ${(computed?.savRate||0).toFixed(1)}%
+• Habits: ${(habits||[]).length} tracked · ${todayDone} done today · best streak ${bestStreak}d
+• Goals: ${goalsList||'none'}
+• Debt: ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))} across ${(debts||[]).length} accounts
+• Subscriptions: ${cur}${fmtN(subsCost)}/mo · Last vitals: mood ${lastVitals?.mood||'—'}/10, sleep ${lastVitals?.sleep||'—'}h
+• Recent spending: ${recentExp||'none'}
+• Overdue bills: ${overdueBills||'none'}
 
-Answer questions about their data directly and helpfully. Flag any concerns you notice. Be their financial and life advisor.`;
+Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Never ask more than one clarifying question per response.`;
   };
 
   const send = async () => {
     if (!input.trim() || loading) return;
-    const userMsg = { role: 'user', content: input.trim() };
+    const userMsg = { role:'user', content:input.trim() };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
@@ -7243,78 +8401,111 @@ Answer questions about their data directly and helpfully. Flag any concerns you 
       const text = await callAI(data.settings, {
         max_tokens: 1000,
         system: buildSystemPrompt(),
-        messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+        messages: newMessages
+          .filter(m => !m.isBriefing)
+          .map(m => ({ role:m.role, content:m.content })),
       });
-      setMessages(p => [...p, { role: 'assistant', content: text || 'Something went wrong. Please try again.' }]);
+      setMessages(p => [...p, { role:'assistant', content:text||'Something went wrong. Try again.' }]);
     } catch {
-      setMessages(p => [...p, { role: 'assistant', content: 'Connection error — check your AI settings and try again.' }]);
+      setMessages(p => [...p, { role:'assistant', content:'Connection error — check AI settings.' }]);
     }
     setLoading(false);
   };
 
-  const SUGGESTIONS = [
-    { label: "How's my financial health?", emoji: '💰' },
-    { label: "What should I focus on this week?", emoji: '🎯' },
-    { label: "Analyze my spending habits", emoji: '📊' },
-    { label: "Am I on track with my goals?", emoji: '🏆' },
-  ];
+  const SUGGESTIONS = useMemo(() => {
+    const { habits, habitLogs, expenses, incomes, bills, budgets, goals,
+            vitals, assets, investments, debts, settings:s } = data;
+    const brief = computeDailyBrief({ expenses, incomes, habits, habitLogs,
+      vitals, goals, bills, budgets, assets, investments, debts, settings:s });
+    const suggs = [];
+    if (brief.financial?.severity === 'warn')
+      suggs.push({ label:`Why is my spending increasing?`, emoji:'📊' });
+    else
+      suggs.push({ label:'How is my financial health this month?', emoji:'💰' });
+    if (brief.habit?.severity === 'warn' || brief.habit?.severity === 'notice')
+      suggs.push({ label:`How do I protect my ${brief.habit?.habitName||'habit'} streak?`, emoji:'🔥' });
+    else
+      suggs.push({ label:'What habits should I add or cut?', emoji:'🎯' });
+    if (goals.length > 0)
+      suggs.push({ label:'Am I on track with my goals?', emoji:'🏆' });
+    else
+      suggs.push({ label:'What goals should I set this month?', emoji:'🏆' });
+    suggs.push({ label:'What should I focus on this week?', emoji:'📅' });
+    return suggs.slice(0,4);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const formatMsg = (content) => {
+    const parts = content.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((p,i) =>
+      /^\*\*.*\*\*$/.test(p)
+        ? <span key={i} style={{ color:T.accent, fontWeight:700 }}>{p.slice(2,-2)}</span>
+        : p
+    );
+  };
+
+  const hasApiKey = !!(data.settings?.aiApiKey || data.settings?.aiProvider === 'ollama');
 
   return (
     <>
       {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9994, background:'rgba(0,0,0,0.35)', backdropFilter:'blur(2px)', animation:'fadeIn 0.2s ease' }} />}
-      <div style={{ position:'fixed', top:0, right:0, height:'100vh', width:clamp(340,380,460), background:T.bg1, borderLeft:`1px solid ${T.borderLit}`, display:'flex', flexDirection:'column', zIndex:9995, transform:open?'translateX(0)':'translateX(100%)', transition:'transform 0.3s cubic-bezier(0.32,0.72,0,1)', boxShadow:open?`-20px 0 60px rgba(0,0,0,0.6),-1px 0 0 ${T.accent}18`:'none' }}>
-        {/* Header */}
+      <div style={{ position:'fixed', top:0, right:0, height:'100vh', width:clamp(340,380,460), background:T.bg1, borderLeft:`1px solid ${T.borderLit}`, display:'flex', flexDirection:'column', zIndex:9995, transform:open?'translateX(0)`:'translateX(100%)', transition:'transform 0.3s cubic-bezier(0.32,0.72,0,1)', boxShadow:open?`-20px 0 60px rgba(0,0,0,0.6),-1px 0 0 ${T.accent}18`:'none' }}>
         <div style={{ padding:'14px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           <div style={{ width:34, height:34, borderRadius:10, background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`, border:`1px solid ${T.accent}44`, display:'flex', alignItems:'center', justifyContent:'center', animation:'glowPulse 3s infinite', flexShrink:0 }}>
             <IcoBrain size={16} stroke={T.accent} />
           </div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, lineHeight:1 }}>LifeOS AI</div>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginTop:3 }}>CONTEXT-AWARE LIFE COACH</div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginTop:3 }}>
+              {briefed ? '● BRIEFED ON YOUR DATA' : 'CONTEXT-AWARE LIFE COACH'}
+            </div>
           </div>
           {messages.length > 0 && (
-            <button onClick={()=>setMessages([])} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 8px', cursor:'pointer' }}>Clear</button>
+            <button onClick={clearMessages} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 8px', cursor:'pointer' }}>New chat</button>
           )}
           <button onClick={onClose} style={{ padding:6, borderRadius:7, color:T.textSub, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
             <IcoX size={13} stroke={T.textSub} />
           </button>
         </div>
-
-        {/* Messages area */}
         <div style={{ flex:1, overflowY:'auto', padding:'14px 16px', display:'flex', flexDirection:'column', gap:12 }}>
-          {messages.length === 0 && (
-            <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', gap:18, paddingBottom:20 }}>
-              <div style={{ textAlign:'center' }}>
-                <div style={{ fontSize:36, marginBottom:12 }}>🧠</div>
-                <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>Your AI Life Coach</div>
-                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.7, maxWidth:260 }}>Ask about your finances, habits, goals, wellbeing — I have full context on your data.</div>
+          {messages.length > 0 && messages[0]?.isBriefing && (
+            <>
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', animation:'fadeUp 0.3s ease' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, marginBottom:4, letterSpacing:'0.08em' }}>✦ LifeOS AI · Today's Briefing</div>
+                <div style={{ maxWidth:'96%', padding:'12px 16px', borderRadius:'14px 14px 14px 4px', background:T.surface, border:`1px solid ${T.accent}22`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.8, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
+                  {formatMsg(messages[0].content)}
+                </div>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:7, width:'100%' }}>
-                {SUGGESTIONS.map(s => (
-                  <button key={s.label} onClick={()=>setInput(s.label)} style={{ padding:'10px 14px', borderRadius:9, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:11, fontFamily:T.fM, textAlign:'left', cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:9 }}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accent+'44';e.currentTarget.style.color=T.text;e.currentTarget.style.background=T.surfaceHi;}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textSub;e.currentTarget.style.background=T.surface;}}>
-                    <span style={{fontSize:16}}>{s.emoji}</span>{s.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center', lineHeight:1.6 }}>
-                Powered by Claude · Your data never leaves your device
-              </div>
-            </div>
-          )}
-
-          {messages.map((m, i) => (
-            <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:m.role==='user'?'flex-end':'flex-start', animation:'fadeUp 0.2s ease' }}>
-              {m.role === 'assistant' && (
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, marginBottom:4, letterSpacing:'0.08em' }}>✦ LifeOS AI</div>
+              {messages.length === 1 && (
+                <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:4 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:2 }}>Suggested follow-ups</div>
+                  {SUGGESTIONS.map(s => (
+                    <button key={s.label} onClick={()=>{ setInput(s.label); setTimeout(()=>inputRef.current?.focus(),50); }}
+                      style={{ padding:'9px 14px', borderRadius:9, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:11, fontFamily:T.fM, textAlign:'left', cursor:'pointer', transition:'all 0.15s', display:'flex', alignItems:'center', gap:9 }}
+                      onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accent+'44';e.currentTarget.style.color=T.text;e.currentTarget.style.background=T.surfaceHi;}}
+                      onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textSub;e.currentTarget.style.background=T.surface;}}>
+                      <span style={{fontSize:15,flexShrink:0}}>{s.emoji}</span>
+                      <span style={{flex:1}}>{s.label}</span>
+                      <span style={{opacity:0.3}}>→</span>
+                    </button>
+                  ))}
+                  {!hasApiKey && (
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, padding:'8px 12px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, marginTop:4, lineHeight:1.5 }}>
+                      ⚠ The briefing is from your local data. Add an API key in Settings to ask follow-up questions.
+                    </div>
+                  )}
+                </div>
               )}
+            </>
+          )}
+          {messages.slice(messages[0]?.isBriefing?1:0).map((m,i) => (
+            <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:m.role==='user'?'flex-end':'flex-start', animation:'fadeUp 0.2s ease' }}>
+              {m.role==='assistant' && <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, marginBottom:4, letterSpacing:'0.08em' }}>✦ LifeOS AI</div>}
               <div style={{ maxWidth:'88%', padding:'10px 14px', borderRadius:m.role==='user'?'14px 14px 4px 14px':'14px 14px 14px 4px', background:m.role==='user'?T.accentDim:T.surface, border:`1px solid ${m.role==='user'?T.accent+'33':T.border}`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>
-                {m.content}
+                {m.role==='assistant' ? formatMsg(m.content) : m.content}
               </div>
             </div>
           ))}
-
           {loading && (
             <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', animation:'fadeUp 0.2s ease' }}>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, marginBottom:4, letterSpacing:'0.08em' }}>✦ LifeOS AI</div>
@@ -7325,8 +8516,6 @@ Answer questions about their data directly and helpfully. Flag any concerns you 
           )}
           <div ref={endRef} />
         </div>
-
-        {/* Input area */}
         <div style={{ padding:'12px 16px', borderTop:`1px solid ${T.border}`, display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
           <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
             <textarea
@@ -7334,23 +8523,23 @@ Answer questions about their data directly and helpfully. Flag any concerns you 
               value={input}
               onChange={e=>{ setInput(e.target.value); e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,96)+'px'; }}
               onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} }}
-              placeholder="Ask your AI coach… (Enter to send)"
+              placeholder={hasApiKey ? 'Ask a follow-up… (Enter to send)' : 'Add an API key in Settings to chat'}
+              disabled={!hasApiKey}
               rows={1}
-              style={{ flex:1, background:T.surface, border:`1px solid ${input.trim()?T.accent+'44':T.border}`, borderRadius:10, padding:'9px 12px', fontSize:12, fontFamily:T.fM, color:T.text, resize:'none', lineHeight:1.5, maxHeight:96, overflowY:'auto', transition:'border-color 0.15s' }}
+              style={{ flex:1, background:T.surface, border:`1px solid ${input.trim()?T.accent+'44':T.border}`, borderRadius:10, padding:'9px 12px', fontSize:12, fontFamily:T.fM, color:T.text, resize:'none', lineHeight:1.5, maxHeight:96, overflowY:'auto', transition:'border-color 0.15s', opacity:hasApiKey?1:0.5 }}
             />
-            <button onClick={send} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:10, background:input.trim()?T.accentDim:T.surface, border:`1px solid ${input.trim()?T.accent+'55':T.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, opacity:loading?0.5:1, transition:'all 0.15s', cursor:input.trim()&&!loading?'pointer':'default' }}>
-              <IcoSend size={14} stroke={input.trim()&&!loading?T.accent:T.textSub} />
+            <button onClick={send} disabled={!input.trim()||loading||!hasApiKey} style={{ width:38, height:38, borderRadius:10, background:input.trim()&&hasApiKey?T.accentDim:T.surface, border:`1px solid ${input.trim()&&hasApiKey?T.accent+'55':T.border}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, opacity:loading||!hasApiKey?0.4:1, transition:'all 0.15s', cursor:input.trim()&&!loading&&hasApiKey?'pointer':'default' }}>
+              <IcoSend size={14} stroke={input.trim()&&!loading&&hasApiKey?T.accent:T.textSub} />
             </button>
           </div>
           <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>
-            Press <kbd style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:3,padding:'1px 4px',fontSize:8}}>A</kbd> anywhere to toggle · <kbd style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:3,padding:'1px 4px',fontSize:8}}>Esc</kbd> to close
+            <kbd style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:3,padding:'1px 4px',fontSize:8}}>A</kbd> anywhere to toggle · <kbd style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:3,padding:'1px 4px',fontSize:8}}>Esc</kbd> to close
           </div>
         </div>
       </div>
     </>
   );
 }
-
 // ── AI FINANCIAL COACH CHAT ───────────────────────────────────────────────────
 function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInput, setCoachInput, coachLoading, setCoachLoading }) {
   const cur = settings.currency||'$';
@@ -7965,6 +9154,7 @@ export default function LifeOS() {
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
+  const [showWeeklyReview,  setShowWeeklyReview ] = useState(false);
 
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
@@ -8100,7 +9290,8 @@ export default function LifeOS() {
         if (e.key === 'v') setGlobalModal('vitals');
         if (e.key === 'a') setShowAIPanel(v => !v);
         if (e.key === 'm') setShowMonthlyReview(v => !v);
-        if (e.key === 'Escape') { setShowAIPanel(false); setShowMonthlyReview(false); }
+        if (e.key === 'w') setShowWeeklyReview(v => !v);
+        if (e.key === 'Escape') { setShowAIPanel(false); setShowMonthlyReview(false); setShowWeeklyReview(false); }
       }
     };
     window.addEventListener('keydown', handler);
@@ -8116,6 +9307,29 @@ export default function LifeOS() {
     Object.assign(T, THEMES[savedTheme] || THEMES.dark);
     setThemeVersion(v => v + 1);
   }, [settings.theme]);
+
+  // ── Step 4: Weekly Review auto-trigger — surfaces on Sunday after 6pm ────────
+  useEffect(() => {
+    const WEEKLY_KEY = 'los_weekly_review_last';
+    const now        = new Date();
+    const isSunday   = now.getDay() === 0;
+    const isEvening  = now.getHours() >= 18;
+    const thisWeekId = (() => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - d.getDay()); // start of this week (Sun)
+      return d.toISOString().slice(0,10);
+    })();
+    const lastShown = localStorage.getItem(WEEKLY_KEY);
+    // Show if it's Sunday evening and not yet shown this week
+    if (isSunday && isEvening && lastShown !== thisWeekId) {
+      // Delay 3s so it doesn't fire on top of the loading screen
+      const t = setTimeout(() => {
+        setShowWeeklyReview(true);
+        localStorage.setItem(WEEKLY_KEY, thisWeekId);
+      }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, []); // run once on mount — Sunday check handles the rest
 
   // ── S5: Recurring Expense Auto-log ────────────────────────────────────────
   // Bug-fix: added the same daily date-guard used by the expenses effect below
@@ -8473,9 +9687,11 @@ export default function LifeOS() {
 
   // ── S3: Smart Alerts — computed centrally for TopBar bell ────────────────────
   const smartAlerts = useMemo(() => computeSmartAlerts({
-    bills, budgets, expenses, habits, habitLogs, vitals,
+    bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals,
     thisMonth, monthInc, savRate,
-  }), [bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc, savRate]);
+    netWorth: computed.nw,
+    assets,
+  }), [bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc, savRate, computed.nw, assets]);
 
   // ── S2: XP Pop notifications ────────────────────────────────────────────────
   const [xpPops, setXPPops] = useState([]);
@@ -8575,6 +9791,7 @@ export default function LifeOS() {
     {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} onSkip={()=>{ setShowOnboarding(false); actions.updateSettings({...settings, onboarded:true}); }} actions={actions} settings={settings} />}
     <GlobalAIPanel open={showAIPanel} onClose={()=>setShowAIPanel(false)} data={data} />
     <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
+    <WeeklyReviewModal  open={showWeeklyReview}  onClose={()=>setShowWeeklyReview(false)}  data={data} actions={actions} />
     <BadgeUnlockModal badge={showBadge} onClose={()=>setShowBadge(null)} />
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
@@ -8635,13 +9852,22 @@ export default function LifeOS() {
               <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
               {!isMobile && 'All Systems Online'}
             </div>
-            <SmartAlertsButton alerts={smartAlerts} />
-            {/* Monthly Review trigger */}
-            <button onClick={()=>setShowMonthlyReview(true)} title="Monthly Review (M)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
-              onMouseEnter={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.text;}}
-              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
-              <IcoCalendar size={15} stroke="currentColor" />
-            </button>
+            <SmartAlertsButton alerts={smartAlerts} onNav={setPage} onModal={setGlobalModal} />
+            {/* Weekly Review trigger — Step 4 */}
+            {(() => {
+              const WEEKLY_KEY = 'los_weekly_review_last';
+              const now = new Date();
+              const thisWeekId = (() => { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); })();
+              const hasNew = localStorage.getItem(WEEKLY_KEY) !== thisWeekId && now.getDay() === 0;
+              return (
+                <button onClick={()=>setShowWeeklyReview(true)} title="Weekly Review (W)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.text;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+                  <IcoCalendar size={15} stroke="currentColor" />
+                  {hasNew && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+                </button>
+              );
+            })()}
             {/* Global AI Panel trigger */}
             <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Life Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s infinite' }}
               onMouseEnter={e=>{if(!showAIPanel){e.currentTarget.style.background=T.accentDim;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}}
