@@ -1039,15 +1039,28 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, curre
 
 function LogExpenseModal({ open, onClose, onSave }) {
   const [regret, setRegret] = useState(false);
+  const [trigger, setTrigger] = useState('');   // friction log: what caused this
   const [subcategory, setSubcategory] = useState('');
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
   const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
+
+  useEffect(() => { if (!open) { setRegret(false); setTrigger(''); } }, [open]);
+
+  const TRIGGERS = [
+    { id:'boredom',   label:'😴 Boredom',         emoji:'😴' },
+    { id:'stress',    label:'😰 Stress',           emoji:'😰' },
+    { id:'social',    label:'👥 Social pressure',  emoji:'👥' },
+    { id:'impulse',   label:'⚡ Impulse',           emoji:'⚡' },
+    { id:'habit',     label:'🔁 Habit / routine',  emoji:'🔁' },
+  ];
+
   const save = () => {
     if (!amt) return;
-    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date, recurring, frequency:recurring?frequency:null, regret:!!regret, subcategory:subcategory.trim() });
-    setAmt(''); setNote(''); setRecurring(false); setRegret(false); setSubcategory(''); onClose();
+    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date, recurring, frequency:recurring?frequency:null, regret:!!regret, trigger:regret?trigger:'', subcategory:subcategory.trim() });
+    setAmt(''); setNote(''); setRecurring(false); setRegret(false); setTrigger(''); setSubcategory(''); onClose();
   };
+
   return (
     <Modal open={open} onClose={onClose} title="💳 Log Expense">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -1061,10 +1074,26 @@ function LogExpenseModal({ open, onClose, onSave }) {
           <span>Recurring</span>
           {recurring && <Select value={frequency} onChange={e=>setFrequency(e.target.value)} style={{ marginLeft:4, padding:'2px 6px', fontSize:10 }}>{['weekly','bi-weekly','monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>}
         </label>
-        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontFamily:T.fM, color:T.textSub, cursor:'pointer', padding:'4px 2px' }}>
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontFamily:T.fM, color:T.rose, cursor:'pointer', padding:'4px 2px' }}>
           <input type="checkbox" checked={regret} onChange={e=>setRegret(e.target.checked)} style={{ accentColor:T.rose }} />
           <span>🤦 Regret this purchase</span>
         </label>
+        {/* Friction log — surfaces only when regret is checked */}
+        {regret && (
+          <div style={{ padding:'12px 14px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33`, animation:'slideDown 0.15s ease' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8, fontWeight:700 }}>
+              What triggered this? <span style={{ color:T.textMuted, fontWeight:400 }}>(optional — builds your spending pattern)</span>
+            </div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {TRIGGERS.map(t => (
+                <button key={t.id} onClick={()=>setTrigger(prev=>prev===t.id?'':t.id)}
+                  style={{ padding:'5px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, cursor:'pointer', transition:'all 0.12s', background:trigger===t.id?T.rose+'22':T.surface, color:trigger===t.id?T.rose:T.textSub, border:`1px solid ${trigger===t.id?T.rose+'55':T.border}` }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <Btn full onClick={save} color={T.rose}>{t('save')}</Btn>
       </div>
     </Modal>
@@ -1882,6 +1911,390 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
 // ── S3: SMART ALERTS ENGINE (shared by TopBar + HomePage) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// ── LIFE PULSE SCORE ──────────────────────────────────────────────────────────
+// A single 0-100 composite score visible on Home. Updates daily from real data.
+// Five domains weighted equally (20pts each):
+//   Finance   — savings rate + net worth direction
+//   Health    — sleep avg + mood avg (7-day)
+//   Habits    — completion rate (7-day) + streak quality
+//   Goals     — avg progress across active goals with deadlines
+//   Consistency — days logged across all domains in last 14 days
+// Stored daily in los_pulse_history for trend display.
+// ══════════════════════════════════════════════════════════════════════════════
+function computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings }) {
+  const now     = new Date();
+  const today_  = now.toISOString().slice(0, 10);
+  const thisM   = today_.slice(0, 7);
+
+  // ── Finance (20pts) ───────────────────────────────────────────────────────
+  const monthInc = incomes.filter(i => i.date?.startsWith(thisM)).reduce((s, i) => s + Number(i.amount||0), 0);
+  const monthExp = expenses.filter(e => e.date?.startsWith(thisM)).reduce((s, e) => s + Number(e.amount||0), 0);
+  const savRate  = monthInc > 0 ? ((monthInc - monthExp) / monthInc) * 100 : 0;
+  const invVal   = investments.reduce((s, i) => s + Number((i.currentPrice ?? i.buyPrice)||0) * Number(i.quantity||0), 0);
+  const nw       = assets.reduce((s, a) => s + Number(a.value||0), 0) + invVal - debts.reduce((s, d) => s + Number(d.balance||0), 0);
+  const financeScore = Math.min(20, Math.round(
+    (Math.min(10, savRate * 0.35)) +           // up to 10pts for savings rate (30% = 10pts)
+    (nw > 0 ? Math.min(10, nw / 5000) : 0)    // up to 10pts for positive NW
+  ));
+
+  // ── Health (20pts) ────────────────────────────────────────────────────────
+  const v7 = vitals.slice(-7);
+  const avgSleep = v7.length ? v7.reduce((s, v) => s + Number(v.sleep||0), 0) / v7.length : 0;
+  const avgMood  = v7.length ? v7.reduce((s, v) => s + Number(v.mood||0),  0) / v7.length : 0;
+  const healthScore = v7.length === 0 ? 0 : Math.min(20, Math.round(
+    (Math.min(10, (avgSleep / 8) * 10)) +      // up to 10pts for 8h sleep
+    (Math.min(10, (avgMood / 10) * 10))         // up to 10pts for 10/10 mood
+  ));
+
+  // ── Habits (20pts) ────────────────────────────────────────────────────────
+  const last7Days = Array.from({length:7}, (_, i) => {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    return d.toISOString().slice(0, 10);
+  });
+  const habitCompletion = habits.length > 0
+    ? last7Days.reduce((s, d) =>
+        s + habits.filter(h => (habitLogs[h.id]||[]).includes(d)).length, 0
+      ) / (habits.length * 7)
+    : 0;
+  const bestStreak = habits.reduce((mx, h) => { const s = getStreak(h.id, habitLogs); return s > mx ? s : mx; }, 0);
+  const habitsScore = habits.length === 0 ? 0 : Math.min(20, Math.round(
+    (habitCompletion * 14) +                    // up to 14pts for 100% completion
+    (Math.min(6, bestStreak / 5))               // up to 6pts for streaks
+  ));
+
+  // ── Goals (20pts) ─────────────────────────────────────────────────────────
+  const activeGoals = goals.filter(g => g.target && Number(g.target) > 0);
+  const avgGoalPct  = activeGoals.length
+    ? activeGoals.reduce((s, g) => s + Math.min(1, Number(g.current||0) / Number(g.target)), 0) / activeGoals.length
+    : 0;
+  const goalsScore = activeGoals.length === 0 ? 10 : Math.min(20, Math.round(avgGoalPct * 20)); // 10pts if no goals set
+
+  // ── Consistency (20pts) — are you logging regularly? ──────────────────────
+  const last14 = Array.from({length:14}, (_, i) => {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    return d.toISOString().slice(0, 10);
+  });
+  const expDays    = new Set(expenses.map(e => e.date)).size;
+  const incDays    = new Set(incomes.map(i => i.date)).size;
+  const vitalsDays = vitals.filter(v => last14.includes(v.date)).length;
+  const habitDays  = last14.filter(d => habits.some(h => (habitLogs[h.id]||[]).includes(d))).length;
+  // Score: 0-5pts per category (expenses, income, vitals, habits) for last 14 days
+  const consistencyScore = Math.min(20, Math.round(
+    Math.min(5, expDays / 2)      +             // expenses logged regularly
+    Math.min(5, incDays / 1)      +             // income logged
+    Math.min(5, (vitalsDays / 14) * 5) +        // vitals completeness
+    Math.min(5, (habitDays / 14) * 5)           // habit logging rate
+  ));
+
+  const total = financeScore + healthScore + habitsScore + goalsScore + consistencyScore;
+
+  return {
+    total,
+    domains: {
+      finance:     { score: financeScore,     max: 20, label: 'Finance'     },
+      health:      { score: healthScore,      max: 20, label: 'Health'      },
+      habits:      { score: habitsScore,      max: 20, label: 'Habits'      },
+      goals:       { score: goalsScore,       max: 20, label: 'Goals'       },
+      consistency: { score: consistencyScore, max: 20, label: 'Consistency' },
+    },
+  };
+}
+
+// ── LIFE PULSE CHIP — shown in Home greeting header ───────────────────────────
+function LifePulseChip({ pulse }) {
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const color = pulse.total >= 75 ? T.emerald : pulse.total >= 50 ? T.accent : pulse.total >= 30 ? T.amber : T.rose;
+  const label = pulse.total >= 75 ? 'Strong' : pulse.total >= 50 ? 'Good' : pulse.total >= 30 ? 'Fair' : 'Low';
+
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        onClick={() => setShowBreakdown(v => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, background: color + '18', border: '1px solid ' + color + '44', cursor: 'pointer', transition: 'all 0.15s' }}
+        title="Life Pulse — your composite daily score"
+      >
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, animation: 'dotPulse 2.5s infinite' }} />
+        <span style={{ fontSize: 9, fontFamily: T.fM, color, fontWeight: 700, letterSpacing: '0.08em' }}>
+          PULSE {pulse.total}
+        </span>
+        <span style={{ fontSize: 9, fontFamily: T.fM, color, opacity: 0.8 }}>{label}</span>
+      </button>
+
+      {showBreakdown && (
+        <>
+          <div onClick={() => setShowBreakdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 198 }} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 220, background: T.bg2, border: '1px solid ' + T.borderLit, borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', zIndex: 199, animation: 'slideDown 0.18s ease', overflow: 'hidden', padding: '14px 16px' }}>
+            <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10, fontWeight: 700 }}>Life Pulse Breakdown</div>
+            {Object.values(pulse.domains).map(d => (
+              <div key={d.label} style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: T.fM, color: T.textSub, marginBottom: 3 }}>
+                  <span>{d.label}</span>
+                  <span style={{ color: d.score >= 16 ? T.emerald : d.score >= 10 ? T.accent : T.amber, fontWeight: 600 }}>{d.score}/{d.max}</span>
+                </div>
+                <ProgressBar pct={(d.score / d.max) * 100} color={d.score >= 16 ? T.emerald : d.score >= 10 ? T.accent : T.amber} height={3} />
+              </div>
+            ))}
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid ' + T.border, fontSize: 8, fontFamily: T.fM, color: T.textMuted, lineHeight: 1.5 }}>
+              Updates daily. Covers finance, health, habits, goals, and logging consistency.
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── MONTH-OVER-MONTH AUTO-SUMMARY ─────────────────────────────────────────────
+// Runs once on the 1st of each month. Generates a plain-text summary comparing
+// the just-ended month to the one before it. Saves to Chronicles automatically.
+// No user action needed — it's just there when you open the app on the 1st.
+function useMonthAutoSummary({ expenses, incomes, habits, habitLogs, vitals, goals, settings, actions }) {
+  useEffect(() => {
+    const now = new Date();
+    if (now.getDate() !== 1) return; // only on 1st of month
+    const KEY = 'los_mth_summary_last';
+    const prevM = (() => { const d = new Date(now); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
+    if (localStorage.getItem(KEY) === prevM) return; // already generated for this month
+
+    const cur  = settings?.currency || '$';
+    const prevPrevM = (() => { const d = new Date(now); d.setMonth(d.getMonth() - 2); return d.toISOString().slice(0, 7); })();
+
+    const mInc  = incomes.filter(i => i.date?.startsWith(prevM)).reduce((s, i) => s + Number(i.amount||0), 0);
+    const mExp  = expenses.filter(e => e.date?.startsWith(prevM)).reduce((s, e) => s + Number(e.amount||0), 0);
+    const ppInc = incomes.filter(i => i.date?.startsWith(prevPrevM)).reduce((s, i) => s + Number(i.amount||0), 0);
+    const ppExp = expenses.filter(e => e.date?.startsWith(prevPrevM)).reduce((s, e) => s + Number(e.amount||0), 0);
+    const mSaved  = Math.max(0, mInc - mExp);
+    const ppSaved = Math.max(0, ppInc - ppExp);
+    const savRate = mInc > 0 ? ((mSaved / mInc) * 100).toFixed(1) : 0;
+
+    const habitCons = habits.length > 0
+      ? (() => {
+          const days = new Set();
+          habits.forEach(h => (habitLogs[h.id]||[]).filter(d => d.startsWith(prevM)).forEach(d => days.add(d)));
+          const daysInM = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+          return Math.round((days.size / daysInM) * 100);
+        })()
+      : null;
+
+    const mVitals  = vitals.filter(v => v.date?.startsWith(prevM));
+    const avgSleep = mVitals.length ? (mVitals.reduce((s, v) => s + Number(v.sleep||0), 0) / mVitals.length).toFixed(1) : null;
+    const avgMood  = mVitals.length ? (mVitals.reduce((s, v) => s + Number(v.mood||0),  0) / mVitals.length).toFixed(1) : null;
+
+    const goalsCompleted = goals.filter(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0).length;
+
+    // Build the summary text
+    const lines = [
+      '📊 Monthly Summary — ' + prevM,
+      '',
+      '💰 Finance',
+      '  Income: ' + cur + mInc.toLocaleString() + (ppInc ? ' (' + (mInc >= ppInc ? '+' : '') + ((((mInc - ppInc) / Math.max(1, ppInc)) * 100).toFixed(0)) + '% vs prev month)' : ''),
+      '  Expenses: ' + cur + mExp.toLocaleString() + (ppExp ? ' (' + (mExp <= ppExp ? '↓' : '↑') + ' vs prev month)' : ''),
+      '  Saved: ' + cur + mSaved.toLocaleString() + ' (' + savRate + '%)' + (ppSaved ? ' vs ' + cur + ppSaved.toLocaleString() + ' prior month' : ''),
+      '',
+      habitCons !== null ? ('🔥 Habits: ' + habitCons + '% consistency across ' + habits.length + ' habit' + (habits.length !== 1 ? 's' : '')) : '',
+      avgSleep ? ('😴 Sleep: ' + avgSleep + 'h avg · Mood: ' + avgMood + '/10 avg') : '',
+      goalsCompleted > 0 ? ('🏆 Goals: ' + goalsCompleted + ' completed') : '',
+    ].filter(Boolean);
+
+    actions.addChronicle({
+      id: Date.now(),
+      emoji: '📊',
+      title: 'Monthly Summary — ' + prevM,
+      body: lines.join('
+'),
+      date: now.toISOString().slice(0, 10),
+      autoGenerated: true,
+    });
+
+    localStorage.setItem(KEY, prevM);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── DECISION LOG ──────────────────────────────────────────────────────────────
+// Log any life decision with context: what, why, which domains it touches,
+// financial amount if relevant. Stored in los_decisions.
+// Shows in Chronicles and is included in AI context.
+// ══════════════════════════════════════════════════════════════════════════════
+function LogDecisionModal({ open, onClose, onSave }) {
+  const [title,   setTitle  ] = useState('');
+  const [why,     setWhy    ] = useState('');
+  const [domains, setDomains] = useState([]);
+  const [amount,  setAmount ] = useState('');
+  const [impact,  setImpact ] = useState('neutral'); // positive | neutral | uncertain
+
+  useEffect(() => { if (open) { setTitle(''); setWhy(''); setDomains([]); setAmount(''); setImpact('neutral'); } }, [open]);
+
+  const DOMAINS = ['Finance', 'Health', 'Career', 'Habits', 'Relationships', 'Growth'];
+  const toggleDomain = d => setDomains(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+
+  const save = () => {
+    if (!title.trim()) return;
+    onSave({
+      id: Date.now(),
+      title: title.trim(),
+      why: why.trim(),
+      domains,
+      amount: amount ? Number(amount) : null,
+      impact,
+      date: new Date().toISOString().slice(0, 10),
+    });
+    onClose();
+  };
+
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, borderRadius: 20, background: T.bg1, border: '1px solid ' + T.border, padding: '28px 32px', animation: 'modalIn 0.25s ease' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: T.text }}>📝 Log a Decision</h2>
+          <button onClick={onClose} style={{ fontSize: 20, color: T.textSub, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginBottom: 6 }}>What did you decide?</div>
+            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Switch jobs, cancel Netflix, start running..." />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginBottom: 6 }}>Why? (your reasoning, optional)</div>
+            <textarea value={why} onChange={e => setWhy(e.target.value)} placeholder="What led to this decision?" rows={2}
+              style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border, borderRadius: T.r, fontFamily: T.fM, fontSize: 12, color: T.text, resize: 'vertical' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginBottom: 6 }}>Domains affected</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {DOMAINS.map(d => (
+                <button key={d} onClick={() => toggleDomain(d)}
+                  style={{ padding: '4px 12px', borderRadius: 99, fontSize: 10, fontFamily: T.fM, cursor: 'pointer', background: domains.includes(d) ? T.accent + '22' : T.surface, color: domains.includes(d) ? T.accent : T.textSub, border: '1px solid ' + (domains.includes(d) ? T.accent + '55' : T.border), transition: 'all 0.15s' }}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginBottom: 6 }}>Financial impact (optional)</div>
+              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount ±" />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontFamily: T.fM, color: T.textSub, marginBottom: 6 }}>Expected outcome</div>
+              <select value={impact} onChange={e => setImpact(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid ' + T.border, borderRadius: T.r, fontFamily: T.fM, fontSize: 12, color: T.text }}>
+                <option value="positive">Positive</option>
+                <option value="neutral">Neutral</option>
+                <option value="uncertain">Uncertain</option>
+                <option value="negative">Difficult but necessary</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+            <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: T.r, background: T.surface, border: '1px solid ' + T.border, fontFamily: T.fM, fontSize: 11, color: T.textSub, cursor: 'pointer' }}>Cancel</button>
+            <Btn onClick={save} color={T.accent} style={{ flex: 1 }} disabled={!title.trim()}>Save Decision</Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── BROWSER NOTIFICATION ENGINE ───────────────────────────────────────────────
+// Fires real browser push notifications based on reminder settings + live data.
+// Called once per app mount. Uses the Notification API — no server needed.
+// ══════════════════════════════════════════════════════════════════════════════
+function useSmartNotifications({ habits, habitLogs, bills, budgets, expenses, vitals, settings }) {
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return;
+    if (Notification.permission === 'denied') return;
+
+    const fire = (title, body, icon = '⬡') => {
+      try {
+        if (Notification.permission === 'granted') {
+          new Notification(title, { body, icon: '/favicon.ico', tag: title });
+        }
+      } catch {}
+    };
+
+    const now  = new Date();
+    const hour = now.getHours();
+    const today_ = now.toISOString().slice(0, 10);
+    const NOTIF_KEY = 'los_notif_last_' + today_;
+    const alreadyFiredToday = localStorage.getItem(NOTIF_KEY) === '1';
+    if (alreadyFiredToday) return;
+
+    // Request permission on first use if any reminders are enabled
+    const anyEnabled = settings.remindHabit || settings.remindExpense || settings.remindVitals || settings.remindBudget;
+    if (anyEnabled && Notification.permission === 'default') {
+      Notification.requestPermission();
+      return; // fire tomorrow once permission is granted
+    }
+
+    if (Notification.permission !== 'granted') return;
+
+    let fired = false;
+
+    // Morning brief (8-10am) — habits not yet logged
+    if (settings.remindHabit !== false && hour >= 8 && hour < 10) {
+      const doneSoFar = habits.filter(h => (habitLogs[h.id]||[]).includes(today_)).length;
+      if (doneSoFar < habits.length && habits.length > 0) {
+        fire('LifeOS — Morning check-in', doneSoFar + '/' + habits.length + ' habits logged. Start your day strong.');
+        fired = true;
+      }
+    }
+
+    // Evening habit reminder (9pm) — streaks at risk
+    if (settings.remindHabit !== false && hour >= 21 && hour < 22) {
+      const atRisk = habits.filter(h => {
+        const logs = habitLogs[h.id] || [];
+        const streak = getStreak(h.id, habitLogs);
+        return streak >= 3 && !logs.includes(today_);
+      });
+      if (atRisk.length > 0) {
+        fire('LifeOS — Streak at risk 🔥', atRisk[0].name + ' (' + getStreak(atRisk[0].id, habitLogs) + 'd) not logged yet tonight.');
+        fired = true;
+      }
+    }
+
+    // Bill reminder (any time) — bills due in 3 days
+    if (hour >= 9) {
+      (bills||[]).filter(b => !b.paid && b.nextDate).forEach(b => {
+        const daysUntil = Math.round((new Date(b.nextDate) - now) / 86400000);
+        if (daysUntil >= 0 && daysUntil <= 3) {
+          fire('LifeOS — Bill due soon', b.name + ' is due in ' + (daysUntil === 0 ? 'today' : daysUntil + ' day' + (daysUntil > 1 ? 's' : '')));
+          fired = true;
+        }
+      });
+    }
+
+    // Budget alert (any time after midday) — category over 90%
+    if (settings.remindBudget !== false && hour >= 12) {
+      const thisM = today_.slice(0, 7);
+      Object.entries(budgets||{}).forEach(([cat, limit]) => {
+        const spent = expenses.filter(e => e.date?.startsWith(thisM) && e.category === cat).reduce((s, e) => s + Number(e.amount||0), 0);
+        const pct = limit > 0 ? (spent / Number(limit)) * 100 : 0;
+        if (pct >= 90 && pct < 110) {
+          fire('LifeOS — Budget alert 💸', cat + ' is at ' + Math.round(pct) + '% of budget.');
+          fired = true;
+        }
+      });
+    }
+
+    // Vitals reminder (8pm) — not logged today
+    if (settings.remindVitals && hour >= 20 && hour < 21) {
+      const loggedToday = vitals.some(v => v.date === today_);
+      if (!loggedToday) {
+        fire('LifeOS — Log your vitals', 'Track sleep, mood, and energy to reveal your patterns.');
+        fired = true;
+      }
+    }
+
+    if (fired) localStorage.setItem(NOTIF_KEY, '1');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
 // ── DAILY BRIEF ENGINE — Step 1 of the "what's about to happen" shift ─────────
 // Pure deterministic computation. No AI, no API. Runs on every Home render.
 // Answers three questions: what's the financial trajectory, what habit is at
@@ -2706,6 +3119,9 @@ class ErrorBoundary extends React.Component {
 function HomePage({ data, actions, onNav }) {
   const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, notes, budgets, bills } = data;
   const [modal, setModal] = useState(null);
+  const [showDecision, setShowDecision] = useState(false);
+  const [focusMode, setFocusMode] = useLocalStorage('los_focus_mode', false);
+  const [simulateOpen, setSimulateOpen] = useState(false);
   const [showMoodBanner, setShowMoodBanner] = useState(() => !vitals.some(v=>v.date===today()));
   const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
   const [weeklyFocusEdit, setWeeklyFocusEdit] = useState(false);
@@ -2818,13 +3234,104 @@ function HomePage({ data, actions, onNav }) {
           )}
         </div>
       )}
+      <LogDecisionModal open={showDecision} onClose={()=>setShowDecision(false)} onSave={d=>{actions.addDecision(d);setShowDecision(false);}} />
+      <SimulateDecisionModal open={simulateOpen} onClose={()=>setSimulateOpen(false)} data={data} />
       <div style={{ marginBottom:26 }}>
         <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginBottom:5, textTransform:'uppercase' }}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
-          {settings.name?`Welcome back, ${settings.name} · `:''}<span style={{ color:T.emerald }}>●</span> {habits.length} habits · <span style={{ color:T.accent }}>●</span> NW {cur}{fmtN(netWorth)} · <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K to search</span>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:8 }}>
+          <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
+          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+            <button onClick={()=>setFocusMode(v=>!v)}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, cursor:'pointer', transition:'all 0.15s', background:focusMode?T.accentDim:T.surface, border:`1px solid ${focusMode?T.accent+'55':T.border}`, color:focusMode?T.accent:T.textSub }}
+              title="Focus Mode — see only what matters today">
+              {focusMode ? '⊙ Focus' : '○ Focus'}
+            </button>
+            <button onClick={()=>setSimulateOpen(true)}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, cursor:'pointer', background:T.violetDim, border:`1px solid ${T.violet}33`, color:T.violet }}>
+              ⚡ Simulate
+            </button>
+          </div>
+        </div>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:6, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+          {settings.name?<span>Welcome back, {settings.name}</span>:null}
+          <LifePulseChip pulse={computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings })} />
+          <span style={{ color:T.emerald }}>●</span><span>{habits.length} habits</span>
+          <span style={{ color:T.accent }}>●</span><span>NW {cur}{fmtN(netWorth)}</span>
+          <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K search</span>
+          <button onClick={()=>setShowDecision(true)} style={{ fontSize:9, fontFamily:T.fM, color:T.violet, background:T.violetDim, border:'1px solid '+T.violet+'33', borderRadius:99, padding:'2px 10px', cursor:'pointer' }}>+ Log decision</button>
         </div>
       </div>
+
+      {/* ── Focus Mode — collapsed view showing only what matters today ─── */}
+      {focusMode && (() => {
+        const todayDoneHabits = habits.filter(h=>(habitLogs[h.id]||[]).includes(today()));
+        const pendingHabits   = habits.filter(h=>!(habitLogs[h.id]||[]).includes(today()));
+        const todayVitals     = vitals.some(v=>v.date===today());
+        const urgentBills     = (bills||[]).filter(b=>!b.paid&&b.nextDate&&Math.round((new Date(b.nextDate)-new Date())/86400000)<=3);
+        const pulse           = computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings });
+        return (
+          <div style={{ marginBottom:18, animation:'fadeUp 0.3s ease' }}>
+            <GlassCard style={{ padding:'20px 24px', border:`1px solid ${T.accent}33`, background:`linear-gradient(135deg,${T.accent}06,transparent)` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.14em', textTransform:'uppercase', fontWeight:700 }}>⊙ Focus Mode</div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Life Pulse</span>
+                  <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color: pulse.total>=70?T.emerald:pulse.total>=50?T.accent:T.amber }}>{pulse.total}</span>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:10, marginBottom:16 }}>
+                {/* Habits left */}
+                <div style={{ padding:'12px 14px', borderRadius:T.r, background: pendingHabits.length===0?T.emeraldDim:T.surface, border:`1px solid ${pendingHabits.length===0?T.emerald+'44':T.border}` }}>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Habits today</div>
+                  <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:pendingHabits.length===0?T.emerald:T.accent }}>
+                    {todayDoneHabits.length}/{habits.length}
+                  </div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
+                    {pendingHabits.length===0?'All done 🎉':pendingHabits.slice(0,2).map(h=>h.emoji||'🔥'+' '+h.name).join(' · ')}
+                  </div>
+                </div>
+                {/* Vitals logged */}
+                <div style={{ padding:'12px 14px', borderRadius:T.r, background:todayVitals?T.emeraldDim:T.surface, border:`1px solid ${todayVitals?T.emerald+'44':T.border}` }}>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Vitals</div>
+                  <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:todayVitals?T.emerald:T.textSub }}>{todayVitals?'✓ Logged':'Not yet'}</div>
+                  {!todayVitals && <button onClick={()=>setModal('vitals')} style={{ fontSize:9, fontFamily:T.fM, color:T.sky, background:'none', border:'none', cursor:'pointer', marginTop:4 }}>Log now →</button>}
+                </div>
+                {/* Net worth */}
+                <div style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Net Worth</div>
+                  <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(netWorth)}</div>
+                </div>
+                {/* Savings rate */}
+                <div style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Savings rate</div>
+                  <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:savRate>=20?T.emerald:T.amber }}>{savRate.toFixed(1)}%</div>
+                </div>
+              </div>
+              {/* Pending habits quick-log */}
+              {pendingHabits.length > 0 && (
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {pendingHabits.slice(0,5).map(h=>(
+                    <button key={h.id} onClick={()=>actions.logHabit(h.id)}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}33`, fontSize:10, fontFamily:T.fM, color:T.accent, cursor:'pointer', transition:'all 0.15s' }}
+                      onMouseEnter={e=>{e.currentTarget.style.background=T.accent+'30';}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=T.accentDim;}}>
+                      {h.emoji||'🔥'} {h.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {urgentBills.length > 0 && (
+                <div style={{ marginTop:10, padding:'8px 12px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, fontSize:10, fontFamily:T.fM, color:T.amber }}>
+                  ⏰ {urgentBills.length} bill{urgentBills.length>1?'s':''} due soon: {urgentBills.map(b=>b.name).join(', ')}
+                </div>
+              )}
+            </GlassCard>
+          </div>
+        );
+      })()}
+
+      {/* When in Focus Mode, skip everything else */}
+      {!focusMode && (<>
       {/* ── Step 1: Daily Brief — the front door of the "what's about to happen" shift */}
       <DailyBriefCard data={data} onNav={onNav} onModal={setModal} />
       {/* UX Fix 4: Empty-state guidance strip — shown only when the user has no data
@@ -3243,6 +3750,8 @@ function HomePage({ data, actions, onNav }) {
         </div>
       </div>
     </div>
+    {/* Close the !focusMode fragment */}
+    </>)}
   );
 }
 
@@ -4761,13 +5270,16 @@ function GrowthPage({ data, actions }) {
           ) : (
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
               {[...chronicles].sort((a,b)=>a.date<b.date?1:-1).map((c,i)=>(
-                <GlassCard key={c.id} style={{ padding:'18px 22px', borderLeft:`3px solid ${T.amber}44`, animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
+                <GlassCard key={c.id} style={{ padding:'18px 22px', borderLeft:`3px solid ${c.autoGenerated?T.sky:T.amber}44`, animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ display:'flex', gap:12, alignItems:'flex-start', flex:1 }}>
                       <div style={{ fontSize:28, flexShrink:0 }}>{c.emoji}</div>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{c.title}</div>
-                        {c.body && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{c.body}</div>}
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                          <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{c.title}</div>
+                          {c.autoGenerated && <span style={{ fontSize:7, fontFamily:T.fM, color:T.sky, background:T.skyDim, border:`1px solid ${T.sky}33`, borderRadius:99, padding:'1px 6px' }}>auto</span>}
+                        </div>
+                        {c.body && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, whiteSpace:'pre-wrap' }}>{c.body}</div>}
                         <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>{c.date}</div>
                       </div>
                     </div>
@@ -4775,6 +5287,38 @@ function GrowthPage({ data, actions }) {
                   </div>
                 </GlassCard>
               ))}
+            </div>
+          )}
+
+          {/* ── Decision Log ──────────────────────────────────────────────── */}
+          {(data.decisions||[]).length > 0 && (
+            <div style={{ marginTop:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <div><SectionLabel>Decision Log</SectionLabel><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Decisions you logged with context. The AI uses these to give better advice.</div></div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {[...(data.decisions||[])].sort((a,b)=>a.date<b.date?1:-1).map((d,i)=>{
+                  const IMPACT_COLOR = { positive:T.emerald, neutral:T.textSub, uncertain:T.amber, negative:T.rose };
+                  const c = IMPACT_COLOR[d.impact] || T.textSub;
+                  return (
+                    <GlassCard key={d.id||i} style={{ padding:'14px 18px', borderLeft:`3px solid ${T.violet}44` }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:d.why?8:0 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+                            <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>📝 {d.title}</span>
+                            <span style={{ fontSize:8, fontFamily:T.fM, color:c, background:c+'18', border:`1px solid ${c}33`, borderRadius:99, padding:'1px 8px' }}>{d.impact||'neutral'}</span>
+                            {(d.domains||[]).map(dom=><span key={dom} style={{ fontSize:8, fontFamily:T.fM, color:T.violet, background:T.violetDim, border:`1px solid ${T.violet}33`, borderRadius:99, padding:'1px 7px' }}>{dom}</span>)}
+                          </div>
+                          {d.why && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{d.why}</div>}
+                          {d.amount && <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, marginTop:4 }}>Financial impact: {settings.currency||'$'}{fmtN(Math.abs(d.amount))}</div>}
+                          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>{d.date}</div>
+                        </div>
+                        <button onClick={()=>actions.removeDecision(d.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={10} stroke={T.rose} /></button>
+                      </div>
+                    </GlassCard>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -6254,6 +6798,42 @@ function IntelligencePage({ data, actions={} }) {
             })()}
             <CompoundGrowthCard cur={cur} />
             <ScenarioCard cur={cur} monthInc={monthInc} savRate={savRate} />
+
+            {/* ── Friction Log Insights ─────────────────────────────────── */}
+            {(() => {
+              const regretExp = expenses.filter(e => e.regret && e.trigger);
+              if (regretExp.length < 2) return null;
+              const triggerCounts = {};
+              regretExp.forEach(e => { triggerCounts[e.trigger] = (triggerCounts[e.trigger]||0)+1; });
+              const sorted = Object.entries(triggerCounts).sort((a,b)=>b[1]-a[1]);
+              const topTrigger = sorted[0];
+              const totalRegretAmt = regretExp.reduce((s,e)=>s+Number(e.amount||0),0);
+              const TRIGGER_LABELS = { boredom:'😴 Boredom', stress:'😰 Stress', social:'👥 Social pressure', impulse:'⚡ Impulse', habit:'🔁 Habit' };
+              return (
+                <GlassCard style={{ padding:'20px 22px', borderLeft:`3px solid ${T.rose}44` }}>
+                  <SectionLabel>🤦 Spending Triggers</SectionLabel>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:12 }}>
+                    {regretExp.length} regret purchase{regretExp.length>1?'s':''} · {cur}{fmtN(Math.round(totalRegretAmt))} total · top trigger: <span style={{ color:T.rose, fontWeight:600 }}>{TRIGGER_LABELS[topTrigger[0]]||topTrigger[0]}</span>
+                  </div>
+                  {sorted.map(([trigger, count]) => (
+                    <div key={trigger} style={{ marginBottom:8 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:3 }}>
+                        <span>{TRIGGER_LABELS[trigger]||trigger}</span>
+                        <span style={{ color:T.rose }}>{count} time{count>1?'s':''}</span>
+                      </div>
+                      <ProgressBar pct={(count/regretExp.length)*100} color={T.rose} height={4} />
+                    </div>
+                  ))}
+                  <div style={{ marginTop:10, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6, borderLeft:`2px solid ${T.rose}33`, paddingLeft:10 }}>
+                    {topTrigger[0]==='boredom' ? 'Most regret spending happens when bored. Having a list of free alternatives helps.'
+                     : topTrigger[0]==='stress' ? 'Stress is your main spending trigger. A 10-minute cooling-off rule before purchases could save significantly.'
+                     : topTrigger[0]==='social' ? 'Social pressure drives most of your regret. It\'s okay to opt out — your finances are worth it.'
+                     : topTrigger[0]==='impulse' ? 'Impulse buying is your pattern. A 24-hour rule on non-essential purchases would help.'
+                     : 'Routine spending on autopilot. Review subscriptions and habitual purchases.'}
+                  </div>
+                </GlassCard>
+              );
+            })()}
           </div>
         </>
       )}
@@ -6617,7 +7197,7 @@ function SettingsPage({ data, actions }) {
       try {
         const d = JSON.parse(ev.target.result);
         // Only write known los_ keys to avoid polluting localStorage
-        const KNOWN_KEYS = ['los_habits','los_habitlogs','los_expenses','los_incomes','los_debts','los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp','los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills','los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog'];
+        const KNOWN_KEYS = ['los_habits','los_habitlogs','los_expenses','los_incomes','los_debts','los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp','los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills','los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions'];
         Object.entries(d).forEach(([key, val]) => {
           if (KNOWN_KEYS.includes(key)) {
             try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
@@ -6873,6 +7453,18 @@ function SettingsPage({ data, actions }) {
               );
             })}
             <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4, lineHeight:1.5 }}>Browser notifications require permission. LifeOS checks these flags to surface smart alerts in the top bar and dashboard widget.</div>
+            {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
+              <button
+                onClick={() => Notification.requestPermission()}
+                style={{ marginTop:8, padding:'8px 16px', borderRadius:T.r, background:T.accentDim, border:`1px solid ${T.accent}44`, fontSize:10, fontFamily:T.fM, color:T.accent, cursor:'pointer', width:'100%', fontWeight:600 }}>
+                🔔 Enable Browser Notifications
+              </button>
+            )}
+            {typeof Notification !== 'undefined' && Notification.permission === 'granted' && (
+              <div style={{ marginTop:8, padding:'7px 12px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, fontSize:9, fontFamily:T.fM, color:T.emerald }}>
+                ✅ Browser notifications enabled — LifeOS will remind you at the right time.
+              </div>
+            )}
           </div>
         </GlassCard>
 
@@ -7285,6 +7877,205 @@ function CalendarPage({ data }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── S4: WHAT-IF FINANCIAL SIMULATOR ──────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SIMULATE A DECISION ───────────────────────────────────────────────────────
+// Conversational entry: describe a decision in plain text, answer 2-3 questions,
+// and get a 5-year net worth comparison: current path vs decision path.
+// Uses real data from the forecast engine under the hood.
+// ══════════════════════════════════════════════════════════════════════════════
+function SimulateDecisionModal({ open, onClose, data }) {
+  const { expenses, incomes, assets, investments, debts, settings } = data;
+  const cur  = settings?.currency || '$';
+  const r    = 0.07;
+
+  // Baseline portfolio value
+  const portfolioNow = useMemo(() =>
+    investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)
+    + assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0),
+  [investments, assets]);
+
+  // Trailing 3-month avg monthly savings
+  const baseMonthly = useMemo(() => {
+    const trail = [1,2,3].map(i => {
+      const d = new Date(); d.setMonth(d.getMonth()-i);
+      const m = d.toISOString().slice(0,7);
+      const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      return Math.max(0, inc - exp);
+    });
+    return Math.round(trail.reduce((s,x)=>s+x,0)/3);
+  }, [incomes, expenses]);
+
+  // Decision templates for quick-start
+  const TEMPLATES = [
+    { label:'New job (+income)',       incChange:500,  expChange:200,  oneOff:0,    desc:'New job with higher pay but more commute costs' },
+    { label:'Buy a car',               incChange:0,    expChange:300,  oneOff:15000,desc:'New car purchase — loan payment + running costs' },
+    { label:'Move to cheaper city',    incChange:0,    expChange:-400, oneOff:2000, desc:'Relocate — lower rent saves significantly' },
+    { label:'Start a side project',    incChange:300,  expChange:100,  oneOff:1000, desc:'Side income potential with upfront investment' },
+    { label:'Cut a subscription tier', incChange:0,    expChange:-50,  oneOff:0,    desc:'Downgrade or cancel a recurring service' },
+    { label:'Custom',                  incChange:0,    expChange:0,    oneOff:0,    desc:'' },
+  ];
+
+  const [step,      setStep     ] = useState(0); // 0=pick template, 1=tune numbers, 2=results
+  const [template,  setTemplate ] = useState(null);
+  const [incChange, setIncChange] = useState(0);   // monthly income change
+  const [expChange, setExpChange] = useState(0);   // monthly expense change (+ = more, - = less)
+  const [oneOff,    setOneOff   ] = useState(0);   // one-time cost or gain
+  const [label,     setLabel    ] = useState('');
+
+  useEffect(() => { if (open) { setStep(0); setTemplate(null); } }, [open]);
+
+  const pickTemplate = (tmpl) => {
+    setTemplate(tmpl);
+    setIncChange(tmpl.incChange);
+    setExpChange(tmpl.expChange);
+    setOneOff(tmpl.oneOff);
+    setLabel(tmpl.desc);
+    setStep(1);
+  };
+
+  // Project portfolio over N years with monthly contribution
+  const project = (principal, monthlyContrib, years) => {
+    let p = principal;
+    const mr = Math.pow(1+r, 1/12) - 1;
+    for (let m = 0; m < years*12; m++) {
+      p = p*(1+mr) + Math.max(0, monthlyContrib);
+    }
+    return Math.round(p);
+  };
+
+  const YEARS = [1, 3, 5, 10];
+  const baseContrib    = baseMonthly;
+  const decisionContrib = baseMonthly + incChange - expChange;
+  const decisionStart   = portfolioNow - oneOff; // one-off cost deducted upfront
+
+  const results = YEARS.map(y => ({
+    y,
+    base:     project(portfolioNow,   baseContrib,     y),
+    decision: project(decisionStart,  decisionContrib, y),
+  }));
+
+  const net5yr  = results.find(r=>r.y===5);
+  const diff5yr = net5yr ? net5yr.decision - net5yr.base : 0;
+
+  if (!open) return null;
+
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(6px)' }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:'100%', maxWidth:560, maxHeight:'92vh', overflowY:'auto', borderRadius:22, background:T.bg1, border:`1px solid ${T.border}`, animation:'modalIn 0.28s ease' }}>
+
+        {/* Header */}
+        <div style={{ padding:'22px 28px 0', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.violet, textTransform:'uppercase', letterSpacing:'0.14em', marginBottom:5, fontWeight:700 }}>⚡ Simulate a Decision</div>
+            <h2 style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.text }}>
+              {step===0 ? 'What are you deciding?' : step===1 ? 'Tune the numbers' : 'The 5-year picture'}
+            </h2>
+          </div>
+          <button onClick={onClose} style={{ color:T.textSub, background:'none', border:'none', cursor:'pointer', fontSize:20 }}>×</button>
+        </div>
+
+        <div style={{ padding:'18px 28px 28px', display:'flex', flexDirection:'column', gap:16 }}>
+
+          {/* Step 0 — Pick a template */}
+          {step===0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Pick a scenario to model with your real numbers:</div>
+              {TEMPLATES.map((tmpl,i) => (
+                <button key={i} onClick={()=>pickTemplate(tmpl)}
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', textAlign:'left', transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.violet+'55';e.currentTarget.style.background=T.violetDim;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surface;}}>
+                  <div>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{tmpl.label}</div>
+                    {tmpl.desc && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{tmpl.desc}</div>}
+                  </div>
+                  <span style={{ marginLeft:'auto', color:T.violet, opacity:0.6 }}>→</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Step 1 — Tune numbers */}
+          {step===1 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="Describe the decision…"
+                style={{ width:'100%', padding:'10px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
+
+              {[
+                { label:'Monthly income change', val:incChange, set:setIncChange, color:T.emerald, prefix:cur, hint:'positive = more income, negative = less' },
+                { label:'Monthly expense change', val:expChange, set:setExpChange, color:T.rose, prefix:cur, hint:'positive = more spending, negative = savings' },
+                { label:'One-time cost or gain', val:oneOff, set:setOneOff, color:T.amber, prefix:cur, hint:'upfront cost (positive) or windfall (negative)' },
+              ].map((f,i) => (
+                <div key={i}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>
+                    <span>{f.label}</span>
+                    <span style={{ color:f.color, fontWeight:700 }}>{f.val >= 0 ? '+' : ''}{f.prefix}{fmtN(Math.abs(f.val))}</span>
+                  </div>
+                  <input type="number" value={f.val} onChange={e=>f.set(Number(e.target.value)||0)}
+                    style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:3 }}>{f.hint}</div>
+                </div>
+              ))}
+
+              {/* Context: your baseline */}
+              <div style={{ padding:'10px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+                Your baseline: <span style={{ color:T.accent }}>{cur}{fmtN(baseMonthly)}/mo</span> saved · portfolio <span style={{ color:T.accent }}>{cur}{fmtN(portfolioNow)}</span> · decision changes monthly saving to <span style={{ color: decisionContrib > baseContrib ? T.emerald : T.rose, fontWeight:700 }}>{cur}{fmtN(Math.max(0,decisionContrib))}/mo</span>
+              </div>
+
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>setStep(0)} style={{ padding:'9px 18px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:10, color:T.textSub, cursor:'pointer' }}>← Back</button>
+                <Btn onClick={()=>setStep(2)} color={T.violet} style={{ flex:1 }}>See the 5-year picture →</Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 — Results */}
+          {step===2 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              {/* Summary verdict */}
+              <div style={{ padding:'14px 16px', borderRadius:T.r, background: diff5yr >= 0 ? T.emeraldDim : T.roseDim, border:`1px solid ${diff5yr>=0?T.emerald:T.rose}44` }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color: diff5yr>=0?T.emerald:T.rose, textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:700, marginBottom:6 }}>
+                  {diff5yr >= 0 ? '✅ Net positive decision' : '⚠ Net cost decision'}
+                </div>
+                <div style={{ fontSize:13, fontFamily:T.fM, color:T.text, lineHeight:1.6 }}>
+                  <strong style={{ color: diff5yr>=0?T.emerald:T.rose }}>{label || 'This decision'}</strong> leaves you <strong style={{ color: diff5yr>=0?T.emerald:T.rose }}>{diff5yr>=0?'+':''}{cur}{fmtN(Math.abs(diff5yr))}</strong> {diff5yr>=0?'ahead':'behind'} after 5 years compared to staying the course.
+                </div>
+              </div>
+
+              {/* Year-by-year comparison */}
+              <div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:10 }}>Portfolio comparison</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {results.map(row => {
+                    const diff = row.decision - row.base;
+                    const c = diff >= 0 ? T.emerald : T.rose;
+                    return (
+                      <div key={row.y} style={{ display:'grid', gridTemplateColumns:'50px 1fr 1fr 80px', gap:10, alignItems:'center', padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, fontWeight:700 }}>{row.y}yr</div>
+                        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}><span style={{ fontSize:8, display:'block', marginBottom:1, opacity:0.7 }}>Current path</span>{cur}{fmtN(row.base)}</div>
+                        <div style={{ fontSize:11, fontFamily:T.fM, color:T.text }}><span style={{ fontSize:8, display:'block', marginBottom:1, opacity:0.7 }}>With decision</span>{cur}{fmtN(row.decision)}</div>
+                        <div style={{ fontSize:11, fontFamily:T.fM, color:c, fontWeight:700, textAlign:'right' }}>{diff>=0?'+':''}{cur}{fmtN(Math.abs(diff))}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Save as decision */}
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>setStep(1)} style={{ padding:'9px 18px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:10, color:T.textSub, cursor:'pointer' }}>← Adjust</button>
+                <button onClick={onClose} style={{ flex:1, padding:'9px 18px', borderRadius:T.r, background:T.violetDim, border:`1px solid ${T.violet}44`, fontFamily:T.fM, fontSize:10, fontWeight:700, color:T.violet, cursor:'pointer' }}>Done</button>
+              </div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.5 }}>⚠ Assumes 7%/yr portfolio return, constant contributions. Does not model inflation or variable income.</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WhatIfSimulator({ data }) {
   const { expenses, incomes, debts, assets, investments, settings } = data;
   const cur = settings.currency || '$';
@@ -9549,6 +10340,7 @@ export default function LifeOS() {
   // ── S4: Career state ────────────────────────────────────────────────────────
   const [career,        setCareer        ] = useLocalStorage('los_career',        { jobs:[], skills:[], rex:[], cv:{} });
   const [chronicles,    setChronicles    ] = useLocalStorage('los_chronicles',   []);
+  const [decisions,     setDecisions     ] = useLocalStorage('los_decisions',    []);
   const [challenges,    setChallenges    ] = useLocalStorage('los_challenges',   []);
 
   // ── Auto-log recurring expenses once per day ──────────────────────────────
@@ -9701,6 +10493,12 @@ export default function LifeOS() {
     }
   }, []); // run once on mount — Sunday check handles the rest
 
+  // ── Month auto-summary on 1st of month ────────────────────────────────────
+  useMonthAutoSummary({ expenses, incomes, habits, habitLogs, vitals, goals, settings, actions: { addChronicle: (c) => setChronicles(p => [c, ...p]) } });
+
+  // ── Smart browser notifications ───────────────────────────────────────────
+  useSmartNotifications({ habits, habitLogs, bills, budgets, expenses, vitals, settings });
+
   // ── Recurring Income Auto-log ─────────────────────────────────────────────
   // Mirrors the exact same pattern as the recurring-expense engine.
   // Fires once per day. Salary, freelance payments, dividends — anything marked
@@ -9847,6 +10645,12 @@ export default function LifeOS() {
   }, []);
   const removeChronicle = useCallback((id) => {
     setChronicles(p => p.filter(c => c.id !== id));
+  }, []);
+  const addDecision = useCallback((d) => {
+    setDecisions(p => [d, ...p]);
+  }, []);
+  const removeDecision = useCallback((id) => {
+    setDecisions(p => p.filter(d => d.id !== id));
   }, []);
   const joinChallenge = useCallback((challengeId) => {
     setChallenges(p => p.some(c=>c.challengeId===challengeId) ? p : [...p, { id:Date.now(), challengeId, startDate:today(), done:[] }]);
@@ -10074,7 +10878,7 @@ export default function LifeOS() {
     // S4
     updateCareer, updateInvestmentPrice,
     // Batch 1+2
-    addChronicle, removeChronicle, joinChallenge, toggleChallengeDay, leaveChallenge,
+    addChronicle, removeChronicle, addDecision, removeDecision, joinChallenge, toggleChallengeDay, leaveChallenge,
   };
 
   const isMobile = useMobile();
@@ -10084,7 +10888,7 @@ export default function LifeOS() {
     habits, habitLogs, vitals, notes, totalXP, settings,
     netWorthHistory, eventLog, focusSessions, quickNotes,
     subscriptions, budgets, bills, career,
-    chronicles, challenges,  // ← required by GrowthPage
+    chronicles, challenges, decisions,  // ← required by GrowthPage / decision log
     computed, // ← centralised derived stats
     isMobile,  // ← passed to all pages for responsive layouts
   };
