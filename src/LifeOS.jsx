@@ -671,17 +671,17 @@ function ToastContainer({ toasts, onUndo, onDismiss, isMobile }) {
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
 // NAV uses t() at render time via a getter so labels auto-update with lang
+// NAV: 7 items — removed Timeline, Archive, Career, Calendar.
+// Timeline and Archive are pure history (no actions). Career and Calendar
+// are low-frequency tools accessible via the Intelligence page or ⌘K.
+// All pages still exist and are accessible via Command Palette (⌘K).
 const NAV_DEFS = [
   { id:'home',      Icon:IcoHome,       tKey:'home'        },
-  { id:'timeline',  Icon:IcoTimeline,   tKey:'timeline'    },
   { id:'money',     Icon:IcoMoney,      tKey:'money'       },
   { id:'health',    Icon:IcoHealth,     tKey:'health'      },
   { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
-  { id:'career',    Icon:IcoBriefcase,  tKey:'career'      },
-  { id:'calendar',  Icon:IcoCalendar,   tKey:'calendar'    },
   { id:'intel',     Icon:IcoBrain,      tKey:'intel'       },
-  { id:'archive',   Icon:IcoArchive,    tKey:'archive'     },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
 function Sidebar({ active, onNav, userName, onAI, showAI }) {
@@ -1749,10 +1749,8 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
     const total = habits.length || 1;
     const result = [];
     const now = new Date(); now.setHours(0,0,0,0);
-    // Go back to start of week
     const startOffset = now.getDay();
     const start = new Date(now); start.setDate(start.getDate() - (WEEKS * 7) + (7 - startOffset));
-    // Pre-build a date→count map for O(1) lookups instead of O(habits) per cell
     const dateCountMap = {};
     Object.values(habitLogs).forEach(logs => logs.forEach(d => { dateCountMap[d] = (dateCountMap[d]||0)+1; }));
     for (let w = 0; w < WEEKS; w++) {
@@ -1766,6 +1764,37 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
     }
     return result;
   }, [habitLogs, habits]);
+
+  // ── Insight stats derived from heatmap data ─────────────────────────────────
+  const insights = useMemo(() => {
+    const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const pastCells = cells.filter(c => !c.future && c.pct > 0);
+    if (pastCells.length < 7) return null;
+
+    // Average completion by day of week
+    const byDow = Array.from({length:7}, () => ({ total:0, count:0 }));
+    cells.filter(c => !c.future).forEach(c => {
+      const dow = new Date(c.date + 'T12:00:00').getDay();
+      byDow[dow].total += c.pct;
+      byDow[dow].count++;
+    });
+    const dowAvgs = byDow.map((d, i) => ({ dow:i, label:DAY_NAMES[i], avg: d.count > 0 ? d.total/d.count : 0 }));
+    const bestDow  = [...dowAvgs].sort((a,b) => b.avg - a.avg)[0];
+    const worstDow = [...dowAvgs].filter(d => d.count > 0).sort((a,b) => a.avg - b.avg)[0];
+
+    // Overall avg completion across past 18 weeks
+    const allPast = cells.filter(c => !c.future);
+    const avgCompletion = allPast.length ? allPast.reduce((s,c)=>s+c.pct,0)/allPast.length : 0;
+
+    // Streak trend: last 4 weeks avg vs prior 4 weeks avg
+    const last4w = cells.filter(c => !c.future).slice(-28);
+    const prev4w = cells.filter(c => !c.future).slice(-56, -28);
+    const last4avg = last4w.length ? last4w.reduce((s,c)=>s+c.pct,0)/last4w.length : 0;
+    const prev4avg = prev4w.length ? prev4w.reduce((s,c)=>s+c.pct,0)/prev4w.length : 0;
+    const trend = prev4avg > 0 ? ((last4avg - prev4avg) / prev4avg) * 100 : 0;
+
+    return { bestDow, worstDow, avgCompletion, trend, last4avg };
+  }, [cells]);
 
   const heatColor = (pct, future) => {
     if (future) return 'transparent';
@@ -1807,6 +1836,44 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
         ))}
         <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>More</span>
       </div>
+
+      {/* ── Insight strip below the grid ───────────────────────────────────── */}
+      {insights && (
+        <div style={{ marginTop:14, display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:8 }}>
+          {[
+            {
+              label: 'Avg completion',
+              value: `${Math.round(insights.avgCompletion * 100)}%`,
+              sub: 'across 18 weeks',
+              color: insights.avgCompletion >= 0.7 ? T.emerald : insights.avgCompletion >= 0.4 ? T.amber : T.rose,
+            },
+            {
+              label: 'Best day',
+              value: insights.bestDow.label,
+              sub: `${Math.round(insights.bestDow.avg * 100)}% avg completion`,
+              color: T.accent,
+            },
+            {
+              label: 'Weakest day',
+              value: insights.worstDow.label,
+              sub: `${Math.round(insights.worstDow.avg * 100)}% avg — worth watching`,
+              color: T.rose,
+            },
+            {
+              label: 'Trend (4-wk)',
+              value: `${insights.trend >= 0 ? '+' : ''}${Math.round(insights.trend)}%`,
+              sub: insights.trend >= 5 ? 'Improving momentum' : insights.trend <= -5 ? 'Declining — check in' : 'Stable',
+              color: insights.trend >= 0 ? T.emerald : T.rose,
+            },
+          ].map((s, i) => (
+            <div key={i} style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${s.color}22` }}>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>{s.label}</div>
+              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:s.color, marginBottom:2 }}>{s.value}</div>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, lineHeight:1.4 }}>{s.sub}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
@@ -2381,7 +2448,64 @@ function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vital
     }
   }
 
-  // ── 9. POSITIVE: Best savings month upcoming ───────────────────────────────
+  // ── 9. Net worth data staleness ───────────────────────────────────────────
+  // Trajectory arrows and FI date are meaningless if asset values haven't been
+  // updated recently. Alert after 30 days of no asset/investment update.
+  if ((assets||[]).length > 0 || (investments||[]).length > 0) {
+    const allFinancialItems = [
+      ...(assets||[]).map(a => a.updatedAt || a.createdAt || today_),
+      ...(investments||[]).map(i => i.updatedAt || i.date || today_),
+    ];
+    if (allFinancialItems.length > 0) {
+      const mostRecent = allFinancialItems.sort().reverse()[0];
+      const daysSinceUpdate = Math.round((now - new Date(mostRecent)) / 86400000);
+      if (daysSinceUpdate >= 30) {
+        alerts.push({
+          id: `nw-stale-${thisMonth}`, type:'networth', severity:'info',
+          title: `Net worth data is ${daysSinceUpdate} days old`,
+          body: `Asset values and investment prices haven't been updated since ${mostRecent}. Projections and trajectory arrows may be inaccurate.`,
+          action: 'Update assets', actionNav: 'money',
+          dismissKey: `nw-stale-${thisMonth}`,
+          color: T.sky,
+        });
+      }
+    }
+  }
+
+  // ── 10. Expense anomaly detector ─────────────────────────────────────────
+  // Compares each category's current month spend against 3-month trailing average.
+  // Surfaces the single most anomalous category (2× or more above average).
+  // No setup required — emerges purely from logged data.
+  if (dayOfMonth >= 7 && (expenses||[]).length >= 10) {
+    const cats = [...new Set(expenses.map(e => e.category).filter(Boolean))];
+    let worstCat = null, worstRatio = 0;
+    cats.forEach(cat => {
+      const thisMonthSpend = expenses.filter(e => e.date?.startsWith(thisMonth) && e.category===cat)
+        .reduce((s,e)=>s+Number(e.amount||0),0);
+      const projected = monthPct > 0.1 ? thisMonthSpend / monthPct : thisMonthSpend;
+      const trailAmts = [1,2,3].map(i => {
+        const d = new Date(); d.setMonth(d.getMonth()-i);
+        const m = d.toISOString().slice(0,7);
+        return expenses.filter(e=>e.date?.startsWith(m)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+      }).filter(x=>x>0);
+      if (trailAmts.length < 2) return; // need at least 2 months of history
+      const avgTrail = trailAmts.reduce((s,x)=>s+x,0)/trailAmts.length;
+      const ratio = avgTrail > 0 ? projected / avgTrail : 0;
+      if (ratio >= 2.0 && ratio > worstRatio) { worstRatio = ratio; worstCat = { cat, projected, avgTrail, ratio }; }
+    });
+    if (worstCat) {
+      alerts.push({
+        id: `anomaly-${worstCat.cat}-${thisMonth}`, type:'anomaly', severity:'warn',
+        title: `${worstCat.cat} is ${worstCat.ratio.toFixed(1)}× above normal`,
+        body: `On pace for ~${Math.round(worstCat.projected)} this month vs your ${Math.round(worstCat.avgTrail)} average. Something unusual happened here.`,
+        action: 'Review spending', actionNav: 'money',
+        dismissKey: `anomaly-${worstCat.cat}-${thisMonth}`,
+        color: T.rose,
+      });
+    }
+  }
+
+  // ── 11. POSITIVE: Best savings month upcoming ──────────────────────────────
   if (monthInc > 0 && savRate > 0) {
     // Trailing 3-month average
     const trail = [1,2,3].map(i => {
@@ -2404,7 +2528,7 @@ function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vital
     }
   }
 
-  // ── 10. POSITIVE: Habit streak milestone ─────────────────────────────────
+  // ── 12. POSITIVE: Habit streak milestone ─────────────────────────────────
   habits.forEach(h => {
     const streak = getStreak(h.id, habitLogs);
     const logs   = (habitLogs[h.id]||[]);
@@ -3402,7 +3526,7 @@ function MoneyPage({ data, actions }) {
   const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator'];
+  const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator','forecast','ingest'];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} settings={data.settings} currency={cur} />
@@ -3652,6 +3776,83 @@ function MoneyPage({ data, actions }) {
                 <strong style={{ color:T.violet }}>Snowball</strong> pays smallest balance first — builds momentum and motivation.
               </div>
             </GlassCard>
+
+            {/* ── Debt → FI Impact ────────────────────────────────────────── */}
+            {(() => {
+              if (!payoffInfo.months || payoffInfo.months > 599) return null;
+              const totalMinPayments = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
+              const extraMonthly     = Number(extraPayment)||0;
+              const totalMonthly     = totalMinPayments + extraMonthly;
+              const payoffYears      = (payoffInfo.months / 12).toFixed(1);
+              const payoffYear       = new Date().getFullYear() + Math.ceil(payoffInfo.months / 12);
+              // After debt-free: this monthly payment becomes investable
+              // Simulate: current portfolio + current contributions → payoff year
+              // Then add freed cashflow to contributions for remaining years to FI
+              const r = 0.07;
+              const annualContribNow = Math.max(0, (() => {
+                const trail = [1,2,3].map(i => {
+                  const d = new Date(); d.setMonth(d.getMonth()-i);
+                  const m = d.toISOString().slice(0,7);
+                  const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+                  const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+                  return Math.max(0, inc-exp);
+                });
+                return trail.reduce((s,x)=>s+x,0)/3;
+              })()) * 12;
+
+              const portfolioNow = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)
+                + assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+              const annualExp = expenses.filter(e=>e.date?.startsWith(today().slice(0,7)))
+                .reduce((s,e)=>s+Number(e.amount||0),0) * 12 || 24000;
+              const fiTarget = annualExp * 25;
+
+              // Scenario A: without extra debt payoff speed (baseline)
+              const simulateFI = (startPortfolio, annualContrib, startYear) => {
+                let p = startPortfolio, yr = 0;
+                while (p < fiTarget && yr < 60) { p = p*(1+r) + annualContrib; yr++; }
+                return { years: yr, fiYear: startYear + yr };
+              };
+
+              // Baseline: current contributions only, debt never fully paid
+              const baselineFI = simulateFI(portfolioNow, annualContribNow, new Date().getFullYear());
+
+              // With debt payoff: portfolio grows at current rate until payoff,
+              // then freed cashflow added to contributions
+              const monthsToPayoff = payoffInfo.months;
+              let portfolioAtPayoff = portfolioNow;
+              for (let m = 0; m < monthsToPayoff; m++) {
+                portfolioAtPayoff = portfolioAtPayoff * (1 + r/12) + (annualContribNow/12);
+              }
+              const boostedAnnual  = annualContribNow + totalMonthly * 12;
+              const afterPayoffFI  = simulateFI(portfolioAtPayoff, boostedAnnual, payoffYear);
+              const yearsGained    = Math.max(0, baselineFI.fiYear - afterPayoffFI.fiYear);
+
+              return (
+                <GlassCard style={{ padding:'20px 22px', border:`1px solid ${T.violet}33`, background:`linear-gradient(135deg,${T.violet}06,${T.accent}04)` }}>
+                  <SectionLabel>Impact on Financial Independence</SectionLabel>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10, marginBottom:16 }}>
+                    {[
+                      { label:'Debt-free year',         val:String(payoffYear),                color:T.emerald, sub:`in ${payoffYears} years` },
+                      { label:'Cashflow freed',          val:`${cur}${fmtN(totalMonthly)}/mo`,  color:T.accent,  sub:`${cur}${fmtN(totalMonthly*12)}/yr to invest` },
+                      { label:'FI date without payoff',  val:String(baselineFI.fiYear),         color:T.textSub, sub:`in ${baselineFI.years}yr at current pace` },
+                      { label:'FI date after debt-free', val:String(afterPayoffFI.fiYear),      color:T.violet,  sub: yearsGained > 0 ? `${yearsGained} years earlier 🎉` : 'Same timeline' },
+                    ].map((m,i) => (
+                      <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>{m.label}</div>
+                        <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:3 }}>{m.val}</div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{m.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {yearsGained > 0 && (
+                    <div style={{ padding:'10px 14px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6 }}>
+                      💡 Once debt-free in <strong style={{ color:T.emerald }}>{payoffYear}</strong>, redirecting <strong style={{ color:T.accent }}>{cur}{fmtN(totalMonthly)}/mo</strong> into investments would move your FI date from <strong style={{ color:T.textSub }}>{baselineFI.fiYear}</strong> to <strong style={{ color:T.violet }}>{afterPayoffFI.fiYear}</strong> — <strong style={{ color:T.emerald }}>{yearsGained} years earlier</strong>.
+                    </div>
+                  )}
+                  <div style={{ marginTop:10, fontSize:9, fontFamily:T.fM, color:T.textMuted }}>⚠ Assumes freed cashflow goes directly into investments at 7%/yr. Does not model inflation or taxes.</div>
+                </GlassCard>
+              );
+            })()}
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Debt Accounts</SectionLabel>
               {debts.map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
@@ -3753,17 +3954,49 @@ function MoneyPage({ data, actions }) {
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{goalCatFilter==='all'?'No goals yet. Create your first financial goal.':'No goals in this category.'}</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
-              {filteredGoals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.accent;
+              {filteredGoals.map((goal,i)=>{
+                const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));
+                const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.accent;
                 const remaining = Math.max(0, Number(goal.target||0) - Number(goal.current||0));
                 const monthsLeft = goal.deadline ? Math.max(1, Math.round((new Date(goal.deadline)-new Date())/(1000*60*60*24*30.4))) : null;
                 const monthlyNeeded = monthsLeft ? (remaining / monthsLeft) : null;
+
+                // ── Goal velocity: on-track / behind / at risk ────────────────
+                let velocity = null;
+                if (goal.deadline && goal.target && goal.date) {
+                  const daysTotal = Math.max(1, Math.round((new Date(goal.deadline) - new Date(goal.date)) / 86400000));
+                  const daysGone  = Math.round((new Date() - new Date(goal.date)) / 86400000);
+                  const pctTime   = Math.min(1, daysGone / daysTotal);
+                  const pctDone   = Math.min(1, Number(goal.current||0) / Number(goal.target||1));
+                  const lag = pctTime - pctDone;
+                  const daysLeft = Math.round((new Date(goal.deadline) - new Date()) / 86400000);
+                  if (pctDone >= 1) {
+                    velocity = { label:'✓ Complete', color: T.emerald };
+                  } else if (daysLeft < 0) {
+                    velocity = { label:'Overdue', color: T.rose };
+                  } else if (lag > 0.3) {
+                    velocity = { label:`⚠ Behind — ${Math.round(lag*100)}% off pace`, color: T.rose };
+                  } else if (lag > 0.15) {
+                    velocity = { label:`↓ Slightly behind`, color: T.amber };
+                  } else if (lag < -0.1) {
+                    velocity = { label:`↑ Ahead of pace`, color: T.emerald };
+                  } else {
+                    velocity = { label:'→ On track', color: T.emerald };
+                  }
+                }
+
                 return (
                 <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
-                    <div><div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div><div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{goal.name}</div><Badge color={c} style={{ marginTop:4 }}>{goal.cat||'goal'}</Badge></div>
-                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <div style={{ width:46, height:46, borderRadius:'50%', background:`conic-gradient(${c} ${pct*3.6}deg,${T.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 12px ${c}33` }}><div style={{ width:34, height:34, borderRadius:'50%', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontFamily:T.fM, fontWeight:600, color:c }}>{pct}%</div></div>
+                    <div>
+                      <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
+                      <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{goal.name}</div>
+                      <div style={{ display:'flex', gap:6, alignItems:'center', marginTop:4, flexWrap:'wrap' }}>
+                        <Badge color={c}>{goal.cat||'goal'}</Badge>
+                        {velocity && <Badge color={velocity.color}>{velocity.label}</Badge>}
+                      </div>
                     </div>
+                    <div style={{ width:46, height:46, borderRadius:'50%', background:`conic-gradient(${c} ${pct*3.6}deg,${T.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 12px ${c}33` }}><div style={{ width:34, height:34, borderRadius:'50%', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontFamily:T.fM, fontWeight:600, color:c }}>{pct}%</div></div>
                   </div>
                   <ProgressBar pct={pct} color={c} height={5} />
                   <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textSub }}><span>{cur}{fmtN(goal.current||0)}</span><span>{cur}{fmtN(goal.target)}</span></div>
@@ -3900,6 +4133,29 @@ function MoneyPage({ data, actions }) {
                 </GlassCard>
               ) : (
                 <GlassCard style={{ padding:'14px 18px' }}>
+                  {/* Annual cost shock banner */}
+                  {(() => {
+                    const annualTotal = subscriptions.reduce((s, sub) => {
+                      const n = Number(sub.amount||0);
+                      return s + (sub.cycle==='yearly' ? n : sub.cycle==='weekly' ? n*52 : n*12);
+                    }, 0);
+                    const monthlyTotal = annualTotal / 12;
+                    return (
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 14px', borderRadius:T.r, background:`linear-gradient(135deg,${T.rose}08,${T.amber}04)`, border:`1px solid ${T.rose}22`, marginBottom:12 }}>
+                        <div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:4 }}>Total subscription cost</div>
+                          <div style={{ display:'flex', gap:12, alignItems:'baseline' }}>
+                            <span style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:T.rose }}>{cur}{fmtN(Math.round(annualTotal))}<span style={{ fontSize:10, fontWeight:400, color:T.textSub }}>/yr</span></span>
+                            <span style={{ fontSize:12, fontFamily:T.fM, color:T.textSub }}>{cur}{fmtN(Math.round(monthlyTotal))}/mo</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign:'right' }}>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{subscriptions.length} active</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose }}>{monthlyInc > 0 ? `${((monthlyTotal/monthlyInc)*100).toFixed(1)}% of income` : 'Log income to compare'}</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {subscriptions.map((sub,i)=>{ const monthly=sub.cycle==='yearly'?Number(sub.amount)/12:sub.cycle==='weekly'?Number(sub.amount)*4.33:Number(sub.amount); return (
                     <div key={sub.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<subscriptions.length-1?`1px solid ${T.border}`:'none' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -3980,6 +4236,12 @@ function MoneyPage({ data, actions }) {
       {tab==='tools' && (
         <MoneyToolsTab data={data} cur={cur} />
       )}
+
+      {/* Forecast moved from Intelligence — belongs here with financial data */}
+      {tab==='forecast' && <LifeForecastTab data={data} />}
+
+      {/* Ingest moved from Intelligence — a Money tool for importing transactions */}
+      {tab==='ingest' && <DataIngestTab data={data} actions={actions} />}
     </div>
   );
 }
@@ -4330,14 +4592,6 @@ function GrowthPage({ data, actions }) {
             </ResponsiveContainer>
           </GlassCard>
         </div>
-      )}
-
-      {tab==='fincoach' && (
-        <FinCoachTab data={data} settings={settings} coachMessages={coachMessages} setCoachMessages={setCoachMessages} coachInput={coachInput} setCoachInput={setCoachInput} coachLoading={coachLoading} setCoachLoading={setCoachLoading} />
-      )}
-
-      {tab==='aiadvice' && (
-        <AIInvestmentAdvisor data={data} />
       )}
 
       {tab==='recurring' && (
@@ -4749,7 +5003,8 @@ function KnowledgePage({ data, actions }) {
       <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
       <div style={{ marginBottom:22 }}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {['notes','quick notes','courses','capsule','note analysis','gmail','ai assistant'].map(t=>(
+        {/* notes + quick notes merged into one "Notes" tab. AI assistant removed — use Global AI Panel (A key). */}
+        {['notes','courses','capsule','note analysis','gmail'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
@@ -4801,27 +5056,32 @@ function KnowledgePage({ data, actions }) {
               ); })}
             </div>
           )}
-        </div>
-      )}
-      {tab==='quick notes' && (
-        <div>
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
-            <Btn onClick={()=>setModal('qnote')} color={T.amber}>📌 New Quick Note</Btn>
-          </div>
-          {qn.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No quick notes yet. Capture fleeting thoughts and ideas.</div></GlassCard>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
-              {[...qn].sort((a,b)=>a.date<b.date?1:-1).map((qn,i)=>(
-                <div key={qn.id||i} style={{ padding:'16px', borderRadius:T.r, background:`${qn.color||T.amber}11`, border:`1px solid ${(qn.color||T.amber)}33`, position:'relative', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
-                    <div style={{ width:10, height:10, borderRadius:'50%', background:qn.color||T.amber, flexShrink:0, marginTop:2 }} />
-                    <button onClick={()=>actions.removeQuickNote(qn.id)} style={{ padding:3, borderRadius:5, background:'rgba(255,255,255,0.06)', border:`1px solid rgba(255,255,255,0.08)`, opacity:0.6 }}><IcoTrash size={10} stroke={T.rose} /></button>
+          {/* ── Quick Notes — merged from separate tab ───────────────────── */}
+          {qn.length > 0 && (
+            <div style={{ marginTop:24 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase' }}>📌 Quick Notes ({qn.length})</div>
+                <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ New</Btn>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10 }}>
+                {[...qn].sort((a,b)=>a.date<b.date?1:-1).slice(0,8).map((n,i)=>(
+                  <div key={n.id||i} style={{ padding:'14px', borderRadius:T.r, background:`${n.color||T.amber}10`, border:`1px solid ${n.color||T.amber}33`, animation:`fadeUp 0.25s ease ${i*0.05}s both` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                      <div style={{ width:8, height:8, borderRadius:'50%', background:n.color||T.amber, flexShrink:0, marginTop:3 }} />
+                      <button onClick={()=>actions.removeQuickNote(n.id)} style={{ padding:2, borderRadius:4, background:'rgba(255,255,255,0.06)', border:'none', opacity:0.5, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button>
+                    </div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6, wordBreak:'break-word' }}>{n.text}</div>
+                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:8 }}>{n.date}</div>
                   </div>
-                  <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, wordBreak:'break-word' }}>{qn.text}</div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:10 }}>{qn.date}</div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {qn.length > 8 && <div style={{ marginTop:8, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{qn.length-8} more quick notes</div>}
+            </div>
+          )}
+          {qn.length === 0 && (
+            <div style={{ marginTop:24, display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+              <span style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>📌 No quick notes yet — capture a fleeting thought</span>
+              <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ Quick Note</Btn>
             </div>
           )}
         </div>
@@ -4839,30 +5099,6 @@ function KnowledgePage({ data, actions }) {
       )}
       {tab==='gmail' && (
         <GmailIntegrationTab data={data} />
-      )}
-      {tab==='ai assistant' && (
-        <GlassCard style={{ display:'flex', flexDirection:'column', height:540 }}>
-          {!apiKey && (
-            <div style={{ padding:'10px 18px', background:T.amberDim, borderBottom:`1px solid ${T.amber}33`, display:'flex', alignItems:'center', gap:10, fontSize:11, fontFamily:T.fM, color:T.amber }}>
-              <span>⚠️</span>
-              <span>AI Assistant requires an API key or Ollama. <strong onClick={()=>{}} style={{cursor:'pointer',textDecoration:'underline'}} >Go to Settings → AI Provider to configure.</strong></span>
-            </div>
-          )}
-          <div style={{ flex:1, overflowY:'auto', padding:'18px', display:'flex', flexDirection:'column', gap:12 }}>
-            {messages.map((msg,i)=>(
-              <div key={i} style={{ display:'flex', gap:9, flexDirection:msg.role==='user'?'row-reverse':'row', animation:'fadeUp 0.25s ease' }}>
-                {msg.role==='assistant' && <div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,#c084fc,${T.sky})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div>}
-                <div style={{ maxWidth:'72%', padding:'10px 14px', borderRadius:T.rL, background:msg.role==='user'?T.accentDim:T.surfaceHi, border:`1px solid ${msg.role==='user'?T.accent+'33':T.border}`, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, borderBottomRightRadius:msg.role==='user'?4:T.rL, borderBottomLeftRadius:msg.role==='assistant'?4:T.rL }}>{msg.content}</div>
-              </div>
-            ))}
-            {loading && <div style={{ display:'flex', gap:9 }}><div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,#c084fc,${T.sky})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div><div style={{ padding:'10px 14px', borderRadius:T.rL, borderBottomLeftRadius:4, background:T.surfaceHi, border:`1px solid ${T.border}`, display:'flex', gap:4, alignItems:'center' }}>{[0,1,2].map(d=><div key={d} style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:`dotPulse 1.2s ease ${d*0.2}s infinite` }} />)}</div></div>}
-            <div ref={endRef} />
-          </div>
-          <div style={{ padding:'14px 18px', borderTop:`1px solid ${T.border}`, display:'flex', gap:9 }}>
-            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()} placeholder="Ask about your finances, habits, goals..." style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, padding:'9px 14px', fontFamily:T.fM, fontSize:12, color:T.text }} />
-            <button className="los-btn" onClick={send} disabled={!input.trim()||loading} style={{ width:38, height:38, borderRadius:T.r, flexShrink:0, background:input.trim()?T.accentDim:T.surface, border:`1px solid ${input.trim()?T.accent+'44':T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}><IcoSend size={13} stroke={input.trim()?T.accent:T.textMuted} /></button>
-          </div>
-        </GlassCard>
       )}
     </div>
   );
@@ -5536,6 +5772,78 @@ function LifeForecastTab({ data }) {
             <ProgressBar pct={fiCalc.pct} color={T.emerald} height={6} />
           </div>
         )}
+
+        {/* ── Actionable FI recommendation ──────────────────────────────── */}
+        {fiCalc.years != null && fiCalc.years > 1 && (() => {
+          // How much more per month would shave 5 years off?
+          // Binary search for the monthly contribution needed to hit FI 5 years sooner
+          const targetYears = Math.max(1, fiCalc.years - 5);
+          const simulateFI = (monthly) => {
+            let yrs = 0, p = portfolioValue;
+            const annual = monthly * 12;
+            while (p < fiCalc.fiNumber && yrs < 100) { p = p * (1 + r) + annual; yrs++; }
+            return yrs;
+          };
+
+          // Incrementally find the extra monthly needed
+          let extraNeeded = null;
+          for (let extra = 50; extra <= 2000; extra += 50) {
+            if (simulateFI(monthlyContrib + extra) <= targetYears) {
+              extraNeeded = extra;
+              break;
+            }
+          }
+
+          // What would keeping current rate cost in extra working years?
+          const gapYears = fiCalc.years;
+          const fiYear   = fiCalc.date;
+
+          return (
+            <div style={{ marginTop:14, padding:'14px 16px', borderRadius:T.r, background:`linear-gradient(135deg,${T.violet}08,${T.accent}04)`, border:`1px solid ${T.violet}33` }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.violet, textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:700, marginBottom:8 }}>
+                💡 What would actually move your FI date
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {/* Current trajectory */}
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6 }}>
+                  At <span style={{ color:T.emerald, fontWeight:700 }}>{cur}{fmtN(monthlyContrib)}/mo</span> you reach FI in <span style={{ color:T.violet, fontWeight:700 }}>{gapYears} years ({fiYear})</span>.
+                </div>
+                {/* The lever */}
+                {extraNeeded && (
+                  <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 12px', borderRadius:T.r, background:T.accentDim, border:`1px solid ${T.accent}33` }}>
+                    <span style={{ fontSize:18, flexShrink:0 }}>⚡</span>
+                    <div>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6 }}>
+                        Adding just <span style={{ color:T.accent, fontWeight:700 }}>{cur}{fmtN(extraNeeded)}/mo</span> more to your portfolio would shave <span style={{ color:T.emerald, fontWeight:700 }}>5 years</span> off — reaching FI in <span style={{ color:T.accent, fontWeight:700 }}>{fiYear - 5}</span> instead of {fiYear}.
+                      </div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
+                        That's <span style={{ color:T.accent }}>{cur}{fmtN(extraNeeded * 12)}/yr</span> — adjust in Edit Assumptions above to model different scenarios.
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Expenses lever */}
+                {fiCalc.annualExp > 0 && (() => {
+                  const reducedExp = Math.round(fiCalc.annualExp * 0.9); // 10% reduction
+                  const newFINum   = reducedExp * 25;
+                  let yrs = 0, p = portfolioValue;
+                  const annual = monthlyContrib * 12;
+                  while (p < newFINum && yrs < 100) { p = p * (1 + r) + annual; yrs++; }
+                  const yearsGained = Math.max(0, fiCalc.years - yrs);
+                  if (yearsGained >= 2) return (
+                    <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 12px', borderRadius:T.r, background:`${T.emerald}08`, border:`1px solid ${T.emerald}22` }}>
+                      <span style={{ fontSize:18, flexShrink:0 }}>✂️</span>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6 }}>
+                        Cutting annual expenses by just 10% (<span style={{ color:T.emerald, fontWeight:700 }}>{cur}{fmtN(Math.round(fiCalc.annualExp * 0.1))}/yr</span>) would gain <span style={{ color:T.emerald, fontWeight:700 }}>{yearsGained} years</span> — both by reducing your FI number and increasing savings.
+                      </div>
+                    </div>
+                  );
+                  return null;
+                })()}
+              </div>
+            </div>
+          );
+        })()}
       </GlassCard>
 
       {/* ── Habit / Mood Correlation ──────────────────────────────────────── */}
@@ -5853,11 +6161,23 @@ function IntelligencePage({ data, actions={} }) {
         <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>AI-powered insights · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights</div>
       </div>
-      {/* Tab nav */}
+      {/* Tab nav — 5 focused tabs; AI coach is the Global AI Panel (A key / brain icon) */}
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {[{id:'overview',l:'Overview'},{id:'spending',l:'Spending'},{id:'net worth',l:'Net Worth'},{id:'habits',l:'Habits'},{id:'fincoach',l:'💬 Coach'},{id:'aiadvice',l:'🤖 Portfolio AI'},{id:'recurring',l:'🔄 Recurring'},{id:'forecast',l:'🔮 Forecast'},{id:'ingest',l:'📡 Ingest'}].map(({id:t,l})=>(
+        {[
+          {id:'overview',   l:'🧠 Overview'},
+          {id:'spending',   l:'📊 Spending'},
+          {id:'net worth',  l:'💎 Net Worth'},
+          {id:'habits',     l:'🔥 Habits'},
+          {id:'recurring',  l:'🔄 Recurring'},
+        ].map(({id:t,l})=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?'#c084fc22':'transparent', color:tab===t?'#c084fc':T.textSub, border:`1px solid ${tab===t?'#c084fc33':'transparent'}`, transition:'all 0.15s' }}>{l}</button>
         ))}
+        {/* AI Coach is the Global AI Panel — press A or click the brain icon in the topbar */}
+        <div style={{ display:'flex', alignItems:'center', padding:'5px 12px', fontSize:9, fontFamily:T.fM, color:T.textMuted, borderRadius:8, background:'transparent', gap:5 }}>
+          <IcoBrain size={10} stroke={T.textMuted} />
+          <span>AI Coach → press</span>
+          <kbd style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:3, padding:'1px 4px', fontSize:8, color:T.accent }}>A</kbd>
+        </div>
       </div>
 
       {tab==='overview' && (
@@ -6150,24 +6470,8 @@ function IntelligencePage({ data, actions={} }) {
         </div>
       )}
 
-      {tab==='fincoach' && (
-        <FinCoachTab data={data} settings={settings} coachMessages={coachMessages} setCoachMessages={setCoachMessages} coachInput={coachInput} setCoachInput={setCoachInput} coachLoading={coachLoading} setCoachLoading={setCoachLoading} />
-      )}
-
-      {tab==='aiadvice' && (
-        <AIInvestmentAdvisor data={data} />
-      )}
-
       {tab==='recurring' && (
         <RecurringDetectedCard detectedRecurring={detectedRecurring} cur={cur} actions={{}} />
-      )}
-
-      {tab==='forecast' && (
-        <LifeForecastTab data={data} />
-      )}
-
-      {tab==='ingest' && (
-        <DataIngestTab data={data} actions={actions} />
       )}
     </div>
   );
@@ -6251,6 +6555,7 @@ function SettingsPage({ data, actions }) {
   const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
   const [aiApiKey, setAiApiKey] = useState(settings.aiApiKey||'');
+  const [keyTestStatus, setKeyTestStatus] = useState(null); // null | 'testing' | 'ok' | 'empty' | 'error:...'
   // UX fix: weightUnit persisted in settings so Health charts use the correct label
   const [weightUnit, setWeightUnit] = useState(settings.weightUnit||'lbs');
 
@@ -6451,11 +6756,49 @@ function SettingsPage({ data, actions }) {
               </div>
             ))}
             {aiProvider !== 'ollama' && (
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                <Input value={aiApiKey} onChange={e=>setAiApiKey(e.target.value)} placeholder={`${aiProvider==='openai'?'OpenAI':'Anthropic'} API Key (optional)`} type="password" />
-                {/* Architecture fix: explicit security notice — key is stored plaintext in localStorage */}
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {/* Key input row */}
+                <div style={{ display:'flex', gap:8 }}>
+                  <div style={{ flex:1 }}>
+                    <Input value={aiApiKey} onChange={e=>{ setAiApiKey(e.target.value); setKeyTestStatus(null); }} placeholder={`${aiProvider==='openai'?'sk-...':'sk-ant-...'} API key`} type="password" />
+                  </div>
+                  {/* Test connection button */}
+                  <button
+                    disabled={!aiApiKey.trim() || keyTestStatus==='testing'}
+                    onClick={async () => {
+                      setKeyTestStatus('testing');
+                      try {
+                        const text = await callAI(
+                          { aiProvider, aiApiKey },
+                          { max_tokens: 10, messages: [{ role:'user', content:'Reply with the single word OK.' }] }
+                        );
+                        setKeyTestStatus(text && text.length > 0 ? 'ok' : 'empty');
+                      } catch(e) {
+                        setKeyTestStatus('error:' + (e?.message||'Unknown error'));
+                      }
+                    }}
+                    style={{ flexShrink:0, padding:'0 14px', borderRadius:T.r, background: keyTestStatus==='ok' ? T.emeraldDim : keyTestStatus==='testing' ? T.surface : T.accentDim, border:`1px solid ${ keyTestStatus==='ok' ? T.emerald+'55' : keyTestStatus==='testing' ? T.border : T.accent+'44'}`, fontSize:10, fontFamily:T.fM, fontWeight:600, color: keyTestStatus==='ok' ? T.emerald : keyTestStatus==='testing' ? T.textSub : T.accent, cursor: (!aiApiKey.trim()||keyTestStatus==='testing') ? 'not-allowed' : 'pointer', opacity: !aiApiKey.trim() ? 0.5 : 1, transition:'all 0.2s', whiteSpace:'nowrap' }}>
+                    {keyTestStatus==='testing' ? '⏳ Testing…' : keyTestStatus==='ok' ? '✓ Connected' : '⚡ Test key'}
+                  </button>
+                </div>
+                {/* Test result feedback */}
+                {keyTestStatus && keyTestStatus !== 'testing' && keyTestStatus !== 'ok' && (
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.rose, padding:'8px 12px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33`, lineHeight:1.5, wordBreak:'break-word' }}>
+                    ❌ {keyTestStatus === 'empty'
+                      ? 'API returned an empty response. The key may work but the model returned nothing.'
+                      : keyTestStatus.startsWith('error:')
+                        ? keyTestStatus.slice(6)
+                        : keyTestStatus}
+                  </div>
+                )}
+                {keyTestStatus === 'ok' && (
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald, padding:'8px 12px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, lineHeight:1.5 }}>
+                    ✅ Connection successful — your {aiProvider==='openai'?'OpenAI':'Anthropic'} key is valid and the model responded. Hit Save to apply.
+                  </div>
+                )}
+                {/* Security notice */}
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'7px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, lineHeight:1.5 }}>
-                  🔑 Your API key is stored in browser localStorage — visible to browser extensions and any script on this page. Do not use a key with high billing limits. Consider creating a dedicated low-budget key for LifeOS.
+                  🔑 Key stored in browser localStorage — visible to extensions and scripts on this page. Use a dedicated low-budget key, not your main account key.
                 </div>
               </div>
             )}
@@ -8350,16 +8693,35 @@ function GlobalAIPanel({ open, onClose, data }) {
   const endRef   = useRef(null);
   const inputRef = useRef(null);
 
+  // Fix: cache today's briefing in localStorage so it's stable across
+  // reloads and tab switches — not just within the same session.
+  // Key includes today's date so it auto-invalidates at midnight.
+  const BRIEFING_KEY = `los_ai_briefing_${today()}`;
+
   useEffect(() => {
     if (open && !briefed && messages.length === 0) {
-      const briefing = buildAIBriefing(data);
-      setMessages([{ role:'assistant', content:briefing, isBriefing:true }]);
+      // Check localStorage for a cached briefing from earlier today
+      let briefingText = null;
+      try {
+        const cached = localStorage.getItem(BRIEFING_KEY);
+        if (cached) briefingText = cached;
+      } catch {}
+
+      // Generate fresh if no cache exists
+      if (!briefingText) {
+        briefingText = buildAIBriefing(data);
+        try { localStorage.setItem(BRIEFING_KEY, briefingText); } catch {}
+      }
+
+      setMessages([{ role:'assistant', content:briefingText, isBriefing:true }]);
       setBriefed(true);
     }
     if (open && inputRef.current) setTimeout(() => inputRef.current?.focus(), 320);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // "New chat" clears session but keeps the cached briefing —
+  // the next open will reload it from cache (same day) or regenerate (new day)
   const clearMessages = () => { setMessages([]); setBriefed(false); };
 
   useEffect(() => {
@@ -9338,6 +9700,46 @@ export default function LifeOS() {
       return () => clearTimeout(t);
     }
   }, []); // run once on mount — Sunday check handles the rest
+
+  // ── Recurring Income Auto-log ─────────────────────────────────────────────
+  // Mirrors the exact same pattern as the recurring-expense engine.
+  // Fires once per day. Salary, freelance payments, dividends — anything marked
+  // recurring gets posted to the current date when its period has elapsed.
+  useEffect(() => {
+    const AUTO_KEY = 'los_autoinc_last';
+    const todayStr = today();
+    if (localStorage.getItem(AUTO_KEY) === todayStr) return;
+    const recurringIncomes = incomes.filter(i => i.recurring);
+    if (!recurringIncomes.length) { localStorage.setItem(AUTO_KEY, todayStr); return; }
+    const newIncs = [];
+    recurringIncomes.forEach(inc => {
+      const freq = inc.frequency || 'monthly';
+      const lastDate = new Date(inc.date);
+      const now = new Date();
+      let nextDate = new Date(lastDate);
+      if (freq === 'monthly')    nextDate.setMonth(nextDate.getMonth()+1);
+      else if (freq === 'weekly')  nextDate.setDate(nextDate.getDate()+7);
+      else if (freq === 'bi-weekly') nextDate.setDate(nextDate.getDate()+14);
+      else if (freq === 'quarterly') nextDate.setMonth(nextDate.getMonth()+3);
+      else if (freq === 'yearly')  nextDate.setFullYear(nextDate.getFullYear()+1);
+      else nextDate.setMonth(nextDate.getMonth()+1);
+      if (nextDate <= now) {
+        const nextStr = nextDate.toISOString().slice(0,10);
+        const alreadyLogged = incomes.some(i =>
+          i.date === nextStr && i.note === inc.note && i.amount === inc.amount
+        );
+        if (!alreadyLogged) {
+          newIncs.push({ ...inc, id:Date.now()+Math.random(), date:nextStr, autoLogged:true });
+        }
+      }
+    });
+    if (newIncs.length) {
+      setIncomes(p => [...newIncs, ...p]);
+      addToast(`Auto-logged ${newIncs.length} recurring income${newIncs.length>1?'s':''}`, null, 6);
+    }
+    localStorage.setItem(AUTO_KEY, todayStr);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── S5: Recurring Expense Auto-log ────────────────────────────────────────
   // Bug-fix: added the same daily date-guard used by the expenses effect below
