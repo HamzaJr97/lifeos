@@ -1922,7 +1922,7 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
 //   Consistency — days logged across all domains in last 14 days
 // Stored daily in los_pulse_history for trend display.
 // ══════════════════════════════════════════════════════════════════════════════
-function computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings }) {
+function computeLifePulse({ expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], assets=[], investments=[], debts=[], settings={} }) {
   const now     = new Date();
   const today_  = now.toISOString().slice(0, 10);
   const thisM   = today_.slice(0, 7);
@@ -2049,7 +2049,7 @@ function LifePulseChip({ pulse }) {
 // Runs once on the 1st of each month. Generates a plain-text summary comparing
 // the just-ended month to the one before it. Saves to Chronicles automatically.
 // No user action needed — it's just there when you open the app on the 1st.
-function useMonthAutoSummary({ expenses, incomes, habits, habitLogs, vitals, goals, settings, actions }) {
+function useMonthAutoSummary({ expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], settings={}, actions }) {
   useEffect(() => {
     const now = new Date();
     if (now.getDate() !== 1) return; // only on 1st of month
@@ -2203,7 +2203,7 @@ function LogDecisionModal({ open, onClose, onSave }) {
 // Fires real browser push notifications based on reminder settings + live data.
 // Called once per app mount. Uses the Notification API — no server needed.
 // ══════════════════════════════════════════════════════════════════════════════
-function useSmartNotifications({ habits, habitLogs, bills, budgets, expenses, vitals, settings }) {
+function useSmartNotifications({ habits=[], habitLogs={}, bills=[], budgets={}, expenses=[], vitals=[], settings={} }) {
   useEffect(() => {
     if (typeof Notification === 'undefined') return;
     if (Notification.permission === 'denied') return;
@@ -2299,7 +2299,7 @@ function useSmartNotifications({ habits, habitLogs, bills, budgets, expenses, vi
 // Answers three questions: what's the financial trajectory, what habit is at
 // risk, and what is the single most valuable thing to do today.
 // ══════════════════════════════════════════════════════════════════════════════
-function computeDailyBrief({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings }) {
+function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], bills=[], budgets={}, assets=[], investments=[], debts=[], settings={} }) {
   const cur    = settings?.currency || '$';
   const today_ = today();
   const thisM  = today_.slice(0, 7);
@@ -2703,7 +2703,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
 //   actionModal / actionNav — where the CTA goes
 //   dismissKey — unique key for daily snooze
 // ══════════════════════════════════════════════════════════════════════════════
-function computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, thisMonth, monthInc, savRate, incomes, assets, goals, netWorth }) {
+function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habitLogs={}, vitals=[], thisMonth, monthInc=0, savRate=0, incomes=[], assets=[], goals=[], netWorth=0 }) {
   const today_ = today();
   const now    = new Date();
   const dayOfMonth  = now.getDate();
@@ -7882,7 +7882,7 @@ function CalendarPage({ data }) {
 // Uses real data from the forecast engine under the hood.
 // ══════════════════════════════════════════════════════════════════════════════
 function SimulateDecisionModal({ open, onClose, data }) {
-  const { expenses, incomes, assets, investments, debts, settings } = data;
+  const { expenses=[], incomes=[], assets=[], investments=[], debts=[], settings={} } = data || {};
   const cur  = settings?.currency || '$';
   const r    = 0.07;
 
@@ -7894,6 +7894,7 @@ function SimulateDecisionModal({ open, onClose, data }) {
 
   // Trailing 3-month avg monthly savings
   const baseMonthly = useMemo(() => {
+    if (!incomes.length && !expenses.length) return 0;
     const trail = [1,2,3].map(i => {
       const d = new Date(); d.setMonth(d.getMonth()-i);
       const m = d.toISOString().slice(0,7);
@@ -8538,7 +8539,7 @@ function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
 //   5. One question — weekly rotating reflection prompt
 // Auto-saves to Chronicles on close. Can be dismissed without saving.
 // ══════════════════════════════════════════════════════════════════════════════
-function computeWeeklySnapshot({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, netWorthHistory, settings }) {
+function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], bills=[], budgets={}, netWorthHistory=[], settings={} }) {
   const cur = settings?.currency || '$';
   const now  = new Date();
 
