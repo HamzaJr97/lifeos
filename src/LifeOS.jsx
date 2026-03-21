@@ -3748,9 +3748,8 @@ function HomePage({ data, actions, onNav }) {
           </GlassCard>
         </div>
       </div>
-    </div>
-    {/* Close the !focusMode fragment */}
     </>)}
+    </div>
   );
 }
 
