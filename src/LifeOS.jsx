@@ -1156,24 +1156,65 @@ function LogIncomeModal({ open, onClose, onSave }) {
 
 function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) {
   const [newName, setNewName] = useState(''); const [newEmoji, setNewEmoji] = useState('🔥'); const [newFreq, setNewFreq] = useState('daily'); const [newCat, setNewCat] = useState('');
-  const d = today();
+  const [selectedDate, setSelectedDate] = useState(today());
+
+  // Reset date to today when modal opens
+  React.useEffect(() => { if (open) setSelectedDate(today()); }, [open]);
+
+  const isToday = selectedDate === today();
+
+  // Build last 30 days for the mini calendar picker
+  const dateOptions = React.useMemo(() => {
+    const opts = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const ds = d.toISOString().slice(0, 10);
+      const label = i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+      opts.push({ value: ds, label });
+    }
+    return opts;
+  }, []);
+
   return (
     <Modal open={open} onClose={onClose} title="🔥 Log Habit">
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+
+        {/* ── Date picker ──────────────────────────────────────────────── */}
+        <div style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${isToday ? T.border : T.amber+'55'}` }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color: isToday ? T.textSub : T.amber, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6, fontWeight: isToday ? 400 : 700 }}>
+            {isToday ? '📅 Logging for today' : `📅 Backfilling — ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })}`}
+          </div>
+          <select
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, cursor:'pointer' }}
+          >
+            {dateOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label} — {opt.value}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* ── Habit list ───────────────────────────────────────────────── */}
         {(habits||[]).length === 0 && <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:16 }}>No habits yet. Create your first one below.</div>}
         {(habits||[]).map(h => {
-          const done = (habitLogs[h.id]||[]).includes(d);
+          const done = (habitLogs[h.id]||[]).includes(selectedDate);
           const streak = getStreak(h.id, habitLogs);
           return (
             <div key={h.id} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', borderRadius:T.r, background:done?T.accentDim:T.surface, border:`1px solid ${done?T.accent+'33':T.border}`, transition:'all 0.15s' }}>
               <div>
-                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{h.name}</div>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{h.emoji ? h.emoji + ' ' : ''}{h.name}</div>
                 <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>🔥 {streak} day streak</div>
               </div>
-              {done ? <Badge color={T.accent}>✓ Done</Badge> : <Btn onClick={()=>onLog(h.id)} color={T.accent} style={{ padding:'5px 14px' }}>Log</Btn>}
+              {done
+                ? <Badge color={T.accent}>✓ Done</Badge>
+                : <Btn onClick={()=>onLog(h.id, selectedDate)} color={isToday ? T.accent : T.amber} style={{ padding:'5px 14px' }}>{isToday ? 'Log' : 'Backfill'}</Btn>
+              }
             </div>
           );
         })}
+
+        {/* ── Create new habit ─────────────────────────────────────────── */}
         <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:8, padding:'10px', borderRadius:T.r, background:T.accentLo, border:`1px solid ${T.accent}22` }}>
           <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em' }}>CREATE NEW HABIT</div>
           <Input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Habit name…" onKeyDown={e=>e.key==='Enter'&&newName.trim()&&(onAddHabit(newName.trim(),{emoji:newEmoji,frequency:newFreq,category:newCat}),setNewName(''))} />
@@ -10628,8 +10669,8 @@ export default function LifeOS() {
     pushEvent({ type:'habit_created', title:`New habit: ${name}`, value:'+XP', color:T.accent, domain:'growth' });
   }, [pushEvent]);
 
-  const logHabit = useCallback((habitId) => {
-    const d = today();
+  const logHabit = useCallback((habitId, date) => {
+    const d = date || today();
     setHabitLogs(prev => {
       const logs = prev[habitId] || [];
       if (logs.includes(d)) return prev;
@@ -10637,7 +10678,8 @@ export default function LifeOS() {
     });
     setTotalXP(x => Number(x) + 10);
     const habit = (habits||[]).find(h => h.id === habitId);
-    pushEvent({ type:'habit', title:`${habit?.name||'Habit'} completed`, value:'+10 XP', color:T.accent, domain:'growth' });
+    const isBackfill = d !== today();
+    pushEvent({ type:'habit', title:`${habit?.name||'Habit'} completed${isBackfill ? ' (' + d + ')' : ''}`, value:'+10 XP', color:T.accent, domain:'growth' });
   }, [habits, pushEvent]);
 
   const removeHabit = useCallback((habitId) => {
@@ -10950,10 +10992,11 @@ export default function LifeOS() {
   }, []);
 
   // Hook XP pops onto key actions (called after each XP-earning event)
-  const logHabitWithPop = useCallback((habitId) => {
-    logHabit(habitId);
+  const logHabitWithPop = useCallback((habitId, date) => {
+    logHabit(habitId, date);
     const h = (habits||[]).find(x => x.id === habitId);
-    addXPPop(`+${h?.xp||10} XP — ${h?.name||'Habit'} ✓`, T.accent);
+    const isBackfill = date && date !== today();
+    addXPPop(`+${h?.xp||10} XP — ${h?.name||'Habit'} ✓${isBackfill ? ' (backfill)' : ''}`, T.accent);
   }, [logHabit, habits, addXPPop]);
 
   const addGoalWithPop = useCallback((g) => {
