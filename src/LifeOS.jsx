@@ -2714,7 +2714,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
 //   actionModal / actionNav — where the CTA goes
 //   dismissKey — unique key for daily snooze
 // ══════════════════════════════════════════════════════════════════════════════
-function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habitLogs={}, vitals=[], thisMonth, monthInc=0, savRate=0, incomes=[], assets=[], goals=[], netWorth=0 }) {
+function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habitLogs={}, vitals=[], thisMonth, monthInc=0, savRate=0, incomes=[], assets=[], investments=[], goals=[], netWorth=0 }) {
   const today_ = today();
   const now    = new Date();
   const dayOfMonth  = now.getDate();
@@ -3578,7 +3578,7 @@ function HomePage({ data, actions, onNav }) {
 
       {/* ── Step 3: Proactive Alerts Panel — action buttons, dismissable, positive included */}
       {(()=>{
-        const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets });
+        const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets, investments });
         const active = allAlerts.filter(a => !dismissed[a.dismissKey]);
         if (!active.length) return null;
         const SEV_COLOR = { urgent:T.rose, warn:T.amber, positive:T.emerald, info:T.sky };
@@ -9425,7 +9425,7 @@ function buildAIBriefing(data) {
   const dismissed = (() => { try { return JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'); } catch { return {}; } })();
   const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits,
     habitLogs, vitals, incomes, goals, thisMonth:thisM, monthInc, savRate,
-    netWorth:nw, assets });
+    netWorth:nw, assets, investments });
   const activeAlerts  = allAlerts.filter(a => !dismissed[a.dismissKey]);
   const urgentAlert   = activeAlerts.find(a => a.severity==='urgent'||a.severity==='warn');
   const positiveAlert = activeAlerts.find(a => a.severity==='positive');
@@ -10938,7 +10938,8 @@ export default function LifeOS() {
     thisMonth, monthInc, savRate,
     netWorth: computed.nw,
     assets:_assets,
-  }), [_bills, _budgets, _expenses, _habits, _habitLogs, _vitals, _incomes, _goals, thisMonth, monthInc, savRate, computed.nw, _assets]);
+    investments:_investments,
+  }), [_bills, _budgets, _expenses, _habits, _habitLogs, _vitals, _incomes, _goals, thisMonth, monthInc, savRate, computed.nw, _assets, _investments]);
 
   // ── S2: XP Pop notifications ────────────────────────────────────────────────
   const [xpPops, setXPPops] = useState([]);
