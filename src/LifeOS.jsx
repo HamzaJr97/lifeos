@@ -247,14 +247,14 @@ const LOCALES = {
     thisMonth:'This Month', today:'Today', yesterday:'Yesterday',
     save:'Save', cancel:'Cancel', delete:'Delete', edit:'Edit', add:'Add',
     loading:'Loading…', noData:'No data yet', refresh:'Refresh',
-    backfill:lang==='fr'?'Remplir':'Backfill', logFor:'Logging for', done:'Done', close:'Close',
+    backfill:'Backfill', logFor:'Logging for', done:'Done', close:'Close',
     // AI & Alerts
     commandCenter:'Command Center', dailyBrief:'AI Daily Brief',
     quickActions:'Quick Actions', smartAlerts:'Smart Alerts',
     aiCoach:'Financial Coach', weeklyBrief:'Weekly Brief',
     // Settings
     appearance:'Appearance', language:'Language', currency:'Currency',
-    theme:'{lang==='fr'?'Thème':'Theme'}', name:'Name', darkMode:'Dark', lightMode:'Light',
+    theme:'Theme', name:'Name', darkMode:'Dark', lightMode:'Light',
     security:'Security', aiSettings:'AI Settings', exportData:'Export Data',
     // Spending tab
     breakdown:'Breakdown', allExpenses:'All Expenses', categoryFilter:'Filter by category',
@@ -266,7 +266,7 @@ const LOCALES = {
     growth:'Croissance', knowledge:'Savoir', intel:'Intelligence',
     archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier',
     // Finance
-    netWorth:'Patrimoine Net', savingsRate:'Taux d'épargne', expenses:'Dépenses', income:'Revenus',
+    netWorth:'Patrimoine Net', savingsRate:'Taux d\'épargne', expenses:'Dépenses', income:'Revenus',
     spent:'Dépensé', remaining:'Restant', budgetLeft:'Budget restant',
     addExpense:'Ajouter dépense', addIncome:'Ajouter revenu', debt:'Dette', debts:'Dettes',
     investments:'Investissements', assets:'Actifs', subscriptions:'Abonnements',
@@ -275,14 +275,14 @@ const LOCALES = {
     debtPayoff:'Remboursement', forecast:'Prévisions', simulator:'Simulateur',
     // Health
     vitals:'Signes vitaux', sleep:'Sommeil', mood:'Humeur', energy:'Énergie', weight:'Poids',
-    logVitals:'Mes signes vitaux', overview:'Vue d'ensemble', nutrition:'Nutrition',
+    logVitals:'Mes signes vitaux', overview:'Vue d\'ensemble', nutrition:'Nutrition',
     // Growth & Habits
     habits:'Habitudes', goals:'Objectifs', streak:'série', xp:'XP', level:'Niveau',
     logHabit:'Valider habitude', addGoal:'Nouvel objectif', lifeMap:'Carte de vie',
     // Notes
     notes:'Notes', addNote:'Nouvelle note', knowledge:'Savoir',
     // Misc UI
-    thisMonth:'Ce mois', today:'Aujourd'hui', yesterday:'Hier',
+    thisMonth:'Ce mois', today:'Aujourd\'hui', yesterday:'Hier',
     save:'Enregistrer', cancel:'Annuler', delete:'Supprimer', edit:'Modifier', add:'Ajouter',
     loading:'Chargement…', noData:'Aucune donnée', refresh:'Actualiser',
     backfill:'Remplir', logFor:'Enregistrement pour', done:'Fait', close:'Fermer',
@@ -7376,7 +7376,7 @@ function SettingsPage({ data, actions }) {
   const [currency, setCurrency] = useState(settings.currency||'$');
   const [incomeTarget, setIncomeTarget] = useState(settings.incomeTarget||'');
   const [savingsTarget, setSavingsTarget] = useState(settings.savingsTarget||'');
-  const [theme, set{lang==='fr'?'Thème':'Theme'}] = useState(settings.theme||'dark');
+  const [theme, setTheme] = useState(settings.theme||'dark');
   const [language, setLanguage] = useState(settings.language||'en');
   const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
@@ -7531,7 +7531,7 @@ function SettingsPage({ data, actions }) {
           </div>
         </GlassCard>
 
-        {/* S5: {lang==='fr'?'Thème':'Theme'} selector */}
+        {/* S5: Theme selector */}
         <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>{lang==='fr'?'🎨 Apparence':'🎨 Appearance'}</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -7541,7 +7541,7 @@ function SettingsPage({ data, actions }) {
                 { id:'dark',  label:'🌑 Dark',  preview:'#040408' },
                 { id:'light', label:'☀️ Light', preview:'#f4f6fb' },
               ].map(th => (
-                <button key={th.id} onClick={()=>{ set{lang==='fr'?'Thème':'Theme'}(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
+                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
                   <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${T.border}`, flexShrink:0 }} />
                   {th.label}
                 </button>
@@ -7724,7 +7724,7 @@ function SettingsPage({ data, actions }) {
           </div>
           <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
             <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v61 — S4 + S5 + S6 + S7 Upgrades Active</div>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 {lang==='fr'?'Thème':'Theme'}s, AI Provider selection, i18n (EN/FR). S6: Smart Alerts Widget, AI Coach, AI Advisor, Meal Planner, Sleep Coach, Note Analysis, Social Challenges, Bond Tracker, Thesis Notes, Regret Tags, Recurring Detection, Subcategories, Category Filter, Clipboard, Smart Reminders, Auto-Log. S7: Split Expenses, Custom Health Metrics, Gmail MCP, Google Calendar MCP, Badge Fix (no more spam).</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 Themes, AI Provider selection, i18n (EN/FR). S6: Smart Alerts Widget, AI Coach, AI Advisor, Meal Planner, Sleep Coach, Note Analysis, Social Challenges, Bond Tracker, Thesis Notes, Regret Tags, Recurring Detection, Subcategories, Category Filter, Clipboard, Smart Reminders, Auto-Log. S7: Split Expenses, Custom Health Metrics, Gmail MCP, Google Calendar MCP, Badge Fix (no more spam).</div>
           </div>
         </GlassCard>
       </div>
@@ -10655,7 +10655,7 @@ export default function LifeOS() {
   const [globalModal, setGlobalModal] = useState(null);
   // ── Bug-fix: themeVersion forces a re-render after T is mutated so all
   // inline-style references to T.bg / T.accent etc. pick up the new values.
-  const [themeVersion, set{lang==='fr'?'Thème':'Theme'}Version] = useState(0);
+  const [themeVersion, setThemeVersion] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -10834,9 +10834,9 @@ export default function LifeOS() {
   // about it. Bumping themeVersion causes LifeOS to re-render, which cascades
   // to all children and lets them read the updated T values.
   useEffect(() => {
-    const saved{lang==='fr'?'Thème':'Theme'} = settings.theme || 'dark';
-    Object.assign(T, THEMES[saved{lang==='fr'?'Thème':'Theme'}] || THEMES.dark);
-    set{lang==='fr'?'Thème':'Theme'}Version(v => v + 1);
+    const savedTheme = settings.theme || 'dark';
+    Object.assign(T, THEMES[savedTheme] || THEMES.dark);
+    setThemeVersion(v => v + 1);
   }, [settings.theme]);
 
   // ── Step 4: Weekly Review auto-trigger — surfaces on Sunday after 6pm ────────
