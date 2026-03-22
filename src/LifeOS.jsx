@@ -126,49 +126,6 @@ const THEMES = {
     fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
     r:'10px', rL:'16px', sw:72,
   },
-  amoled: {
-    bg:'#000000', bg1:'#050505', bg2:'#0a0a0a',
-    surface:'rgba(255,255,255,0.015)', surfaceHi:'rgba(255,255,255,0.035)',
-    border:'rgba(255,255,255,0.05)', borderLit:'rgba(0,255,200,0.35)',
-    accent:'#00ffc8', accentDim:'rgba(0,255,200,0.10)', accentLo:'rgba(0,255,200,0.04)',
-    violet:'#a78bfa', violetDim:'rgba(167,139,250,0.10)',
-    amber:'#fcd34d', amberDim:'rgba(252,211,77,0.10)',
-    rose:'#ff6b8a', roseDim:'rgba(255,107,138,0.10)',
-    emerald:'#6ee7b7', emeraldDim:'rgba(110,231,183,0.10)',
-    sky:'#7dd3fc', skyDim:'rgba(125,211,252,0.10)',
-    text:'#e8eaf0', textSub:'#555570', textMuted:'#2a2a3a',
-    fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
-    r:'10px', rL:'16px', sw:72,
-  },
-  solarized: {
-    bg:'#001e26', bg1:'#002b36', bg2:'#073642',
-    surface:'rgba(255,255,255,0.04)', surfaceHi:'rgba(255,255,255,0.08)',
-    border:'rgba(255,255,255,0.10)', borderLit:'rgba(42,161,152,0.4)',
-    accent:'#2aa198', accentDim:'rgba(42,161,152,0.14)', accentLo:'rgba(42,161,152,0.06)',
-    violet:'#6c71c4', violetDim:'rgba(108,113,196,0.14)',
-    amber:'#b58900', amberDim:'rgba(181,137,0,0.14)',
-    rose:'#dc322f', roseDim:'rgba(220,50,47,0.14)',
-    emerald:'#859900', emeraldDim:'rgba(133,153,0,0.14)',
-    sky:'#268bd2', skyDim:'rgba(38,139,210,0.14)',
-    text:'#839496', textSub:'#586e75', textMuted:'#334955',
-    fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
-    r:'10px', rL:'16px', sw:72,
-  },
-  anime: {
-    // Sakura-inspired: soft dusk sky, cherry blossom pinks, warm lilac accents
-    bg:'#1a0e1f', bg1:'#22122b', bg2:'#2d1a38',
-    surface:'rgba(255,200,220,0.06)', surfaceHi:'rgba(255,200,220,0.11)',
-    border:'rgba(255,160,200,0.14)', borderLit:'rgba(255,130,180,0.55)',
-    accent:'#ff8fb0', accentDim:'rgba(255,143,176,0.16)', accentLo:'rgba(255,143,176,0.07)',
-    violet:'#c084fc', violetDim:'rgba(192,132,252,0.16)',
-    amber:'#fcd34d', amberDim:'rgba(252,211,77,0.14)',
-    rose:'#fb7185', roseDim:'rgba(251,113,133,0.14)',
-    emerald:'#6ee7b7', emeraldDim:'rgba(110,231,183,0.14)',
-    sky:'#93c5fd', skyDim:'rgba(147,197,253,0.14)',
-    text:'#f8e8f4', textSub:'#a07090', textMuted:'#5a3060',
-    fD:'"Nunito", "Syne", sans-serif', fM:'"IBM Plex Mono", monospace',
-    r:'14px', rL:'20px', sw:72,
-  },
 };
 
 // ── AI ROUTER ─────────────────────────────────────────────────────────────────
@@ -266,30 +223,80 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
 // ── S5: i18n ──────────────────────────────────────────────────────────────────
 const LOCALES = {
   en: {
+    // Navigation
     home:'Home', timeline:'Timeline', money:'Money', health:'Health',
     growth:'Growth', knowledge:'Knowledge', intel:'Intelligence',
     archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar',
-    netWorth:'Net Worth', savingsRate:'Savings Rate', habits:'Habits',
-    goals:'Goals', notes:'Notes', expenses:'Expenses', income:'Income',
-    addExpense:'Log Expense', addIncome:'Log Income', logHabit:'Log Habit',
-    logVitals:'Log Vitals', addNote:'New Note', addGoal:'New Goal',
-    thisMonth:'This Month', today:'Today', streak:'streak',
-    save:'Save', cancel:'Cancel', delete:'Delete', edit:'Edit',
+    // Finance
+    netWorth:'Net Worth', savingsRate:'Savings Rate', expenses:'Expenses', income:'Income',
+    spent:'Spent', remaining:'Remaining', budgetLeft:'Budget Left',
+    addExpense:'Log Expense', addIncome:'Log Income', debt:'Debt', debts:'Debts',
+    investments:'Investments', assets:'Assets', subscriptions:'Subscriptions',
+    bills:'Bills', budget:'Budget', savings:'Savings', cashflow:'Cash Flow',
+    portfolio:'Portfolio', watchlist:'Watchlist', trades:'Trades',
+    debtPayoff:'Debt Payoff', forecast:'Forecast', simulator:'Simulator',
+    // Health
+    vitals:'Vitals', sleep:'Sleep', mood:'Mood', energy:'Energy', weight:'Weight',
+    logVitals:'Log Vitals', overview:'Overview', nutrition:'Nutrition',
+    // Growth & Habits
+    habits:'Habits', goals:'Goals', streak:'streak', xp:'XP', level:'Level',
+    logHabit:'Log Habit', addGoal:'New Goal', lifeMap:'Life Map',
+    // Notes
+    notes:'Notes', addNote:'New Note', knowledge:'Knowledge',
+    // Misc UI
+    thisMonth:'This Month', today:'Today', yesterday:'Yesterday',
+    save:'Save', cancel:'Cancel', delete:'Delete', edit:'Edit', add:'Add',
+    loading:'Loading…', noData:'No data yet', refresh:'Refresh',
+    backfill:lang==='fr'?'Remplir':'Backfill', logFor:'Logging for', done:'Done', close:'Close',
+    // AI & Alerts
     commandCenter:'Command Center', dailyBrief:'AI Daily Brief',
     quickActions:'Quick Actions', smartAlerts:'Smart Alerts',
+    aiCoach:'Financial Coach', weeklyBrief:'Weekly Brief',
+    // Settings
+    appearance:'Appearance', language:'Language', currency:'Currency',
+    theme:'{lang==='fr'?'Thème':'Theme'}', name:'Name', darkMode:'Dark', lightMode:'Light',
+    security:'Security', aiSettings:'AI Settings', exportData:'Export Data',
+    // Spending tab
+    breakdown:'Breakdown', allExpenses:'All Expenses', categoryFilter:'Filter by category',
+    allCategories:'All Categories', vsbudget:'vs Budget',
   },
   fr: {
+    // Navigation
     home:'Accueil', timeline:'Journal', money:'Finance', health:'Santé',
     growth:'Croissance', knowledge:'Savoir', intel:'Intelligence',
     archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier',
-    netWorth:'Patrimoine Net', savingsRate:'Taux d\'épargne', habits:'Habitudes',
-    goals:'Objectifs', notes:'Notes', expenses:'Dépenses', income:'Revenus',
-    addExpense:'Ajouter dépense', addIncome:'Ajouter revenu', logHabit:'Valider habitude',
-    logVitals:'Mes signes vitaux', addNote:'Nouvelle note', addGoal:'Nouvel objectif',
-    thisMonth:'Ce mois', today:'Aujourd\'hui', streak:'série',
-    save:'Enregistrer', cancel:'Annuler', delete:'Supprimer', edit:'Modifier',
+    // Finance
+    netWorth:'Patrimoine Net', savingsRate:'Taux d'épargne', expenses:'Dépenses', income:'Revenus',
+    spent:'Dépensé', remaining:'Restant', budgetLeft:'Budget restant',
+    addExpense:'Ajouter dépense', addIncome:'Ajouter revenu', debt:'Dette', debts:'Dettes',
+    investments:'Investissements', assets:'Actifs', subscriptions:'Abonnements',
+    bills:'Factures', budget:'Budget', savings:'Épargne', cashflow:'Flux de trésorerie',
+    portfolio:'Portefeuille', watchlist:'Surveillance', trades:'Trades',
+    debtPayoff:'Remboursement', forecast:'Prévisions', simulator:'Simulateur',
+    // Health
+    vitals:'Signes vitaux', sleep:'Sommeil', mood:'Humeur', energy:'Énergie', weight:'Poids',
+    logVitals:'Mes signes vitaux', overview:'Vue d'ensemble', nutrition:'Nutrition',
+    // Growth & Habits
+    habits:'Habitudes', goals:'Objectifs', streak:'série', xp:'XP', level:'Niveau',
+    logHabit:'Valider habitude', addGoal:'Nouvel objectif', lifeMap:'Carte de vie',
+    // Notes
+    notes:'Notes', addNote:'Nouvelle note', knowledge:'Savoir',
+    // Misc UI
+    thisMonth:'Ce mois', today:'Aujourd'hui', yesterday:'Hier',
+    save:'Enregistrer', cancel:'Annuler', delete:'Supprimer', edit:'Modifier', add:'Ajouter',
+    loading:'Chargement…', noData:'Aucune donnée', refresh:'Actualiser',
+    backfill:'Remplir', logFor:'Enregistrement pour', done:'Fait', close:'Fermer',
+    // AI & Alerts
     commandCenter:'Centre de Commande', dailyBrief:'Briefing IA Quotidien',
     quickActions:'Actions Rapides', smartAlerts:'Alertes Intelligentes',
+    aiCoach:'Coach Financier', weeklyBrief:'Bilan Hebdomadaire',
+    // Settings
+    appearance:'Apparence', language:'Langue', currency:'Devise',
+    theme:'Thème', name:'Nom', darkMode:'Sombre', lightMode:'Clair',
+    security:'Sécurité', aiSettings:'Paramètres IA', exportData:'Exporter',
+    // Spending tab
+    breakdown:'Répartition', allExpenses:'Toutes les dépenses', categoryFilter:'Filtrer par catégorie',
+    allCategories:'Toutes catégories', vsbudget:'vs Budget',
   },
 };
 // Bug-fix: removed `currentLang` mutable global. The t() function now always
@@ -537,6 +544,41 @@ const Select = ({ value, onChange, children, style={} }) => (
 const SectionLabel = ({ children }) => (
   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:12 }}>{children}</div>
 );
+
+// ── PAGE INFO TOOLTIP ─────────────────────────────────────────────────────────
+function PageInfoIcon({ content }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position:'relative', display:'inline-flex' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="How to use this page"
+        style={{ width:22, height:22, borderRadius:'50%', background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:T.textSub, cursor:'pointer', flexShrink:0, lineHeight:1 }}
+      >ⓘ</button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:9997 }} />
+          <div style={{
+            position:'absolute', top:28, right:0, zIndex:9998,
+            background:T.bg2, border:`1px solid ${T.borderLit}`,
+            borderRadius:T.rL, padding:'16px 18px', width:280,
+            boxShadow:`0 16px 40px rgba(0,0,0,0.55)`,
+            animation:'slideDown 0.18s ease', fontSize:11, fontFamily:T.fM,
+            color:T.textSub, lineHeight:1.65,
+          }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>How to use</span>
+              <button onClick={() => setOpen(false)} style={{ background:'none', border:'none', color:T.textSub, cursor:'pointer', fontSize:14, lineHeight:1 }}>×</button>
+            </div>
+            {typeof content === 'string'
+              ? <p style={{ margin:0 }}>{content}</p>
+              : content}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 const ChartTooltip = ({ active, payload, label, prefix='', suffix='' }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -602,33 +644,53 @@ function XPPopContainer({ pops }) {
 // ── QUICK CAPTURE FAB ─────────────────────────────────────────────────────────
 function QuickCaptureFAB({ onAction, isMobile }) {
   const [open, setOpen] = useState(false);
+  const lang = useLang();
   const FAB_ITEMS = [
-    { label:'Expense', emoji:'💳', modal:'expense', color:T.rose },
-    { label:'Income',  emoji:'💰', modal:'income',  color:T.emerald },
-    { label:'Habit',   emoji:'🔥', modal:'habit',   color:T.accent },
-    { label:'Vitals',  emoji:'❤️', modal:'vitals',  color:T.sky },
-    { label:'Note',    emoji:'📝', modal:'note',    color:T.amber },
-    { label:'Goal',    emoji:'🎯', modal:'goal',    color:T.violet },
+    { label: lang === 'fr' ? 'Dépense'  : 'Expense', emoji:'💳', modal:'expense', color:T.rose },
+    { label: lang === 'fr' ? 'Revenu'   : 'Income',  emoji:'💰', modal:'income',  color:T.emerald },
+    { label: lang === 'fr' ? 'Habitude' : 'Habit',   emoji:'🔥', modal:'habit',   color:T.accent },
+    { label: lang === 'fr' ? 'Signes'   : 'Vitals',  emoji:'❤️', modal:'vitals',  color:T.sky },
+    { label: lang === 'fr' ? 'Note'     : 'Note',    emoji:'📝', modal:'note',    color:T.amber },
+    { label: lang === 'fr' ? 'Objectif' : 'Goal',    emoji:'🎯', modal:'goal',    color:T.violet },
   ];
-  // Fan arc from 90° (up) to 180° (left) at radius 78px
-  const positions = FAB_ITEMS.map((_,i) => {
-    const deg = 90 + (90 / (FAB_ITEMS.length - 1)) * i;
-    const rad = deg * Math.PI / 180;
-    return { x: Math.round(Math.cos(rad) * 78), y: Math.round(Math.sin(rad) * 78) };
-  });
   const bottomOffset = isMobile ? 74 : 46;
   return (
     <div style={{ position:'fixed', bottom:bottomOffset, right:20, zIndex:9990 }}>
-      {open && FAB_ITEMS.map((item, i) => (
-        <button
-          key={item.modal}
-          onClick={() => { onAction(item.modal); setOpen(false); }}
-          title={item.label}
-          style={{ position:'absolute', bottom:positions[i].y, right:-positions[i].x, width:44, height:44, borderRadius:'50%', background:T.bg2, border:`1.5px solid ${item.color}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, boxShadow:`0 4px 16px rgba(0,0,0,0.6), 0 0 8px ${item.color}22`, animation:`fabItemIn 0.22s ease ${i*0.045}s both`, cursor:'pointer' }}
-        >{item.emoji}</button>
-      ))}
       {open && (
         <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:-1 }} />
+      )}
+      {/* Popup card panel — no overlapping circles */}
+      {open && (
+        <div style={{
+          position:'absolute', bottom:62, right:0,
+          background:T.bg2, border:`1px solid ${T.borderLit}`,
+          borderRadius:T.rL, padding:'8px 6px',
+          boxShadow:`0 16px 48px rgba(0,0,0,0.6), 0 0 24px ${T.accent}18`,
+          display:'flex', flexDirection:'column', gap:4,
+          animation:'slideDown 0.18s ease', minWidth:170,
+        }}>
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.12em', padding:'2px 10px 6px' }}>
+            {lang === 'fr' ? 'Enregistrer rapidement' : 'Quick Log'}
+          </div>
+          {FAB_ITEMS.map((item) => (
+            <button
+              key={item.modal}
+              onClick={() => { onAction(item.modal); setOpen(false); }}
+              style={{
+                display:'flex', alignItems:'center', gap:10,
+                padding:'9px 12px', borderRadius:T.r,
+                background:'transparent', border:'none',
+                cursor:'pointer', textAlign:'left', width:'100%',
+                transition:'background 0.13s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = item.color + '15'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontSize:18, width:26, textAlign:'center', flexShrink:0 }}>{item.emoji}</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:item.color, fontWeight:600 }}>{item.label}</span>
+            </button>
+          ))}
+        </div>
       )}
       <button
         onClick={() => setOpen(v => !v)}
@@ -1142,7 +1204,7 @@ function EditIncomeModal({ open, onClose, income, onSave }) {
           <span>Recurring income</span>
           {recurring && <Select value={frequency} onChange={e=>setFrequency(e.target.value)} style={{ marginLeft:8, padding:'2px 6px' }}>{['weekly','bi-weekly','monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>}
         </label>
-        <Btn full onClick={save} color={T.emerald}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.emerald}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -1197,7 +1259,7 @@ function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) 
         {/* ── Date picker ──────────────────────────────────────────────── */}
         <div style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${isToday ? T.border : T.amber+'55'}` }}>
           <div style={{ fontSize:9, fontFamily:T.fM, color: isToday ? T.textSub : T.amber, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6, fontWeight: isToday ? 400 : 700 }}>
-            {isToday ? '📅 Logging for today' : `📅 Backfilling — ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })}`}
+            {isToday ? lang==='fr'?'📅 Enregistrement pour aujourd\'hui':'📅 Logging for today' : `📅 Backfilling — ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })}`}
           </div>
           <select
             value={selectedDate}
@@ -1223,7 +1285,7 @@ function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) 
               </div>
               {done
                 ? <Badge color={T.accent}>✓ Done</Badge>
-                : <Btn onClick={()=>onLog(h.id, selectedDate)} color={isToday ? T.accent : T.amber} style={{ padding:'5px 14px' }}>{isToday ? 'Log' : 'Backfill'}</Btn>
+                : <Btn onClick={()=>onLog(h.id, selectedDate)} color={isToday ? T.accent : T.amber} style={{ padding:'5px 14px' }}>{isToday ? lang==='fr'?'Valider':'Log' : lang==='fr'?'Remplir':'Backfill'}</Btn>
               }
             </div>
           );
@@ -1323,7 +1385,7 @@ function EditVitalsModal({ open, onClose, vitals, onSave, weightUnit='lbs' }) {
         <Input type="number" value={weight} onChange={e=>setWeight(e.target.value)} placeholder={`Weight (${weightUnit}, optional)`} />
         <Input type="number" value={steps} onChange={e=>setSteps(e.target.value)} placeholder="Steps today (optional)" />
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
-        <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.sky}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -1451,33 +1513,103 @@ function LogDebtPaymentModal({ open, onClose, debts, onPay }) {
 }
 
 // Phase 4 — Add Investment Modal
+const CRYPTO_COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos'};
+
 function AddInvestmentModal({ open, onClose, onSave }) {
   const [thesis, setThesis] = useState('');
   const [symbol, setSymbol] = useState(''); const [name, setName] = useState('');
   const [qty, setQty] = useState(''); const [buyPrice, setBuyPrice] = useState('');
   const [currentPrice, setCurrentPrice] = useState(''); const [type, setType] = useState('Stock');
   const [date, setDate] = useState(today()); const [notes, setNotes] = useState('');
+  const [fetching, setFetching] = useState(false); const [fetchMsg, setFetchMsg] = useState('');
+
+  useEffect(() => { if (!open) { setSymbol(''); setName(''); setQty(''); setBuyPrice(''); setCurrentPrice(''); setNotes(''); setThesis(''); setFetchMsg(''); } }, [open]);
+
+  const fetchLivePrice = async () => {
+    const s = symbol.trim().toUpperCase();
+    if (!s) return;
+    setFetching(true); setFetchMsg('');
+    try {
+      if (type === 'Crypto' || CRYPTO_COIN_IDS[s]) {
+        const coinId = CRYPTO_COIN_IDS[s];
+        if (coinId) {
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+          const d = await res.json();
+          if (d[coinId]?.usd) {
+            const p = d[coinId].usd.toString();
+            setCurrentPrice(p);
+            if (!buyPrice) setBuyPrice(p);
+            setFetchMsg(`✓ Live price: $${fmtN(d[coinId].usd)}`);
+          } else setFetchMsg('Symbol not found on CoinGecko');
+        } else setFetchMsg('Unknown crypto — enter price manually');
+      } else {
+        const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`);
+        const d = await res.json();
+        const meta = d?.chart?.result?.[0]?.meta;
+        if (meta?.regularMarketPrice) {
+          const p = meta.regularMarketPrice.toString();
+          setCurrentPrice(p);
+          if (!buyPrice) setBuyPrice(p);
+          if (!name && meta.longName) setName(meta.longName);
+          setFetchMsg(`✓ ${meta.longName||s}: $${fmtN(meta.regularMarketPrice)}`);
+        } else setFetchMsg(`"${s}" not found — check ticker or enter manually`);
+      }
+    } catch { setFetchMsg('Network error — enter price manually'); }
+    setFetching(false);
+  };
+
   const save = () => {
     if (!qty || !buyPrice) return;
     onSave({ id:Date.now(), symbol:symbol.trim().toUpperCase(), name:name.trim()||symbol.trim(), quantity:Number(qty), buyPrice:Number(buyPrice), currentPrice:Number(currentPrice)||Number(buyPrice), type, date, notes:notes.trim(), thesis:thesis.trim() });
-    setSymbol(''); setName(''); setQty(''); setBuyPrice(''); setCurrentPrice(''); setNotes(''); setThesis(''); onClose();
+    onClose();
   };
+
   return (
-    <Modal open={open} onClose={onClose} title="📈 Add Investment">
+    <Modal open={open} onClose={onClose} title="📈 Add Investment Position">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <Select value={type} onChange={e=>setType(e.target.value)}>{['Stock','ETF','Crypto','Bond','REIT','Commodity','Real Estate','Other'].map(t=><option key={t}>{t}</option>)}</Select>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-          <Input value={symbol} onChange={e=>setSymbol(e.target.value)} placeholder="Ticker (e.g. AAPL)" />
-          <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name (optional)" />
+
+        {/* Symbol + live fetch */}
+        <div style={{ display:'flex', gap:8 }}>
+          <Input value={symbol} onChange={e=>setSymbol(e.target.value.toUpperCase())} placeholder="Ticker (AAPL, BTC, SPY…)" style={{ flex:1 }} onKeyDown={e=>e.key==='Enter'&&fetchLivePrice()} />
+          <button onClick={fetchLivePrice} disabled={fetching||!symbol.trim()} style={{ padding:'9px 14px', borderRadius:T.r, background:T.violetDim, border:`1px solid ${T.violet}44`, color:T.violet, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor:fetching||!symbol.trim()?'not-allowed':'pointer', whiteSpace:'nowrap', opacity:fetching||!symbol.trim()?0.5:1 }}>
+            {fetching ? '…' : '🔍 Fetch Price'}
+          </button>
         </div>
+        {fetchMsg && <div style={{ fontSize:10, fontFamily:T.fM, color: fetchMsg.startsWith('✓') ? T.emerald : T.amber, marginTop:-6 }}>{fetchMsg}</div>}
+
+        <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Full name (auto-filled from fetch)" />
+
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-          <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
-          <Input type="number" value={buyPrice} onChange={e=>setBuyPrice(e.target.value)} placeholder="Buy price" />
-          <Input type="number" value={currentPrice} onChange={e=>setCurrentPrice(e.target.value)} placeholder="Current price" />
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Quantity</div>
+            <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="e.g. 10" />
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Buy price ($)</div>
+            <Input type="number" value={buyPrice} onChange={e=>setBuyPrice(e.target.value)} placeholder="Your cost" />
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Current price ($)</div>
+            <Input type="number" value={currentPrice} onChange={e=>setCurrentPrice(e.target.value)} placeholder="Live or manual" />
+          </div>
         </div>
+
+        {buyPrice && currentPrice && qty && (
+          <div style={{ padding:'10px 12px', borderRadius:T.r, background: Number(currentPrice)>=Number(buyPrice)?T.emeraldDim:T.roseDim, border:`1px solid ${Number(currentPrice)>=Number(buyPrice)?T.emerald:T.rose}33` }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Position preview</div>
+            <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color: Number(currentPrice)>=Number(buyPrice)?T.emerald:T.rose, marginTop:2 }}>
+              {Number(currentPrice)>=Number(buyPrice)?'+':''}{(((Number(currentPrice)-Number(buyPrice))/Number(buyPrice))*100).toFixed(2)}% P&L
+              <span style={{ fontSize:10, fontWeight:400, color:T.textSub, marginLeft:8 }}>
+                ${fmtN((Number(currentPrice)-Number(buyPrice))*Number(qty))} on ${fmtN(Number(buyPrice)*Number(qty))} invested
+              </span>
+            </div>
+          </div>
+        )}
+
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Investment thesis / notes (optional)" rows={2} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
-        <Btn full onClick={save} color={T.violet}>Add Position</Btn>
+        <Btn full onClick={save} color={T.violet} disabled={!qty||!buyPrice}>{lang==='fr'?'Ajouter position':'Add Position'}</Btn>
       </div>
     </Modal>
   );
@@ -1506,7 +1638,7 @@ function EditSubscriptionModal({ open, onClose, sub, onSave }) {
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Next billing date</div>
           <Input type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)} />
         </div>
-        <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.sky}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -1538,7 +1670,7 @@ function EditBillModal({ open, onClose, bill, onSave }) {
         <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer' }}>
           <input type="checkbox" checked={autoPay} onChange={e=>setAutoPay(e.target.checked)} /> Auto-pay enabled
         </label>
-        <Btn full onClick={save} color={T.sky}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.sky}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -1586,7 +1718,7 @@ function BudgetModal({ open, onClose, budgets, onSave }) {
             <Input type="number" value={local[cat]||''} onChange={e=>setLocal(p=>({...p,[cat]:e.target.value}))} placeholder="No limit" style={{ flex:1 }} />
           </div>
         ))}
-        <Btn full onClick={()=>{ onSave(Object.fromEntries(Object.entries(local).filter(([,v])=>v))); onClose(); }} color={T.accent} style={{ marginTop:8 }}>Save Budgets</Btn>
+        <Btn full onClick={()=>{ onSave(Object.fromEntries(Object.entries(local).filter(([,v])=>v))); onClose(); }} color={T.accent} style={{ marginTop:8 }}>{lang==='fr'?'Enregistrer budgets':'Save Budgets'}</Btn>
       </div>
     </Modal>
   );
@@ -1626,7 +1758,7 @@ function EditDebtModal({ open, onClose, debt, onSave }) {
         <Input type="number" value={balance} onChange={e=>setBalance(e.target.value)} placeholder="Current balance" />
         <Input type="number" value={rate} onChange={e=>setRate(e.target.value)} placeholder="Interest rate (APR %)" />
         <Input type="number" value={minPayment} onChange={e=>setMinPayment(e.target.value)} placeholder="Minimum monthly payment" />
-        <Btn full onClick={save} color={T.rose}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.rose}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -1733,7 +1865,7 @@ function EditHabitModal({ open, onClose, habit, onSave }) {
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>XP reward per log</div>
           <Input type="number" value={xp} onChange={e=>setXp(e.target.value)} placeholder="10" />
         </div>
-        <Btn full onClick={save} color={T.accent}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.accent}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -2718,7 +2850,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 18px', borderBottom: collapsed ? 'none' : `1px solid ${T.border}` }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <div style={{ width:6, height:6, borderRadius:'50%', background:borderColor, animation:'dotPulse 3s infinite', flexShrink:0 }} />
-          <span style={{ fontSize:10, fontFamily:T.fM, color:borderColor, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase' }}>Today's Brief</span>
+          <span style={{ fontSize:10, fontFamily:T.fM, color:borderColor, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase' }}>{lang==='fr'?'Briefing du jour':"Today's Brief"}</span>
           <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>
             {new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}
           </span>
@@ -2742,7 +2874,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
             <div style={{ marginTop:4, display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderRadius:T.r, background:SEV_BG[brief.topAction.severity]||T.surface, border:`1px solid ${SEV_COLORS[brief.topAction.severity]||T.border}44` }}>
               <span style={{ fontSize:20, flexShrink:0 }}>{brief.topAction.emoji}</span>
               <div style={{ flex:1, fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>
-                <span style={{ fontSize:9, fontFamily:T.fM, color:SEV_COLORS[brief.topAction.severity]||T.textSub, textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:700, display:'block', marginBottom:2 }}>Best thing to do now</span>
+                <span style={{ fontSize:9, fontFamily:T.fM, color:SEV_COLORS[brief.topAction.severity]||T.textSub, textTransform:'uppercase', letterSpacing:'0.1em', fontWeight:700, display:'block', marginBottom:2 }}>{lang==='fr'?'Meilleure action maintenant':'Best thing to do now'}</span>
                 {brief.topAction.text}
               </div>
               <button
@@ -3186,6 +3318,7 @@ class ErrorBoundary extends React.Component {
 }
 
 function HomePage({ data, actions, onNav }) {
+  const lang = useLang();
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
   const [modal, setModal] = useState(null);
   const [showDecision, setShowDecision] = useState(false);
@@ -3825,6 +3958,7 @@ function HomePage({ data, actions, onNav }) {
 
 // ── TIMELINE PAGE ─────────────────────────────────────────────────────────────
 function TimelinePage({ data }) {
+  const lang = useLang();
   const { expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], investments=[], debts=[], settings={} } = data;
   const [filter, setFilter] = useState('all');
   const cur = settings.currency || '$';
@@ -4044,6 +4178,7 @@ const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched'
 }
 
 function MoneyPage({ data, actions }) {
+  const lang = useLang();
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
   const [receiptScannerOpen, setReceiptScannerOpen] = useState(false);
@@ -4059,6 +4194,7 @@ function MoneyPage({ data, actions }) {
   const [editingBill, setEditingBill] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [goalCatFilter, setGoalCatFilter] = useState('all');
+  const [spendCatFilter, setSpendCatFilter] = useState('__all__');
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], goals=[], settings={}, netWorthHistory=[], subscriptions=[], budgets={}, bills=[]} = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
@@ -4103,7 +4239,42 @@ function MoneyPage({ data, actions }) {
   const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
+  const lang = useLang();
+  const TAB_LABELS = {
+    overview: lang==='fr'?'Vue d\'ensemble':'Overview',
+    spending: lang==='fr'?'Dépenses':'Spending',
+    debts: lang==='fr'?'Dettes':'Debts',
+    recurring: lang==='fr'?'Récurrents':'Recurring',
+    investments: lang==='fr'?'Investissements':'Investments',
+    trades: 'Trades',
+    watchlist: lang==='fr'?'Surveillance':'Watchlist',
+    investor: lang==='fr'?'Profil':'Investor',
+    depreciation: lang==='fr'?'Dépréciation':'Depreciation',
+    goals: lang==='fr'?'Objectifs':'Goals',
+    assets: lang==='fr'?'Actifs':'Assets',
+    tools: lang==='fr'?'Outils':'Tools',
+    simulator: lang==='fr'?'Simulateur':'Simulator',
+    forecast: lang==='fr'?'Prévisions':'Forecast',
+    ingest: lang==='fr'?'Importer':'Ingest',
+  };
   const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator','forecast','ingest'];
+  const TAB_LABELS = {
+    overview:    lang==='fr'?'Vue d\'ensemble':'Overview',
+    spending:    lang==='fr'?'Dépenses':'Spending',
+    debts:       lang==='fr'?'Dettes':'Debts',
+    recurring:   lang==='fr'?'Récurrent':'Recurring',
+    investments: lang==='fr'?'Investissements':'Investments',
+    trades:      lang==='fr'?'Trades':'Trades',
+    watchlist:   lang==='fr'?'Surveillance':'Watchlist',
+    investor:    lang==='fr'?'Profil':'Investor',
+    depreciation:lang==='fr'?'Dépréciation':'Depreciation',
+    goals:       lang==='fr'?'Objectifs':'Goals',
+    assets:      lang==='fr'?'Actifs':'Assets',
+    tools:       lang==='fr'?'Outils':'Tools',
+    simulator:   lang==='fr'?'Simulateur':'Simulator',
+    forecast:    lang==='fr'?'Prévisions':'Forecast',
+    ingest:      lang==='fr'?'Import':'Ingest',
+  };
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} settings={data.settings} currency={cur} />
@@ -4124,13 +4295,25 @@ function MoneyPage({ data, actions }) {
       <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
       <SplitExpenseModal open={!!splitExpense} onClose={()=>setSplitExpense(null)} expense={splitExpense} cur={cur} onSave={parts=>{ actions.removeExpense(splitExpense.id); parts.forEach(p=>actions.addExpense(p)); setSplitExpense(null); }} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Financial Domain</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Money Hub</h1>
+      <div style={{ marginBottom:22, display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
+        <div>
+          <SectionLabel>{lang==='fr'?'Domaine Financier':'Financial Domain'}</SectionLabel>
+          <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Finance':'Money Hub'}</h1>
+        </div>
+        <PageInfoIcon content={
+          <div>
+            <p><b>📊 Overview</b> — Net worth, income, spending, and savings rate for this month.</p>
+            <p style={{marginTop:8}}><b>💳 Spending</b> — See all expenses by category. Filter by category, set monthly budgets, and compare vs budget. <b>Saved this month</b> = income minus expenses. <b>Budget Left</b> = how much remains in your manually-set category budgets.</p>
+            <p style={{marginTop:8}}><b>🏦 Debts</b> — Track loans and credit cards. When you log a payment, it auto-appears in Spending.</p>
+            <p style={{marginTop:8}}><b>📈 Investments</b> — Track positions. Use Watchlist to monitor live crypto/stock prices and set alerts.</p>
+            <p style={{marginTop:8}}><b>🔮 Forecast</b> — Projects your net worth and FI date based on your real trailing data.</p>
+            <p style={{marginTop:8}}><b>🛠️ Tools</b> — DTI ratio, emergency fund tracker, compound growth simulator.</p>
+          </div>
+        } />
       </div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
         {TABS.map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.accentDim:'transparent', color:tab===t?T.accent:T.textSub, border:`1px solid ${tab===t?T.accent+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
+          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.accentDim:'transparent', color:tab===t?T.accent:T.textSub, border:`1px solid ${tab===t?T.accent+'33':'transparent'}`, transition:'all 0.15s' }}>{TAB_LABELS[t]||t}</button>
         ))}
       </div>
 
@@ -4146,9 +4329,9 @@ function MoneyPage({ data, actions }) {
             ))}
           </div>
           <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-            <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
+            <Btn onClick={()=>setModal('expense')} color={T.rose}>{lang==='fr'?'+ Dépense':' + Log Expense'}</Btn>
             <Btn onClick={()=>setReceiptScannerOpen(true)} color={T.amber}>🧾 Scan Receipt</Btn>
-            <Btn onClick={()=>setModal('income')} color={T.emerald}>+ Log Income</Btn>
+            <Btn onClick={()=>setModal('income')} color={T.emerald}>{lang==='fr'?'+ Revenu':' + Log Income'}</Btn>
             <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
             <Btn onClick={()=>setModal('debt')} color={T.rose}>+ Add Debt</Btn>
             <Btn onClick={()=>setShowMonthlyReview(true)} color={T.violet}>📅 Monthly Review</Btn>
@@ -4190,11 +4373,16 @@ function MoneyPage({ data, actions }) {
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {/* Controls */}
           <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-            <Btn onClick={()=>setModal('expense')} color={T.rose}>+ Log Expense</Btn>
+            <Btn onClick={()=>setModal('expense')} color={T.rose}>{lang==='fr'?'+ Dépense':' + Log Expense'}</Btn>
             <Btn onClick={()=>setModal('budget')} color={T.amber}>📊 Budgets</Btn>
             <Btn onClick={()=>setShowMonthlyReview(true)} color={T.violet}>📅 Monthly Review</Btn>
             <div style={{ flex:1 }} />
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Category:</span>
+              <select value={spendCatFilter} onChange={e=>setSpendCatFilter(e.target.value)} style={{ padding:'6px 10px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
+                <option value="__all__">All Categories</option>
+                {[...new Set((selMonthExpenses||[]).map(e=>e.category).filter(Boolean))].sort().map(c=><option key={c} value={c}>{c}</option>)}
+              </select>
               <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Month:</span>
               <select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)} style={{ padding:'6px 10px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
                 {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
@@ -4208,17 +4396,20 @@ function MoneyPage({ data, actions }) {
               const debtPmtTotal = selMonthExpenses.filter(e=>e.debtId||e.category==='💳 Debt Payment').reduce((s,e)=>s+Number(e.amount||0),0);
               const nonDebtSpent = selMonthExp - debtPmtTotal;
               return [
-              { label:'Income', val:`${cur}${fmtN(selMonthInc)}`, color:T.emerald, icon:'💰' },
-              { label:'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳', sub: debtPmtTotal>0?`incl. ${cur}${fmtN(debtPmtTotal)} debt pmts`:null },
-              { label:'Remaining', val:`${cur}${fmtN(selMonthInc-selMonthExp)}`, color:(selMonthInc-selMonthExp)>=0?T.accent:T.rose, icon:(selMonthInc-selMonthExp)>=0?'✅':'⚠️' },
+              { label: lang==='fr' ? 'Revenus' : 'Income', val:`${cur}${fmtN(selMonthInc)}`, color:T.emerald, icon:'💰', tooltip:null },
+              { label: lang==='fr' ? 'Dépensé' : 'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳', sub: debtPmtTotal>0?`incl. ${cur}${fmtN(debtPmtTotal)} debt pmts`:null, tooltip:null },
+              { label: lang==='fr' ? 'Épargné ce mois' : 'Saved this month', val:`${cur}${fmtN(Math.max(0,selMonthInc-selMonthExp))}`, color:(selMonthInc-selMonthExp)>=0?T.accent:T.rose, icon:(selMonthInc-selMonthExp)>=0?'✅':'⚠️', tooltip:'Income minus Expenses — money you kept this month.' },
               ...(totalBudget>0?[(() => {
                 const budgetedSpent = Object.entries(budgetStatus).reduce((s,[,bs]) => bs.budget > 0 ? s + Math.min(bs.spent, bs.budget) : s, 0);
                 const budgetLeft = totalBudget - budgetedSpent;
-                return { label:'Budget Left', val:`${cur}${fmtN(budgetLeft)}`, color:budgetLeft>=0?T.sky:T.rose, icon:'📊' };
+                return { label: lang==='fr' ? 'Budget restant' : 'Budget Left', val:`${cur}${fmtN(budgetLeft)}`, color:budgetLeft>=0?T.sky:T.rose, icon:'📊', tooltip:'Your set budget minus what you actually spent in budgeted categories. Set budgets via the Budgets button.' };
               })()]:[]),
             ];})().map((s,i)=>(
-              <GlassCard key={i} style={{ padding:'14px 16px' }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.icon} {s.label}</div>
+              <GlassCard key={i} style={{ padding:'14px 16px', position:'relative' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4, display:'flex', alignItems:'center', gap:4 }}>
+                  {s.icon} {s.label}
+                  {s.tooltip && <PageInfoIcon content={s.tooltip} />}
+                </div>
                 <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
                 {s.sub && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:3 }}>{s.sub}</div>}
               </GlassCard>
@@ -4230,7 +4421,7 @@ function MoneyPage({ data, actions }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>Breakdown — {selectedMonth}</SectionLabel>
+                <SectionLabel>{lang==='fr'?`Répartition — `:`Breakdown — `}{selectedMonth}</SectionLabel>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart><Pie data={spendByCat} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">{spendByCat.map((e,i)=><Cell key={i} fill={e.color} />)}</Pie><Tooltip content={<ChartTooltip prefix={cur} />} /></PieChart>
                 </ResponsiveContainer>
@@ -4244,7 +4435,7 @@ function MoneyPage({ data, actions }) {
                 </div>
               </GlassCard>
               <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>vs Budget</SectionLabel>
+                <SectionLabel>{lang==='fr'?'vs Budget':'vs Budget'}</SectionLabel>
                 {Object.keys(budgets||{}).length===0 && <div style={{ fontSize:10,fontFamily:T.fM,color:T.textMuted,textAlign:'center',padding:'16px 0' }}>No budgets set yet.</div>}
                 {spendByCat.map((c,i)=>{ const bs=budgetStatus[c.name]; const budget=bs?.budget||0; const over=budget>0&&c.value>budget; return (
                   <div key={i} style={{ marginBottom:12 }}>
@@ -4260,15 +4451,25 @@ function MoneyPage({ data, actions }) {
             </div>
           )}
 
-          {/* Full expense list for selected month */}
+          {/* Full expense list for selected month — filtered by category */}
+          {(() => {
+            const visibleExpenses = spendCatFilter === '__all__'
+              ? selMonthExpenses
+              : selMonthExpenses.filter(e => e.category === spendCatFilter);
+            const visibleTotal = visibleExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
+            return (
           <GlassCard style={{ padding:'20px 22px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-              <SectionLabel>All Expenses — {selectedMonth} ({selMonthExpenses.length})</SectionLabel>
-              <span style={{ fontSize:12, fontFamily:T.fM, color:T.rose, fontWeight:700 }}>{cur}{fmtN(selMonthExp)}</span>
+              <SectionLabel>
+                {spendCatFilter === '__all__' ? `All Expenses — ${selectedMonth} (${selMonthExpenses.length})` : `${spendCatFilter} — ${selectedMonth} (${visibleExpenses.length})`}
+              </SectionLabel>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:T.rose, fontWeight:700 }}>{cur}{fmtN(visibleTotal)}</span>
             </div>
-            {selMonthExpenses.length===0 ? (
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>No expenses for {selectedMonth}.</div>
-            ) : selMonthExpenses.map((e,i)=>(
+            {visibleExpenses.length===0 ? (
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>
+                {spendCatFilter === '__all__' ? `No expenses for ${selectedMonth}.` : `No "${spendCatFilter}" expenses for ${selectedMonth}.`}
+              </div>
+            ) : visibleExpenses.map((e,i)=>(
               <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<selMonthExpenses.length-1?`1px solid ${T.border}`:'none' }}>
                 <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
                   <div style={{ width:8, height:8, borderRadius:'50%', background:getCatColor(e.category), flexShrink:0 }} />
@@ -4285,13 +4486,15 @@ function MoneyPage({ data, actions }) {
                 </div>
               </div>
             ))}
-            {selMonthExpenses.length>0 && (
+            {visibleExpenses.length>0 && (
               <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM }}>
-                <span style={{ color:T.textSub }}>{selMonthExpenses.length} transactions</span>
-                <span style={{ color:T.rose, fontWeight:700 }}>{cur}{fmtN(selMonthExp)} total</span>
+                <span style={{ color:T.textSub }}>{visibleExpenses.length} transaction{visibleExpenses.length!==1?'s':''}{spendCatFilter!=='__all__'?` · ${spendCatFilter}`:''}</span>
+                <span style={{ color:T.rose, fontWeight:700 }}>{cur}{fmtN(visibleTotal)} total</span>
               </div>
             )}
           </GlassCard>
+            );
+          })()}
 
           {/* Income list for selected month */}
           {(() => { const selMonthIncomes = [...incomes].filter(i=>i.date?.startsWith(selectedMonth)).sort((a,b)=>a.date<b.date?1:-1); return selMonthIncomes.length > 0 && (
@@ -4835,6 +5038,7 @@ function MoneyPage({ data, actions }) {
 // ── HEALTH PAGE ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function HealthPage({ data, actions }) {
+  const lang = useLang();
   const [mealPlan, setMealPlan] = useLocalStorage('los_mealplan', null);
   const [mealPlanLoading, setMealPlanLoading] = useState(false);
   const [sleepCoachTips, setSleepCoachTips] = useLocalStorage('los_sleep_tips', null);
@@ -4866,6 +5070,14 @@ function HealthPage({ data, actions }) {
   const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   const remaining = focusTime - elapsed; const fpct = (elapsed / focusTime) * 100;
   const [healthTab, setHealthTab] = useState('overview');
+  const HEALTH_TAB_LABELS = {
+    overview:    lang==='fr'?'Vue d\'ensemble':'Overview',
+    habits:      lang==='fr'?'Habitudes':'Habits',
+    vitals:      lang==='fr'?'Signes vitaux':'Vitals',
+    nutrition:   lang==='fr'?'Nutrition':'Nutrition',
+    subscriptions: lang==='fr'?'Abonnements':'Subscriptions',
+    sleep:       lang==='fr'?'Sommeil':'Sleep Coach',
+  };
   const sorted = [...vitals].sort((a,b)=>a.date<b.date?1:-1);
   const recent7 = sorted.slice(0,7).reverse();
   const avgSleep    = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.sleep||0),0)/recent7.length).toFixed(1) : '—';
@@ -4878,7 +5090,7 @@ function HealthPage({ data, actions }) {
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={(vitals||[]).map(v=>v.date)} weightUnit={wu} />
       <EditVitalsModal open={!!editingVitals} onClose={()=>setEditingVitals(null)} vitals={editingVitals} onSave={(id,patch)=>{actions.updateVitals(id,patch);setEditingVitals(null);}} weightUnit={wu} />
-      <div style={{ marginBottom:22 }}><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1></div>
+      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Santé & Vitaux':'Health & Vitals'}</h1></div><PageInfoIcon content={<div><p><b>📊 Overview</b> — See your latest vitals (sleep, mood, weight, energy) at a glance.</p><p style={{marginTop:8}}><b>❤️ Log Vitals</b> — Tap "Log Vitals" to record today's sleep hours, mood (1–10), and energy level.</p><p style={{marginTop:8}}><b>📅 Focus Timer</b> — Use the Pomodoro timer to track focused work sessions linked to habits.</p><p style={{marginTop:8}}><b>🍽️ Tabs</b> — Switch between Overview, Habits, Vitals chart, Nutrition, Subscriptions, and Sleep Coach.</p></div>} /></div>
       <div style={{ display:'flex', gap:10, marginBottom:18 }}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {[
@@ -4896,7 +5108,7 @@ function HealthPage({ data, actions }) {
         ))}
       </div>
       <div style={{ display:'flex', gap:2, marginBottom:18, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {[{id:'overview',l:'Overview'},{id:'mealplan',l:'🍽 Meals'},{id:'sleepcoach',l:'😴 Sleep Coach'},{id:'custommetrics',l:'📊 Custom Metrics'}].map(({id,l})=>(
+        {[{id:'overview',l:lang==='fr'?'Vue d\'ensemble':'Overview'},{id:'mealplan',l:lang==='fr'?'🍽 Repas':'🍽 Meals'},{id:'sleepcoach',l:lang==='fr'?'😴 Coach Sommeil':'😴 Sleep Coach'},{id:'custommetrics',l:lang==='fr'?'📊 Métriques':'📊 Custom Metrics'}].map(({id,l})=>(
           <button key={id} className="los-tab" onClick={()=>setHealthTab(id)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:healthTab===id?T.skyDim:'transparent', color:healthTab===id?T.sky:T.textSub, border:`1px solid ${healthTab===id?T.sky+'33':'transparent'}`, transition:'all 0.18s' }}>{l}</button>
         ))}
       </div>
@@ -5084,6 +5296,18 @@ function HealthPage({ data, actions }) {
 // ── GROWTH PAGE (Enhanced: Heatmap + Delete Habits/Goals) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function GrowthPage({ data, actions }) {
+  const lang = useLang();
+  const GROWTH_TAB_LABELS = {
+    character:    lang==='fr'?'Caractère':'Character',
+    habits:       lang==='fr'?'Habitudes':'Habits',
+    goals:        lang==='fr'?'Objectifs':'Goals',
+    achievements: lang==='fr'?'Succès':'Achievements',
+    chronicles:   lang==='fr'?'Chroniques':'Chronicles',
+    challenges:   lang==='fr'?'Défis':'Challenges',
+    social:       lang==='fr'?'Social':'Social',
+    vision:       lang==='fr'?'Vision':'Vision',
+    lifemap:      lang==='fr'?'🗺️ Carte':'🗺️ Map',
+  };
   const [tab, setTab] = useState('character');
   const [modal, setModal] = useState(null);
   const [editHabit, setEditHabit] = useState(null);
@@ -5127,17 +5351,17 @@ function GrowthPage({ data, actions }) {
       <EditHabitModal open={!!editHabit} onClose={()=>setEditHabit(null)} habit={editHabit} onSave={(id,patch)=>{actions.updateHabit(id,patch);setEditHabit(null);}} />
       <EditGoalModal open={!!editGoal} onClose={()=>setEditGoal(null)} goal={editGoal} onSave={(id,patch)=>{actions.updateGoal(id,patch);setEditGoal(null);}} />
       <AddChronicleModal open={chronicleModal} onClose={()=>setChronicleModal(false)} onSave={c=>{actions.addChronicle(c);setChronicleModal(false);}} />
-      <div style={{ marginBottom:22 }}><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Character · Habits · Goals</h1></div>
+      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Caractère · Habitudes · Objectifs':'Character · Habits · Goals'}</h1></div><PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP. Use the heatmap to see consistency over 18 weeks.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} /></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
         {['character','habits','goals','achievements','chronicles','challenges','social','vision','lifemap'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
-            {t==='lifemap'?'🗺️ Map':t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
+            {GROWTH_TAB_LABELS[t]||t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
             {t==='chronicles'&&(chronicles||[]).length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{(chronicles||[]).length}</span>}
           </button>
         ))}
       </div>
 
-      {tab==='character' && (
+      {tab===lang==='fr'?'Caractère':'character' && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
           <GlassCard style={{ padding:'22px', gridColumn:'span 2' }}>
             <div style={{ display:'flex', alignItems:'center', gap:20 }}>
@@ -5543,7 +5767,7 @@ function EditNoteModal({ open, onClose, note, onSave }) {
             </label>
           </>
         )}
-        <Btn full onClick={save} color={T.amber}>Save Changes</Btn>
+        <Btn full onClick={save} color={T.amber}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
       </div>
     </Modal>
   );
@@ -5621,7 +5845,7 @@ function KnowledgePage({ data, actions }) {
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
       <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
       <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
-      <div style={{ marginBottom:22 }}><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Knowledge Base</h1></div>
+      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Base de Connaissances':'Knowledge Base'}</h1></div><PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} /></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
         {/* notes + quick notes merged into one "Notes" tab. AI assistant removed — use Global AI Panel (A key). */}
         {['notes','courses','capsule','note analysis','gmail'].map(t=>(
@@ -5790,203 +6014,148 @@ function ScenarioCard({ cur, monthInc, savRate }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── 🗺️ LIFE MAP — force-directed SVG goal/habit graph ────────────────────────
+// ── 🗺️ LIFE MAP — goal & habit organiser ─────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function LifeMapTab({ data, actions }) {
-  const {goals=[], habits=[], settings={}} = data;
+  const {goals=[], habits=[], habitLogs={}, settings={}} = data;
   const cur = settings.currency || '$';
+  const lang = useLang();
+
+  const DOMAINS = ['Finance','Health','Growth','Mind','Career','Learning','Body','Social'];
   const DOMAIN_COLORS = { Finance:T.emerald, Health:T.sky, Growth:T.violet, Mind:T.accent, Learning:T.amber, Career:T.rose, Social:'#c084fc', Body:T.sky };
 
-  const buildGraph = useCallback(() => {
-    const W=700, H=480;
-    const nodes=[], edges=[];
-    const domains=['Finance','Health','Growth','Mind','Career','Learning'];
-    domains.forEach((d,i)=>{
-      const angle=(i/domains.length)*Math.PI*2-Math.PI/2, r=140;
-      nodes.push({ id:`domain-${d}`, label:d, type:'domain', color:DOMAIN_COLORS[d]||T.accent, x:W/2+Math.cos(angle)*r, y:H/2+Math.sin(angle)*r, r:32 });
-    });
-    (goals||[]).slice(0,12).forEach((g,i)=>{
-      const dom=nodes.find(n=>n.id===`domain-${g.cat||'Growth'}`) || nodes[i%domains.length];
-      const angle=Math.random()*Math.PI*2, dist=80+Math.random()*40;
-      const progress=g.target>0?Math.min(1,(g.current||0)/g.target):0;
-      nodes.push({ id:`goal-${g.id}`, label:g.name, type:'goal', color:dom.color, x:dom.x+Math.cos(angle)*dist, y:dom.y+Math.sin(angle)*dist, r:22, goalData:g, progress });
-      edges.push({ from:`domain-${g.cat||'Growth'}`, to:`goal-${g.id}` });
-    });
-    (habits||[]).slice(0,16).forEach((h,i)=>{
-      const dom=nodes.find(n=>n.id===`domain-${h.category||'Growth'}`) || nodes[i%domains.length];
-      const angle=Math.random()*Math.PI*2, dist=60+Math.random()*30;
-      nodes.push({ id:`habit-${h.id}`, label:h.name, type:'habit', color:T.textSub, x:dom.x+Math.cos(angle)*dist, y:dom.y+Math.sin(angle)*dist, r:14, emoji:h.emoji||'🔥' });
-      edges.push({ from:`domain-${h.category||'Growth'}`, to:`habit-${h.id}` });
-    });
-    return { nodes, edges };
-  }, [goals, habits]);
+  const [selectedDomain, setSelectedDomain] = useState(null);
 
-  const [graph, setGraph] = useState(()=>buildGraph());
-  const [dragging, setDragging] = useState(null);
-  const [selected, setSelected] = useState(null);
-  const [simRunning, setSimRunning] = useState(true);
-  const svgRef = useRef(null);
-  const rafRef = useRef(null);
-  const velRef = useRef({});
+  const goalsByDomain = DOMAINS.reduce((acc, d) => {
+    acc[d] = (goals||[]).filter(g => (g.cat||'Growth') === d);
+    return acc;
+  }, {});
+  const habitsByDomain = DOMAINS.reduce((acc, d) => {
+    acc[d] = (habits||[]).filter(h => (h.category||'Growth') === d);
+    return acc;
+  }, {});
+  const activeDomains = DOMAINS.filter(d => goalsByDomain[d].length > 0 || habitsByDomain[d].length > 0);
 
-  useEffect(()=>{
-    if (!simRunning) return;
-    const W=700, H=480;
-    const SPRING_K=0.022, REST=115, REP=2800, DAMP=0.82, GRAV=0.08;
-    let iters=0;
-    const tick=()=>{
-      setGraph(prev=>{
-        const nodes=prev.nodes.map(n=>({...n}));
-        const vel=velRef.current;
-        nodes.forEach(n=>{ if (!vel[n.id]) vel[n.id]={vx:0,vy:0}; });
-        prev.edges.forEach(e=>{
-          const a=nodes.find(n=>n.id===e.from), b=nodes.find(n=>n.id===e.to);
-          if (!a||!b) return;
-          const dx=b.x-a.x, dy=b.y-a.y, dist=Math.sqrt(dx*dx+dy*dy)||1;
-          const f=SPRING_K*(dist-REST), fx=f*dx/dist, fy=f*dy/dist;
-          vel[a.id].vx+=fx; vel[a.id].vy+=fy;
-          vel[b.id].vx-=fx; vel[b.id].vy-=fy;
-        });
-        for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
-          const a=nodes[i], b=nodes[j];
-          const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy||1, d=Math.sqrt(d2);
-          const f=REP/d2, fx=f*dx/d, fy=f*dy/d;
-          vel[a.id].vx-=fx; vel[a.id].vy-=fy;
-          vel[b.id].vx+=fx; vel[b.id].vy+=fy;
-        }
-        nodes.forEach(n=>{
-          vel[n.id].vx+=(W/2-n.x)*GRAV;
-          vel[n.id].vy+=(H/2-n.y)*GRAV;
-        });
-        nodes.forEach(n=>{
-          if (dragging&&dragging.nodeId===n.id) { vel[n.id]={vx:0,vy:0}; return; }
-          vel[n.id].vx*=DAMP; vel[n.id].vy*=DAMP;
-          n.x=Math.max(n.r+10,Math.min(W-n.r-10,n.x+vel[n.id].vx));
-          n.y=Math.max(n.r+10,Math.min(H-n.r-10,n.y+vel[n.id].vy));
-        });
-        return {...prev, nodes};
-      });
-      iters++;
-      if (iters<150) rafRef.current=requestAnimationFrame(tick);
-      else setSimRunning(false);
-    };
-    rafRef.current=requestAnimationFrame(tick);
-    return ()=>{ if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [simRunning, dragging]);
+  const domainToShow = selectedDomain ? [selectedDomain] : activeDomains;
 
-  const handleMouseDown=useCallback((e,nodeId)=>{
-    e.stopPropagation();
-    const svg=svgRef.current; if (!svg) return;
-    const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
-    const sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-    const node=graph.nodes.find(n=>n.id===nodeId);
-    setDragging({nodeId, offsetX:sp.x-node.x, offsetY:sp.y-node.y});
-    setSelected(nodeId); setSimRunning(false);
-  },[graph.nodes]);
-
-  const handleMouseMove=useCallback((e)=>{
-    if (!dragging) return;
-    const svg=svgRef.current; if (!svg) return;
-    const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
-    const sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-    setGraph(prev=>({ ...prev, nodes:prev.nodes.map(n=>n.id===dragging.nodeId ? {...n, x:Math.max(n.r+10,Math.min(690-n.r,sp.x-dragging.offsetX)), y:Math.max(n.r+10,Math.min(470-n.r,sp.y-dragging.offsetY))} : n) }));
-  },[dragging]);
-
-  const handleMouseUp=useCallback(()=>setDragging(null),[]);
-  const resetLayout=()=>{ velRef.current={}; setGraph(buildGraph()); setSimRunning(true); setSelected(null); };
-  const selectedNode=selected?graph.nodes.find(n=>n.id===selected):null;
+  if ((goals||[]).length === 0 && (habits||[]).length === 0) {
+    return (
+      <GlassCard style={{ padding:48, textAlign:'center' }}>
+        <div style={{ fontSize:40, marginBottom:14 }}>🗺️</div>
+        <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:8 }}>Your Life Map is empty</div>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, maxWidth:320, margin:'0 auto' }}>
+          Add goals and habits — they'll appear here grouped by life domain (Finance, Health, Growth…). Each domain shows your habits and how close you are to each goal.
+        </div>
+      </GlassCard>
+    );
+  }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:10 }}>
-        <div>
-          <SectionLabel>🗺️ Life Map</SectionLabel>
-          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Goals and habits as a connected graph. Drag nodes to rearrange.</div>
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Explanation */}
+      <GlassCard style={{ padding:'12px 16px', background:`${T.accent}07`, border:`1px solid ${T.accent}22` }}>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+          <b style={{ color:T.accent }}>🗺️ Life Map</b> groups your goals and habits into life domains.
+          Tap a domain to focus on it. Each goal shows a progress ring — the fuller the ring, the closer you are to done.
+          Habits show today's streak.
         </div>
-        <div style={{ display:'flex', gap:8 }}>
-          <Btn onClick={resetLayout} color={T.textSub} style={{ fontSize:10, padding:'5px 12px' }}>Reset Layout</Btn>
-          <Btn onClick={()=>{velRef.current={}; setSimRunning(true);}} color={T.accent} style={{ fontSize:10, padding:'5px 12px' }}>▶ Simulate</Btn>
-        </div>
+      </GlassCard>
+
+      {/* Domain filter pills */}
+      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+        <button onClick={()=>setSelectedDomain(null)}
+          style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', border:`1px solid ${!selectedDomain?T.accent+'55':T.border}`, background:!selectedDomain?T.accentDim:T.surface, color:!selectedDomain?T.accent:T.textSub }}>
+          All domains
+        </button>
+        {activeDomains.map(d => (
+          <button key={d} onClick={()=>setSelectedDomain(d===selectedDomain?null:d)}
+            style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', border:`1px solid ${selectedDomain===d?(DOMAIN_COLORS[d]||T.accent)+'55':T.border}`, background:selectedDomain===d?(DOMAIN_COLORS[d]||T.accent)+'18':T.surface, color:selectedDomain===d?(DOMAIN_COLORS[d]||T.accent):T.textSub }}>
+            {d}
+          </button>
+        ))}
       </div>
 
-      {(goals||[]).length===0&&(habits||[]).length===0 ? (
-        <GlassCard style={{ padding:40, textAlign:'center' }}>
-          <div style={{ fontSize:36, marginBottom:12 }}>🗺️</div>
-          <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No map yet</div>
-          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Add goals and habits — they'll appear here as a connected life graph.</div>
-        </GlassCard>
-      ) : (
-        <GlassCard style={{ padding:'6px', overflow:'hidden' }}>
-          <svg ref={svgRef} viewBox="0 0 700 480"
-            style={{ width:'100%', height:'auto', cursor:dragging?'grabbing':'default', background:'transparent', userSelect:'none', display:'block' }}
-            onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-            <defs>
-              <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor={T.accent} stopOpacity="0.04"/>
-                <stop offset="100%" stopColor={T.accent} stopOpacity="0"/>
-              </radialGradient>
-            </defs>
-            <rect width="700" height="480" fill="url(#mapGlow)" />
-            {/* Edges */}
-            {graph.edges.map((e,i)=>{
-              const a=graph.nodes.find(n=>n.id===e.from), b=graph.nodes.find(n=>n.id===e.to);
-              if (!a||!b) return null;
-              return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={a.color+'33'} strokeWidth={1.5} strokeDasharray={b.type==='habit'?'3 3':'none'} />;
-            })}
-            {/* Nodes */}
-            {graph.nodes.map(node=>(
-              <g key={node.id} transform={`translate(${node.x},${node.y})`} onMouseDown={e=>handleMouseDown(e,node.id)} style={{ cursor:'grab' }}>
-                {selected===node.id&&<circle r={node.r+7} fill="none" stroke={node.color} strokeWidth={1.5} opacity={0.4} />}
-                {node.type==='goal'&&node.progress>0&&(
-                  <circle r={node.r+4} fill="none" stroke={node.color} strokeWidth={3}
-                    strokeDasharray={`${node.progress*2*Math.PI*(node.r+4)} ${2*Math.PI*(node.r+4)}`}
-                    strokeLinecap="round" transform="rotate(-90)" opacity={0.85} />
-                )}
-                <circle r={node.r}
-                  fill={node.type==='domain'?node.color+'1e':node.type==='goal'?node.color+'14':T.surface}
-                  stroke={selected===node.id?node.color:node.color+(node.type==='domain'?'88':'44')}
-                  strokeWidth={selected===node.id?2.5:node.type==='domain'?2:1.5} />
-                {node.type==='habit'&&<text textAnchor="middle" dominantBaseline="central" fontSize={12} style={{ pointerEvents:'none' }}>{node.emoji}</text>}
-                {node.type==='domain'&&<text textAnchor="middle" dominantBaseline="central" fontSize={10} fill={node.color} fontWeight={700} fontFamily={T.fM} letterSpacing="-0.5" style={{ pointerEvents:'none' }}>{node.label.slice(0,3)}</text>}
-                {node.type==='goal'&&<text textAnchor="middle" dominantBaseline="central" fontSize={8} fill={node.color} fontWeight={600} fontFamily={T.fM} style={{ pointerEvents:'none' }}>{Math.round((node.progress||0)*100)}%</text>}
-                <text y={node.r+12} textAnchor="middle" fontSize={node.type==='domain'?9:8}
-                  fill={node.type==='domain'?node.color:T.textSub} fontFamily={T.fM}
-                  fontWeight={node.type==='domain'?700:400} style={{ pointerEvents:'none' }}>
-                  {node.label.length>15?node.label.slice(0,14)+'…':node.label}
-                </text>
-              </g>
-            ))}
-          </svg>
-        </GlassCard>
-      )}
-
-      {selectedNode&&(
-        <GlassCard style={{ padding:'14px 18px', borderLeft:`3px solid ${selectedNode.color}55`, animation:'slideDown 0.2s ease' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-            <div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{selectedNode.type}</div>
-              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text }}>{selectedNode.label}</div>
-              {selectedNode.type==='goal'&&selectedNode.goalData&&(
-                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
-                  {cur}{fmtN(selectedNode.goalData.current||0)} / {cur}{fmtN(selectedNode.goalData.target||0)} · {Math.round((selectedNode.progress||0)*100)}% complete
-                </div>
-              )}
+      {/* Domain cards */}
+      {domainToShow.map(domain => {
+        const color = DOMAIN_COLORS[domain] || T.accent;
+        const domGoals = goalsByDomain[domain] || [];
+        const domHabits = habitsByDomain[domain] || [];
+        return (
+          <GlassCard key={domain} style={{ padding:'16px 20px', borderLeft:`3px solid ${color}55` }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+              <div style={{ width:10, height:10, borderRadius:'50%', background:color, boxShadow:`0 0 8px ${color}88` }} />
+              <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color }}>{domain}</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>
+                {domGoals.length} goal{domGoals.length!==1?'s':''} · {domHabits.length} habit{domHabits.length!==1?'s':''}
+              </span>
             </div>
-            <button onClick={()=>setSelected(null)} style={{ color:T.textSub, padding:4, background:'none', border:'none', cursor:'pointer', marginTop:2 }}><IcoX size={13} stroke={T.textSub} /></button>
-          </div>
-        </GlassCard>
-      )}
 
-      <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub }}>
-        {[{l:'Domain node',s:'⬡',c:T.accent},{l:'Goal (ring = % complete)',s:'◎',c:T.violet},{l:'Habit',s:'●',c:T.textSub}].map(x=>(
-          <span key={x.l} style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ color:x.c, fontSize:12 }}>{x.s}</span>{x.l}</span>
-        ))}
-        <span style={{ marginLeft:'auto', color:T.textMuted }}>Drag to rearrange · Click to inspect</span>
+            {/* Goals in this domain */}
+            {domGoals.length > 0 && (
+              <div style={{ marginBottom: domHabits.length > 0 ? 14 : 0 }}>
+                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>🎯 Goals</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {domGoals.map(g => {
+                    const pct = g.target > 0 ? Math.min(100, ((g.current||0)/g.target)*100) : 0;
+                    const daysLeft = g.deadline ? Math.max(0, Math.ceil((new Date(g.deadline) - new Date()) / 86400000)) : null;
+                    return (
+                      <div key={g.id} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                        {/* Progress ring */}
+                        <svg width={38} height={38} viewBox="0 0 38 38" style={{ flexShrink:0 }}>
+                          <circle cx="19" cy="19" r="15" fill="none" stroke={color+'22'} strokeWidth="3" />
+                          <circle cx="19" cy="19" r="15" fill="none" stroke={color} strokeWidth="3"
+                            strokeDasharray={`${pct/100*94.2} 94.2`} strokeLinecap="round"
+                            transform="rotate(-90 19 19)" />
+                          <text x="19" y="23" textAnchor="middle" fontSize="9" fill={color} fontWeight="700" fontFamily={T.fM}>{Math.round(pct)}%</text>
+                        </svg>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{g.name}</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
+                            {cur}{fmtN(g.current||0)} / {cur}{fmtN(g.target||0)}
+                            {daysLeft !== null && <span style={{ marginLeft:8, color: daysLeft < 14 ? T.rose : T.textMuted }}>{daysLeft}d left</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Habits in this domain */}
+            {domHabits.length > 0 && (
+              <div>
+                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>🔥 Habits</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {domHabits.map(h => {
+                    const streak = getStreak(h.id, habitLogs);
+                    const doneToday = (habitLogs[h.id]||[]).includes(today());
+                    return (
+                      <div key={h.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:T.r, background:doneToday?color+'18':T.surface, border:`1px solid ${doneToday?color+'44':T.border}` }}>
+                        <span style={{ fontSize:14 }}>{h.emoji||'🔥'}</span>
+                        <div>
+                          <div style={{ fontSize:11, fontFamily:T.fM, color:doneToday?color:T.text, fontWeight:doneToday?700:400 }}>{h.name}</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>🔥 {streak}d streak{doneToday?' · ✓ today':''}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </GlassCard>
+        );
+      })}
+
+      {/* Legend */}
+      <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub, paddingTop:4 }}>
+        <span>◎ Ring = goal % complete</span>
+        <span>🔥 Number = streak days</span>
+        <span>✓ = completed today</span>
       </div>
     </div>
   );
 }
-
 // ══════════════════════════════════════════════════════════════════════════════
 // ── 🔮 LIFE FORECAST ENGINE ───────────────────────────────────────════════════
 // ══════════════════════════════════════════════════════════════════════════════
@@ -6671,6 +6840,7 @@ function DataIngestTab({ data, actions }) {
 
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
 function IntelligencePage({ data, actions={} }) {
+  const lang = useLang();
   const [tab, setTab] = useState('overview');
   const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
   const [coachInput, setCoachInput] = useState('');
@@ -6777,7 +6947,7 @@ function IntelligencePage({ data, actions={} }) {
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <div style={{ marginBottom:22 }}>
-        <SectionLabel>Intelligence Layer</SectionLabel>
+        <SectionLabel>{lang==='fr'?'Couche Intelligence':'Intelligence Layer'}</SectionLabel>
         <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>AI-powered insights · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights</div>
       </div>
@@ -6828,7 +6998,7 @@ function IntelligencePage({ data, actions={} }) {
             </GlassCard>
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>This Month Summary</SectionLabel>
-              {[{ label:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald }, { label:'Expenses', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, color:T.sky }, { label:'Net Worth', val:`${cur}${fmtN(nw)}`, color:T.violet }, { label:'Habit Streak', val:`🔥 ${bestStreak}d`, color:T.amber }].map((item,i)=>(
+              {[{ label: lang==='fr' ? 'Revenus' : 'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald }, { label:'Expenses', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, color:T.sky }, { label:'Net Worth', val:`${cur}${fmtN(nw)}`, color:T.violet }, { label:'Habit Streak', val:`🔥 ${bestStreak}d`, color:T.amber }].map((item,i)=>(
                 <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
                   <span style={{ color:T.textSub }}>{item.label}</span><span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
                 </div>
@@ -7142,7 +7312,7 @@ function ArchivePage({ data }) {
   const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}><SectionLabel>Archive</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1></div>
+      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Archive</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1></div><PageInfoIcon content="Browse your complete history of expenses, incomes, habits, goals, and vitals. Use the search bar to find anything. Export your data as JSON for backup." /></div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'20px 22px' }}>
           <SectionLabel>Net Worth History</SectionLabel>
@@ -7206,7 +7376,7 @@ function SettingsPage({ data, actions }) {
   const [currency, setCurrency] = useState(settings.currency||'$');
   const [incomeTarget, setIncomeTarget] = useState(settings.incomeTarget||'');
   const [savingsTarget, setSavingsTarget] = useState(settings.savingsTarget||'');
-  const [theme, setTheme] = useState(settings.theme||'dark');
+  const [theme, set{lang==='fr'?'Thème':'Theme'}] = useState(settings.theme||'dark');
   const [language, setLanguage] = useState(settings.language||'en');
   const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
@@ -7361,21 +7531,18 @@ function SettingsPage({ data, actions }) {
           </div>
         </GlassCard>
 
-        {/* S5: Theme selector */}
+        {/* S5: {lang==='fr'?'Thème':'Theme'} selector */}
         <GlassCard style={{ padding:'24px' }}>
-          <SectionLabel>🎨 Appearance — S5</SectionLabel>
+          <SectionLabel>{lang==='fr'?'🎨 Apparence':'🎨 Appearance'}</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>Theme</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>{lang==='fr'?'Thème':'Theme'}</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {[
-                { id:'dark',      label:'🌑 Dark',        preview:'#040408' },
-                { id:'light',     label:'☀️ Light',       preview:'#f4f6fb' },
-                { id:'anime',     label:'🌸 Anime',       preview:'#1a0e1f', accent:'#ff8fb0' },
-                { id:'amoled',    label:'⬛ AMOLED',      preview:'#000000' },
-                { id:'solarized', label:'🌊 Solarized',   preview:'#002b36' },
+                { id:'dark',  label:'🌑 Dark',  preview:'#040408' },
+                { id:'light', label:'☀️ Light', preview:'#f4f6fb' },
               ].map(th => (
-                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?(th.accent||T.accent)+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?(th.accent||T.accent):T.text, transition:'all 0.18s' }}>
-                  <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${th.accent||T.border}`, flexShrink:0 }} />
+                <button key={th.id} onClick={()=>{ set{lang==='fr'?'Thème':'Theme'}(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
+                  <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${T.border}`, flexShrink:0 }} />
                   {th.label}
                 </button>
               ))}
@@ -7557,7 +7724,7 @@ function SettingsPage({ data, actions }) {
           </div>
           <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
             <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v61 — S4 + S5 + S6 + S7 Upgrades Active</div>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 Themes, AI Provider selection, i18n (EN/FR). S6: Smart Alerts Widget, AI Coach, AI Advisor, Meal Planner, Sleep Coach, Note Analysis, Social Challenges, Bond Tracker, Thesis Notes, Regret Tags, Recurring Detection, Subcategories, Category Filter, Clipboard, Smart Reminders, Auto-Log. S7: Split Expenses, Custom Health Metrics, Gmail MCP, Google Calendar MCP, Badge Fix (no more spam).</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 {lang==='fr'?'Thème':'Theme'}s, AI Provider selection, i18n (EN/FR). S6: Smart Alerts Widget, AI Coach, AI Advisor, Meal Planner, Sleep Coach, Note Analysis, Social Challenges, Bond Tracker, Thesis Notes, Regret Tags, Recurring Detection, Subcategories, Category Filter, Clipboard, Smart Reminders, Auto-Log. S7: Split Expenses, Custom Health Metrics, Gmail MCP, Google Calendar MCP, Badge Fix (no more spam).</div>
           </div>
         </GlassCard>
       </div>
@@ -7669,7 +7836,7 @@ function CareerPage({ data, actions }) {
         </div>
       </Modal>
 
-      <div style={{ marginBottom:22 }}><SectionLabel>Career Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Career Hub</h1></div>
+      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Career Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Hub Carrière':'Career Hub'}</h1></div><PageInfoIcon content={<div><p><b>💼 Career</b> — Log your current role, track job applications, skills, and salary history.</p><p style={{marginTop:8}}><b>📈 Focus Billing</b> — Set an hourly rate and track how much you've earned per focus session.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlock badges for reaching milestones across all life domains.</p></div>} /></div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
         {statCards.map((m,i)=>(
           <GlassCard key={i} style={{ padding:'16px 18px' }}>
@@ -7807,6 +7974,7 @@ function CareerPage({ data, actions }) {
 // ── S4: CALENDAR PAGE ────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function CalendarPage({ data }) {
+  const lang = useLang();
   const [gcalTab, setGcalTab] = useState('local');
   const {expenses=[], habits=[], habitLogs={}, bills=[], goals=[], settings={}} = data;
   const cur = settings.currency || '$';
@@ -7878,7 +8046,7 @@ function CalendarPage({ data }) {
         ))}
       </div>
       {gcalTab==='gcal' && <GoogleCalendarTab data={data} />}
-      {gcalTab==='local' && <div><div style={{ marginBottom:22 }}><SectionLabel>Calendar Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Monthly Overview</h1></div>
+      {gcalTab==='local' && <div><div style={{ marginBottom:22 }}><SectionLabel>Calendar Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Vue Mensuelle':'Monthly Overview'}</h1></div>
 
       {/* Stats row */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
@@ -8926,8 +9094,8 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
           {[
-            {label:'Income',val:`${cur}${fmtN(mInc)}`,sub:pInc>0?`${mInc>=pInc?'↑':'↓'} vs ${cur}${fmtN(pInc)} last mo`:'',color:T.emerald},
-            {label:'Spent',val:`${cur}${fmtN(mExp)}`,sub:pExp>0?`${mExp<=pExp?'↓ less':'↑ more'} than last mo`:'',color:T.rose},
+            {label: lang==='fr' ? 'Revenus' : 'Income',val:`${cur}${fmtN(mInc)}`,sub:pInc>0?`${mInc>=pInc?'↑':'↓'} vs ${cur}${fmtN(pInc)} last mo`:'',color:T.emerald},
+            {label: lang==='fr' ? 'Dépensé' : 'Spent',val:`${cur}${fmtN(mExp)}`,sub:pExp>0?`${mExp<=pExp?'↓ less':'↑ more'} than last mo`:'',color:T.rose},
             {label:'Saved',val:`${cur}${fmtN(mInc-mExp)}`,sub:`${mInc>0?((( mInc-mExp)/mInc)*100).toFixed(0):0}% rate`,color:(mInc-mExp)>=0?T.accent:T.rose},
             {label:'Habit Score',val:`${habitScore}%`,sub:`${(habits||[]).filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length}/${(habits||[]).length} active`,color:T.violet},
             {label:'Avg Sleep',val:`${avgSleep}h`,sub:'this month',color:T.sky},
@@ -9193,76 +9361,178 @@ function TradeJournalTab() {
 
 // ── WATCHLIST & PRICE ALERTS ──────────────────────────────────────────────────
 function WatchlistTab() {
-  const [watchlist,setWatchlist]=useLocalStorage('los_watchlist',[]);
-  const [prices,setPrices]=useState({});
-  const [loading,setLoading]=useState(false);
-  const [sym,setSym]=useState(''); const [hi,setHi]=useState(''); const [lo,setLo]=useState('');
-  const addWatch=()=>{ if(!sym.trim())return; const s=sym.trim().toUpperCase(); setWatchlist(p=>p.some(x=>x.sym===s)?p:[...p,{id:Date.now(),sym:s,alertHigh:Number(hi)||null,alertLow:Number(lo)||null}]); setSym('');setHi('');setLo(''); };
-  const COIN_IDS={BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap'};
-  const refresh=async()=>{
+  const [watchlist, setWatchlist] = useLocalStorage('los_watchlist', []);
+  const [prices, setPrices] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [hi, setHi] = useState(''); const [lo, setLo] = useState('');
+  const [assetType, setAssetType] = useState('crypto');
+
+  const COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos',NEAR:'near'};
+
+  const searchDebounceRef = React.useRef(null);
+  const handleSearchChange = (q) => {
+    setSearchQ(q);
+    clearTimeout(searchDebounceRef.current);
+    if (!q.trim()) { setSearchResults([]); return; }
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        if (assetType === 'crypto') {
+          const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
+          const d = await res.json();
+          setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
+        } else {
+          const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
+          const d = await res.json();
+          setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
+        }
+      } catch { setSearchResults([]); }
+      setSearching(false);
+    }, 450);
+  };
+
+  const addFromResult = (r) => {
+    if (!watchlist.some(w=>w.sym===r.sym))
+      setWatchlist(p=>[...p,{id:Date.now(),sym:r.sym,name:r.name,type:r.type,coinId:r.id||null,alertHigh:Number(hi)||null,alertLow:Number(lo)||null}]);
+    setSearchQ(''); setSearchResults([]); setHi(''); setLo('');
+  };
+  const addManual = () => {
+    if (!searchQ.trim()) return;
+    const s = searchQ.trim().toUpperCase();
+    if (!watchlist.some(w=>w.sym===s))
+      setWatchlist(p=>[...p,{id:Date.now(),sym:s,name:s,type:assetType,coinId:COIN_IDS[s]||null,alertHigh:Number(hi)||null,alertLow:Number(lo)||null}]);
+    setSearchQ(''); setHi(''); setLo('');
+  };
+
+  const refresh = async () => {
     setLoading(true);
+    const update = {};
     try {
-      const syms=watchlist.filter(w=>COIN_IDS[w.sym]);
-      if(syms.length>0){
-        const ids=syms.map(w=>COIN_IDS[w.sym]).join(',');
-        const res=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
-        const d=await res.json();
-        const update={};
-        syms.forEach(w=>{ const id=COIN_IDS[w.sym]; if(d[id]) update[w.sym]={price:d[id].usd,change:d[id].usd_24h_change?.toFixed(2)||'0'}; });
-        setPrices(p=>({...p,...update}));
+      const cryptoItems = watchlist.filter(w=>w.type==='crypto'||COIN_IDS[w.sym]);
+      if (cryptoItems.length > 0) {
+        const ids = cryptoItems.map(w=>w.coinId||COIN_IDS[w.sym]).filter(Boolean).join(',');
+        if (ids) {
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
+          const d = await res.json();
+          cryptoItems.forEach(w=>{ const id=w.coinId||COIN_IDS[w.sym]; if(id&&d[id]) update[w.sym]={price:d[id].usd,change:d[id].usd_24h_change?.toFixed(2)||'0'}; });
+        }
       }
-    } catch{}
+      const stockItems = watchlist.filter(w=>w.type==='stock'&&!COIN_IDS[w.sym]);
+      if (stockItems.length > 0) {
+        const syms = stockItems.map(w=>w.sym).join(',');
+        const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
+        const d = await res.json();
+        (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
+      }
+    } catch {}
+    setPrices(p=>({...p,...update}));
     setLoading(false);
   };
-  const triggered=watchlist.filter(w=>prices[w.sym]&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
+
+  const triggered = watchlist.filter(w=>prices[w.sym]&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
+
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div><div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Watchlist & Alerts</div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Crypto prices via CoinGecko</div></div>
-        <Btn onClick={refresh} color={T.sky} style={{opacity:loading?0.5:1}}>{loading?'…':'↻ Refresh'}</Btn>
-      </div>
-      {triggered.length>0&&<div style={{padding:'10px 14px',borderRadius:T.r,background:`${T.amber}11`,border:`1px solid ${T.amber}44`,fontSize:11,fontFamily:T.fM,color:T.amber}}>🔔 Alert: {triggered.map(w=>w.sym).join(', ')} hit your price target!</div>}
-      <GlassCard style={{padding:'14px 18px'}}>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
-          <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="BTC, ETH, SOL…" onKeyDown={e=>e.key==='Enter'&&addWatch()} />
-          <Input type="number" value={hi} onChange={e=>setHi(e.target.value)} placeholder="Alert high $" />
-          <Input type="number" value={lo} onChange={e=>setLo(e.target.value)} placeholder="Alert low $" />
+        <div>
+          <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Watchlist & Price Alerts</div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Live crypto via CoinGecko · Stocks & ETFs via Yahoo Finance</div>
         </div>
-        <Btn onClick={addWatch} color={T.accent} style={{width:'100%'}}>+ Add to Watchlist</Btn>
+        <Btn onClick={refresh} color={T.sky} style={{opacity:loading?0.5:1,fontSize:11}}>{loading?'…':'↻ Refresh'}</Btn>
+      </div>
+
+      {triggered.length>0&&(
+        <div style={{padding:'10px 14px',borderRadius:T.r,background:`${T.amber}11`,border:`1px solid ${T.amber}44`,fontSize:11,fontFamily:T.fM,color:T.amber}}>
+          🔔 Alert: {triggered.map(w=>w.sym).join(', ')} hit your price target!
+        </div>
+      )}
+
+      <GlassCard style={{padding:'14px 18px'}}>
+        <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:10,fontWeight:600}}>Search & add</div>
+        <div style={{display:'flex',gap:6,marginBottom:10}}>
+          {['crypto','stock'].map(tp=>(
+            <button key={tp} onClick={()=>{setAssetType(tp);setSearchResults([]);setSearchQ('');}}
+              style={{padding:'5px 14px',borderRadius:99,fontSize:10,fontFamily:T.fM,fontWeight:600,cursor:'pointer',
+                border:`1px solid ${assetType===tp?T.accent+'55':T.border}`,
+                background:assetType===tp?T.accentDim:T.surface,color:assetType===tp?T.accent:T.textSub}}>
+              {tp==='crypto'?'₿ Crypto':'📈 Stocks / ETFs'}
+            </button>
+          ))}
+        </div>
+        <div style={{position:'relative',marginBottom:8}}>
+          <Input
+            value={searchQ}
+            onChange={e=>handleSearchChange(e.target.value)}
+            placeholder={assetType==='crypto'?'Search Bitcoin, ETH, SOL…':'Search Apple, AAPL, Tesla, SPY…'}
+            onKeyDown={e=>e.key==='Enter'&&addManual()}
+          />
+          {searching&&<span style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',fontSize:9,color:T.textMuted}}>searching…</span>}
+          {searchResults.length>0&&(
+            <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:400,overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
+              {searchResults.map((r,i)=>(
+                <button key={i} onClick={()=>addFromResult(r)}
+                  style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',padding:'9px 12px',background:'transparent',border:'none',borderBottom:i<searchResults.length-1?`1px solid ${T.border}`:'none',cursor:'pointer',textAlign:'left'}}
+                  onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHi}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div>
+                    <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{r.sym}</span>
+                    <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginLeft:8}}>{r.name}</span>
+                  </div>
+                  <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{r.exchange||r.type}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+          <Input type="number" value={hi} onChange={e=>setHi(e.target.value)} placeholder="Alert high $ (optional)" />
+          <Input type="number" value={lo} onChange={e=>setLo(e.target.value)} placeholder="Alert low $ (optional)" />
+        </div>
+        <Btn onClick={addManual} color={T.accent} full>{lang==='fr'?'+ Ajouter à la liste':'+ Add to Watchlist'}</Btn>
       </GlassCard>
-      {watchlist.length===0?<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add crypto symbols to watch. Supported: BTC, ETH, SOL, BNB, ADA, XRP, DOGE, AVAX…</div></GlassCard>:
-        watchlist.map(w=>{
-          const p=prices[w.sym];
-          const alert=p&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
-          const ch=Number(p?.change||0);
-          return (
-            <GlassCard key={w.id} style={{padding:'14px 18px',borderLeft:alert?`3px solid ${T.amber}`:'none'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <div>
-                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                    <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{w.sym}</span>
-                    {alert&&<span>🔔</span>}
-                  </div>
-                  <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>
-                    {w.alertHigh?`↑ $${fmtN(w.alertHigh)} `:''}{w.alertLow?`↓ $${fmtN(w.alertLow)}`:''}
-                  </div>
+
+      {watchlist.length===0?(
+        <GlassCard style={{padding:40,textAlign:'center'}}>
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Search for a crypto or stock above to add it to your watchlist.</div>
+        </GlassCard>
+      ):watchlist.map(w=>{
+        const p=prices[w.sym];
+        const alert=p&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
+        const ch=Number(p?.change||0);
+        return (
+          <GlassCard key={w.id} style={{padding:'14px 18px',borderLeft:alert?`3px solid ${T.amber}`:''}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{w.sym}</span>
+                  <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,padding:'1px 6px',borderRadius:4,background:T.surface,border:`1px solid ${T.border}`}}>{w.type||'crypto'}</span>
+                  {alert&&<span>🔔</span>}
                 </div>
-                <div style={{display:'flex',gap:10,alignItems:'center'}}>
-                  {p?<div style={{textAlign:'right'}}>
+                {w.name&&w.name!==w.sym&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{w.name}</div>}
+                {(w.alertHigh||w.alertLow)&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginTop:1}}>
+                  {w.alertHigh?`↑ alert $${fmtN(w.alertHigh)}  `:''}
+                  {w.alertLow?`↓ alert $${fmtN(w.alertLow)}`:''}
+                </div>}
+              </div>
+              <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                {p?(
+                  <div style={{textAlign:'right'}}>
                     <div style={{fontSize:15,fontFamily:T.fD,fontWeight:700,color:T.text}}>${fmtN(p.price)}</div>
                     <div style={{fontSize:10,fontFamily:T.fM,color:ch>=0?T.emerald:T.rose}}>{ch>=0?'+':''}{ch}% 24h</div>
-                  </div>:<div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>— refresh to load</div>}
-                  <button onClick={()=>setWatchlist(p=>p.filter(x=>x.id!==w.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
-                </div>
+                  </div>
+                ):<div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>— tap Refresh</div>}
+                <button onClick={()=>setWatchlist(p=>p.filter(x=>x.id!==w.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.5}}><IcoTrash size={10} stroke={T.rose} /></button>
               </div>
-            </GlassCard>
-          );
-        })
-      }
+            </div>
+          </GlassCard>
+        );
+      })}
     </div>
   );
 }
-
 // ── INVESTOR PROFILE ──────────────────────────────────────────────────────────
 function InvestorProfileTab({ data }) {
   const {investments=[],settings={}}=data;
@@ -10385,7 +10655,7 @@ export default function LifeOS() {
   const [globalModal, setGlobalModal] = useState(null);
   // ── Bug-fix: themeVersion forces a re-render after T is mutated so all
   // inline-style references to T.bg / T.accent etc. pick up the new values.
-  const [themeVersion, setThemeVersion] = useState(0);
+  const [themeVersion, set{lang==='fr'?'Thème':'Theme'}Version] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -10564,9 +10834,9 @@ export default function LifeOS() {
   // about it. Bumping themeVersion causes LifeOS to re-render, which cascades
   // to all children and lets them read the updated T values.
   useEffect(() => {
-    const savedTheme = settings.theme || 'dark';
-    Object.assign(T, THEMES[savedTheme] || THEMES.dark);
-    setThemeVersion(v => v + 1);
+    const saved{lang==='fr'?'Thème':'Theme'} = settings.theme || 'dark';
+    Object.assign(T, THEMES[saved{lang==='fr'?'Thème':'Theme'}] || THEMES.dark);
+    set{lang==='fr'?'Thème':'Theme'}Version(v => v + 1);
   }, [settings.theme]);
 
   // ── Step 4: Weekly Review auto-trigger — surfaces on Sunday after 6pm ────────
