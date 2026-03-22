@@ -1820,7 +1820,7 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
     });
     const dowAvgs = byDow.map((d, i) => ({ dow:i, label:DAY_NAMES[i], avg: d.count > 0 ? d.total/d.count : 0 }));
     const bestDow  = [...dowAvgs].sort((a,b) => b.avg - a.avg)[0];
-    const worstDow = [...dowAvgs].filter(d => d.count > 0).sort((a,b) => a.avg - b.avg)[0];
+    const worstDow = [...dowAvgs].filter(d => d.count > 0).sort((a,b) => a.avg - b.avg)[0] || bestDow;
 
     // Overall avg completion across past 18 weeks
     const allPast = cells.filter(c => !c.future);
@@ -4669,7 +4669,7 @@ function MoneyPage({ data, actions }) {
                         </div>
                         <div style={{ textAlign:'right' }}>
                           <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{(subscriptions||[]).length} active</div>
-                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose }}>{monthlyInc > 0 ? `${((monthlyTotal/monthlyInc)*100).toFixed(1)}% of income` : 'Log income to compare'}</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose }}>{monthInc > 0 ? `${((monthlyTotal/monthInc)*100).toFixed(1)}% of income` : 'Log income to compare'}</div>
                         </div>
                       </div>
                     );
