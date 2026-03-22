@@ -8829,7 +8829,7 @@ function WeeklyReviewModal({ open, onClose, data, actions }) {
 }
 
 function MonthlyReviewModal({ open, onClose, data, actions }) {
-  const {expenses,incomes,habits,habitLogs,vitals,goals,settings}=data;
+  const {expenses=[],incomes=[],habits=[],habitLogs={},vitals=[],goals=[],settings={}}=data;
   const cur=settings.currency||'$';
   const m=today().slice(0,7);
   const prevDate=new Date(m+'-01'); prevDate.setMonth(prevDate.getMonth()-1);
@@ -9197,7 +9197,7 @@ function WatchlistTab() {
 
 // ── INVESTOR PROFILE ──────────────────────────────────────────────────────────
 function InvestorProfileTab({ data }) {
-  const {investments,settings}=data;
+  const {investments=[],settings={}}=data;
   const cur=settings.currency||'$';
   const [profile,setProfile]=useLocalStorage('los_investor_profile',{risk:'moderate',horizon:'long',style:'passive',target_return:8,notes:''});
   const typeBreakdown=investments.reduce((acc,inv)=>{ acc[inv.type]=(acc[inv.type]||0)+Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0); return acc; },{});
@@ -9245,7 +9245,7 @@ function InvestorProfileTab({ data }) {
 
 // ── ASSET DEPRECIATION ────────────────────────────────────────────────────────
 function AssetDepreciationTab({ data }) {
-  const {assets,settings}=data;
+  const {assets=[],settings={}}=data;
   const cur=settings.currency||'$';
   const depAssets=assets.filter(a=>['Vehicle','Other'].includes(a.type));
   if(depAssets.length===0) return <GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add Vehicle or Other assets to see estimated depreciation.</div></GlassCard>;
@@ -9279,7 +9279,7 @@ function AssetDepreciationTab({ data }) {
 
 // ── FOCUS BILLING ─────────────────────────────────────────────────────────────
 function FocusBillingTab({ data }) {
-  const {focusSessions,settings}=data;
+  const {focusSessions=[],settings={}}=data;
   const cur=settings.currency||'$';
   const [rate,setRate]=useLocalStorage('los_hourly_rate',0);
   const [clientFilter,setClientFilter]=useState('All');
