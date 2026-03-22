@@ -4239,24 +4239,6 @@ function MoneyPage({ data, actions }) {
   const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const lang = useLang();
-  const TAB_LABELS = {
-    overview: lang==='fr'?'Vue d\'ensemble':'Overview',
-    spending: lang==='fr'?'Dépenses':'Spending',
-    debts: lang==='fr'?'Dettes':'Debts',
-    recurring: lang==='fr'?'Récurrents':'Recurring',
-    investments: lang==='fr'?'Investissements':'Investments',
-    trades: 'Trades',
-    watchlist: lang==='fr'?'Surveillance':'Watchlist',
-    investor: lang==='fr'?'Profil':'Investor',
-    depreciation: lang==='fr'?'Dépréciation':'Depreciation',
-    goals: lang==='fr'?'Objectifs':'Goals',
-    assets: lang==='fr'?'Actifs':'Assets',
-    tools: lang==='fr'?'Outils':'Tools',
-    simulator: lang==='fr'?'Simulateur':'Simulator',
-    forecast: lang==='fr'?'Prévisions':'Forecast',
-    ingest: lang==='fr'?'Importer':'Ingest',
-  };
   const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator','forecast','ingest'];
   const TAB_LABELS = {
     overview:    lang==='fr'?'Vue d\'ensemble':'Overview',
