@@ -744,7 +744,7 @@ function Sidebar({ active, onNav, userName, onAI, showAI }) {
 function createDebtWorker() {
   const src = `
     function calcDebtPayoff(debts, extraPayment, method) {
-      if (!debts || debts.length === 0) return { months:0, totalInterest:0, payoffDate:null, impossible:false };
+      if (!debts || (debts||[]).length === 0) return { months:0, totalInterest:0, payoffDate:null, impossible:false };
       const MAX_MONTHS = 360;
       const sorted = [...debts].sort((a,b) =>
         method === 'avalanche' ? Number(b.rate||0)-Number(a.rate||0) : Number(a.balance||0)-Number(b.balance||0)
@@ -794,7 +794,7 @@ function createDebtWorker() {
 }
 
 function calcDebtPayoff(debts, extraPayment = 0, method = 'avalanche') {
-  if (!debts || debts.length === 0) return { months: 0, totalInterest: 0, payoffDate: new Date(), impossible: false };
+  if (!debts || (debts||[]).length === 0) return { months: 0, totalInterest: 0, payoffDate: new Date(), impossible: false };
   const MAX_MONTHS = 360; // hard cap — never loop more than 30 years
   const sorted = [...debts].sort((a, b) =>
     method === 'avalanche'
@@ -838,7 +838,7 @@ function calcDebtPayoff(debts, extraPayment = 0, method = 'avalanche') {
 // Phase 2 — Budget Engine
 function calcBudgetStatus(expenses, budgets, month) {
   const result = {};
-  expenses.filter(e => e.date?.startsWith(month)).forEach(e => {
+  (expenses||[]).filter(e => e.date?.startsWith(month)).forEach(e => {
     const cat = e.category;
     if (!result[cat]) result[cat] = { spent: 0, budget: Number(budgets[cat] || 0) };
     result[cat].spent += Number(e.amount || 0);
@@ -853,13 +853,13 @@ function calcBudgetStatus(expenses, budgets, month) {
 function buildSearchIndex(data) {
   const items = [];
   const {notes=[], goals=[], habits=[], habitLogs={}, expenses=[], incomes=[], debts=[], investments=[], assets=[]} = data;
-  notes.forEach(n => items.push({ type:'note', icon:'📝', label:n.title, sub:n.body?.slice(0,60)||'', id:n.id, page:'knowledge', color:T.amber }));
-  goals.forEach(g => items.push({ type:'goal', icon:'🎯', label:g.name, sub:`${Math.round(((g.current||0)/Math.max(1,g.target))*100)}% complete`, id:g.id, page:'growth', color:T.violet }));
-  habits.forEach(h => items.push({ type:'habit', icon:'🔥', label:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)}d streak`, id:h.id, page:'growth', color:T.accent }));
-  expenses.slice(0,50).forEach(e => items.push({ type:'expense', icon:'💳', label:e.note||e.category, sub:`${e.date} · ${e.category}`, id:e.id, page:'money', color:T.rose }));
-  debts.forEach(d => items.push({ type:'debt', icon:'⚠️', label:d.name||d.creditor, sub:`Balance: ${d.balance}`, id:d.id, page:'money', color:T.rose }));
-  investments.forEach(inv => items.push({ type:'investment', icon:'📈', label:inv.symbol||inv.name, sub:`×${inv.quantity}`, id:inv.id, page:'money', color:T.violet }));
-  assets.forEach(a => items.push({ type:'asset', icon:'💎', label:a.name, sub:a.type, id:a.id, page:'money', color:T.accent }));
+  (notes||[]).forEach(n => items.push({ type:'note', icon:'📝', label:n.title, sub:n.body?.slice(0,60)||'', id:n.id, page:'knowledge', color:T.amber }));
+  (goals||[]).forEach(g => items.push({ type:'goal', icon:'🎯', label:g.name, sub:`${Math.round(((g.current||0)/Math.max(1,g.target))*100)}% complete`, id:g.id, page:'growth', color:T.violet }));
+  (habits||[]).forEach(h => items.push({ type:'habit', icon:'🔥', label:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)}d streak`, id:h.id, page:'growth', color:T.accent }));
+  (expenses||[]).slice(0,50).forEach(e => items.push({ type:'expense', icon:'💳', label:e.note||e.category, sub:`${e.date} · ${e.category}`, id:e.id, page:'money', color:T.rose }));
+  (debts||[]).forEach(d => items.push({ type:'debt', icon:'⚠️', label:d.name||d.creditor, sub:`Balance: ${d.balance}`, id:d.id, page:'money', color:T.rose }));
+  (investments||[]).forEach(inv => items.push({ type:'investment', icon:'📈', label:inv.symbol||inv.name, sub:`×${inv.quantity}`, id:inv.id, page:'money', color:T.violet }));
+  (assets||[]).forEach(a => items.push({ type:'asset', icon:'💎', label:a.name, sub:a.type, id:a.id, page:'money', color:T.accent }));
   return items;
 }
 
@@ -1160,8 +1160,8 @@ function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) 
   return (
     <Modal open={open} onClose={onClose} title="🔥 Log Habit">
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {habits.length === 0 && <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:16 }}>No habits yet. Create your first one below.</div>}
-        {habits.map(h => {
+        {(habits||[]).length === 0 && <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:16 }}>No habits yet. Create your first one below.</div>}
+        {(habits||[]).map(h => {
           const done = (habitLogs[h.id]||[]).includes(d);
           const streak = getStreak(h.id, habitLogs);
           return (
@@ -1373,19 +1373,19 @@ function LogDebtPaymentModal({ open, onClose, debts, onPay }) {
   const [debtId, setDebtId] = useState('');
   const [amount, setAmount] = useState('');
   const save = () => {
-    const debt = debts.find(d => String(d.id) === String(debtId));
+    const debt = (debts||[]).find(d => String(d.id) === String(debtId));
     if (!debt || !amount) return;
     onPay(debt.id, Number(amount));
     setAmount(''); onClose();
   };
-  useEffect(() => { if (open && debts.length > 0) setDebtId(String(debts[0].id)); }, [open, debts]);
+  useEffect(() => { if (open && (debts||[]).length > 0) setDebtId(String(debts[0].id)); }, [open, debts]);
   return (
     <Modal open={open} onClose={onClose} title="💸 Log Debt Payment">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        {debts.length === 0 ? (
+        {(debts||[]).length === 0 ? (
           <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, textAlign:'center', padding:20 }}>No debts tracked yet.</div>
         ) : (<>
-          <Select value={debtId} onChange={e=>setDebtId(e.target.value)}>{debts.map(d=><option key={d.id} value={d.id}>{d.name} — ${fmtN(d.balance)} remaining</option>)}</Select>
+          <Select value={debtId} onChange={e=>setDebtId(e.target.value)}>{(debts||[]).map(d=><option key={d.id} value={d.id}>{d.name} — ${fmtN(d.balance)} remaining</option>)}</Select>
           <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Payment amount" />
           <Btn full onClick={save} color={T.emerald}>Record Payment</Btn>
         </>)}
@@ -1786,7 +1786,7 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
 const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
   const WEEKS = 18; const DAYS = 7;
   const cells = useMemo(() => {
-    const total = habits.length || 1;
+    const total = (habits||[]).length || 1;
     const result = [];
     const now = new Date(); now.setHours(0,0,0,0);
     const startOffset = now.getDay();
@@ -1939,18 +1939,18 @@ function computeLifePulse({ expenses=[], incomes=[], habits=[], habitLogs={}, vi
   const thisM   = today_.slice(0, 7);
 
   // ── Finance (20pts) ───────────────────────────────────────────────────────
-  const monthInc = incomes.filter(i => i.date?.startsWith(thisM)).reduce((s, i) => s + Number(i.amount||0), 0);
-  const monthExp = expenses.filter(e => e.date?.startsWith(thisM)).reduce((s, e) => s + Number(e.amount||0), 0);
+  const monthInc = (incomes||[]).filter(i => i.date?.startsWith(thisM)).reduce((s, i) => s + Number(i.amount||0), 0);
+  const monthExp = (expenses||[]).filter(e => e.date?.startsWith(thisM)).reduce((s, e) => s + Number(e.amount||0), 0);
   const savRate  = monthInc > 0 ? ((monthInc - monthExp) / monthInc) * 100 : 0;
-  const invVal   = investments.reduce((s, i) => s + Number((i.currentPrice ?? i.buyPrice)||0) * Number(i.quantity||0), 0);
-  const nw       = assets.reduce((s, a) => s + Number(a.value||0), 0) + invVal - debts.reduce((s, d) => s + Number(d.balance||0), 0);
+  const invVal   = (investments||[]).reduce((s, i) => s + Number((i.currentPrice ?? i.buyPrice)||0) * Number(i.quantity||0), 0);
+  const nw       = (assets||[]).reduce((s, a) => s + Number(a.value||0), 0) + invVal - (debts||[]).reduce((s, d) => s + Number(d.balance||0), 0);
   const financeScore = Math.min(20, Math.round(
     (Math.min(10, savRate * 0.35)) +           // up to 10pts for savings rate (30% = 10pts)
     (nw > 0 ? Math.min(10, nw / 5000) : 0)    // up to 10pts for positive NW
   ));
 
   // ── Health (20pts) ────────────────────────────────────────────────────────
-  const v7 = vitals.slice(-7);
+  const v7 = (vitals||[]).slice(-7);
   const avgSleep = v7.length ? v7.reduce((s, v) => s + Number(v.sleep||0), 0) / v7.length : 0;
   const avgMood  = v7.length ? v7.reduce((s, v) => s + Number(v.mood||0),  0) / v7.length : 0;
   const healthScore = v7.length === 0 ? 0 : Math.min(20, Math.round(
@@ -1963,19 +1963,19 @@ function computeLifePulse({ expenses=[], incomes=[], habits=[], habitLogs={}, vi
     const d = new Date(now); d.setDate(d.getDate() - i);
     return d.toISOString().slice(0, 10);
   });
-  const habitCompletion = habits.length > 0
+  const habitCompletion = (habits||[]).length > 0
     ? last7Days.reduce((s, d) =>
-        s + habits.filter(h => (habitLogs[h.id]||[]).includes(d)).length, 0
-      ) / (habits.length * 7)
+        s + (habits||[]).filter(h => (habitLogs[h.id]||[]).includes(d)).length, 0
+      ) / ((habits||[]).length * 7)
     : 0;
-  const bestStreak = habits.reduce((mx, h) => { const s = getStreak(h.id, habitLogs); return s > mx ? s : mx; }, 0);
-  const habitsScore = habits.length === 0 ? 0 : Math.min(20, Math.round(
+  const bestStreak = (habits||[]).reduce((mx, h) => { const s = getStreak(h.id, habitLogs); return s > mx ? s : mx; }, 0);
+  const habitsScore = (habits||[]).length === 0 ? 0 : Math.min(20, Math.round(
     (habitCompletion * 14) +                    // up to 14pts for 100% completion
     (Math.min(6, bestStreak / 5))               // up to 6pts for streaks
   ));
 
   // ── Goals (20pts) ─────────────────────────────────────────────────────────
-  const activeGoals = goals.filter(g => g.target && Number(g.target) > 0);
+  const activeGoals = (goals||[]).filter(g => g.target && Number(g.target) > 0);
   const avgGoalPct  = activeGoals.length
     ? activeGoals.reduce((s, g) => s + Math.min(1, Number(g.current||0) / Number(g.target)), 0) / activeGoals.length
     : 0;
@@ -1986,10 +1986,10 @@ function computeLifePulse({ expenses=[], incomes=[], habits=[], habitLogs={}, vi
     const d = new Date(now); d.setDate(d.getDate() - i);
     return d.toISOString().slice(0, 10);
   });
-  const expDays    = new Set(expenses.map(e => e.date)).size;
-  const incDays    = new Set(incomes.map(i => i.date)).size;
-  const vitalsDays = vitals.filter(v => last14.includes(v.date)).length;
-  const habitDays  = last14.filter(d => habits.some(h => (habitLogs[h.id]||[]).includes(d))).length;
+  const expDays    = new Set((expenses||[]).map(e => e.date)).size;
+  const incDays    = new Set((incomes||[]).map(i => i.date)).size;
+  const vitalsDays = (vitals||[]).filter(v => last14.includes(v.date)).length;
+  const habitDays  = last14.filter(d => (habits||[]).some(h => (habitLogs[h.id]||[]).includes(d))).length;
   // Score: 0-5pts per category (expenses, income, vitals, habits) for last 14 days
   const consistencyScore = Math.min(20, Math.round(
     Math.min(5, expDays / 2)      +             // expenses logged regularly
@@ -2071,28 +2071,28 @@ function useMonthAutoSummary({ expenses=[], incomes=[], habits=[], habitLogs={},
     const cur  = settings?.currency || '$';
     const prevPrevM = (() => { const d = new Date(now); d.setMonth(d.getMonth() - 2); return d.toISOString().slice(0, 7); })();
 
-    const mInc  = incomes.filter(i => i.date?.startsWith(prevM)).reduce((s, i) => s + Number(i.amount||0), 0);
-    const mExp  = expenses.filter(e => e.date?.startsWith(prevM)).reduce((s, e) => s + Number(e.amount||0), 0);
-    const ppInc = incomes.filter(i => i.date?.startsWith(prevPrevM)).reduce((s, i) => s + Number(i.amount||0), 0);
-    const ppExp = expenses.filter(e => e.date?.startsWith(prevPrevM)).reduce((s, e) => s + Number(e.amount||0), 0);
+    const mInc  = (incomes||[]).filter(i => i.date?.startsWith(prevM)).reduce((s, i) => s + Number(i.amount||0), 0);
+    const mExp  = (expenses||[]).filter(e => e.date?.startsWith(prevM)).reduce((s, e) => s + Number(e.amount||0), 0);
+    const ppInc = (incomes||[]).filter(i => i.date?.startsWith(prevPrevM)).reduce((s, i) => s + Number(i.amount||0), 0);
+    const ppExp = (expenses||[]).filter(e => e.date?.startsWith(prevPrevM)).reduce((s, e) => s + Number(e.amount||0), 0);
     const mSaved  = Math.max(0, mInc - mExp);
     const ppSaved = Math.max(0, ppInc - ppExp);
     const savRate = mInc > 0 ? ((mSaved / mInc) * 100).toFixed(1) : 0;
 
-    const habitCons = habits.length > 0
+    const habitCons = (habits||[]).length > 0
       ? (() => {
           const days = new Set();
-          habits.forEach(h => (habitLogs[h.id]||[]).filter(d => d.startsWith(prevM)).forEach(d => days.add(d)));
+          (habits||[]).forEach(h => (habitLogs[h.id]||[]).filter(d => d.startsWith(prevM)).forEach(d => days.add(d)));
           const daysInM = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
           return Math.round((days.size / daysInM) * 100);
         })()
       : null;
 
-    const mVitals  = vitals.filter(v => v.date?.startsWith(prevM));
+    const mVitals  = (vitals||[]).filter(v => v.date?.startsWith(prevM));
     const avgSleep = mVitals.length ? (mVitals.reduce((s, v) => s + Number(v.sleep||0), 0) / mVitals.length).toFixed(1) : null;
     const avgMood  = mVitals.length ? (mVitals.reduce((s, v) => s + Number(v.mood||0),  0) / mVitals.length).toFixed(1) : null;
 
-    const goalsCompleted = goals.filter(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0).length;
+    const goalsCompleted = (goals||[]).filter(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0).length;
 
     // Build the summary text
     const lines = [
@@ -2103,7 +2103,7 @@ function useMonthAutoSummary({ expenses=[], incomes=[], habits=[], habitLogs={},
       '  Expenses: ' + cur + mExp.toLocaleString() + (ppExp ? ' (' + (mExp <= ppExp ? '↓' : '↑') + ' vs prev month)' : ''),
       '  Saved: ' + cur + mSaved.toLocaleString() + ' (' + savRate + '%)' + (ppSaved ? ' vs ' + cur + ppSaved.toLocaleString() + ' prior month' : ''),
       '',
-      habitCons !== null ? ('🔥 Habits: ' + habitCons + '% consistency across ' + habits.length + ' habit' + (habits.length !== 1 ? 's' : '')) : '',
+      habitCons !== null ? ('🔥 Habits: ' + habitCons + '% consistency across ' + (habits||[]).length + ' habit' + ((habits||[]).length !== 1 ? 's' : '')) : '',
       avgSleep ? ('😴 Sleep: ' + avgSleep + 'h avg · Mood: ' + avgMood + '/10 avg') : '',
       goalsCompleted > 0 ? ('🏆 Goals: ' + goalsCompleted + ' completed') : '',
     ].filter(Boolean);
@@ -2247,16 +2247,16 @@ function useSmartNotifications({ habits=[], habitLogs={}, bills=[], budgets={}, 
 
     // Morning brief (8-10am) — habits not yet logged
     if (settings.remindHabit !== false && hour >= 8 && hour < 10) {
-      const doneSoFar = habits.filter(h => (habitLogs[h.id]||[]).includes(today_)).length;
-      if (doneSoFar < habits.length && habits.length > 0) {
-        fire('LifeOS — Morning check-in', doneSoFar + '/' + habits.length + ' habits logged. Start your day strong.');
+      const doneSoFar = (habits||[]).filter(h => (habitLogs[h.id]||[]).includes(today_)).length;
+      if (doneSoFar < (habits||[]).length && (habits||[]).length > 0) {
+        fire('LifeOS — Morning check-in', doneSoFar + '/' + (habits||[]).length + ' habits logged. Start your day strong.');
         fired = true;
       }
     }
 
     // Evening habit reminder (9pm) — streaks at risk
     if (settings.remindHabit !== false && hour >= 21 && hour < 22) {
-      const atRisk = habits.filter(h => {
+      const atRisk = (habits||[]).filter(h => {
         const logs = habitLogs[h.id] || [];
         const streak = getStreak(h.id, habitLogs);
         return streak >= 3 && !logs.includes(today_);
@@ -2282,7 +2282,7 @@ function useSmartNotifications({ habits=[], habitLogs={}, bills=[], budgets={}, 
     if (settings.remindBudget !== false && hour >= 12) {
       const thisM = today_.slice(0, 7);
       Object.entries(budgets||{}).forEach(([cat, limit]) => {
-        const spent = expenses.filter(e => e.date?.startsWith(thisM) && e.category === cat).reduce((s, e) => s + Number(e.amount||0), 0);
+        const spent = (expenses||[]).filter(e => e.date?.startsWith(thisM) && e.category === cat).reduce((s, e) => s + Number(e.amount||0), 0);
         const pct = limit > 0 ? (spent / Number(limit)) * 100 : 0;
         if (pct >= 90 && pct < 110) {
           fire('LifeOS — Budget alert 💸', cat + ' is at ' + Math.round(pct) + '% of budget.');
@@ -2293,7 +2293,7 @@ function useSmartNotifications({ habits=[], habitLogs={}, bills=[], budgets={}, 
 
     // Vitals reminder (8pm) — not logged today
     if (settings.remindVitals && hour >= 20 && hour < 21) {
-      const loggedToday = vitals.some(v => v.date === today_);
+      const loggedToday = (vitals||[]).some(v => v.date === today_);
       if (!loggedToday) {
         fire('LifeOS — Log your vitals', 'Track sleep, mood, and energy to reveal your patterns.');
         fired = true;
@@ -2324,8 +2324,8 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
   const trailing = [1,2,3].map(i => {
     const d = new Date(); d.setMonth(d.getMonth()-i);
     const m = d.toISOString().slice(0,7);
-    const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-    const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+    const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+    const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
     return { inc, exp, saved: Math.max(0, inc-exp) };
   });
   const avgInc  = trailing.reduce((s,t)=>s+t.inc,0)  / Math.max(1, trailing.filter(t=>t.inc>0).length || 1);
@@ -2333,8 +2333,8 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
   const avgSave = trailing.reduce((s,t)=>s+t.saved,0) / Math.max(1, trailing.filter(t=>t.saved>0).length || 1);
 
   // This month so far
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisM)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisM)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc = (incomes||[]).filter(i=>i.date?.startsWith(thisM)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const monthExp = (expenses||[]).filter(e=>e.date?.startsWith(thisM)).reduce((s,e)=>s+Number(e.amount||0),0);
 
   // ── Financial signal ───────────────────────────────────────────────────────
   let financial = null;
@@ -2348,7 +2348,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
     // Budget pace — find the most over-tracked budget
     let budgetSignal = null;
     Object.entries(budgets||{}).forEach(([cat, limit]) => {
-      const spent = expenses.filter(e=>e.date?.startsWith(thisM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+      const spent = (expenses||[]).filter(e=>e.date?.startsWith(thisM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
       const pct   = limit>0 ? (spent/Number(limit))*100 : 0;
       const proj  = monthPct > 0 ? (spent / (monthPct/100)) : 0;
       if (proj > Number(limit)*1.05) {
@@ -2420,13 +2420,13 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
 
   // ── Habit signal ───────────────────────────────────────────────────────────
   let habit = null;
-  if (habits.length > 0) {
+  if ((habits||[]).length > 0) {
     const BREAK_RISK_LENGTHS = [3, 7, 14, 21, 30]; // research-backed streak break points
     const DOW = now.getDay(); // 0=Sun, 6=Sat
     const isWeekend = DOW === 0 || DOW === 6;
 
     // Build per-habit streak history to detect personal break patterns
-    const habitRisks = habits.map(h => {
+    const habitRisks = (habits||[]).map(h => {
       const logs   = (habitLogs[h.id] || []).sort();
       const streak = getStreak(h.id, habitLogs);
       const doneToday = logs.includes(today_);
@@ -2460,11 +2460,11 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
     const allDone = habitRisks.every(r => r.doneToday);
     const doneSoFar = habitRisks.filter(r => r.doneToday).length;
 
-    if (allDone && habits.length > 0) {
+    if (allDone && (habits||[]).length > 0) {
       habit = {
         severity: 'good',
         emoji: '🔥',
-        signal: `All ${habits.length} habits done today`,
+        signal: `All ${(habits||[]).length} habits done today`,
         detail: `Perfect day. Best streak: ${Math.max(...habitRisks.map(r=>r.streak))} days.`,
         projection: `Keep the momentum into tomorrow`,
         action: null,
@@ -2477,7 +2477,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
         severity: topRisk.streak >= 7 ? 'warn' : 'notice',
         emoji: '🎯',
         signal: `${topRisk.h.emoji||'🔥'} ${topRisk.h.name} — ${topRisk.streak}d streak at risk`,
-        detail: `${doneSoFar}/${habits.length} habits logged today.${weekendNote}${breakNote}`,
+        detail: `${doneSoFar}/${(habits||[]).length} habits logged today.${weekendNote}${breakNote}`,
         projection: topRisk.streak >= 14 ? `A ${topRisk.streak}-day streak is worth protecting` : `Build consistency — log it now`,
         action: 'Log habit', actionModal: 'habit',
         habitName: topRisk.h.name,
@@ -2486,10 +2486,10 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
       habit = {
         severity: 'neutral',
         emoji: '✅',
-        signal: `${doneSoFar}/${habits.length} habits logged today`,
-        detail: `${habits.length - doneSoFar} remaining. Best streak: ${Math.max(1,...habitRisks.map(r=>r.streak))} days.`,
+        signal: `${doneSoFar}/${(habits||[]).length} habits logged today`,
+        detail: `${(habits||[]).length - doneSoFar} remaining. Best streak: ${Math.max(1,...habitRisks.map(r=>r.streak))} days.`,
         projection: `Log remaining habits to maintain streaks`,
-        action: doneSoFar < habits.length ? 'Log habits' : null,
+        action: doneSoFar < (habits||[]).length ? 'Log habits' : null,
         actionModal: 'habit',
       };
     }
@@ -2497,7 +2497,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
 
   // ── Health signal ──────────────────────────────────────────────────────────
   let health = null;
-  if (vitals.length >= 3) {
+  if ((vitals||[]).length >= 3) {
     const recent7 = [...vitals].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,7);
     const avgMood  = recent7.reduce((s,v)=>s+Number(v.mood||0),0) / recent7.length;
     const avgSleep = recent7.reduce((s,v)=>s+Number(v.sleep||0),0) / recent7.length;
@@ -2553,7 +2553,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
         signal: `Health tracking consistent`,
         detail: `7-day avg: mood ${avgMood.toFixed(1)}/10, sleep ${avgSleep.toFixed(1)}h.`,
         projection: ``,
-        action: !vitals.some(v=>v.date===today_) ? 'Log today' : null,
+        action: !(vitals||[]).some(v=>v.date===today_) ? 'Log today' : null,
         actionModal: 'vitals',
       };
     }
@@ -2586,7 +2586,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
 
   // Goal behind pace
   if (!topAction) {
-    const behindGoal = goals.find(g => {
+    const behindGoal = (goals||[]).find(g => {
       if (!g.deadline || !g.target) return false;
       const daysTotal = Math.round((new Date(g.deadline) - new Date(g.date||today_)) / 86400000);
       const daysGone  = Math.round((now - new Date(g.date||today_)) / 86400000);
@@ -2615,7 +2615,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
     computeDailyBrief({ expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings }),
     // Recompute when key data changes — not on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [expenses.length, incomes.length, habits.length, Object.values(habitLogs).flat().length, vitals.length, goals.length, bills.length, Object.keys(budgets||{}).length, Object.values(budgets||{}).reduce((s,v)=>s+Number(v||0),0)]
+    [(expenses||[]).length, (incomes||[]).length, (habits||[]).length, Object.values(habitLogs).flat().length, (vitals||[]).length, (goals||[]).length, (bills||[]).length, Object.keys(budgets||{}).length, Object.values(budgets||{}).reduce((s,v)=>s+Number(v||0),0)]
   );
 
   const SEV_COLORS = { urgent: T.rose, high: T.amber, medium: T.accent, low: T.emerald, neutral: T.textSub };
@@ -2755,7 +2755,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
 
   // ── 3. Budget about to bust — PROJECTED overshoot ─────────────────────────
   Object.entries(budgets||{}).forEach(([cat, limit]) => {
-    const spent = expenses.filter(e=>e.date?.startsWith(thisMonth)&&e.category===cat)
+    const spent = (expenses||[]).filter(e=>e.date?.startsWith(thisMonth)&&e.category===cat)
       .reduce((s,e)=>s+Number(e.amount||0),0);
     const pct   = limit>0 ? (spent/Number(limit))*100 : 0;
     const proj  = monthPct > 0.05 ? spent / monthPct : spent; // extrapolate
@@ -2782,7 +2782,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
   });
 
   // ── 4. Habit streak at risk ────────────────────────────────────────────────
-  habits.forEach(h => {
+  (habits||[]).forEach(h => {
     const logs   = (habitLogs[h.id]||[]).sort();
     const streak = getStreak(h.id, habitLogs);
     const doneToday = logs.includes(today_);
@@ -2900,16 +2900,16 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
   // Surfaces the single most anomalous category (2× or more above average).
   // No setup required — emerges purely from logged data.
   if (dayOfMonth >= 7 && (expenses||[]).length >= 10) {
-    const cats = [...new Set(expenses.map(e => e.category).filter(Boolean))];
+    const cats = [...new Set((expenses||[]).map(e => e.category).filter(Boolean))];
     let worstCat = null, worstRatio = 0;
     cats.forEach(cat => {
-      const thisMonthSpend = expenses.filter(e => e.date?.startsWith(thisMonth) && e.category===cat)
+      const thisMonthSpend = (expenses||[]).filter(e => e.date?.startsWith(thisMonth) && e.category===cat)
         .reduce((s,e)=>s+Number(e.amount||0),0);
       const projected = monthPct > 0.1 ? thisMonthSpend / monthPct : thisMonthSpend;
       const trailAmts = [1,2,3].map(i => {
         const d = new Date(); d.setMonth(d.getMonth()-i);
         const m = d.toISOString().slice(0,7);
-        return expenses.filter(e=>e.date?.startsWith(m)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+        return (expenses||[]).filter(e=>e.date?.startsWith(m)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
       }).filter(x=>x>0);
       if (trailAmts.length < 2) return; // need at least 2 months of history
       const avgTrail = trailAmts.reduce((s,x)=>s+x,0)/trailAmts.length;
@@ -2935,7 +2935,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
       const d = new Date(); d.setMonth(d.getMonth()-i);
       const m = d.toISOString().slice(0,7);
       const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-      const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
       return inc > 0 ? ((inc-exp)/inc)*100 : null;
     }).filter(r=>r!=null);
     const avgSR = trail.length ? trail.reduce((s,r)=>s+r,0)/trail.length : 0;
@@ -2952,7 +2952,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
   }
 
   // ── 12. POSITIVE: Habit streak milestone ─────────────────────────────────
-  habits.forEach(h => {
+  (habits||[]).forEach(h => {
     const streak = getStreak(h.id, habitLogs);
     const logs   = (habitLogs[h.id]||[]);
     const doneToday = logs.includes(today_);
@@ -3132,7 +3132,7 @@ function HomePage({ data, actions, onNav }) {
   const [showDecision, setShowDecision] = useState(false);
   const [focusMode, setFocusMode] = useLocalStorage('los_focus_mode', false);
   const [simulateOpen, setSimulateOpen] = useState(false);
-  const [showMoodBanner, setShowMoodBanner] = useState(() => !vitals.some(v=>v.date===today()));
+  const [showMoodBanner, setShowMoodBanner] = useState(() => !(vitals||[]).some(v=>v.date===today()));
   const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
   const [weeklyFocusEdit, setWeeklyFocusEdit] = useState(false);
   // Stored Weekly AI Brief
@@ -3146,9 +3146,9 @@ function HomePage({ data, actions, onNav }) {
   // Use pre-computed values from App root (no duplicate reduce loops)
   const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
   const fhsDetail = useMemo(()=>{
-    const mdp = debts.reduce((a,d)=>a+Number(d.minPayment||0),0);
+    const mdp = (debts||[]).reduce((a,d)=>a+Number(d.minPayment||0),0);
     const dti = monthInc>0?(mdp/monthInc)*100:50;
-    const cash = assets.filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
+    const cash = (assets||[]).filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
     const ef = monthExp>0?cash/monthExp:0;
     const savScore = Math.round(Math.min(30, savRate*1.5));
     const dtiScore = Math.round(Math.max(0, 25-dti*0.5));
@@ -3161,14 +3161,14 @@ function HomePage({ data, actions, onNav }) {
   const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
   const xpForNext = Math.pow(level,2)*100; const xpForCurrent = Math.pow(level-1,2)*100;
   const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
-  const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
-  const bestStreak = habits.reduce((max,h)=>{ const s=getStreak(h.id,habitLogs); return s>max?s:max; },0);
-  const lastVitals = vitals.length ? [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0] : null;
+  const todayDone = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak = (habits||[]).reduce((max,h)=>{ const s=getStreak(h.id,habitLogs); return s>max?s:max; },0);
+  const lastVitals = (vitals||[]).length ? [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0] : null;
   const recentEvents = useMemo(()=>{
     const evs = [];
     [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({ id:'exp-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose }));
     [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({ id:'inc-'+e.id, ts:e.date, title:e.note||'Income', sub:'Income logged', value:`+${cur}${fmtN(e.amount)}`, cat:'income', color:T.emerald }));
-    habits.forEach(h=>{ const logs=(habitLogs[h.id]||[]); const d=logs.includes(today())?today():logs[logs.length-1]; if(d) evs.push({ id:'hab-'+h.id, ts:d, title:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)} day streak`, value:'+XP', cat:'habit', color:T.accent }); });
+    (habits||[]).forEach(h=>{ const logs=(habitLogs[h.id]||[]); const d=logs.includes(today())?today():logs[logs.length-1]; if(d) evs.push({ id:'hab-'+h.id, ts:d, title:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)} day streak`, value:'+XP', cat:'habit', color:T.accent }); });
     if(lastVitals) evs.push({ id:'vit-0', ts:lastVitals.date, title:'Vitals Logged', sub:`Sleep ${lastVitals.sleep}h · Mood ${lastVitals.mood}/10`, value:'❤️', cat:'health', color:T.sky });
     return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,6);
   },[expenses,incomes,habits,habitLogs,lastVitals,cur]);
@@ -3265,7 +3265,7 @@ function HomePage({ data, actions, onNav }) {
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:6, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           {settings.name?<span>Welcome back, {settings.name}</span>:null}
           <LifePulseChip pulse={computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings })} />
-          <span style={{ color:T.emerald }}>●</span><span>{habits.length} habits</span>
+          <span style={{ color:T.emerald }}>●</span><span>{(habits||[]).length} habits</span>
           <span style={{ color:T.accent }}>●</span><span>NW {cur}{fmtN(netWorth)}</span>
           <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K search</span>
           <button onClick={()=>setShowDecision(true)} style={{ fontSize:9, fontFamily:T.fM, color:T.violet, background:T.violetDim, border:'1px solid '+T.violet+'33', borderRadius:99, padding:'2px 10px', cursor:'pointer' }}>+ Log decision</button>
@@ -3274,9 +3274,9 @@ function HomePage({ data, actions, onNav }) {
 
       {/* ── Focus Mode — collapsed view showing only what matters today ─── */}
       {focusMode && (() => {
-        const todayDoneHabits = habits.filter(h=>(habitLogs[h.id]||[]).includes(today()));
-        const pendingHabits   = habits.filter(h=>!(habitLogs[h.id]||[]).includes(today()));
-        const todayVitals     = vitals.some(v=>v.date===today());
+        const todayDoneHabits = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today()));
+        const pendingHabits   = (habits||[]).filter(h=>!(habitLogs[h.id]||[]).includes(today()));
+        const todayVitals     = (vitals||[]).some(v=>v.date===today());
         const urgentBills     = (bills||[]).filter(b=>!b.paid&&b.nextDate&&Math.round((new Date(b.nextDate)-new Date())/86400000)<=3);
         const pulse           = computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings });
         return (
@@ -3294,7 +3294,7 @@ function HomePage({ data, actions, onNav }) {
                 <div style={{ padding:'12px 14px', borderRadius:T.r, background: pendingHabits.length===0?T.emeraldDim:T.surface, border:`1px solid ${pendingHabits.length===0?T.emerald+'44':T.border}` }}>
                   <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Habits today</div>
                   <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:pendingHabits.length===0?T.emerald:T.accent }}>
-                    {todayDoneHabits.length}/{habits.length}
+                    {todayDoneHabits.length}/{(habits||[]).length}
                   </div>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
                     {pendingHabits.length===0?'All done 🎉':pendingHabits.slice(0,2).map(h=>h.emoji||'🔥'+' '+h.name).join(' · ')}
@@ -3349,10 +3349,10 @@ function HomePage({ data, actions, onNav }) {
           Avoids the "six zeroes and silence" problem on a fresh install. */}
       {(() => {
         const steps = [
-          { done: expenses.length > 0 || incomes.length > 0, emoji:'💳', label:'Log your first expense or income', modal:'expense', color:T.rose },
-          { done: habits.length > 0,                          emoji:'🔥', label:'Create a habit to track',          modal:'habit',   color:T.accent },
-          { done: vitals.some(v=>v.date===today()),           emoji:'❤️', label:'Log today\'s vitals',              modal:'vitals',  color:T.sky },
-          { done: assets.length > 0 || investments.length > 0,emoji:'💎', label:'Add an asset to track net worth', modal:null,      color:T.violet, nav:'money' },
+          { done: (expenses||[]).length > 0 || (incomes||[]).length > 0, emoji:'💳', label:'Log your first expense or income', modal:'expense', color:T.rose },
+          { done: (habits||[]).length > 0,                          emoji:'🔥', label:'Create a habit to track',          modal:'habit',   color:T.accent },
+          { done: (vitals||[]).some(v=>v.date===today()),           emoji:'❤️', label:'Log today\'s vitals',              modal:'vitals',  color:T.sky },
+          { done: (assets||[]).length > 0 || (investments||[]).length > 0,emoji:'💎', label:'Add an asset to track net worth', modal:null,      color:T.violet, nav:'money' },
         ];
         const remaining = steps.filter(s => !s.done);
         if (!remaining.length) return null;
@@ -3386,8 +3386,8 @@ function HomePage({ data, actions, onNav }) {
         const trailSavRates = [1,2,3].map(i => {
           const d = new Date(); d.setMonth(d.getMonth()-i);
           const m = d.toISOString().slice(0,7);
-          const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-          const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+          const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+          const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
           return inc > 0 ? ((inc-exp)/inc)*100 : null;
         }).filter(r => r !== null);
         const avgSavRate   = trailSavRates.length ? trailSavRates.reduce((s,r)=>s+r,0)/trailSavRates.length : null;
@@ -3402,8 +3402,8 @@ function HomePage({ data, actions, onNav }) {
 
         // Financial Health: month-over-month
         const prevM = (() => { const d = new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
-        const prevInc = incomes.filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
-        const prevExp = expenses.filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
+        const prevInc = (incomes||[]).filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
+        const prevExp = (expenses||[]).filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
         const prevSavRate = prevInc > 0 ? ((prevInc-prevExp)/prevInc)*100 : 0;
         const fhsTrend = fhs - (prevSavRate > 0 ? Math.min(100, Math.round(prevSavRate*1.5)) : fhs);
 
@@ -3552,7 +3552,7 @@ function HomePage({ data, actions, onNav }) {
       {Object.keys(budgets).length>0 && (() => {
         const thisM = today().slice(0,7);
         const budgetStatus = {};
-        expenses.filter(e=>e.date?.startsWith(thisM)).forEach(e=>{ const c=e.category; budgetStatus[c]=(budgetStatus[c]||0)+Number(e.amount||0); });
+        (expenses||[]).filter(e=>e.date?.startsWith(thisM)).forEach(e=>{ const c=e.category; budgetStatus[c]=(budgetStatus[c]||0)+Number(e.amount||0); });
         const entries = Object.entries(budgets).filter(([,b])=>Number(b)>0).slice(0,4).map(([cat,bud])=>({ cat, bud:Number(bud), spent:budgetStatus[cat]||0 }));
         if (!entries.length) return null;
         return (
@@ -3638,7 +3638,7 @@ function HomePage({ data, actions, onNav }) {
                 const generateBrief = async () => {
                   setStoredBrief(b=>({...b, loading:true}));
                   try {
-                    const ctx = `Monthly income: ${cur}${fmtN(monthInc)}, expenses: ${cur}${fmtN(monthExp)}, savings rate: ${savRate.toFixed(1)}%, NW: ${cur}${fmtN(netWorth)}, habits done today: ${todayDone}/${habits.length}, best streak: ${bestStreak}d.`;
+                    const ctx = `Monthly income: ${cur}${fmtN(monthInc)}, expenses: ${cur}${fmtN(monthExp)}, savings rate: ${savRate.toFixed(1)}%, NW: ${cur}${fmtN(netWorth)}, habits done today: ${todayDone}/${(habits||[]).length}, best streak: ${bestStreak}d.`;
                     const text = await callAI(settings, {
                       max_tokens: 250,
                       messages:[{ role:'user', content:`Generate a 3-sentence motivational weekly financial+habits brief for this user. Be specific, warm, and actionable. Data: ${ctx}` }]
@@ -3658,7 +3658,7 @@ function HomePage({ data, actions, onNav }) {
                 {[
                   { icon:'💰', label:'Finance', msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent!`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Rate: ${savRate.toFixed(1)}%.` },
                   { icon:'❤️', label:'Health', msg:lastVitals?`Last logged: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10. ${lastVitals.sleep>=7?'Great rest!':'Aim for 7–8h.'}`:'Log your vitals today to track health trends.' },
-                  { icon:'🔥', label:'Habits', msg:`${todayDone}/${habits.length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start building streaks.'}` },
+                  { icon:'🔥', label:'Habits', msg:`${todayDone}/${(habits||[]).length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start building streaks.'}` },
                 ].map((item,i)=>(
                   <div key={i} style={{ background:T.accentLo, borderRadius:T.r, padding:'12px 14px', border:`1px solid ${T.border}`, animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both` }}>
                     <div style={{ fontSize:16, marginBottom:5 }}>{item.icon}</div>
@@ -3686,8 +3686,8 @@ function HomePage({ data, actions, onNav }) {
             {[
               { label:'This Month', sub:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald },
               { label:'This Month', sub:'Spent', val:`${cur}${fmtN(monthExp)}`, color:T.rose },
-              { label:'Habits', sub:`${todayDone}/${habits.length} today`, val:bestStreak?`🔥 ${bestStreak}d`:habits.length===0?'None yet':'0d', color:T.accent },
-              { label:'Goals', sub:`${goals.length} active`, val:goals.length>0?`${Math.round(goals.reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/Math.max(1,goals.length))}% avg`:'Set goals', color:T.violet },
+              { label:'Habits', sub:`${todayDone}/${(habits||[]).length} today`, val:bestStreak?`🔥 ${bestStreak}d`:(habits||[]).length===0?'None yet':'0d', color:T.accent },
+              { label:'Goals', sub:`${(goals||[]).length} active`, val:(goals||[]).length>0?`${Math.round((goals||[]).reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/Math.max(1,(goals||[]).length))}% avg`:'Set goals', color:T.violet },
             ].map((s,i)=>(
               <GlassCard key={i} style={{ padding:'14px 16px' }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.label} · {s.sub}</div>
@@ -3699,14 +3699,14 @@ function HomePage({ data, actions, onNav }) {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <SectionLabel>Today's Habits</SectionLabel>
               <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                <span style={{ fontSize:10, fontFamily:T.fM, color:todayDone===habits.length&&habits.length>0?T.emerald:T.textSub }}>{todayDone}/{habits.length}</span>
+                <span style={{ fontSize:10, fontFamily:T.fM, color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.textSub }}>{todayDone}/{(habits||[]).length}</span>
                 <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
               </div>
             </div>
-            {habits.length === 0 ? (
+            {(habits||[]).length === 0 ? (
               <div style={{ textAlign:'center', padding:'16px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.<br/><button onClick={()=>setModal('habit')} style={{ color:T.accent, fontSize:11, fontFamily:T.fM, marginTop:6, cursor:'pointer' }}>+ Add habit</button></div>
             ) : (
-              habits.slice(0, 7).map((h,i) => {
+              (habits||[]).slice(0, 7).map((h,i) => {
                 const done = (habitLogs[h.id]||[]).includes(today());
                 const streak = getStreak(h.id, habitLogs);
                 const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
@@ -3726,13 +3726,13 @@ function HomePage({ data, actions, onNav }) {
                 );
               })
             )}
-            {habits.length > 7 && (
-              <div style={{ marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', cursor:'pointer' }} onClick={()=>onNav('growth')}>+{habits.length-7} more → view all</div>
+            {(habits||[]).length > 7 && (
+              <div style={{ marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', cursor:'pointer' }} onClick={()=>onNav('growth')}>+{(habits||[]).length-7} more → view all</div>
             )}
             <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>{todayDone}/{habits.length} done today</span>
-              <div style={{ flex:1 }}><ProgressBar pct={habits.length>0?(todayDone/habits.length)*100:0} color={todayDone===habits.length&&habits.length>0?T.emerald:T.accent} height={4} /></div>
-              {todayDone===habits.length&&habits.length>0 && <span style={{ fontSize:10, color:T.emerald, flexShrink:0 }}>🎉 All done!</span>}
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>{todayDone}/{(habits||[]).length} done today</span>
+              <div style={{ flex:1 }}><ProgressBar pct={(habits||[]).length>0?(todayDone/(habits||[]).length)*100:0} color={todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent} height={4} /></div>
+              {todayDone===(habits||[]).length&&(habits||[]).length>0 && <span style={{ fontSize:10, color:T.emerald, flexShrink:0 }}>🎉 All done!</span>}
             </div>
           </GlassCard>
           <GlassCard style={{ padding:'18px', flex:1 }}>
@@ -3770,13 +3770,13 @@ function TimelinePage({ data }) {
   const [filter, setFilter] = useState('all');
   const cur = settings.currency || '$';
   // Per-category memos — each only recalculates when its source data changes
-  const expenseEvs    = useMemo(() => expenses.map(e=>({ id:'e-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose, emoji:'💳' })), [expenses, cur]);
-  const incomeEvs     = useMemo(() => incomes.map(i=>({ id:'i-'+i.id, ts:i.date, title:i.note||'Income received', sub:'Income', value:`+${cur}${fmtN(i.amount)}`, cat:'income', color:T.emerald, emoji:'💰' })), [incomes, cur]);
-  const habitEvs      = useMemo(() => { const evs=[]; habits.forEach(h=>(habitLogs[h.id]||[]).forEach(d=>evs.push({ id:'h-'+h.id+d, ts:d, title:h.name+' completed', sub:'Habit · 🔥 streak', value:'+XP', cat:'habit', color:T.accent, emoji:'🔥' }))); return evs; }, [habits, habitLogs]);
-  const vitalEvs      = useMemo(() => vitals.map(v=>({ id:'v-'+v.id, ts:v.date, title:'Vitals Logged', sub:`Sleep ${v.sleep}h · Mood ${v.mood}/10`, value:'❤️', cat:'health', color:T.sky, emoji:'❤️' })), [vitals]);
-  const goalEvs       = useMemo(() => goals.filter(g=>g.current>=g.target).map(g=>({ id:'g-'+g.id, ts:g.updatedAt||today(), title:`Goal completed: ${g.name}`, sub:'Goal milestone', value:'🏆 +50XP', cat:'goal', color:T.amber, emoji:'🎯' })), [goals]);
-  const investmentEvs = useMemo(() => investments.map(inv=>({ id:'inv-'+inv.id, ts:inv.date||today(), title:`${inv.symbol||inv.name} position`, sub:'Investment', value:`${cur}${fmtN(Number(inv.currentPrice??inv.buyPrice)*Number(inv.quantity))}`, cat:'investment', color:T.violet, emoji:'📈' })), [investments, cur]);
-  const debtEvs       = useMemo(() => debts.map(d=>({ id:'d-'+d.id, ts:d.createdAt||today(), title:`Debt: ${d.name}`, sub:`${d.type||'Debt'} · ${d.rate||0}% APR`, value:`${cur}${fmtN(d.balance)}`, cat:'debt', color:T.rose, emoji:'⚠️' })), [debts, cur]);
+  const expenseEvs    = useMemo(() => (expenses||[]).map(e=>({ id:'e-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose, emoji:'💳' })), [expenses, cur]);
+  const incomeEvs     = useMemo(() => (incomes||[]).map(i=>({ id:'i-'+i.id, ts:i.date, title:i.note||'Income received', sub:'Income', value:`+${cur}${fmtN(i.amount)}`, cat:'income', color:T.emerald, emoji:'💰' })), [incomes, cur]);
+  const habitEvs      = useMemo(() => { const evs=[]; (habits||[]).forEach(h=>(habitLogs[h.id]||[]).forEach(d=>evs.push({ id:'h-'+h.id+d, ts:d, title:h.name+' completed', sub:'Habit · 🔥 streak', value:'+XP', cat:'habit', color:T.accent, emoji:'🔥' }))); return evs; }, [habits, habitLogs]);
+  const vitalEvs      = useMemo(() => (vitals||[]).map(v=>({ id:'v-'+v.id, ts:v.date, title:'Vitals Logged', sub:`Sleep ${v.sleep}h · Mood ${v.mood}/10`, value:'❤️', cat:'health', color:T.sky, emoji:'❤️' })), [vitals]);
+  const goalEvs       = useMemo(() => (goals||[]).filter(g=>g.current>=g.target).map(g=>({ id:'g-'+g.id, ts:g.updatedAt||today(), title:`Goal completed: ${g.name}`, sub:'Goal milestone', value:'🏆 +50XP', cat:'goal', color:T.amber, emoji:'🎯' })), [goals]);
+  const investmentEvs = useMemo(() => (investments||[]).map(inv=>({ id:'inv-'+inv.id, ts:inv.date||today(), title:`${inv.symbol||inv.name} position`, sub:'Investment', value:`${cur}${fmtN(Number(inv.currentPrice??inv.buyPrice)*Number(inv.quantity))}`, cat:'investment', color:T.violet, emoji:'📈' })), [investments, cur]);
+  const debtEvs       = useMemo(() => (debts||[]).map(d=>({ id:'d-'+d.id, ts:d.createdAt||today(), title:`Debt: ${d.name}`, sub:`${d.type||'Debt'} · ${d.rate||0}% APR`, value:`${cur}${fmtN(d.balance)}`, cat:'debt', color:T.rose, emoji:'⚠️' })), [debts, cur]);
   // Merge only when a category slice actually changes
   const allEvents = useMemo(() =>
     [...expenseEvs,...incomeEvs,...habitEvs,...vitalEvs,...goalEvs,...investmentEvs,...debtEvs]
@@ -3859,7 +3859,7 @@ const totalGrowth = finalVal - totalIn;
 // ── Emergency Fund Tracker ─────────────────────────────────────────────
 const [efMonths, setEfMonths]   = useState(6);
 const [efCurrent, setEfCurrent] = useState(0);
-const monthlyFixed = (debts.reduce((s,d)=>s+Number(d.minPayment||0),0)) + (subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0));
+const monthlyFixed = ((debts||[]).reduce((s,d)=>s+Number(d.minPayment||0),0)) + ((subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0));
 const efTarget    = monthlyFixed + monthExp;
 const efGoal      = efTarget * efMonths;
 const efPct       = efGoal > 0 ? Math.min(100, (efCurrent / efGoal) * 100) : 0;
@@ -3867,7 +3867,7 @@ const efColor     = efPct >= 100 ? T.emerald : efPct >= 50 ? T.amber : T.rose;
 const EF_LEVELS   = [{ pct:25, label:'1mo' }, { pct:50, label:'3mo' }, { pct:100, label:`${efMonths}mo` }];
 
 // ── DTI Ratio ─────────────────────────────────────────────────────────
-const monthlyDebtPmts = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
+const monthlyDebtPmts = (debts||[]).reduce((s,d)=>s+Number(d.minPayment||0),0);
 const dti = monthInc > 0 ? (monthlyDebtPmts / monthInc) * 100 : 0;
 const dtiColor = dti > 43 ? T.rose : dti > 28 ? T.amber : T.emerald;
 const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched' : dti > 20 ? 'Manageable' : 'Excellent';
@@ -4006,22 +4006,22 @@ function MoneyPage({ data, actions }) {
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
   const availableMonths = useMemo(()=>{
-    const ms=new Set([...expenses.map(e=>e.date?.slice(0,7)),...incomes.map(i=>i.date?.slice(0,7))].filter(Boolean));
+    const ms=new Set([...(expenses||[]).map(e=>e.date?.slice(0,7)),...(incomes||[]).map(i=>i.date?.slice(0,7))].filter(Boolean));
     const arr=[...ms].sort().reverse();
     if(!arr.includes(today().slice(0,7))) arr.unshift(today().slice(0,7));
     return arr;
   },[expenses,incomes]);
-  const selMonthExp = useMemo(()=>expenses.filter(e=>e.date?.startsWith(selectedMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,selectedMonth]);
-  const selMonthInc = useMemo(()=>incomes.filter(i=>i.date?.startsWith(selectedMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,selectedMonth]);
+  const selMonthExp = useMemo(()=>(expenses||[]).filter(e=>e.date?.startsWith(selectedMonth)).reduce((s,e)=>s+Number(e.amount||0),0),[expenses,selectedMonth]);
+  const selMonthInc = useMemo(()=>(incomes||[]).filter(i=>i.date?.startsWith(selectedMonth)).reduce((s,i)=>s+Number(i.amount||0),0),[incomes,selectedMonth]);
   const selMonthExpenses = useMemo(()=>[...expenses].filter(e=>e.date?.startsWith(selectedMonth)).sort((a,b)=>a.date<b.date?1:-1),[expenses,selectedMonth]);
   const totalBudget = useMemo(()=>Object.values(budgets||{}).reduce((s,v)=>s+Number(v||0),0),[budgets]);
   const spendByCat = useMemo(()=>{ const m={}; selMonthExpenses.forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value); },[selMonthExpenses]);
-  const cashflowMonths = useMemo(()=>{ const months={}; expenses.forEach(e=>{ const m=e.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].exp+=Number(e.amount||0); }); incomes.forEach(i=>{ const m=i.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].inc+=Number(i.amount||0); }); return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6); },[expenses,incomes]);
+  const cashflowMonths = useMemo(()=>{ const months={}; (expenses||[]).forEach(e=>{ const m=e.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].exp+=Number(e.amount||0); }); (incomes||[]).forEach(i=>{ const m=i.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].inc+=Number(i.amount||0); }); return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6); },[expenses,incomes]);
   // Use Web Worker for >10 debts; sync fallback for small lists
   const [payoffInfo, setPayoffInfo] = useState(() => calcDebtPayoff(debts, 0, payoffMethod));
   const workerRef = useRef(null);
   useEffect(() => {
-    if (debts.length > 10) {
+    if ((debts||[]).length > 10) {
       if (!workerRef.current) workerRef.current = createDebtWorker();
       if (workerRef.current) {
         const w = workerRef.current;
@@ -4041,7 +4041,7 @@ function MoneyPage({ data, actions }) {
   }, [debts, debouncedExtraPayment, payoffMethod]);
   useEffect(() => () => { workerRef.current?.terminate(); workerRef.current = null; }, []);
   const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, selectedMonth),[expenses,budgets,selectedMonth]);
-  const monthlySubTotal = useMemo(()=>subscriptions.reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
+  const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
   const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator','forecast','ingest'];
@@ -4109,13 +4109,13 @@ function MoneyPage({ data, actions }) {
               </ResponsiveContainer>
             ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow trends.</div>}
           </GlassCard>
-          {debts.length>0 && (
+          {(debts||[]).length>0 && (
             <GlassCard style={{ padding:'20px 22px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
                 <SectionLabel>Debts Overview</SectionLabel>
                 <button onClick={()=>setTab('debts')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>Manage <IcoChevR size={9} stroke={T.accent} /></button>
               </div>
-              {debts.map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
+              {(debts||[]).map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
                 <div key={d.id||i} style={{ marginBottom:14 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><span style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{d.name||d.creditor}</span><span style={{ fontSize:11, fontFamily:T.fM, color:T.rose }}>{cur}{fmtN(curBal)} remaining</span></div>
                   <ProgressBar pct={paidPct} color={T.emerald} height={5} />
@@ -4258,9 +4258,9 @@ function MoneyPage({ data, actions }) {
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
             <Btn onClick={()=>setModal('debt')} color={T.rose}>+ Add Debt</Btn>
-            {debts.length>0 && <Btn onClick={()=>setModal('pay-debt')} color={T.emerald}>💸 Log Payment</Btn>}
+            {(debts||[]).length>0 && <Btn onClick={()=>setModal('pay-debt')} color={T.emerald}>💸 Log Payment</Btn>}
           </div>
-          {debts.length === 0 ? (
+          {(debts||[]).length === 0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}>
               <div style={{ fontSize:28, marginBottom:12 }}>⚠️</div>
               <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>No debts tracked</div>
@@ -4287,7 +4287,7 @@ function MoneyPage({ data, actions }) {
               <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
                 <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, whiteSpace:'nowrap' }}>Extra monthly payment:</span>
                 <input type="number" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value)||0)} placeholder="0" style={{ width:120, padding:'6px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>→ Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN(debts.reduce((s,d)=>s+Number(d.balance||0)*Number(d.rate||0)/100,0)*payoffInfo.months/12)}</span> in interest</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>→ Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0)*Number(d.rate||0)/100,0)*payoffInfo.months/12)}</span> in interest</div>
               </div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'8px 12px', background:T.surface, borderRadius:T.r }}>
                 <strong style={{ color:T.accent }}>Avalanche</strong> pays highest interest rate first — minimizes total interest paid.<br/>
@@ -4298,7 +4298,7 @@ function MoneyPage({ data, actions }) {
             {/* ── Debt → FI Impact ────────────────────────────────────────── */}
             {(() => {
               if (!payoffInfo.months || payoffInfo.months > 599) return null;
-              const totalMinPayments = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
+              const totalMinPayments = (debts||[]).reduce((s,d)=>s+Number(d.minPayment||0),0);
               const extraMonthly     = Number(extraPayment)||0;
               const totalMonthly     = totalMinPayments + extraMonthly;
               const payoffYears      = (payoffInfo.months / 12).toFixed(1);
@@ -4311,16 +4311,16 @@ function MoneyPage({ data, actions }) {
                 const trail = [1,2,3].map(i => {
                   const d = new Date(); d.setMonth(d.getMonth()-i);
                   const m = d.toISOString().slice(0,7);
-                  const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-                  const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+                  const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+                  const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
                   return Math.max(0, inc-exp);
                 });
                 return trail.reduce((s,x)=>s+x,0)/3;
               })()) * 12;
 
-              const portfolioNow = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)
-                + assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
-              const annualExp = expenses.filter(e=>e.date?.startsWith(today().slice(0,7)))
+              const portfolioNow = (investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)
+                + (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+              const annualExp = (expenses||[]).filter(e=>e.date?.startsWith(today().slice(0,7)))
                 .reduce((s,e)=>s+Number(e.amount||0),0) * 12 || 24000;
               const fiTarget = annualExp * 25;
 
@@ -4373,8 +4373,8 @@ function MoneyPage({ data, actions }) {
             })()}
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Debt Accounts</SectionLabel>
-              {debts.map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
-                <div key={d.id||i} style={{ padding:'14px 0', borderBottom:i<debts.length-1?`1px solid ${T.border}`:'none' }}>
+              {(debts||[]).map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
+                <div key={d.id||i} style={{ padding:'14px 0', borderBottom:i<(debts||[]).length-1?`1px solid ${T.border}`:'none' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                     <div>
                       <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{d.name}</div>
@@ -4402,11 +4402,11 @@ function MoneyPage({ data, actions }) {
           <div style={{ display:'flex', gap:10 }}>
             <Btn onClick={()=>setModal('investment')} color={T.violet}>+ Add Position</Btn>
           </div>
-          {investments.length===0 ? (
+          {(investments||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
-              {[{ label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN(investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:T.text }, { label:'Total P&L', val:`${invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:invVal>=investments.reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)?T.emerald:T.rose }].map((m,i)=>(
+              {[{ label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN((investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:T.text }, { label:'Total P&L', val:`${invVal-(investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-(investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:invVal>=(investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)?T.emerald:T.rose }].map((m,i)=>(
                 <GlassCard key={i} style={{ padding:'16px 18px' }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
                   <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
@@ -4415,8 +4415,8 @@ function MoneyPage({ data, actions }) {
             </div>
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Positions</SectionLabel>
-              {investments.map((inv,i)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0; return (
-                <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<investments.length-1?`1px solid ${T.border}`:'none' }}>
+              {(investments||[]).map((inv,i)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0; return (
+                <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<(investments||[]).length-1?`1px solid ${T.border}`:'none' }}>
                   <div>
                     <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</div>
                     <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)} · <Badge color={T.textSub}>{inv.type||'Stock'}</Badge></div>
@@ -4455,8 +4455,8 @@ function MoneyPage({ data, actions }) {
 
 
       {tab==='goals' && (() => {
-        const allCats = ['all', ...new Set(goals.map(g=>g.cat||'other').filter(Boolean))];
-        const filteredGoals = goalCatFilter==='all' ? goals : goals.filter(g=>(g.cat||'other')===goalCatFilter);
+        const allCats = ['all', ...new Set((goals||[]).map(g=>g.cat||'other').filter(Boolean))];
+        const filteredGoals = goalCatFilter==='all' ? goals : (goals||[]).filter(g=>(g.cat||'other')===goalCatFilter);
         const catColors = { finance:T.accent, health:T.sky, growth:T.violet, career:T.amber, other:T.textSub };
         return (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -4545,13 +4545,13 @@ function MoneyPage({ data, actions }) {
       {tab==='assets' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div style={{ display:'flex', gap:10 }}><Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn></div>
-          {assets.length===0 ? (
+          {(assets||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets yet. Add your cash, property, and other assets.</div></GlassCard>
           ) : (
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Assets · Total {cur}{fmtN(assetVal)}</SectionLabel>
-              {assets.map((a,i)=>(
-                <div key={a.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<assets.length-1?`1px solid ${T.border}`:'none' }}>
+              {(assets||[]).map((a,i)=>(
+                <div key={a.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<(assets||[]).length-1?`1px solid ${T.border}`:'none' }}>
                   <div><div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{a.name}</div><Badge color={T.textSub}>{a.type||'Other'}</Badge></div>
                   <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(a.value)}</div>
                 </div>
@@ -4563,7 +4563,7 @@ function MoneyPage({ data, actions }) {
 
       {tab==='recurring' && (() => {
         const billTotal = billsArr.reduce((s,b)=>s+Number(b.amount||0),0);
-        const recurringIncomes = incomes.filter(i => i.recurring);
+        const recurringIncomes = (incomes||[]).filter(i => i.recurring);
         const recurringIncomeMo = recurringIncomes.reduce((s,i) => {
           const amt = Number(i.amount||0);
           if (i.frequency==='yearly') return s + amt/12;
@@ -4644,7 +4644,7 @@ function MoneyPage({ data, actions }) {
                 <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, fontWeight:600, letterSpacing:'0.08em' }}>🔄 SUBSCRIPTIONS</div>
                 <Btn onClick={()=>setModal('subscription')} color={T.sky} style={{ padding:'4px 12px', fontSize:11 }}>+ Add</Btn>
               </div>
-              {subscriptions.length===0 ? (
+              {(subscriptions||[]).length===0 ? (
                 <GlassCard style={{ padding:24, textAlign:'center' }}>
                   <div style={{ fontSize:22, marginBottom:8 }}>🔄</div>
                   <div style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>No subscriptions tracked yet</div>
@@ -4653,7 +4653,7 @@ function MoneyPage({ data, actions }) {
                 <GlassCard style={{ padding:'14px 18px' }}>
                   {/* Annual cost shock banner */}
                   {(() => {
-                    const annualTotal = subscriptions.reduce((s, sub) => {
+                    const annualTotal = (subscriptions||[]).reduce((s, sub) => {
                       const n = Number(sub.amount||0);
                       return s + (sub.cycle==='yearly' ? n : sub.cycle==='weekly' ? n*52 : n*12);
                     }, 0);
@@ -4668,14 +4668,14 @@ function MoneyPage({ data, actions }) {
                           </div>
                         </div>
                         <div style={{ textAlign:'right' }}>
-                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{subscriptions.length} active</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{(subscriptions||[]).length} active</div>
                           <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose }}>{monthlyInc > 0 ? `${((monthlyTotal/monthlyInc)*100).toFixed(1)}% of income` : 'Log income to compare'}</div>
                         </div>
                       </div>
                     );
                   })()}
-                  {subscriptions.map((sub,i)=>{ const monthly=sub.cycle==='yearly'?Number(sub.amount)/12:sub.cycle==='weekly'?Number(sub.amount)*4.33:Number(sub.amount); return (
-                    <div key={sub.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<subscriptions.length-1?`1px solid ${T.border}`:'none' }}>
+                  {(subscriptions||[]).map((sub,i)=>{ const monthly=sub.cycle==='yearly'?Number(sub.amount)/12:sub.cycle==='weekly'?Number(sub.amount)*4.33:Number(sub.amount); return (
+                    <div key={sub.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<(subscriptions||[]).length-1?`1px solid ${T.border}`:'none' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                         <span style={{ fontSize:20 }}>{sub.emoji||'📺'}</span>
                         <div>
@@ -4809,7 +4809,7 @@ function HealthPage({ data, actions }) {
   const STAR_COLORS = { 5:T.emerald, 4:T.accent, 3:T.amber, 2:T.rose, 1:T.rose };
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={vitals.map(v=>v.date)} weightUnit={wu} />
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={(vitals||[]).map(v=>v.date)} weightUnit={wu} />
       <EditVitalsModal open={!!editingVitals} onClose={()=>setEditingVitals(null)} vitals={editingVitals} onSave={(id,patch)=>{actions.updateVitals(id,patch);setEditingVitals(null);}} weightUnit={wu} />
       <div style={{ marginBottom:22 }}><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Health & Vitals</h1></div>
       <div style={{ display:'flex', gap:10, marginBottom:18 }}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
@@ -4962,12 +4962,12 @@ function HealthPage({ data, actions }) {
               <div style={{ fontSize:38 }}>🎉</div>
               <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent, textAlign:'center' }}>Session Complete!</div>
               <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, textAlign:'center' }}>{fmtTime(focusTime)} focused</div>
-              {habits.length > 0 && (
+              {(habits||[]).length > 0 && (
                 <div style={{ width:'100%' }}>
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Log a habit for this session?</div>
                   <Select value={focusHabitId} onChange={e=>setFocusHabitId(e.target.value)} style={{ marginBottom:8 }}>
                     <option value="">Skip</option>
-                    {habits.map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
+                    {(habits||[]).map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
                   </Select>
                 </div>
               )}
@@ -4989,12 +4989,12 @@ function HealthPage({ data, actions }) {
                 <button key={s} onClick={()=>{setFocusTime(s);setElapsed(0);setFocusActive(false);}} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:focusTime===s?T.accentDim:T.surface, color:focusTime===s?T.accent:T.textSub, border:`1px solid ${focusTime===s?T.accent+'44':T.border}` }}>{s/60}m</button>
               ))}
             </div>
-            {habits.length > 0 && (
+            {(habits||[]).length > 0 && (
               <div style={{ width:'100%', marginBottom:10 }}>
                 <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:5 }}>Link habit (logged on complete)</div>
                 <Select value={focusHabitId} onChange={e=>setFocusHabitId(e.target.value)}>
                   <option value="">None</option>
-                  {habits.map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
+                  {(habits||[]).map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
                 </Select>
               </div>
             )}
@@ -5044,9 +5044,9 @@ function GrowthPage({ data, actions }) {
   const heroClass = CLASSES[Math.min(level-1,CLASSES.length-1)];
   const d = today();
   const LIFE_STATS = [
-    { label:'Financial', val:Math.min(100,Math.round(goals.filter(g=>g.cat==='finance').length*25)), color:T.emerald },
+    { label:'Financial', val:Math.min(100,Math.round((goals||[]).filter(g=>g.cat==='finance').length*25)), color:T.emerald },
     { label:'Health',    val:Math.min(100,data.vitals.length*8), color:T.sky },
-    { label:'Habits',    val:Math.min(100,habits.length*12), color:T.accent },
+    { label:'Habits',    val:Math.min(100,(habits||[]).length*12), color:T.accent },
     { label:'Growth',    val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet },
     { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose },
     { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber },
@@ -5065,7 +5065,7 @@ function GrowthPage({ data, actions }) {
         {['character','habits','goals','achievements','chronicles','challenges','social','vision','lifemap'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
             {t==='lifemap'?'🗺️ Map':t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
-            {t==='chronicles'&&chronicles.length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{chronicles.length}</span>}
+            {t==='chronicles'&&(chronicles||[]).length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{(chronicles||[]).length}</span>}
           </button>
         ))}
       </div>
@@ -5121,17 +5121,17 @@ function GrowthPage({ data, actions }) {
           <div style={{ display:'flex', justifyContent:'flex-end' }}>
             <Btn onClick={()=>setModal('habit')} color={T.accent}>+ Log / Add Habit</Btn>
           </div>
-          {habits.length > 0 && (() => {
+          {(habits||[]).length > 0 && (() => {
             const DAY_LABELS = ['M','T','W','T','F','S','S'];
             const weekDays = Array.from({length:7},(_,i)=>{ const d=new Date(); const day=d.getDay(); const diff=i-(day===0?6:day-1); d.setDate(d.getDate()+diff); return d.toISOString().slice(0,10); });
-            const weekDone = habits.map(h=>({
+            const weekDone = (habits||[]).map(h=>({
               habit:h,
               days: weekDays.map(d=>({ date:d, done:(habitLogs[h.id]||[]).includes(d) })),
               streak: getStreak(h.id,habitLogs),
             }));
             const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
             const totalThisWeek = weekDone.reduce((s,h)=>s+h.days.filter(d=>d.done).length,0);
-            const maxThisWeek = habits.length * 7;
+            const maxThisWeek = (habits||[]).length * 7;
             return (
               <GlassCard style={{ padding:'20px 22px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
@@ -5184,16 +5184,16 @@ function GrowthPage({ data, actions }) {
               </GlassCard>
             );
           })()}
-          {habits.length > 0 && (
+          {(habits||[]).length > 0 && (
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Activity Heatmap — Last 18 Weeks</SectionLabel>
               <HabitHeatmap habitLogs={stableHabitLogs} habits={habits} />
             </GlassCard>
           )}
-          {habits.length===0 ? (
+          {(habits||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits yet. Create your first habit to start building streaks.</div></GlassCard>
           ) : (
-            habits.map((habit,i)=>{ const streak=getStreak(habit.id,habitLogs); const done=(habitLogs[habit.id]||[]).includes(d); const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald]; const hc=HCOLORS[i%HCOLORS.length]; return (
+            (habits||[]).map((habit,i)=>{ const streak=getStreak(habit.id,habitLogs); const done=(habitLogs[habit.id]||[]).includes(d); const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald]; const hc=HCOLORS[i%HCOLORS.length]; return (
               <GlassCard key={habit.id||i} style={{ padding:'16px 20px', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                   <div style={{ width:40, height:40, borderRadius:T.r, flexShrink:0, background:hc+'18', border:`1px solid ${hc}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{habit.emoji||'🔥'}</div>
@@ -5232,11 +5232,11 @@ function GrowthPage({ data, actions }) {
       {tab==='goals' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <div style={{ display:'flex', justifyContent:'flex-end' }}><Btn onClick={()=>setModal('goal')} color={T.amber}>+ New Goal</Btn></div>
-          {goals.length===0 ? (
+          {(goals||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first goal to start tracking progress.</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
-              {goals.map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.violet; const ms=goal.milestones||[]; return (
+              {(goals||[]).map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.violet; const ms=goal.milestones||[]; return (
                 <GlassCard key={goal.id||i} style={{ padding:'18px 20px' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                     <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
@@ -5270,7 +5270,7 @@ function GrowthPage({ data, actions }) {
             <div><SectionLabel>Life Wins Journal</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Chronicle your milestones, wins, and proud moments.</div></div>
             <Btn onClick={()=>setChronicleModal(true)} color={T.amber}>+ Chronicle Win</Btn>
           </div>
-          {chronicles.length===0 ? (
+          {(chronicles||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}>
               <div style={{ fontSize:32, marginBottom:12 }}>✨</div>
               <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:6 }}>No chronicles yet</div>
@@ -5384,7 +5384,7 @@ function GrowthPage({ data, actions }) {
           <div><SectionLabel>30-Day Challenges</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Pick a challenge, track daily progress, earn bonus XP.</div></div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
             {CHALLENGES_CATALOG.map(ch => {
-              const active = challenges.find(c=>c.challengeId===ch.id);
+              const active = (challenges||[]).find(c=>c.challengeId===ch.id);
               const doneDays = active?.done?.length||0;
               const pct = Math.round((doneDays/ch.days)*100);
               const todayStr = today();
@@ -5500,8 +5500,8 @@ function KnowledgePage({ data, actions }) {
   const cur = settings.currency||'$';
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
   const buildContext = () => {
-    const m=today().slice(0,7); const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0); const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0); const invVal=investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0); const nw=assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0); const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0; const habitSum=habits.map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none'; const goalSum=goals.map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ')||'none'; const v7=vitals.slice(-7); const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
-    return `USER'S REAL LIFE DATA:\nNet Worth: ${cur}${fmtN(nw)}\nThis Month: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${sr}%\nInvestments: ${cur}${fmtN(invVal)}\nLevel: ${Math.floor(Math.sqrt(Number(totalXP)/100))+1}, ${totalXP} XP\nHabits: ${habitSum}\nGoals: ${goalSum}\nAvg Sleep (7d): ${avgSlp}h\nDebts: ${debts.length} totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`;
+    const m=today().slice(0,7); const mInc=(incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0); const mExp=(expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0); const invVal=(investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0); const nw=(assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal-(debts||[]).reduce((s,d)=>s+Number(d.balance||0),0); const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0; const habitSum=(habits||[]).map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none'; const goalSum=(goals||[]).map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ')||'none'; const v7=(vitals||[]).slice(-7); const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
+    return `USER'S REAL LIFE DATA:\nNet Worth: ${cur}${fmtN(nw)}\nThis Month: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${sr}%\nInvestments: ${cur}${fmtN(invVal)}\nLevel: ${Math.floor(Math.sqrt(Number(totalXP)/100))+1}, ${totalXP} XP\nHabits: ${habitSum}\nGoals: ${goalSum}\nAvg Sleep (7d): ${avgSlp}h\nDebts: ${(debts||[]).length} totaling ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}`;
   };
   const apiKey = settings.aiApiKey || '';
   const send = async () => {
@@ -5536,15 +5536,15 @@ function KnowledgePage({ data, actions }) {
   },[notes, noteSearch, noteTypeFilter, notePriorityFilter, showArchived]);
   const STICKY_COLORS = ['#fbbf24','#34d399','#38bdf8','#8b5cf6','#fb7185','#00f5d4'];
   const analyzeNotes = async () => {
-    if (noteAnalysisLoading || !notes.length) return;
+    if (noteAnalysisLoading || !(notes||[]).length) return;
     setNoteAnalysisLoading(true);
-    const noteSummary = notes.slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
+    const noteSummary = (notes||[]).slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
     try {
       const text = await callAI(data.settings, {
         max_tokens: 600,
         messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns, 2) Top 3 actionable insights, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }]
       });
-      setNoteAnalysis({ text: text||'No response', ts: today(), count: notes.length });
+      setNoteAnalysis({ text: text||'No response', ts: today(), count: (notes||[]).length });
     } catch { setNoteAnalysis({ text:'Error — check AI settings.', ts:today(), count:0 }); }
     setNoteAnalysisLoading(false);
   };
@@ -5738,14 +5738,14 @@ function LifeMapTab({ data, actions }) {
       const angle=(i/domains.length)*Math.PI*2-Math.PI/2, r=140;
       nodes.push({ id:`domain-${d}`, label:d, type:'domain', color:DOMAIN_COLORS[d]||T.accent, x:W/2+Math.cos(angle)*r, y:H/2+Math.sin(angle)*r, r:32 });
     });
-    goals.slice(0,12).forEach((g,i)=>{
+    (goals||[]).slice(0,12).forEach((g,i)=>{
       const dom=nodes.find(n=>n.id===`domain-${g.cat||'Growth'}`) || nodes[i%domains.length];
       const angle=Math.random()*Math.PI*2, dist=80+Math.random()*40;
       const progress=g.target>0?Math.min(1,(g.current||0)/g.target):0;
       nodes.push({ id:`goal-${g.id}`, label:g.name, type:'goal', color:dom.color, x:dom.x+Math.cos(angle)*dist, y:dom.y+Math.sin(angle)*dist, r:22, goalData:g, progress });
       edges.push({ from:`domain-${g.cat||'Growth'}`, to:`goal-${g.id}` });
     });
-    habits.slice(0,16).forEach((h,i)=>{
+    (habits||[]).slice(0,16).forEach((h,i)=>{
       const dom=nodes.find(n=>n.id===`domain-${h.category||'Growth'}`) || nodes[i%domains.length];
       const angle=Math.random()*Math.PI*2, dist=60+Math.random()*30;
       nodes.push({ id:`habit-${h.id}`, label:h.name, type:'habit', color:T.textSub, x:dom.x+Math.cos(angle)*dist, y:dom.y+Math.sin(angle)*dist, r:14, emoji:h.emoji||'🔥' });
@@ -5842,7 +5842,7 @@ function LifeMapTab({ data, actions }) {
         </div>
       </div>
 
-      {goals.length===0&&habits.length===0 ? (
+      {(goals||[]).length===0&&(habits||[]).length===0 ? (
         <GlassCard style={{ padding:40, textAlign:'center' }}>
           <div style={{ fontSize:36, marginBottom:12 }}>🗺️</div>
           <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No map yet</div>
@@ -5946,13 +5946,13 @@ function LifeForecastTab({ data }) {
 
   const trailingAvgInc = useMemo(() => {
     const total = trailingMonths.reduce((s, m) =>
-      s + incomes.filter(i => i.date?.startsWith(m)).reduce((a, i) => a + Number(i.amount||0), 0), 0);
+      s + (incomes||[]).filter(i => i.date?.startsWith(m)).reduce((a, i) => a + Number(i.amount||0), 0), 0);
     return trailingMonths.length ? total / trailingMonths.length : 0;
   }, [incomes, trailingMonths]);
 
   const trailingAvgExp = useMemo(() => {
     const total = trailingMonths.reduce((s, m) =>
-      s + expenses.filter(e => e.date?.startsWith(m)).reduce((a, e) => a + Number(e.amount||0), 0), 0);
+      s + (expenses||[]).filter(e => e.date?.startsWith(m)).reduce((a, e) => a + Number(e.amount||0), 0), 0);
     return trailingMonths.length ? total / trailingMonths.length : 0;
   }, [expenses, trailingMonths]);
 
@@ -5967,19 +5967,19 @@ function LifeForecastTab({ data }) {
   // ── Fix 3: Only investable portfolio compounds at market rate ──────────────
   // Real estate, vehicles etc don't earn 7%/yr. Only investments + liquid cash.
   const portfolioValue = useMemo(() => {
-    const invVal  = investments.reduce((s, i) =>
+    const invVal  = (investments||[]).reduce((s, i) =>
       s + Number((i.currentPrice ?? i.buyPrice) || 0) * Number(i.quantity || 0), 0);
-    const cashVal = assets.filter(a => a.type === 'Cash')
+    const cashVal = (assets||[]).filter(a => a.type === 'Cash')
       .reduce((s, a) => s + Number(a.value || 0), 0);
     return invVal + cashVal;
   }, [investments, assets]);
 
   const illiquidVal = useMemo(() =>
-    assets.filter(a => a.type !== 'Cash').reduce((s, a) => s + Number(a.value||0), 0),
+    (assets||[]).filter(a => a.type !== 'Cash').reduce((s, a) => s + Number(a.value||0), 0),
   [assets]);
 
   const totalDebt = useMemo(() =>
-    debts.reduce((s, d) => s + Number(d.balance||0), 0),
+    (debts||[]).reduce((s, d) => s + Number(d.balance||0), 0),
   [debts]);
 
   const netWorth = portfolioValue + illiquidVal - totalDebt;
@@ -6035,8 +6035,8 @@ function LifeForecastTab({ data }) {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(); d.setMonth(d.getMonth() - i);
       const m = d.toISOString().slice(0, 7);
-      const inc = incomes.filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount||0), 0);
-      const exp = expenses.filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount||0), 0);
+      const inc = (incomes||[]).filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount||0), 0);
+      const exp = (expenses||[]).filter(x => x.date?.startsWith(m)).reduce((s, x) => s + Number(x.amount||0), 0);
       months.push({ month: m.slice(5), income: inc, expenses: exp, saved: Math.max(0, inc - exp) });
     }
     return months;
@@ -6044,11 +6044,11 @@ function LifeForecastTab({ data }) {
 
   // ── Habit / mood correlation ───────────────────────────────────────────────
   const habitMoodData = useMemo(() =>
-    vitals.filter(v => v.mood && v.date).map(v => ({
+    (vitals||[]).filter(v => v.mood && v.date).map(v => ({
       date: v.date,
       mood: Number(v.mood),
-      completion: habits.length > 0
-        ? Math.round((habits.filter(h => (habitLogs[h.id]||[]).includes(v.date)).length / habits.length) * 100)
+      completion: (habits||[]).length > 0
+        ? Math.round(((habits||[]).filter(h => (habitLogs[h.id]||[]).includes(v.date)).length / (habits||[]).length) * 100)
         : 0,
     })).sort((a, b) => a.date > b.date ? 1 : -1).slice(-30),
   [vitals, habits, habitLogs]);
@@ -6414,7 +6414,7 @@ function LifeForecastTab({ data }) {
         {showCorrMethod && (
           <div style={{ marginBottom:16, padding:'14px 16px', borderRadius:T.r, background:`${corrColor}0a`, border:`1px solid ${corrColor}22`, animation:'slideDown 0.2s ease' }}>
             <MRow label="Data points"    val={`${habitMoodData.filter(p=>p.completion>0).length} days`} sub="Days with both a mood log and ≥1 habit completed, last 30 days" />
-            <MRow label="Habit coverage" val={`${habits.length} habits`} sub="Completion % = habits done on that day ÷ total habits × 100" />
+            <MRow label="Habit coverage" val={`${(habits||[]).length} habits`} sub="Completion % = habits done on that day ÷ total habits × 100" />
             <div style={{ marginTop:10, padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.7 }}>
               <b style={{ color:T.text }}>Pearson r:</b> <span style={{ color:corrColor }}>r = Σ[(x−x̄)(y−ȳ)] ÷ (n × σx × σy)</span><br/>
               x = habit %, y = mood score, σ = std dev. Result between −1 and +1.
@@ -6614,19 +6614,19 @@ function IntelligencePage({ data, actions={} }) {
   const { monthExp, monthInc, invVal, nw, savRate, thisMonth, topCatEntry, level: lvl } = data.computed;
   const topCat = topCatEntry; // from data.computed
   
-  const avgSleep7 = useMemo(()=>{ const v=vitals.slice(-7); return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?'; },[vitals]);
+  const avgSleep7 = useMemo(()=>{ const v=(vitals||[]).slice(-7); return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?'; },[vitals]);
   const level = lvl; // from data.computed
-  const todayDone = habits.filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
-  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+  const todayDone = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
 
   // Spending trends — last 6 months by category
   const spendTrends = useMemo(() => {
     const months = Array.from({length:6},(_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-5+i); return d.toISOString().slice(0,7); });
-    const cats = [...new Set(expenses.map(e=>e.category))].slice(0,6);
+    const cats = [...new Set((expenses||[]).map(e=>e.category))].slice(0,6);
     return { months, cats, data: months.map(m => {
       const row = { month: m.slice(5) };
-      cats.forEach(c => { row[c] = expenses.filter(e=>e.date?.startsWith(m)&&e.category===c).reduce((s,e)=>s+Number(e.amount||0),0); });
-      row._total = expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+      cats.forEach(c => { row[c] = (expenses||[]).filter(e=>e.date?.startsWith(m)&&e.category===c).reduce((s,e)=>s+Number(e.amount||0),0); });
+      row._total = (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
       return row;
     })};
   }, [expenses]);
@@ -6646,7 +6646,7 @@ function IntelligencePage({ data, actions={} }) {
   // Detected recurring transactions (appear 2+ months at similar amount)
   const detectedRecurring = useMemo(() => {
     const byNote = {};
-    expenses.forEach(e => {
+    (expenses||[]).forEach(e => {
       const key = (e.note||e.category||'').toLowerCase().trim().slice(0,30);
       if (!key) return;
       if (!byNote[key]) byNote[key] = [];
@@ -6680,8 +6680,8 @@ function IntelligencePage({ data, actions={} }) {
       return Array.from({length:7},(_,j)=>{ const d=new Date(start); d.setDate(d.getDate()+j); return d.toISOString().slice(0,10); });
     });
     return weeks.map(days => {
-      const total = habits.length * 7;
-      const done = habits.reduce((s,h)=>s+days.filter(d=>(habitLogs[h.id]||[]).includes(d)).length, 0);
+      const total = (habits||[]).length * 7;
+      const done = (habits||[]).reduce((s,h)=>s+days.filter(d=>(habitLogs[h.id]||[]).includes(d)).length, 0);
       return { week: days[0].slice(5), pct: total>0?Math.round((done/total)*100):0, done, total };
     });
   }, [habits, habitLogs]);
@@ -6693,15 +6693,15 @@ function IntelligencePage({ data, actions={} }) {
     Number(avgSleep7)>0&&Number(avgSleep7)<7 && { title:'Sleep Deficit Detected', body:`Average sleep of ${avgSleep7}h is below optimal 7-8h. Poor sleep correlates with reduced productivity and worse financial decisions.`, color:T.sky, icon:'😴', type:'insight' },
     Number(avgSleep7)>=7 && { title:'Sleep Health Strong', body:`${avgSleep7}h average sleep over 7 days — within optimal range. Research shows well-rested individuals make better financial decisions.`, color:T.sky, icon:'🌙', type:'positive' },
     bestStreak>=7 && { title:`Habit Momentum — ${bestStreak} Day Streak`, body:`Your longest active streak is ${bestStreak} days. Habits compound like investments — you're building powerful life capital.`, color:T.accent, icon:'🔥', type:'positive' },
-    habits.length>0&&todayDone===0 && { title:'No Habits Logged Today', body:`You have ${habits.length} habits but haven't logged any today. Consistency drives your XP and life score.`, color:T.amber, icon:'🎯', type:'warning' },
-    debts.length>0 && { title:'Active Debt Tracking', body:`${debts.length} debt(s) totaling ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}. Use the avalanche method (highest rate first) to minimize interest paid.`, color:T.rose, icon:'💳', type:'insight' },
-    goals.length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
-    goals.length>0 && { title:'Goal Progress', body:`${goals.filter(g=>(g.current||0)>=g.target).length} of ${goals.length} goals completed. Average progress: ${Math.round(goals.reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,goals.length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
+    (habits||[]).length>0&&todayDone===0 && { title:'No Habits Logged Today', body:`You have ${(habits||[]).length} habits but haven't logged any today. Consistency drives your XP and life score.`, color:T.amber, icon:'🎯', type:'warning' },
+    (debts||[]).length>0 && { title:'Active Debt Tracking', body:`${(debts||[]).length} debt(s) totaling ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}. Use the avalanche method (highest rate first) to minimize interest paid.`, color:T.rose, icon:'💳', type:'insight' },
+    (goals||[]).length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
+    (goals||[]).length>0 && { title:'Goal Progress', body:`${(goals||[]).filter(g=>(g.current||0)>=g.target).length} of ${(goals||[]).length} goals completed. Average progress: ${Math.round((goals||[]).reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,(goals||[]).length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
   ].filter(Boolean).slice(0,6);
   const LIFE_STATS = [
-    { label:'Financial', val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+(debts.length===0?20:0))), color:T.emerald },
-    { label:'Health',    val:Math.min(100,vitals.length*8), color:T.sky },
-    { label:'Habits',    val:Math.min(100,habits.length*15+bestStreak*2), color:T.accent },
+    { label:'Financial', val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+((debts||[]).length===0?20:0))), color:T.emerald },
+    { label:'Health',    val:Math.min(100,(vitals||[]).length*8), color:T.sky },
+    { label:'Habits',    val:Math.min(100,(habits||[]).length*15+bestStreak*2), color:T.accent },
     { label:'Growth',    val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet },
     { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose },
     { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber },
@@ -6770,8 +6770,8 @@ function IntelligencePage({ data, actions={} }) {
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, marginTop:14 }}>
             {(() => {
-              const cashAssets = assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
-              const avgMonthExp = monthExp > 0 ? monthExp : expenses.reduce((s,e)=>s+Number(e.amount||0),0) / Math.max(1, [...new Set(expenses.map(e=>e.date?.slice(0,7)))].length);
+              const cashAssets = (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0);
+              const avgMonthExp = monthExp > 0 ? monthExp : (expenses||[]).reduce((s,e)=>s+Number(e.amount||0),0) / Math.max(1, [...new Set((expenses||[]).map(e=>e.date?.slice(0,7)))].length);
               const efMonths = avgMonthExp > 0 ? cashAssets/avgMonthExp : 0;
               const efTarget = 6; const efPct = Math.min(100,(efMonths/efTarget)*100);
               const efColor = efMonths>=6?T.emerald:efMonths>=3?T.amber:T.rose;
@@ -6787,9 +6787,9 @@ function IntelligencePage({ data, actions={} }) {
                 </GlassCard>
               );
             })()}
-            {expenses.length >= 4 && (() => {
+            {(expenses||[]).length >= 4 && (() => {
               const freq = {};
-              expenses.forEach(e => { const k = `${e.category}|${Math.round(Number(e.amount)/5)*5}`; if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0 }; freq[k].count++; });
+              (expenses||[]).forEach(e => { const k = `${e.category}|${Math.round(Number(e.amount)/5)*5}`; if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0 }; freq[k].count++; });
               const recurring = Object.values(freq).filter(x=>x.count>=3).sort((a,b)=>b.count-a.count).slice(0,5);
               if (!recurring.length) return null;
               return (
@@ -6810,7 +6810,7 @@ function IntelligencePage({ data, actions={} }) {
 
             {/* ── Friction Log Insights ─────────────────────────────────── */}
             {(() => {
-              const regretExp = expenses.filter(e => e.regret && e.trigger);
+              const regretExp = (expenses||[]).filter(e => e.regret && e.trigger);
               if (regretExp.length < 2) return null;
               const triggerCounts = {};
               regretExp.forEach(e => { triggerCounts[e.trigger] = (triggerCounts[e.trigger]||0)+1; });
@@ -6921,8 +6921,8 @@ function IntelligencePage({ data, actions={} }) {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
             {[
               { label:'Current Net Worth', val:`${cur}${fmtN(nw)}`, color:T.accent },
-              { label:'Assets', val:`${cur}${fmtN(assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal)}`, color:T.emerald },
-              { label:'Debts', val:`${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`, color:T.rose },
+              { label:'Assets', val:`${cur}${fmtN((assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal)}`, color:T.emerald },
+              { label:'Debts', val:`${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}`, color:T.rose },
               { label:'Investments', val:`${cur}${fmtN(invVal)}`, color:T.violet },
             ].map((m,i)=>(
               <GlassCard key={i} style={{ padding:'16px 18px' }}>
@@ -6961,11 +6961,11 @@ function IntelligencePage({ data, actions={} }) {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Asset Breakdown</SectionLabel>
-              {assets.length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets logged yet.</div> : (
+              {(assets||[]).length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets logged yet.</div> : (
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {[...new Set(assets.map(a=>a.type))].map((type,i) => {
-                    const val = assets.filter(a=>a.type===type).reduce((s,a)=>s+Number(a.value||0),0);
-                    const pct = Math.round((val/(assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal||1))*100);
+                  {[...new Set((assets||[]).map(a=>a.type))].map((type,i) => {
+                    const val = (assets||[]).filter(a=>a.type===type).reduce((s,a)=>s+Number(a.value||0),0);
+                    const pct = Math.round((val/((assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal||1))*100);
                     return (
                       <div key={type}>
                         <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
@@ -6981,12 +6981,12 @@ function IntelligencePage({ data, actions={} }) {
             </GlassCard>
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Debt Overview</SectionLabel>
-              {debts.length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Debt free!</div> : (
-                debts.map((d,i) => {
+              {(debts||[]).length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Debt free!</div> : (
+                (debts||[]).map((d,i) => {
                   const bal = Number(d.balance||0);
-                  const maxBal = Math.max(...debts.map(x=>Number(x.balance||0)));
+                  const maxBal = Math.max(...(debts||[]).map(x=>Number(x.balance||0)));
                   return (
-                    <div key={d.id||i} style={{ marginBottom:i<debts.length-1?12:0 }}>
+                    <div key={d.id||i} style={{ marginBottom:i<(debts||[]).length-1?12:0 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
                         <span style={{ color:T.text }}>{d.name}</span>
                         <span style={{ color:T.rose }}>{cur}{fmtN(bal)} · {d.rate||0}%</span>
@@ -7005,8 +7005,8 @@ function IntelligencePage({ data, actions={} }) {
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
             {[
-              { label:'Active Habits', val:habits.length, color:T.accent },
-              { label:'Done Today', val:`${todayDone}/${habits.length}`, color:todayDone===habits.length&&habits.length>0?T.emerald:T.amber },
+              { label:'Active Habits', val:(habits||[]).length, color:T.accent },
+              { label:'Done Today', val:`${todayDone}/${(habits||[]).length}`, color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.amber },
               { label:'Best Streak', val:`🔥 ${bestStreak}d`, color:T.amber },
               { label:'Total Logs', val:Object.values(habitLogs).flat().length, color:T.violet },
             ].map((m,i)=>(
@@ -7032,8 +7032,8 @@ function IntelligencePage({ data, actions={} }) {
           </GlassCard>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Per-Habit Performance</SectionLabel>
-            {habits.length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.</div> : (
-              habits.map((h,i) => {
+            {(habits||[]).length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.</div> : (
+              (habits||[]).map((h,i) => {
                 const streak = getStreak(h.id, habitLogs);
                 const total = (habitLogs[h.id]||[]).length;
                 const last30 = Array.from({length:30},(_,j)=>{ const d=new Date(); d.setDate(d.getDate()-29+j); return d.toISOString().slice(0,10); }).filter(d=>(habitLogs[h.id]||[]).includes(d)).length;
@@ -7041,7 +7041,7 @@ function IntelligencePage({ data, actions={} }) {
                 const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
                 const hc = HCOLORS[i%HCOLORS.length];
                 return (
-                  <div key={h.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:i<habits.length-1?`1px solid ${T.border}`:'none' }}>
+                  <div key={h.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:i<(habits||[]).length-1?`1px solid ${T.border}`:'none' }}>
                     <div style={{ fontSize:18, flexShrink:0 }}>{h.emoji||'🔥'}</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
@@ -7070,9 +7070,9 @@ function IntelligencePage({ data, actions={} }) {
 function ArchivePage({ data }) {
   const {netWorthHistory=[], expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], settings={}} = data;
   const cur = settings.currency||'$'; const thisMonth = today().slice(0,7);
-  const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+  const monthExp = (expenses||[]).filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthInc = (incomes||[]).filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <div style={{ marginBottom:22 }}><SectionLabel>Archive</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1></div>
@@ -7094,17 +7094,17 @@ function ArchivePage({ data }) {
         </GlassCard>
         <GlassCard style={{ padding:'20px 22px' }}>
           <SectionLabel>This Month — {thisMonth}</SectionLabel>
-          {[{ label:'Income logged', val:`${cur}${fmtN(monthInc)}`, color:T.emerald }, { label:'Expenses logged', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Net saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent }, { label:'Vitals logged', val:`${vitals.filter(v=>v.date?.startsWith(thisMonth)).length} days`, color:T.sky }, { label:'Habits tracked', val:`${habits.length} habits`, color:T.violet }, { label:'Best streak', val:`🔥 ${bestStreak} days`, color:T.amber }].map((item,i)=>(
+          {[{ label:'Income logged', val:`${cur}${fmtN(monthInc)}`, color:T.emerald }, { label:'Expenses logged', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Net saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.accent }, { label:'Vitals logged', val:`${(vitals||[]).filter(v=>v.date?.startsWith(thisMonth)).length} days`, color:T.sky }, { label:'Habits tracked', val:`${(habits||[]).length} habits`, color:T.violet }, { label:'Best streak', val:`🔥 ${bestStreak} days`, color:T.amber }].map((item,i)=>(
             <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'9px 0', borderBottom:i<5?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
               <span style={{ color:T.textSub }}>{item.label}</span><span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
             </div>
           ))}
         </GlassCard>
-        {expenses.length>0 && (
+        {(expenses||[]).length>0 && (
           <GlassCard style={{ padding:'20px 22px', gridColumn:'span 2' }}>
             <SectionLabel>All-Time Summary</SectionLabel>
             <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
-              {[{ label:'TOTAL EXPENSES', val:`${cur}${fmtN(expenses.reduce((s,e)=>s+Number(e.amount||0),0))}`, color:T.rose }, { label:'TOTAL INCOME', val:`${cur}${fmtN(incomes.reduce((s,i)=>s+Number(i.amount||0),0))}`, color:T.emerald }, { label:'HABIT LOGS', val:Object.values(habitLogs).flat().length, color:T.accent }, { label:'VITALS DAYS', val:vitals.length, color:T.sky }, { label:'BEST STREAK', val:`🔥 ${bestStreak}d`, color:T.amber }].map((item,i)=>(
+              {[{ label:'TOTAL EXPENSES', val:`${cur}${fmtN((expenses||[]).reduce((s,e)=>s+Number(e.amount||0),0))}`, color:T.rose }, { label:'TOTAL INCOME', val:`${cur}${fmtN((incomes||[]).reduce((s,i)=>s+Number(i.amount||0),0))}`, color:T.emerald }, { label:'HABIT LOGS', val:Object.values(habitLogs).flat().length, color:T.accent }, { label:'VITALS DAYS', val:(vitals||[]).length, color:T.sky }, { label:'BEST STREAK', val:`🔥 ${bestStreak}d`, color:T.amber }].map((item,i)=>(
                 <div key={i}><div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>{item.label}</div><div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:item.color }}>{item.val}</div></div>
               ))}
             </div>
@@ -7761,13 +7761,13 @@ function CalendarPage({ data }) {
   const billByDay  = {};
   const goalDeadlines = {};
 
-  expenses.filter(e=>e.date?.startsWith(monthStr)).forEach(e => {
+  (expenses||[]).filter(e=>e.date?.startsWith(monthStr)).forEach(e => {
     const d = parseInt(e.date.slice(8));
     if (!expByDay[d]) expByDay[d] = 0;
     expByDay[d] += Number(e.amount||0);
   });
 
-  habits.forEach(h => {
+  (habits||[]).forEach(h => {
     (habitLogs[h.id]||[]).filter(date=>date.startsWith(monthStr)).forEach(date => {
       const d = parseInt(date.slice(8));
       if (!habitByDay[d]) habitByDay[d] = 0;
@@ -7783,7 +7783,7 @@ function CalendarPage({ data }) {
     }
   });
 
-  goals.forEach(g => {
+  (goals||[]).forEach(g => {
     if (g.deadline?.startsWith(monthStr)) {
       const d = parseInt(g.deadline.slice(8));
       goalDeadlines[d] = (goalDeadlines[d]||[]).concat(g.name);
@@ -7899,18 +7899,18 @@ function SimulateDecisionModal({ open, onClose, data }) {
 
   // Baseline portfolio value
   const portfolioNow = useMemo(() =>
-    investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)
-    + assets.filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0),
+    (investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0)
+    + (assets||[]).filter(a=>a.type==='Cash').reduce((s,a)=>s+Number(a.value||0),0),
   [investments, assets]);
 
   // Trailing 3-month avg monthly savings
   const baseMonthly = useMemo(() => {
-    if (!incomes.length && !expenses.length) return 0;
+    if (!(incomes||[]).length && !(expenses||[]).length) return 0;
     const trail = [1,2,3].map(i => {
       const d = new Date(); d.setMonth(d.getMonth()-i);
       const m = d.toISOString().slice(0,7);
-      const inc = incomes.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-      const exp = expenses.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
+      const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
       return Math.max(0, inc - exp);
     });
     return Math.round(trail.reduce((s,x)=>s+x,0)/3);
@@ -8090,10 +8090,10 @@ function WhatIfSimulator({ data }) {
   const {expenses=[], incomes=[], debts=[], assets=[], investments=[], settings={}} = data;
   const cur = settings.currency || '$';
   const thisMonth = today().slice(0,7);
-  const baseInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0) || Number(settings.incomeTarget||0) || 5000;
-  const baseExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0) || 3000;
-  const baseDebt = debts.reduce((s,d)=>s+Number(d.balance||0),0);
-  const baseNW = assets.reduce((s,a)=>s+Number(a.value||0),0) + investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0) - baseDebt;
+  const baseInc = (incomes||[]).filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0) || Number(settings.incomeTarget||0) || 5000;
+  const baseExp = (expenses||[]).filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0) || 3000;
+  const baseDebt = (debts||[]).reduce((s,d)=>s+Number(d.balance||0),0);
+  const baseNW = (assets||[]).reduce((s,a)=>s+Number(a.value||0),0) + (investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0) - baseDebt;
 
   const [incDelta,  setIncDelta ] = useState(0);   // % income increase
   const [expCut,    setExpCut   ] = useState(0);   // % expense cut
@@ -8204,8 +8204,8 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
   const [lastFetched,  setLastFetched ] = useState(null);
   const [errors,       setErrors      ] = useState([]);
 
-  const cryptoInvs = investments.filter(i => i.type === 'Crypto' && CRYPTO_IDS[i.symbol?.toUpperCase()]);
-  const stockInvs  = investments.filter(i => STOCK_TYPES.includes(i.type) && i.symbol);
+  const cryptoInvs = (investments||[]).filter(i => i.type === 'Crypto' && CRYPTO_IDS[i.symbol?.toUpperCase()]);
+  const stockInvs  = (investments||[]).filter(i => STOCK_TYPES.includes(i.type) && i.symbol);
   const cryptoIds  = [...new Set(cryptoInvs.map(i => CRYPTO_IDS[i.symbol.toUpperCase()]))];
   const stockSyms  = [...new Set(stockInvs.map(i => i.symbol.toUpperCase()))];
 
@@ -8569,11 +8569,11 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
   const wStr    = d => d.toISOString().slice(0,10);
 
   // This week's data
-  const thisWeekExp  = expenses.filter(e => inWeek(e.date, weekStart, weekEnd));
-  const thisWeekInc  = incomes.filter(i  => inWeek(i.date, weekStart, weekEnd));
-  const thisWeekVit  = vitals.filter(v   => inWeek(v.date, weekStart, weekEnd));
-  const prevWeekExp  = expenses.filter(e => inWeek(e.date, prevWeekStart, prevWeekEnd));
-  const prevWeekInc  = incomes.filter(i  => inWeek(i.date, prevWeekStart, prevWeekEnd));
+  const thisWeekExp  = (expenses||[]).filter(e => inWeek(e.date, weekStart, weekEnd));
+  const thisWeekInc  = (incomes||[]).filter(i  => inWeek(i.date, weekStart, weekEnd));
+  const thisWeekVit  = (vitals||[]).filter(v   => inWeek(v.date, weekStart, weekEnd));
+  const prevWeekExp  = (expenses||[]).filter(e => inWeek(e.date, prevWeekStart, prevWeekEnd));
+  const prevWeekInc  = (incomes||[]).filter(i  => inWeek(i.date, prevWeekStart, prevWeekEnd));
 
   const thisExpTotal = thisWeekExp.reduce((s,e)=>s+Number(e.amount||0),0);
   const thisIncTotal = thisWeekInc.reduce((s,i)=>s+Number(i.amount||0),0);
@@ -8586,15 +8586,15 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
     const d=new Date(weekStart); d.setDate(weekStart.getDate()+i);
     return wStr(d);
   });
-  const habitConsistency = habits.length > 0
-    ? Math.round((weekDays.reduce((s,d)=>s+habits.filter(h=>(habitLogs[h.id]||[]).includes(d)).length,0) / (habits.length*7))*100)
+  const habitConsistency = (habits||[]).length > 0
+    ? Math.round((weekDays.reduce((s,d)=>s+(habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(d)).length,0) / ((habits||[]).length*7))*100)
     : 0;
   const prevWeekDays = Array.from({length:7},(_,i)=>{
     const d=new Date(prevWeekStart); d.setDate(prevWeekStart.getDate()+i);
     return wStr(d);
   });
-  const prevHabitCons = habits.length > 0
-    ? Math.round((prevWeekDays.reduce((s,d)=>s+habits.filter(h=>(habitLogs[h.id]||[]).includes(d)).length,0) / (habits.length*7))*100)
+  const prevHabitCons = (habits||[]).length > 0
+    ? Math.round((prevWeekDays.reduce((s,d)=>s+(habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(d)).length,0) / ((habits||[]).length*7))*100)
     : 0;
 
   // Avg mood & sleep this week
@@ -8607,7 +8607,7 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
     const delta = thisExpTotal - prevExpTotal;
     moved.push({ label:'Weekly spending', value:`${cur}${fmtN(thisExpTotal)}`, delta, deltaLabel:`${delta>0?'+':'-'}${cur}${fmtN(Math.abs(delta))} vs last week`, good: delta <= 0 });
   }
-  if (habits.length > 0 && prevHabitCons > 0) {
+  if ((habits||[]).length > 0 && prevHabitCons > 0) {
     const delta = habitConsistency - prevHabitCons;
     moved.push({ label:'Habit consistency', value:`${habitConsistency}%`, delta, deltaLabel:`${delta>0?'+':'-'}${Math.abs(delta)} pts vs last week`, good: delta >= 0 });
   }
@@ -8619,9 +8619,9 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
   }
 
   // ── Section 2: What you did ────────────────────────────────────────────────
-  const habitsLoggedToday = habits.filter(h=>(habitLogs[h.id]||[]).some(d=>weekDays.includes(d))).length;
+  const habitsLoggedToday = (habits||[]).filter(h=>(habitLogs[h.id]||[]).some(d=>weekDays.includes(d))).length;
   const did = [
-    habits.length > 0 && `${habitsLoggedToday}/${habits.length} habits logged this week`,
+    (habits||[]).length > 0 && `${habitsLoggedToday}/${(habits||[]).length} habits logged this week`,
     thisWeekExp.length > 0 && `${thisWeekExp.length} expenses tracked (${cur}${fmtN(thisExpTotal)})`,
     thisWeekInc.length > 0 && `${cur}${fmtN(thisIncTotal)} income logged`,
     thisWeekVit.length > 0 && `${thisWeekVit.length} vitals entries`,
@@ -8635,13 +8635,13 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
   const thisM         = now.toISOString().slice(0,7);
   const daysInM       = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   const daysPast      = now.getDate();
-  const monthExp      = expenses.filter(e=>e.date?.startsWith(thisM)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const monthExp      = (expenses||[]).filter(e=>e.date?.startsWith(thisM)).reduce((s,e)=>s+Number(e.amount||0),0);
   const projMonthExp  = daysPast > 0 ? Math.round(monthExp / (daysPast/daysInM)) : 0;
 
   const coming = [
     comingBills.length > 0 && `${comingBills.length} bill${comingBills.length>1?'s':''} due next week: ${comingBills.map(b=>b.name).join(', ')}`,
     Object.entries(budgets||{}).some(([cat,lim]) => {
-      const spent = expenses.filter(e=>e.date?.startsWith(thisM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
+      const spent = (expenses||[]).filter(e=>e.date?.startsWith(thisM)&&e.category===cat).reduce((s,e)=>s+Number(e.amount||0),0);
       return daysPast > 0 && (spent/(daysPast/daysInM)) > Number(lim)*1.05;
     }) && `Budget overshoot risk — review spending before month-end`,
   ].filter(Boolean);
@@ -8665,7 +8665,7 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
   if (prevExpTotal > 0 && thisExpTotal > 0) {
     const twoWeekAgoStart = new Date(prevWeekStart); twoWeekAgoStart.setDate(twoWeekAgoStart.getDate()-7);
     const twoWeekAgoEnd   = new Date(prevWeekStart); twoWeekAgoEnd.setDate(twoWeekAgoEnd.getDate()-1);
-    const twoAgoExp = expenses.filter(e=>inWeek(e.date,twoWeekAgoStart,twoWeekAgoEnd)).reduce((s,e)=>s+Number(e.amount||0),0);
+    const twoAgoExp = (expenses||[]).filter(e=>inWeek(e.date,twoWeekAgoStart,twoWeekAgoEnd)).reduce((s,e)=>s+Number(e.amount||0),0);
     if (twoAgoExp > 0) {
       const predicted = twoAgoExp; // last week should have been similar to week before
       const actual    = thisExpTotal;
@@ -8834,12 +8834,12 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
   const m=today().slice(0,7);
   const prevDate=new Date(m+'-01'); prevDate.setMonth(prevDate.getMonth()-1);
   const prevM=prevDate.toISOString().slice(0,7);
-  const mExp=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const mInc=incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const pExp=expenses.filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
-  const pInc=incomes.filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
-  const habitScore=habits.length>0?Math.round((habits.filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length/habits.length)*100):0;
-  const mVitals=vitals.filter(v=>v.date?.startsWith(m));
+  const mExp=(expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const mInc=(incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const pExp=(expenses||[]).filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const pInc=(incomes||[]).filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const habitScore=(habits||[]).length>0?Math.round(((habits||[]).filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length/(habits||[]).length)*100):0;
+  const mVitals=(vitals||[]).filter(v=>v.date?.startsWith(m));
   const avgSleep=mVitals.length>0?(mVitals.reduce((s,v)=>s+Number(v.sleep||0),0)/mVitals.length).toFixed(1):'—';
   const [wins,setWins]=useState('');
   const [reflection,setReflection]=useState('');
@@ -8861,9 +8861,9 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
             {label:'Income',val:`${cur}${fmtN(mInc)}`,sub:pInc>0?`${mInc>=pInc?'↑':'↓'} vs ${cur}${fmtN(pInc)} last mo`:'',color:T.emerald},
             {label:'Spent',val:`${cur}${fmtN(mExp)}`,sub:pExp>0?`${mExp<=pExp?'↓ less':'↑ more'} than last mo`:'',color:T.rose},
             {label:'Saved',val:`${cur}${fmtN(mInc-mExp)}`,sub:`${mInc>0?((( mInc-mExp)/mInc)*100).toFixed(0):0}% rate`,color:(mInc-mExp)>=0?T.accent:T.rose},
-            {label:'Habit Score',val:`${habitScore}%`,sub:`${habits.filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length}/${habits.length} active`,color:T.violet},
+            {label:'Habit Score',val:`${habitScore}%`,sub:`${(habits||[]).filter(h=>(habitLogs[h.id]||[]).some(d=>d.startsWith(m))).length}/${(habits||[]).length} active`,color:T.violet},
             {label:'Avg Sleep',val:`${avgSleep}h`,sub:'this month',color:T.sky},
-            {label:'Goals',val:goals.length,sub:`${goals.filter(g=>Number(g.current||0)>=Number(g.target||1)).length} completed`,color:T.amber},
+            {label:'Goals',val:(goals||[]).length,sub:`${(goals||[]).filter(g=>Number(g.current||0)>=Number(g.target||1)).length} completed`,color:T.amber},
           ].map((s,i)=>(
             <div key={i} style={{padding:'12px 14px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`}}>
               <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>{s.label}</div>
@@ -9200,7 +9200,7 @@ function InvestorProfileTab({ data }) {
   const {investments=[],settings={}}=data;
   const cur=settings.currency||'$';
   const [profile,setProfile]=useLocalStorage('los_investor_profile',{risk:'moderate',horizon:'long',style:'passive',target_return:8,notes:''});
-  const typeBreakdown=investments.reduce((acc,inv)=>{ acc[inv.type]=(acc[inv.type]||0)+Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0); return acc; },{});
+  const typeBreakdown=(investments||[]).reduce((acc,inv)=>{ acc[inv.type]=(acc[inv.type]||0)+Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0); return acc; },{});
   const totalVal=Object.values(typeBreakdown).reduce((s,v)=>s+v,0);
   const RISK=[{id:'conservative',label:'Conservative',desc:'Preserve capital',emoji:'🛡️',color:T.sky},{id:'moderate',label:'Moderate',desc:'Balanced growth',emoji:'⚖️',color:T.amber},{id:'aggressive',label:'Aggressive',desc:'Max growth',emoji:'🚀',color:T.rose}];
   const upd=(k,v)=>setProfile(p=>({...p,[k]:v}));
@@ -9247,7 +9247,7 @@ function InvestorProfileTab({ data }) {
 function AssetDepreciationTab({ data }) {
   const {assets=[],settings={}}=data;
   const cur=settings.currency||'$';
-  const depAssets=assets.filter(a=>['Vehicle','Other'].includes(a.type));
+  const depAssets=(assets||[]).filter(a=>['Vehicle','Other'].includes(a.type));
   if(depAssets.length===0) return <GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add Vehicle or Other assets to see estimated depreciation.</div></GlassCard>;
   return (
     <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -9457,10 +9457,10 @@ function buildAIBriefing(data) {
     const h = brief.habit;
     if (h.severity === 'warn' || h.severity === 'notice' || h.severity === 'good') {
       parts.push(`**Habits:** ${h.signal}. ${h.detail}`);
-    } else if (habits.length > 0) {
-      const done = habits.filter(h=>(habitLogs[h.id]||[]).includes(today_)).length;
-      const best = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
-      parts.push(`**Habits:** ${done}/${habits.length} done today. Best streak: ${best} days.`);
+    } else if ((habits||[]).length > 0) {
+      const done = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today_)).length;
+      const best = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+      parts.push(`**Habits:** ${done}/${(habits||[]).length} done today. Best streak: ${best} days.`);
     }
   }
 
@@ -9594,7 +9594,7 @@ Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Nev
       suggs.push({ label:`How do I protect my ${brief.habit?.habitName||'habit'} streak?`, emoji:'🔥' });
     else
       suggs.push({ label:'What habits should I add or cut?', emoji:'🎯' });
-    if (goals.length > 0)
+    if ((goals||[]).length > 0)
       suggs.push({ label:'Am I on track with my goals?', emoji:'🏆' });
     else
       suggs.push({ label:'What goals should I set this month?', emoji:'🏆' });
@@ -9783,7 +9783,7 @@ function AIInvestmentAdvisor({ data }) {
   const getAdvice = async () => {
     if (loading) return;
     setLoading(true);
-    const portfolio = investments.map(i=>`${i.symbol||i.name} (${i.type}): qty ${i.quantity} @ buy ${cur}${i.buyPrice}, current ${cur}${i.currentPrice||i.buyPrice}`).join('\n');
+    const portfolio = (investments||[]).map(i=>`${i.symbol||i.name} (${i.type}): qty ${i.quantity} @ buy ${cur}${i.buyPrice}, current ${cur}${i.currentPrice||i.buyPrice}`).join('\n');
     try {
       const text = await callAI(settings, {
         max_tokens: 700,
@@ -9806,7 +9806,7 @@ function AIInvestmentAdvisor({ data }) {
           <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:10 }}>Generated {advice.ts} · Click Analyze to refresh</div>
         </div>
       ) : (
-        <div style={{ textAlign:'center', padding:'24px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{investments.length===0?'Add investments first to get AI analysis.':'Click "Analyze Portfolio" to get personalized investment insights.'}</div>
+        <div style={{ textAlign:'center', padding:'24px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{(investments||[]).length===0?'Add investments first to get AI analysis.':'Click "Analyze Portfolio" to get personalized investment insights.'}</div>
       )}
       {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center', marginTop:10 }}>⚠️ Add API key in Settings to enable AI advisor.</div>}
     </GlassCard>
@@ -9817,7 +9817,7 @@ function AIInvestmentAdvisor({ data }) {
 function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMealPlanLoading }) {
   const {settings={}, vitals=[]} = data;
   const [prefs, setPrefs] = useState('');
-  const avgCal = vitals.slice(-7).reduce((s,v)=>s+Number(v.calories||0),0) / Math.max(1, vitals.filter(v=>v.calories).slice(-7).length);
+  const avgCal = (vitals||[]).slice(-7).reduce((s,v)=>s+Number(v.calories||0),0) / Math.max(1, (vitals||[]).filter(v=>v.calories).slice(-7).length);
 
   const generate = async () => {
     if (mealPlanLoading) return;
@@ -9857,7 +9857,7 @@ function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMea
 // ── AI SLEEP COACH ───────────────────────────────────────────────────────────
 function AISleepCoachTab({ data, sleepCoachTips, setSleepCoachTips, sleepCoachLoading, setSleepCoachLoading }) {
   const {settings={}, vitals=[]} = data;
-  const recent14 = vitals.slice(-14);
+  const recent14 = (vitals||[]).slice(-14);
   const avgSleep = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.sleep||0),0)/recent14.length).toFixed(1) : null;
   const avgSleepQuality = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.sleepQuality||0),0)/recent14.length).toFixed(1) : null;
   const avgMood = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.mood||0),0)/recent14.length).toFixed(1) : null;
@@ -9910,25 +9910,25 @@ function AISleepCoachTab({ data, sleepCoachTips, setSleepCoachTips, sleepCoachLo
 // ── AI NOTE ANALYSIS ─────────────────────────────────────────────────────────
 function AINotesAnalysisCard({ notes, settings, noteAnalysis, setNoteAnalysis, noteAnalysisLoading, setNoteAnalysisLoading }) {
   const analyze = async () => {
-    if (noteAnalysisLoading || !notes.length) return;
+    if (noteAnalysisLoading || !(notes||[]).length) return;
     setNoteAnalysisLoading(true);
-    const noteSummary = notes.slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
+    const noteSummary = (notes||[]).slice(0,20).map(n=>`[${n.tag}] ${n.title}: ${(n.body||'').slice(0,120)}`).join('\n');
     try {
       const text = await callAI(settings, {
         max_tokens: 600,
         messages:[{ role:'user', content:`Analyze these personal notes and provide: 1) Key themes and patterns (2-3 sentences), 2) Top 3 actionable insights you notice, 3) What the person seems most focused on, 4) One growth opportunity. Notes:\n${noteSummary}` }]
       });
-      setNoteAnalysis({ text: text||'No response', ts: today(), count: notes.length });
+      setNoteAnalysis({ text: text||'No response', ts: today(), count: (notes||[]).length });
     } catch { setNoteAnalysis({ text:'Error — check AI settings.', ts:today(), count:0 }); }
     setNoteAnalysisLoading(false);
   };
   return (
     <GlassCard style={{ padding:'20px 22px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <div><SectionLabel>AI Note Analysis</SectionLabel><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Discover patterns and insights across your {notes.length} notes.</div></div>
+        <div><SectionLabel>AI Note Analysis</SectionLabel><div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Discover patterns and insights across your {(notes||[]).length} notes.</div></div>
         <Btn onClick={analyze} color={T.amber} style={{ padding:'5px 13px', fontSize:11 }}>{noteAnalysisLoading?'Analyzing…':'Analyze Notes'}</Btn>
       </div>
-      {notes.length === 0 ? (
+      {(notes||[]).length === 0 ? (
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'16px 0' }}>Add notes first to enable AI analysis.</div>
       ) : noteAnalysis ? (
         <div>
@@ -9957,7 +9957,7 @@ function SocialChallengesTab({ data, actions }) {
     return code;
   })();
 
-  const myActive = challenges.filter(c=>c.challengeId);
+  const myActive = (challenges||[]).filter(c=>c.challengeId);
   const addFriend = () => {
     if (!newFriend.trim() || !friendCode.trim()) return;
     setFriends(p=>[...p, { name:newFriend.trim(), code:friendCode.trim().toUpperCase(), challenges:[], joined:today() }]);
@@ -10610,7 +10610,7 @@ export default function LifeOS() {
   }, [pushEvent, settings.currency]);
 
   const removeIncome = useCallback((incId) => {
-    const inc = incomes.find(i => i.id === incId);
+    const inc = (incomes||[]).find(i => i.id === incId);
     if (!inc) return;
     setIncomes(p => p.filter(i => i.id !== incId));
     addToast(`Income deleted: ${settings.currency||'$'}${fmtN(inc.amount)}`, () => setIncomes(p => [inc, ...p]));
@@ -10636,12 +10636,12 @@ export default function LifeOS() {
       return { ...prev, [habitId]: [...logs, d] };
     });
     setTotalXP(x => Number(x) + 10);
-    const habit = habits.find(h => h.id === habitId);
+    const habit = (habits||[]).find(h => h.id === habitId);
     pushEvent({ type:'habit', title:`${habit?.name||'Habit'} completed`, value:'+10 XP', color:T.accent, domain:'growth' });
   }, [habits, pushEvent]);
 
   const removeHabit = useCallback((habitId) => {
-    const h = habits.find(x => x.id === habitId);
+    const h = (habits||[]).find(x => x.id === habitId);
     const savedLogs = habitLogs[habitId];
     setHabits(p => p.filter(x => x.id !== habitId));
     setHabitLogs(p => { const n = {...p}; delete n[habitId]; return n; });
@@ -10705,7 +10705,7 @@ export default function LifeOS() {
   }, [pushEvent, settings.currency]);
 
   const removeGoal = useCallback((goalId) => {
-    const g = goals.find(x => x.id === goalId);
+    const g = (goals||[]).find(x => x.id === goalId);
     setGoals(p => p.filter(x => x.id !== goalId));
     pushEvent({ type:'goal_removed', title:'Goal removed', value:'', color:T.textSub, domain:'growth' });
     if (g) addToast(`Goal "${g.name}" deleted`, () => setGoals(p => [...p, g]));
@@ -10724,7 +10724,7 @@ export default function LifeOS() {
   const updateGoalProgress = useCallback((goalId, amount) => {
     setGoals(p => p.map(g => g.id === goalId ? { ...g, current: Number(g.current||0) + amount, updatedAt: today() } : g));
     setTotalXP(x => Number(x) + 25);
-    const goal = goals.find(g => g.id === goalId);
+    const goal = (goals||[]).find(g => g.id === goalId);
     pushEvent({ type:'goal_progress', title:`Goal progress: ${goal?.name||'Goal'}`, value:`+${settings.currency||'$'}${amount}`, color:T.amber, domain:'growth' });
   }, [goals, pushEvent, settings.currency]);
 
@@ -10738,12 +10738,12 @@ export default function LifeOS() {
   const payDebt = useCallback((debtId, amount) => {
     setDebts(p => p.map(d => d.id === debtId ? { ...d, balance: Math.max(0, Number(d.balance||0) - amount) } : d));
     setTotalXP(x => Number(x) + 15);
-    const debt = debts.find(d => d.id === debtId);
+    const debt = (debts||[]).find(d => d.id === debtId);
     pushEvent({ type:'debt_payment', title:`Payment: ${debt?.name||'Debt'}`, value:`-${settings.currency||'$'}${amount}`, color:T.emerald, domain:'money' });
   }, [debts, pushEvent, settings.currency]);
 
   const removeDebt = useCallback((debtId) => {
-    const d = debts.find(x => x.id === debtId);
+    const d = (debts||[]).find(x => x.id === debtId);
     setDebts(p => p.filter(x => x.id !== debtId));
     pushEvent({ type:'debt_removed', title:'Debt removed', value:'Paid off! 🎉', color:T.emerald, domain:'money' });
     if (d) addToast(`Debt "${d.name}" removed`, () => setDebts(p => [...p, d]));
@@ -10757,7 +10757,7 @@ export default function LifeOS() {
   }, [pushEvent, settings.currency]);
 
   const removeInvestment = useCallback((invId) => {
-    const inv = investments.find(i => i.id === invId);
+    const inv = (investments||[]).find(i => i.id === invId);
     setInvestments(p => p.filter(i => i.id !== invId));
     pushEvent({ type:'investment_removed', title:'Investment position closed', value:'', color:T.textSub, domain:'money' });
     if (inv) addToast(`Position "${inv.symbol||inv.name}" closed`, () => setInvestments(p => [...p, inv]));
@@ -10784,7 +10784,7 @@ export default function LifeOS() {
 
   // ── S1 ACTIONS ──────────────────────────────────────────────────────────────
   const removeExpense = useCallback((expId) => {
-    const exp = expenses.find(e => e.id === expId);
+    const exp = (expenses||[]).find(e => e.id === expId);
     if (!exp) return;
     setExpenses(p => p.filter(e => e.id !== expId));
     addToast(`Expense deleted: -${settings.currency||'$'}${fmtN(exp.amount)}`, () => setExpenses(p => [exp, ...p]));
@@ -10805,7 +10805,7 @@ export default function LifeOS() {
     setNotes(p => p.map(n => n.id===id ? {...n,...patch} : n));
   }, []);
   const removeNote = useCallback((noteId) => {
-    const note = notes.find(n => n.id === noteId);
+    const note = (notes||[]).find(n => n.id === noteId);
     if (!note) return;
     setNotes(p => p.filter(n => n.id !== noteId));
     addToast(`Note deleted: "${note.title}"`, () => setNotes(p => [note, ...p]));
@@ -10818,7 +10818,7 @@ export default function LifeOS() {
   }, [pushEvent, settings.currency]);
 
   const removeBill = useCallback((billId) => {
-    const bill = bills.find(b => b.id === billId);
+    const bill = (bills||[]).find(b => b.id === billId);
     if (!bill) return;
     setBills(p => p.filter(b => b.id !== billId));
     addToast(`Bill removed: "${bill.name}"`, () => setBills(p => [bill, ...p]));
@@ -10951,7 +10951,7 @@ export default function LifeOS() {
   // Hook XP pops onto key actions (called after each XP-earning event)
   const logHabitWithPop = useCallback((habitId) => {
     logHabit(habitId);
-    const h = habits.find(x => x.id === habitId);
+    const h = (habits||[]).find(x => x.id === habitId);
     addXPPop(`+${h?.xp||10} XP — ${h?.name||'Habit'} ✓`, T.accent);
   }, [logHabit, habits, addXPPop]);
 
