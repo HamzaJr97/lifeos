@@ -30,7 +30,7 @@ import {
 (() => {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
   document.head.appendChild(link);
   const style = document.createElement('style');
   style.textContent = `
@@ -153,6 +153,21 @@ const THEMES = {
     text:'#839496', textSub:'#586e75', textMuted:'#334955',
     fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
     r:'10px', rL:'16px', sw:72,
+  },
+  anime: {
+    // Sakura-inspired: soft dusk sky, cherry blossom pinks, warm lilac accents
+    bg:'#1a0e1f', bg1:'#22122b', bg2:'#2d1a38',
+    surface:'rgba(255,200,220,0.06)', surfaceHi:'rgba(255,200,220,0.11)',
+    border:'rgba(255,160,200,0.14)', borderLit:'rgba(255,130,180,0.55)',
+    accent:'#ff8fb0', accentDim:'rgba(255,143,176,0.16)', accentLo:'rgba(255,143,176,0.07)',
+    violet:'#c084fc', violetDim:'rgba(192,132,252,0.16)',
+    amber:'#fcd34d', amberDim:'rgba(252,211,77,0.14)',
+    rose:'#fb7185', roseDim:'rgba(251,113,133,0.14)',
+    emerald:'#6ee7b7', emeraldDim:'rgba(110,231,183,0.14)',
+    sky:'#93c5fd', skyDim:'rgba(147,197,253,0.14)',
+    text:'#f8e8f4', textSub:'#a07090', textMuted:'#5a3060',
+    fD:'"Nunito", "Syne", sans-serif', fM:'"IBM Plex Mono", monospace',
+    r:'14px', rL:'20px', sw:72,
   },
 };
 
@@ -447,7 +462,7 @@ const ACHIEVEMENTS = [
 ];
 const EXPENSE_COLORS = {
   '🍽️ Food':T.emerald,'🍔 Fast Food':T.amber,'🚗 Transport':T.sky,
-  '❤️ Health':T.rose,'🏠 Housing':T.violet,'💳 Debts':T.rose,
+  '❤️ Health':T.rose,'🏠 Housing':T.violet,'💳 Debts':T.rose,'💳 Debt Payment':T.rose,
   '💰 Savings':T.accent,'🎮 Leisure':T.amber,'👕 Shopping':T.violet,
   '🔧 Other':T.textSub,'✈️ Travel':T.sky,'🚬 Tabac':T.textMuted,
 };
@@ -867,7 +882,7 @@ function buildSearchIndex(data) {
 // ── MODALS ─────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel','🚬 Tabac'];
+const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💳 Debt Payment','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel','🚬 Tabac'];
 // Resolve active categories — uses custom list if configured
 const getActiveCats = () => { try { const s=JSON.parse(localStorage.getItem('los_settings')||'{}'); return s.customCats?.length ? s.customCats : CATS; } catch { return CATS; } };
 
@@ -1588,6 +1603,9 @@ function EditExpenseModal({ open, onClose, expense, onSave }) {
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
         <Select value={cat} onChange={e=>setCat(e.target.value)}>{getActiveCats().map(c=><option key={c}>{c}</option>)}</Select>
+        <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
+        <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <Btn full onClick={save} color={T.rose}>💾 Save Changes</Btn>
       </div>
     </Modal>
   );
@@ -4186,15 +4204,23 @@ function MoneyPage({ data, actions }) {
 
           {/* Month summary banners */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
-            {[
+            {(() => {
+              const debtPmtTotal = selMonthExpenses.filter(e=>e.debtId||e.category==='💳 Debt Payment').reduce((s,e)=>s+Number(e.amount||0),0);
+              const nonDebtSpent = selMonthExp - debtPmtTotal;
+              return [
               { label:'Income', val:`${cur}${fmtN(selMonthInc)}`, color:T.emerald, icon:'💰' },
-              { label:'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳' },
+              { label:'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳', sub: debtPmtTotal>0?`incl. ${cur}${fmtN(debtPmtTotal)} debt pmts`:null },
               { label:'Remaining', val:`${cur}${fmtN(selMonthInc-selMonthExp)}`, color:(selMonthInc-selMonthExp)>=0?T.accent:T.rose, icon:(selMonthInc-selMonthExp)>=0?'✅':'⚠️' },
-              ...(totalBudget>0?[{ label:'Budget Left', val:`${cur}${fmtN(totalBudget-selMonthExp)}`, color:(totalBudget-selMonthExp)>=0?T.sky:T.rose, icon:'📊' }]:[]),
-            ].map((s,i)=>(
+              ...(totalBudget>0?[(() => {
+                const budgetedSpent = Object.entries(budgetStatus).reduce((s,[,bs]) => bs.budget > 0 ? s + Math.min(bs.spent, bs.budget) : s, 0);
+                const budgetLeft = totalBudget - budgetedSpent;
+                return { label:'Budget Left', val:`${cur}${fmtN(budgetLeft)}`, color:budgetLeft>=0?T.sky:T.rose, icon:'📊' };
+              })()]:[]),
+            ];})().map((s,i)=>(
               <GlassCard key={i} style={{ padding:'14px 16px' }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.icon} {s.label}</div>
                 <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+                {s.sub && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:3 }}>{s.sub}</div>}
               </GlassCard>
             ))}
           </div>
@@ -7342,13 +7368,14 @@ function SettingsPage({ data, actions }) {
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>Theme</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {[
-                { id:'dark',      label:'🌑 Dark',       preview:'#040408' },
-                { id:'light',     label:'☀️ Light',      preview:'#f4f6fb' },
-                { id:'amoled',    label:'⬛ AMOLED',     preview:'#000000' },
-                { id:'solarized', label:'🌊 Solarized',  preview:'#002b36' },
+                { id:'dark',      label:'🌑 Dark',        preview:'#040408' },
+                { id:'light',     label:'☀️ Light',       preview:'#f4f6fb' },
+                { id:'anime',     label:'🌸 Anime',       preview:'#1a0e1f', accent:'#ff8fb0' },
+                { id:'amoled',    label:'⬛ AMOLED',      preview:'#000000' },
+                { id:'solarized', label:'🌊 Solarized',   preview:'#002b36' },
               ].map(th => (
-                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
-                  <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${T.border}`, flexShrink:0 }} />
+                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?(th.accent||T.accent)+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?(th.accent||T.accent):T.text, transition:'all 0.18s' }}>
+                  <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${th.accent||T.border}`, flexShrink:0 }} />
                   {th.label}
                 </button>
               ))}
@@ -10778,9 +10805,20 @@ export default function LifeOS() {
   }, [pushEvent, settings.currency]);
 
   const payDebt = useCallback((debtId, amount) => {
-    setDebts(p => p.map(d => d.id === debtId ? { ...d, balance: Math.max(0, Number(d.balance||0) - amount) } : d));
-    setTotalXP(x => Number(x) + 15);
     const debt = (debts||[]).find(d => d.id === debtId);
+    setDebts(p => p.map(d => d.id === debtId ? { ...d, balance: Math.max(0, Number(d.balance||0) - amount), originalBalance: d.originalBalance || d.balance } : d));
+    setTotalXP(x => Number(x) + 15);
+    // Auto-log as an expense so debt payments appear in spending history
+    const expenseEntry = {
+      id: 'debt_' + debtId + '_' + Date.now(),
+      amount: Number(amount),
+      category: '💳 Debt Payment',
+      note: `Payment: ${debt?.name || 'Debt'}`,
+      date: today(),
+      autoLogged: true,
+      debtId,
+    };
+    setExpenses(p => [expenseEntry, ...p]);
     pushEvent({ type:'debt_payment', title:`Payment: ${debt?.name||'Debt'}`, value:`-${settings.currency||'$'}${amount}`, color:T.emerald, domain:'money' });
   }, [debts, pushEvent, settings.currency]);
 
