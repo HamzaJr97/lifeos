@@ -841,7 +841,7 @@ function calcBudgetStatus(expenses, budgets, month) {
 // Phase 8 — Search Index Builder
 function buildSearchIndex(data) {
   const items = [];
-  const { notes, goals, habits, habitLogs, expenses, incomes, debts, investments, assets } = data;
+  const {notes=[], goals=[], habits=[], habitLogs={}, expenses=[], incomes=[], debts=[], investments=[], assets=[]} = data;
   notes.forEach(n => items.push({ type:'note', icon:'📝', label:n.title, sub:n.body?.slice(0,60)||'', id:n.id, page:'knowledge', color:T.amber }));
   goals.forEach(g => items.push({ type:'goal', icon:'🎯', label:g.name, sub:`${Math.round(((g.current||0)/Math.max(1,g.target))*100)}% complete`, id:g.id, page:'growth', color:T.violet }));
   habits.forEach(h => items.push({ type:'habit', icon:'🔥', label:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)}d streak`, id:h.id, page:'growth', color:T.accent }));
@@ -2597,7 +2597,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
 
 // ── DAILY BRIEF CARD ──────────────────────────────────────────────────────────
 function DailyBriefCard({ data, onNav, onModal }) {
-  const { expenses, incomes, habits, habitLogs, vitals, goals, bills, budgets, assets, investments, debts, settings } = data;
+  const {expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], bills=[], budgets={}, assets=[], investments=[], debts=[], settings={}} = data;
   const [collapsed, setCollapsed] = useLocalStorage('los_brief_collapsed', false);
 
   const brief = useMemo(() =>
@@ -3116,7 +3116,7 @@ class ErrorBoundary extends React.Component {
 }
 
 function HomePage({ data, actions, onNav }) {
-  const { expenses, incomes, assets, investments, debts, habits, habitLogs, goals, vitals, totalXP, settings, notes, budgets, bills } = data;
+  const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
   const [modal, setModal] = useState(null);
   const [showDecision, setShowDecision] = useState(false);
   const [focusMode, setFocusMode] = useLocalStorage('los_focus_mode', false);
@@ -3755,7 +3755,7 @@ function HomePage({ data, actions, onNav }) {
 
 // ── TIMELINE PAGE ─────────────────────────────────────────────────────────────
 function TimelinePage({ data }) {
-  const { expenses, incomes, habits, habitLogs, vitals, goals, investments, debts, settings } = data;
+  const { expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], investments=[], debts=[], settings={} } = data;
   const [filter, setFilter] = useState('all');
   const cur = settings.currency || '$';
   // Per-category memos — each only recalculates when its source data changes
@@ -3825,7 +3825,7 @@ function TimelinePage({ data }) {
 
 // ── MONEY TOOLS TAB ───────────────────────────────────────────────────────────
 function MoneyToolsTab({ data, cur }) {
-  const { expenses, debts, subscriptions, assets, investments, settings } = data;
+  const {expenses=[], debts=[], subscriptions=[], assets=[], investments=[], settings={}} = data;
   const monthExp = data.computed.monthExp;
   const monthInc = data.computed.monthInc;
 // ── Compound Growth Simulator ──────────────────────────────────────────
@@ -3990,7 +3990,7 @@ function MoneyPage({ data, actions }) {
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [goalCatFilter, setGoalCatFilter] = useState('all');
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
-  const { expenses, incomes, assets, investments, debts, goals, settings, netWorthHistory, subscriptions, budgets, bills } = data;
+  const {expenses=[], incomes=[], assets=[], investments=[], debts=[], goals=[], settings={}, netWorthHistory=[], subscriptions=[], budgets={}, bills=[]} = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
@@ -4768,7 +4768,7 @@ function HealthPage({ data, actions }) {
   const [elapsed, setElapsed] = useState(0);
   const [focusHabitId, setFocusHabitId] = useState('');
   const [focusComplete, setFocusComplete] = useState(false);
-  const { vitals, habits, habitLogs } = data;
+  const {vitals=[], habits=[], habitLogs={}} = data;
   const wu = data.settings?.weightUnit || 'lbs'; // UX fix: weight unit from settings
 
   useEffect(() => {
@@ -5011,7 +5011,7 @@ function GrowthPage({ data, actions }) {
   const [editHabit, setEditHabit] = useState(null);
   const [editGoal, setEditGoal] = useState(null);
   const [chronicleModal, setChronicleModal] = useState(false);
-  const { habits, habitLogs, goals, totalXP, settings, chronicles, challenges } = data;
+  const {habits=[], habitLogs={}, goals=[], totalXP=0, settings={}, chronicles=[], challenges=[]} = data;
   const cur = settings.currency||'$';
   // Stable ref for HabitHeatmap via useRef snapshot — avoids JSON.stringify on every render
   const habitLogsRef = useRef(habitLogs);
@@ -5485,7 +5485,7 @@ function KnowledgePage({ data, actions }) {
   const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
-  const { notes, expenses, incomes, habits, habitLogs, goals, vitals, totalXP, assets, investments, debts, settings, quickNotes } = data;
+  const {notes=[], expenses=[], incomes=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, assets=[], investments=[], debts=[], settings={}, quickNotes=[]} = data;
   const cur = settings.currency||'$';
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
   const buildContext = () => {
@@ -5715,7 +5715,7 @@ function ScenarioCard({ cur, monthInc, savRate }) {
 // ── 🗺️ LIFE MAP — force-directed SVG goal/habit graph ────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function LifeMapTab({ data, actions }) {
-  const { goals, habits, settings } = data;
+  const {goals=[], habits=[], settings={}} = data;
   const cur = settings.currency || '$';
   const DOMAIN_COLORS = { Finance:T.emerald, Health:T.sky, Growth:T.violet, Mind:T.accent, Learning:T.amber, Career:T.rose, Social:'#c084fc', Body:T.sky };
 
@@ -5913,7 +5913,7 @@ function LifeMapTab({ data, actions }) {
 // ── 🔮 LIFE FORECAST ENGINE ───────────────────────────────────────════════════
 // ══════════════════════════════════════════════════════════════════════════════
 function LifeForecastTab({ data }) {
-  const { settings, vitals, habits, habitLogs, expenses, incomes, assets, investments, debts } = data;
+  const {settings={}, vitals=[], habits=[], habitLogs={}, expenses=[], incomes=[], assets=[], investments=[], debts=[]} = data;
   const cur = settings.currency || '$';
 
   // ── Overrides: user can edit any input directly in the tab ──────────────────
@@ -6459,7 +6459,7 @@ function LifeForecastTab({ data }) {
 // ── 📡 PASSIVE DATA INGEST ────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function DataIngestTab({ data, actions }) {
-  const { settings } = data;
+  const {settings={}} = data;
   const cur = settings.currency || '$';
   const [stage, setStage] = useState('idle'); // idle | loading | review | done
   const [fileName, setFileName] = useState('');
@@ -6597,7 +6597,7 @@ function IntelligencePage({ data, actions={} }) {
   const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
   const [coachInput, setCoachInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
-  const { expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, totalXP, settings, netWorthHistory } = data;
+  const {expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], assets=[], investments=[], debts=[], totalXP=0, settings={}, netWorthHistory=[]} = data;
   const cur = settings.currency||'$';
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, nw, savRate, thisMonth, topCatEntry, level: lvl } = data.computed;
@@ -7057,7 +7057,7 @@ function IntelligencePage({ data, actions={} }) {
 
 // ── ARCHIVE PAGE ──────────────────────────────────────────────────────────────
 function ArchivePage({ data }) {
-  const { netWorthHistory, expenses, incomes, habits, habitLogs, vitals, settings } = data;
+  const {netWorthHistory=[], expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], settings={}} = data;
   const cur = settings.currency||'$'; const thisMonth = today().slice(0,7);
   const monthExp = expenses.filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
   const monthInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
@@ -7123,7 +7123,7 @@ function CustomCatInput({ onAdd }) {
 
 // ── SETTINGS PAGE ─────────────────────────────────────────────────────────────
 function SettingsPage({ data, actions }) {
-  const { settings } = data;
+  const {settings={}} = data;
   const [name, setName] = useState(settings.name||'');
   const [currency, setCurrency] = useState(settings.currency||'$');
   const [incomeTarget, setIncomeTarget] = useState(settings.incomeTarget||'');
@@ -7729,7 +7729,7 @@ function CareerPage({ data, actions }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function CalendarPage({ data }) {
   const [gcalTab, setGcalTab] = useState('local');
-  const { expenses, habits, habitLogs, bills, goals, settings } = data;
+  const {expenses=[], habits=[], habitLogs={}, bills=[], goals=[], settings={}} = data;
   const cur = settings.currency || '$';
   const now = new Date();
   const [viewYear,  setViewYear ] = useState(now.getFullYear());
@@ -8076,7 +8076,7 @@ function SimulateDecisionModal({ open, onClose, data }) {
 }
 
 function WhatIfSimulator({ data }) {
-  const { expenses, incomes, debts, assets, investments, settings } = data;
+  const {expenses=[], incomes=[], debts=[], assets=[], investments=[], settings={}} = data;
   const cur = settings.currency || '$';
   const thisMonth = today().slice(0,7);
   const baseInc = incomes.filter(i=>i.date?.startsWith(thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0) || Number(settings.incomeTarget||0) || 5000;
@@ -9401,8 +9401,7 @@ function BadgeUnlockModal({ badge, onClose }) {
 // Converts Steps 1-4 data into a natural-language opening message.
 // Zero API calls — generated in <1ms from existing computations.
 function buildAIBriefing(data) {
-  const { settings, computed, habits, habitLogs, vitals, expenses, incomes,
-          goals, debts, bills, budgets, assets, investments } = data;
+  const {settings={}, computed={}, habits=[], habitLogs={}, vitals=[], expenses=[], incomes=[], goals=[], debts=[], bills=[], budgets={}, assets=[], investments=[]} = data;
   const cur      = settings?.currency || '$';
   const { monthInc=0, monthExp=0, savRate=0, nw=0 } = computed || {};
   const name     = settings?.name || null;
@@ -9519,8 +9518,7 @@ function GlobalAIPanel({ open, onClose, data }) {
   }, [messages, loading]);
 
   const buildSystemPrompt = () => {
-    const { settings, computed, habits, habitLogs, goals, expenses, debts,
-            vitals, investments, subscriptions, incomes, bills, budgets, assets } = data;
+    const {settings={}, computed={}, habits=[], habitLogs={}, goals=[], expenses=[], debts=[], vitals=[], investments=[], subscriptions=[], incomes=[], bills=[], budgets={}, assets=[]} = data;
     const cur = settings?.currency || '$';
     const briefText = buildAIBriefing(data).replace(/\*\*/g,'');
     const today_  = today();
@@ -9573,8 +9571,7 @@ Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Nev
   };
 
   const SUGGESTIONS = useMemo(() => {
-    const { habits, habitLogs, expenses, incomes, bills, budgets, goals,
-            vitals, assets, investments, debts, settings:s } = data;
+    const {habits=[], habitLogs={}, expenses=[], incomes=[], bills=[], budgets={}, goals=[], vitals=[], assets=[], investments=[], debts=[], settings:s={}} = data;
     const brief = computeDailyBrief({ expenses, incomes, habits, habitLogs,
       vitals, goals, bills, budgets, assets, investments, debts, settings:s });
     const suggs = [];
@@ -9703,7 +9700,7 @@ Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Nev
 // ── AI FINANCIAL COACH CHAT ───────────────────────────────────────────────────
 function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInput, setCoachInput, coachLoading, setCoachLoading }) {
   const cur = settings.currency||'$';
-  const { expenses, incomes, debts, goals, investments, computed } = data;
+  const {expenses=[], incomes=[], debts=[], goals=[], investments=[], computed={}} = data;
   const { monthExp, monthInc, savRate, nw } = computed||{};
   const messagesEndRef = React.useRef(null);
   React.useEffect(()=>{ messagesEndRef.current?.scrollIntoView({behavior:'smooth'}); },[coachMessages]);
@@ -9767,7 +9764,7 @@ function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInp
 
 // ── AI INVESTMENT ADVISOR ────────────────────────────────────────────────────
 function AIInvestmentAdvisor({ data }) {
-  const { investments, settings } = data;
+  const {investments=[], settings={}} = data;
   const [advice, setAdvice] = useLocalStorage('los_inv_advice', null);
   const [loading, setLoading] = useState(false);
   const cur = settings.currency||'$';
@@ -9807,7 +9804,7 @@ function AIInvestmentAdvisor({ data }) {
 
 // ── AI MEAL PLANNER ─────────────────────────────────────────────────────────
 function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMealPlanLoading }) {
-  const { settings, vitals } = data;
+  const {settings={}, vitals=[]} = data;
   const [prefs, setPrefs] = useState('');
   const avgCal = vitals.slice(-7).reduce((s,v)=>s+Number(v.calories||0),0) / Math.max(1, vitals.filter(v=>v.calories).slice(-7).length);
 
@@ -9848,7 +9845,7 @@ function AIMealPlannerTab({ data, mealPlan, setMealPlan, mealPlanLoading, setMea
 
 // ── AI SLEEP COACH ───────────────────────────────────────────────────────────
 function AISleepCoachTab({ data, sleepCoachTips, setSleepCoachTips, sleepCoachLoading, setSleepCoachLoading }) {
-  const { settings, vitals } = data;
+  const {settings={}, vitals=[]} = data;
   const recent14 = vitals.slice(-14);
   const avgSleep = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.sleep||0),0)/recent14.length).toFixed(1) : null;
   const avgSleepQuality = recent14.length ? (recent14.reduce((s,v)=>s+Number(v.sleepQuality||0),0)/recent14.length).toFixed(1) : null;
@@ -9937,7 +9934,7 @@ function AINotesAnalysisCard({ notes, settings, noteAnalysis, setNoteAnalysis, n
 
 // ── SOCIAL CHALLENGES ────────────────────────────────────────────────────────
 function SocialChallengesTab({ data, actions }) {
-  const { challenges, settings } = data;
+  const {challenges=[], settings={}} = data;
   const [shareCode, setShareCode] = useLocalStorage('los_share_code', null);
   const [friends, setFriends] = useLocalStorage('los_challenge_friends', []);
   const [newFriend, setNewFriend] = useState('');
@@ -10049,7 +10046,7 @@ function RecurringDetectedCard({ detectedRecurring, cur, actions }) {
 
 // ── CUSTOM METRICS MANAGER ────────────────────────────────────────────────────
 function CustomMetricsTab({ data, actions }) {
-  const { settings } = data;
+  const {settings={}} = data;
   const customMetrics = settings.customMetrics || [];
   const [name, setName] = useState(''); const [unit, setUnit] = useState(''); const [icon, setIcon] = useState('📊'); const [min, setMin] = useState(0); const [max, setMax] = useState(100);
 
@@ -10109,7 +10106,7 @@ function CustomMetricsTab({ data, actions }) {
 
 // ── GMAIL INTEGRATION TAB ─────────────────────────────────────────────────────
 function GmailIntegrationTab({ data }) {
-  const { settings } = data;
+  const {settings={}} = data;
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -10196,7 +10193,7 @@ function GmailIntegrationTab({ data }) {
 
 // ── GOOGLE CALENDAR INTEGRATION ───────────────────────────────────────────────
 function GoogleCalendarTab({ data }) {
-  const { settings } = data;
+  const {settings={}} = data;
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
