@@ -299,7 +299,13 @@ function useGrowth() { return useContext(GrowthContext); }
 // ── LOCAL STORAGE HOOK ────────────────────────────────────────────────────────
 function useLocalStorage(key, defaultVal) {
   const [val, setVal] = useState(() => {
-    try { const s = localStorage.getItem(key); return s !== null ? JSON.parse(s) : defaultVal; }
+    try {
+      const s = localStorage.getItem(key);
+      if (s === null) return defaultVal;
+      const parsed = JSON.parse(s);
+      // Guard: JSON.parse("null") returns null — fall back to defaultVal
+      return parsed !== null && parsed !== undefined ? parsed : defaultVal;
+    }
     catch { return defaultVal; }
   });
   const setter = useCallback((v) => {
@@ -313,7 +319,12 @@ function useLocalStorage(key, defaultVal) {
 }
 function useDebouncedLocalStorage(key, defaultVal, delay = 600) {
   const [val, setValState] = useState(() => {
-    try { const s = localStorage.getItem(key); return s !== null ? JSON.parse(s) : defaultVal; }
+    try {
+      const s = localStorage.getItem(key);
+      if (s === null) return defaultVal;
+      const parsed = JSON.parse(s);
+      return parsed !== null && parsed !== undefined ? parsed : defaultVal;
+    }
     catch { return defaultVal; }
   });
   const timerRef = useRef(null);
@@ -10339,12 +10350,36 @@ export default function LifeOS() {
   const [decisions,     setDecisions     ] = useLocalStorage('los_decisions',    []);
   const [challenges,    setChallenges    ] = useLocalStorage('los_challenges',   []);
 
+  // ── NULL SANITIZER — defense-in-depth against JSON.parse("null") edge case ──
+  // useLocalStorage guards against this, but if any value slipped through as null
+  // (e.g. stored by an older version), these ensures arrays/objects are always safe.
+  const _habits        = habits        || [];
+  const _expenses      = expenses      || [];
+  const _incomes       = incomes       || [];
+  const _investments   = investments   || [];
+  const _assets        = assets        || [];
+  const _debts         = debts         || [];
+  const _goals         = goals         || [];
+  const _vitals        = vitals        || [];
+  const _notes         = notes         || [];
+  const _bills         = bills         || [];
+  const _subscriptions = subscriptions || [];
+  const _chronicles    = chronicles    || [];
+  const _decisions     = decisions     || [];
+  const _challenges    = challenges    || [];
+  const _habitLogs     = habitLogs     || {};
+  const _budgets       = budgets       || {};
+  const _netWorthHistory = netWorthHistory || [];
+  const _quickNotes    = quickNotes    || [];
+  const _focusSessions = focusSessions || [];
+  const _eventLog      = eventLog      || [];
+
   // ── Auto-log recurring expenses once per day ──────────────────────────────
   useEffect(() => {
     const AUTO_KEY = 'los_autoexp_last';
     const todayStr = today();
     if (localStorage.getItem(AUTO_KEY) === todayStr) return;
-    const recurring = expenses.filter(e => e.recurring);
+    const recurring = _expenses.filter(e => e.recurring);
     if (!recurring.length) return;
     const newExps = [];
     recurring.forEach(exp => {
@@ -10361,7 +10396,7 @@ export default function LifeOS() {
       if (nextDate <= now) {
         const nextStr = nextDate.toISOString().slice(0,10);
         // Only add if not already logged for that date+note combo
-        const alreadyLogged = expenses.some(e => e.date===nextStr && e.note===exp.note && e.category===exp.category);
+        const alreadyLogged = _expenses.some(e => e.date===nextStr && e.note===exp.note && e.category===exp.category);
         if (!alreadyLogged) {
           newExps.push({ ...exp, id:Date.now()+Math.random(), date:nextStr, autoLogged:true });
         }
@@ -10426,12 +10461,12 @@ export default function LifeOS() {
   // ── Phase 1: Net Worth Monthly Auto-Snapshot ───────────────────────────────
   useEffect(() => {
     const month = today().slice(0, 7);
-    const already = netWorthHistory.some(h => h.month === month);
+    const already = _netWorthHistory.some(h => h.month === month);
     if (already) return;
-    const invVal = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-    const nw = assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-debts.reduce((s,d)=>s+Number(d.balance||0),0);
-    if (nw !== 0 || assets.length > 0 || investments.length > 0) {
-      setNetWorthHistory(p => [...p, { month, value: nw }].slice(-24)); // Keep 24 months
+    const invVal = _investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+    const nw = _assets.reduce((s,a)=>s+Number(a.value||0),0)+invVal-_debts.reduce((s,d)=>s+Number(d.balance||0),0);
+    if (nw !== 0 || _assets.length > 0 || _investments.length > 0) {
+      setNetWorthHistory(p => [...(p||[]), { month, value: nw }].slice(-24));
     }
   }, []);
 
@@ -10503,7 +10538,7 @@ export default function LifeOS() {
     const AUTO_KEY = 'los_autoinc_last';
     const todayStr = today();
     if (localStorage.getItem(AUTO_KEY) === todayStr) return;
-    const recurringIncomes = incomes.filter(i => i.recurring);
+    const recurringIncomes = _incomes.filter(i => i.recurring);
     if (!recurringIncomes.length) { localStorage.setItem(AUTO_KEY, todayStr); return; }
     const newIncs = [];
     recurringIncomes.forEach(inc => {
@@ -10519,7 +10554,7 @@ export default function LifeOS() {
       else nextDate.setMonth(nextDate.getMonth()+1);
       if (nextDate <= now) {
         const nextStr = nextDate.toISOString().slice(0,10);
-        const alreadyLogged = incomes.some(i =>
+        const alreadyLogged = _incomes.some(i =>
           i.date === nextStr && i.note === inc.note && i.amount === inc.amount
         );
         if (!alreadyLogged) {
@@ -10839,23 +10874,22 @@ export default function LifeOS() {
   // ── CENTRAL COMPUTED VALUES — single source of truth for all pages ──────────
   const _thisMonth = today().slice(0,7);
   const computed = useMemo(() => {
-    const monthInc = incomes.filter(i=>i.date?.startsWith(_thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
-    const monthExp = expenses.filter(e=>e.date?.startsWith(_thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
-    const invVal   = investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
-    const assetVal = assets.reduce((s,a)=>s+Number(a.value||0),0);
-    const debtVal  = debts.reduce((s,d)=>s+Number(d.balance||0),0);
+    // Use sanitized arrays — guaranteed non-null
+    const monthInc = _incomes.filter(i=>i.date?.startsWith(_thisMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+    const monthExp = _expenses.filter(e=>e.date?.startsWith(_thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+    const invVal   = _investments.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+    const assetVal = _assets.reduce((s,a)=>s+Number(a.value||0),0);
+    const debtVal  = _debts.reduce((s,d)=>s+Number(d.balance||0),0);
     const nw       = assetVal + invVal - debtVal;
     const savRate  = monthInc>0?((monthInc-monthExp)/monthInc)*100:0;
-    // Pre-compute per-category spend for current month (used by MoneyPage + IntelPage)
-    const spendByCatMap = expenses
+    const spendByCatMap = _expenses
       .filter(e=>e.date?.startsWith(_thisMonth))
       .reduce((m,e)=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); return m; }, {});
     const topCatEntry = Object.entries(spendByCatMap).sort((a,b)=>b[1]-a[1])[0] || null;
-    // Level / XP helpers (used by Home + Intel)
-    const level     = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+    const level     = Math.floor(Math.sqrt(Number(totalXP)||0)/100)+1;
     return { monthInc, monthExp, invVal, assetVal, debtVal, nw, savRate, thisMonth:_thisMonth,
              spendByCatMap, topCatEntry, level };
-  }, [incomes, expenses, investments, assets, debts, _thisMonth, totalXP]);
+  }, [_incomes, _expenses, _investments, _assets, _debts, _thisMonth, totalXP]);
 
   const actions = {
     addExpense, addIncome, removeIncome, updateIncome, addHabit, logHabit, removeHabit,
@@ -10880,28 +10914,31 @@ export default function LifeOS() {
   const isMobile = useMobile();
   const clockTime = useClock(); // UX fix: live-updating topbar clock
   const data = {
-    expenses, incomes, assets, investments, debts, goals,
-    habits, habitLogs, vitals, notes, totalXP, settings,
-    netWorthHistory, eventLog, focusSessions, quickNotes,
-    subscriptions, budgets, bills, career,
-    chronicles, challenges, decisions,  // ← required by GrowthPage / decision log
-    computed, // ← centralised derived stats
-    isMobile,  // ← passed to all pages for responsive layouts
+    expenses:_expenses, incomes:_incomes, assets:_assets, investments:_investments,
+    debts:_debts, goals:_goals, habits:_habits, habitLogs:_habitLogs,
+    vitals:_vitals, notes:_notes, totalXP, settings,
+    netWorthHistory:_netWorthHistory, eventLog:_eventLog,
+    focusSessions:_focusSessions, quickNotes:_quickNotes,
+    subscriptions:_subscriptions, budgets:_budgets, bills:_bills, career,
+    chronicles:_chronicles, challenges:_challenges, decisions:_decisions,
+    computed,
+    isMobile,
   };
 
   // ── DERIVED STATS for status bar — uses centralised computed ─────────────────
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
-  const bestStreak = habits.reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+  const level = Math.floor(Math.sqrt(Number(totalXP)||0)/100)+1;
+  const bestStreak = _habits.reduce((mx,h)=>{const s=getStreak(h.id,_habitLogs);return s>mx?s:mx;},0);
   const cur = settings.currency||'$';
   const { monthInc, monthExp, invVal, nw, savRate, thisMonth } = computed;
 
   // ── S3: Smart Alerts — computed centrally for TopBar bell ────────────────────
   const smartAlerts = useMemo(() => computeSmartAlerts({
-    bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals,
+    bills:_bills, budgets:_budgets, expenses:_expenses, habits:_habits,
+    habitLogs:_habitLogs, vitals:_vitals, incomes:_incomes, goals:_goals,
     thisMonth, monthInc, savRate,
     netWorth: computed.nw,
-    assets,
-  }), [bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc, savRate, computed.nw, assets]);
+    assets:_assets,
+  }), [_bills, _budgets, _expenses, _habits, _habitLogs, _vitals, _incomes, _goals, thisMonth, monthInc, savRate, computed.nw, _assets]);
 
   // ── S2: XP Pop notifications ────────────────────────────────────────────────
   const [xpPops, setXPPops] = useState([]);
@@ -11102,8 +11139,8 @@ export default function LifeOS() {
               { label:'LV',      val:`${level}`,                     color:T.violet  },
               { label:'SAVINGS', val:`${savRate.toFixed(0)}%`,       color:T.emerald },
               { label:'STREAK',  val:`🔥 ${bestStreak}d`,           color:T.amber   },
-              { label:'HABITS',  val:`${habits.length} tracked`,     color:T.sky     },
-              { label:'DEBTS',   val:`${debts.length} · ${cur}${fmtN(debts.reduce((s,d)=>s+Number(d.balance||0),0))}`, color:debts.length>0?T.rose:T.textMuted },
+              { label:'HABITS',  val:`${_habits.length} tracked`,     color:T.sky     },
+              { label:'DEBTS',   val:`${_debts.length} · ${cur}${fmtN(_debts.reduce((s,d)=>s+Number(d.balance||0),0))}`, color:_debts.length>0?T.rose:T.textMuted },
             ].map((item,i)=>(
               <div key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM }}>
                 <span style={{ color:T.textMuted, letterSpacing:'0.08em' }}>{item.label}</span>
