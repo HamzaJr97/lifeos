@@ -1189,6 +1189,7 @@ function LogExpenseModal({ open, onClose, onSave }) {
 }
 
 function EditIncomeModal({ open, onClose, income, onSave }) {
+  const lang = useLang();
   const [amt, setAmt] = useState(''); const [note, setNote] = useState(''); const [date, setDate] = useState(today());
   const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
   useEffect(() => { if (income && open) { setAmt(String(income.amount||'')); setNote(income.note||''); setDate(income.date||today()); setRecurring(income.recurring||false); setFrequency(income.frequency||'monthly'); } }, [income, open]);
@@ -1232,6 +1233,7 @@ function LogIncomeModal({ open, onClose, onSave }) {
 }
 
 function LogHabitModal({ open, onClose, habits, habitLogs, onLog, onAddHabit }) {
+  const lang = useLang();
   const [newName, setNewName] = useState(''); const [newEmoji, setNewEmoji] = useState('🔥'); const [newFreq, setNewFreq] = useState('daily'); const [newCat, setNewCat] = useState('');
   const [selectedDate, setSelectedDate] = useState(today());
 
@@ -1359,6 +1361,7 @@ function LogVitalsModal({ open, onClose, onSave, existingDates=[], weightUnit='l
 }
 
 function EditVitalsModal({ open, onClose, vitals, onSave, weightUnit='lbs' }) {
+  const lang = useLang();
   const [sleep, setSleep] = useState(''); const [sleepQuality, setSleepQuality] = useState(0);
   const [mood, setMood] = useState(''); const [energy, setEnergy] = useState('');
   const [weight, setWeight] = useState(''); const [steps, setSteps] = useState('');
@@ -1516,6 +1519,7 @@ function LogDebtPaymentModal({ open, onClose, debts, onPay }) {
 const CRYPTO_COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos'};
 
 function AddInvestmentModal({ open, onClose, onSave }) {
+  const lang = useLang();
   const [thesis, setThesis] = useState('');
   const [symbol, setSymbol] = useState(''); const [name, setName] = useState('');
   const [qty, setQty] = useState(''); const [buyPrice, setBuyPrice] = useState('');
@@ -1617,6 +1621,7 @@ function AddInvestmentModal({ open, onClose, onSave }) {
 
 // Phase 2 — Add Subscription Modal
 function EditSubscriptionModal({ open, onClose, sub, onSave }) {
+  const lang = useLang();
   const [name, setName] = useState(''); const [amount, setAmount] = useState('');
   const [cycle, setCycle] = useState('monthly'); const [category, setCategory] = useState('Entertainment');
   const [nextDate, setNextDate] = useState(today()); const [emoji, setEmoji] = useState('📺');
@@ -1645,6 +1650,7 @@ function EditSubscriptionModal({ open, onClose, sub, onSave }) {
 }
 
 function EditBillModal({ open, onClose, bill, onSave }) {
+  const lang = useLang();
   const [name, setName] = useState(''); const [amount, setAmount] = useState('');
   const [dueDay, setDueDay] = useState('1'); const [category, setCategory] = useState('Utilities');
   const [emoji, setEmoji] = useState('🧾'); const [autoPay, setAutoPay] = useState(false);
@@ -1706,6 +1712,7 @@ function AddSubscriptionModal({ open, onClose, onSave }) {
 
 // Phase 2 — Budget Setup Modal
 function BudgetModal({ open, onClose, budgets, onSave }) {
+  const lang = useLang();
   const [local, setLocal] = useState({});
   useEffect(() => { if (open) setLocal({...budgets}); }, [open, budgets]);
   return (
@@ -1745,6 +1752,7 @@ function EditExpenseModal({ open, onClose, expense, onSave }) {
 
 // S1 — Edit Debt Modal
 function EditDebtModal({ open, onClose, debt, onSave }) {
+  const lang = useLang();
   const [name, setName] = useState(''); const [balance, setBalance] = useState('');
   const [rate, setRate] = useState(''); const [minPayment, setMinPayment] = useState('');
   const [type, setType] = useState('Credit Card');
@@ -1846,6 +1854,7 @@ function AddChronicleModal({ open, onClose, onSave }) {
 }
 
 function EditHabitModal({ open, onClose, habit, onSave }) {
+  const lang = useLang();
   const [name, setName] = useState(''); const [emoji, setEmoji] = useState('🔥');
   const [frequency, setFrequency] = useState('daily'); const [xp, setXp] = useState('10'); const [category, setCategory] = useState('Mind');
   useEffect(() => { if (habit && open) { setName(habit.name||''); setEmoji(habit.emoji||'🔥'); setFrequency(habit.frequency||'daily'); setXp(String(habit.xp||10)); setCategory(habit.category||'Mind'); } }, [habit, open]);
@@ -2799,6 +2808,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
 
 // ── DAILY BRIEF CARD ──────────────────────────────────────────────────────────
 function DailyBriefCard({ data, onNav, onModal }) {
+  const lang = useLang();
   const {expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], bills=[], budgets={}, assets=[], investments=[], debts=[], settings={}} = data;
   const [collapsed, setCollapsed] = useLocalStorage('los_brief_collapsed', false);
 
@@ -5711,6 +5721,7 @@ function GrowthPage({ data, actions }) {
 
 // ── EDIT NOTE MODAL ────────────────────────────────────────────────────────────
 function EditNoteModal({ open, onClose, note, onSave }) {
+  const lang = useLang();
   const [title, setTitle] = useState(''); const [body, setBody] = useState('');
   const [tag, setTag] = useState('General'); const [type, setType] = useState('note');
   const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
@@ -5757,6 +5768,7 @@ function EditNoteModal({ open, onClose, note, onSave }) {
 
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function KnowledgePage({ data, actions }) {
+  const lang = useLang();
   const [noteAnalysis, setNoteAnalysis] = useLocalStorage('los_note_analysis', null);
   const [noteAnalysisLoading, setNoteAnalysisLoading] = useState(false);
   const [tab, setTab] = useState('notes');
@@ -7353,6 +7365,7 @@ function CustomCatInput({ onAdd }) {
 
 // ── SETTINGS PAGE ─────────────────────────────────────────────────────────────
 function SettingsPage({ data, actions }) {
+  const lang = useLang();
   const {settings={}} = data;
   const [name, setName] = useState(settings.name||'');
   const [currency, setCurrency] = useState(settings.currency||'$');
@@ -7721,6 +7734,7 @@ const JOB_STAGES = ['Applied','Interview','Offer','Rejected'];
 const STAGE_COLORS = { Applied:T.sky, Interview:T.amber, Offer:T.emerald, Rejected:T.textMuted };
 
 function CareerPage({ data, actions }) {
+  const lang = useLang();
   const { career = {} } = data;
   const jobs = career.jobs || [];
   const skills = career.skills || [];
@@ -9047,6 +9061,7 @@ function WeeklyReviewModal({ open, onClose, data, actions }) {
 }
 
 function MonthlyReviewModal({ open, onClose, data, actions }) {
+  const lang = useLang();
   const {expenses=[],incomes=[],habits=[],habitLogs={},vitals=[],goals=[],settings={}}=data;
   const cur=settings.currency||'$';
   const m=today().slice(0,7);
@@ -9343,6 +9358,7 @@ function TradeJournalTab() {
 
 // ── WATCHLIST & PRICE ALERTS ──────────────────────────────────────────────────
 function WatchlistTab() {
+  const lang = useLang();
   const [watchlist, setWatchlist] = useLocalStorage('los_watchlist', []);
   const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(false);
