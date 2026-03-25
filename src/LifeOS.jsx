@@ -5353,7 +5353,7 @@ function GrowthPage({ data, actions }) {
         ))}
       </div>
 
-      {tab===lang==='fr'?'Caractère':'character' && (
+      {tab==='character' && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
           <GlassCard style={{ padding:'22px', gridColumn:'span 2' }}>
             <div style={{ display:'flex', alignItems:'center', gap:20 }}>
@@ -7381,7 +7381,7 @@ function SettingsPage({ data, actions }) {
   const [weightUnit, setWeightUnit] = useState(settings.weightUnit||'lbs');
 
   const save = () => {
-    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:pin.length===4?pin:'', weightUnit });
+    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:'', weightUnit });
     // Apply theme immediately so inline styles re-read T before next paint
     Object.assign(T, THEMES[theme] || THEMES.dark);
     // Note: currentLang global removed (Bug 5 fix) — language flows via LangContext
@@ -7564,9 +7564,7 @@ function SettingsPage({ data, actions }) {
             <Input type="number" value={incomeTarget} onChange={e=>setIncomeTarget(e.target.value)} placeholder="Monthly income target" />
             <Input type="number" value={savingsTarget} onChange={e=>setSavingsTarget(e.target.value)} placeholder="Savings rate target (%)" />
             <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>🔒 PIN Lock (4 digits, blank = disabled)</div>
-              <input type="password" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="4-digit PIN…" maxLength={4} inputMode="numeric" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:20, color:T.text, letterSpacing:'0.4em', textAlign:'center' }} />
-              {pin.length>0&&pin.length<4&&<div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, marginTop:4 }}>Must be exactly 4 digits</div>}
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, padding:'8px 12px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33` }}>🔒 PIN Lock is disabled in v65 — removed to avoid lock-out issues.</div>
             </div>
             <Btn full onClick={save} color={T.accent}>Save Settings</Btn>
 
@@ -9523,62 +9521,34 @@ function WatchlistTab() {
   const lang = useLang();
   const [watchlist, setWatchlist] = useLocalStorage('los_watchlist', []);
   const [prices, setPrices] = useState({});
-  const [chartData, setChartData] = useState({});
+  const [charts, setCharts] = useState({}); // 7-day OHLC history per sym
   const [loading, setLoading] = useState(false);
-  const [chartLoading, setChartLoading] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [resultPrices, setResultPrices] = useState({});
   const [hi, setHi] = useState(''); const [lo, setLo] = useState('');
   const [assetType, setAssetType] = useState('crypto');
-  const [expandedSym, setExpandedSym] = useState(null);
-  const [chartRange, setChartRange] = useState({});
+  const [expandedSym, setExpandedSym] = useState(null); // which card shows full chart
 
-  const COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos',NEAR:'near'};
-
-  // Fetch prices for search dropdown results
-  const fetchResultPrices = async (results) => {
-    const update = {};
-    try {
-      const cryptoResults = results.filter(r => r.type === 'crypto' && r.id);
-      if (cryptoResults.length > 0) {
-        const ids = cryptoResults.map(r => r.id).join(',');
-        const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
-        const d = await res.json();
-        cryptoResults.forEach(r => { if (d[r.id]) update[r.sym] = { price: d[r.id].usd, change: d[r.id].usd_24h_change?.toFixed(2) || '0' }; });
-      }
-      const stockResults = results.filter(r => r.type === 'stock');
-      if (stockResults.length > 0) {
-        const syms = stockResults.map(r => r.sym).join(',');
-        const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
-        const d = await res.json();
-        (d?.quoteResponse?.result || []).forEach(r => { update[r.symbol] = { price: r.regularMarketPrice, change: r.regularMarketChangePercent?.toFixed(2) || '0' }; });
-      }
-    } catch {}
-    setResultPrices(update);
-  };
+  const COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos',NEAR:'near',SUI:'sui',TON:'the-open-network',SHIB:'shiba-inu',TRX:'tron',APT:'aptos'};
 
   const searchDebounceRef = React.useRef(null);
   const handleSearchChange = (q) => {
     setSearchQ(q);
     clearTimeout(searchDebounceRef.current);
-    if (!q.trim()) { setSearchResults([]); setResultPrices({}); return; }
+    if (!q.trim()) { setSearchResults([]); return; }
     searchDebounceRef.current = setTimeout(async () => {
       setSearching(true);
       try {
-        let results = [];
         if (assetType === 'crypto') {
           const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
           const d = await res.json();
-          results = (d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' }));
+          setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
         } else {
           const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
           const d = await res.json();
-          results = (d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange }));
+          setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
         }
-        setSearchResults(results);
-        if (results.length > 0) fetchResultPrices(results);
       } catch { setSearchResults([]); }
       setSearching(false);
     }, 450);
@@ -9587,9 +9557,7 @@ function WatchlistTab() {
   const addFromResult = (r) => {
     if (!watchlist.some(w=>w.sym===r.sym))
       setWatchlist(p=>[...p,{id:Date.now(),sym:r.sym,name:r.name,type:r.type,coinId:r.id||null,alertHigh:Number(hi)||null,alertLow:Number(lo)||null}]);
-    // Pre-seed price immediately from search result prices
-    if (resultPrices[r.sym]) setPrices(p=>({...p,[r.sym]:resultPrices[r.sym]}));
-    setSearchQ(''); setSearchResults([]); setHi(''); setLo(''); setResultPrices({});
+    setSearchQ(''); setSearchResults([]); setHi(''); setLo('');
   };
   const addManual = () => {
     if (!searchQ.trim()) return;
@@ -9599,32 +9567,19 @@ function WatchlistTab() {
     setSearchQ(''); setHi(''); setLo('');
   };
 
-  // Fetch historical chart data for one item
-  const fetchChartForItem = async (w, days='7') => {
-    const coinId = w.coinId || COIN_IDS[w.sym];
-    const fmt = (ts) => new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    if (w.type==='crypto' || coinId) {
-      if (!coinId) return null;
-      try {
-        const interval = days==='1' ? 'hourly' : 'daily';
-        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=${interval}`);
-        const d = await res.json();
-        if (d.prices) return d.prices.map(([ts,p])=>({t:fmt(ts),p:+p.toFixed(2)}));
-      } catch {}
-    } else {
-      try {
-        const range = days==='7'?'7d':days==='30'?'1mo':'3mo';
-        const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${w.sym}?interval=1d&range=${range}`);
-        const d = await res.json();
-        const result = d?.chart?.result?.[0];
-        if (result) {
-          const ts = result.timestamp||[];
-          const cl = result.indicators?.quote?.[0]?.close||[];
-          return ts.map((t,i)=>({t:fmt(t*1000),p:cl[i]?+cl[i].toFixed(2):null})).filter(pt=>pt.p!==null);
-        }
-      } catch {}
-    }
-    return null;
+  // Fetch 7-day chart history for a single crypto coin
+  const fetchCryptoChart = async (coinId, sym) => {
+    try {
+      const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=7&interval=daily`);
+      const d = await res.json();
+      if (d.prices && d.prices.length > 0) {
+        const pts = d.prices.map(([ts, price]) => ({
+          t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+          p: price,
+        }));
+        setCharts(prev => ({...prev, [sym]: pts}));
+      }
+    } catch {}
   };
 
   const refresh = async () => {
@@ -9635,9 +9590,17 @@ function WatchlistTab() {
       if (cryptoItems.length > 0) {
         const ids = cryptoItems.map(w=>w.coinId||COIN_IDS[w.sym]).filter(Boolean).join(',');
         if (ids) {
-          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_7d_change=true`);
           const d = await res.json();
-          cryptoItems.forEach(w=>{ const id=w.coinId||COIN_IDS[w.sym]; if(id&&d[id]) update[w.sym]={price:d[id].usd,change:d[id].usd_24h_change?.toFixed(2)||'0'}; });
+          cryptoItems.forEach(w=>{
+            const id=w.coinId||COIN_IDS[w.sym];
+            if(id&&d[id]) update[w.sym]={price:d[id].usd,change:d[id].usd_24h_change?.toFixed(2)||'0',change7d:d[id].usd_7d_change?.toFixed(2)||'0'};
+          });
+          // Fetch chart history for each crypto (staggered to avoid rate limits)
+          cryptoItems.forEach((w,i) => {
+            const id = w.coinId||COIN_IDS[w.sym];
+            if (id) setTimeout(()=>fetchCryptoChart(id, w.sym), i*300);
+          });
         }
       }
       const stockItems = watchlist.filter(w=>w.type==='stock'&&!COIN_IDS[w.sym]);
@@ -9646,30 +9609,32 @@ function WatchlistTab() {
         const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
         const d = await res.json();
         (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
+        // Fetch 7-day chart for each stock via Yahoo Finance
+        stockItems.forEach((w,i) => {
+          setTimeout(async () => {
+            try {
+              const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${w.sym}?interval=1d&range=7d`);
+              const d2 = await r2.json();
+              const ts = d2?.chart?.result?.[0]?.timestamp||[];
+              const closes = d2?.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+              if (closes.length > 0) {
+                const pts = ts.map((t,idx)=>({
+                  t: new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+                  p: closes[idx]||null,
+                })).filter(pt=>pt.p!==null);
+                setCharts(prev=>({...prev,[w.sym]:pts}));
+              }
+            } catch {}
+          }, i*300);
+        });
       }
     } catch {}
     setPrices(p=>({...p,...update}));
     setLoading(false);
-
-    // Fetch 7-day sparkline charts
-    setChartLoading(true);
-    const chartUpdate = {};
-    for (const w of watchlist) {
-      const data = await fetchChartForItem(w, '7');
-      if (data) chartUpdate[`${w.sym}_7`] = data;
-      await new Promise(r=>setTimeout(r,220)); // avoid rate limits
-    }
-    setChartData(p=>({...p,...chartUpdate}));
-    setChartLoading(false);
   };
 
-  const loadRangeChart = async (w, days) => {
-    setChartRange(p=>({...p,[w.sym]:days}));
-    const key = `${w.sym}_${days}`;
-    if (chartData[key]) return; // already cached
-    const data = await fetchChartForItem(w, days);
-    if (data) setChartData(p=>({...p,[key]:data}));
-  };
+  // Auto-refresh on mount if watchlist is not empty
+  useEffect(()=>{ if(watchlist.length>0) refresh(); },[watchlist.length]); // eslint-disable-line
 
   const triggered = watchlist.filter(w=>prices[w.sym]&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
 
@@ -9678,9 +9643,9 @@ function WatchlistTab() {
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <div>
           <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Watchlist & Price Alerts</div>
-          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Live crypto via CoinGecko · Stocks & ETFs via Yahoo Finance</div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Live prices · 7-day charts · crypto via CoinGecko · stocks via Yahoo</div>
         </div>
-        <Btn onClick={refresh} color={T.sky} style={{opacity:loading?0.5:1,fontSize:11}}>{loading?'Loading…':'↻ Refresh'}</Btn>
+        <Btn onClick={refresh} color={T.sky} style={{opacity:loading?0.5:1,fontSize:11}}>{loading?'⟳ Loading…':'↻ Refresh'}</Btn>
       </div>
 
       {triggered.length>0&&(
@@ -9693,7 +9658,7 @@ function WatchlistTab() {
         <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:10,fontWeight:600}}>Search & add</div>
         <div style={{display:'flex',gap:6,marginBottom:10}}>
           {['crypto','stock'].map(tp=>(
-            <button key={tp} onClick={()=>{setAssetType(tp);setSearchResults([]);setSearchQ('');setResultPrices({});}}
+            <button key={tp} onClick={()=>{setAssetType(tp);setSearchResults([]);setSearchQ('');}}
               style={{padding:'5px 14px',borderRadius:99,fontSize:10,fontFamily:T.fM,fontWeight:600,cursor:'pointer',
                 border:`1px solid ${assetType===tp?T.accent+'55':T.border}`,
                 background:assetType===tp?T.accentDim:T.surface,color:assetType===tp?T.accent:T.textSub}}>
@@ -9705,42 +9670,24 @@ function WatchlistTab() {
           <Input
             value={searchQ}
             onChange={e=>handleSearchChange(e.target.value)}
-            placeholder={assetType==='crypto'?'Search Bitcoin, ETH, SOL…':'Search Apple, AAPL, Tesla, SPY…'}
+            placeholder={assetType==='crypto'?'Search Bitcoin, ETH, SOL, SUI…':'Search Apple, AAPL, Tesla, SPY…'}
             onKeyDown={e=>e.key==='Enter'&&addManual()}
           />
           {searching&&<span style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',fontSize:9,color:T.textMuted}}>searching…</span>}
           {searchResults.length>0&&(
             <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:400,overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
-              {searchResults.map((r,i)=>{
-                const rp = resultPrices[r.sym];
-                const rch = Number(rp?.change||0);
-                return (
-                  <button key={i} onClick={()=>addFromResult(r)}
-                    style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',padding:'9px 12px',background:'transparent',border:'none',borderBottom:i<searchResults.length-1?`1px solid ${T.border}`:'none',cursor:'pointer',textAlign:'left'}}
-                    onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHi}
-                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <div style={{width:28,height:28,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:T.fM,color:T.accent,fontWeight:700,flexShrink:0}}>
-                        {r.sym.slice(0,2)}
-                      </div>
-                      <div>
-                        <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{r.sym}</div>
-                        <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>{r.name}</div>
-                      </div>
-                    </div>
-                    <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:1}}>
-                      {rp ? (
-                        <>
-                          <span style={{fontSize:12,fontFamily:T.fM,fontWeight:700,color:T.text}}>${fmtN(rp.price)}</span>
-                          <span style={{fontSize:9,fontFamily:T.fM,color:rch>=0?T.emerald:T.rose}}>{rch>=0?'+':''}{rch}% 24h</span>
-                        </>
-                      ) : (
-                        <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,animation:'dotPulse 1.5s infinite'}}>{r.exchange||r.type}</span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+              {searchResults.map((r,i)=>(
+                <button key={i} onClick={()=>addFromResult(r)}
+                  style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',padding:'9px 12px',background:'transparent',border:'none',borderBottom:i<searchResults.length-1?`1px solid ${T.border}`:'none',cursor:'pointer',textAlign:'left'}}
+                  onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHi}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div>
+                    <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{r.sym}</span>
+                    <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginLeft:8}}>{r.name}</span>
+                  </div>
+                  <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,padding:'2px 6px',borderRadius:4,background:T.surface}}>{r.exchange||r.type}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -9753,134 +9700,104 @@ function WatchlistTab() {
 
       {watchlist.length===0?(
         <GlassCard style={{padding:40,textAlign:'center'}}>
-          <div style={{fontSize:24,marginBottom:10}}>📈</div>
-          <div style={{fontSize:12,fontFamily:T.fD,fontWeight:600,color:T.text,marginBottom:6}}>Your watchlist is empty</div>
-          <div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>Search for a crypto or stock above, then hit Refresh to load live prices & charts.</div>
+          <div style={{fontSize:32,marginBottom:12}}>📈</div>
+          <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:6}}>Your watchlist is empty</div>
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Search for a crypto or stock above to track it with live prices and 7-day charts.</div>
         </GlassCard>
-      ):watchlist.map(w=>{
-        const p=prices[w.sym];
-        const alert=p&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
-        const ch=Number(p?.change||0);
-        const isExpanded = expandedSym===w.sym;
-        const activeRange = chartRange[w.sym]||'7';
-        const sparkKey = `${w.sym}_7`;
-        const expandKey = `${w.sym}_${activeRange}`;
-        const sparkPoints = chartData[sparkKey]||[];
-        const expandPoints = chartData[expandKey]||sparkPoints;
-        const chartColor = ch>=0 ? T.emerald : T.rose;
-        const gradId = `grad_${w.sym.replace(/[^a-zA-Z0-9]/g,'')}`;
-
-        return (
-          <GlassCard key={w.id} style={{padding:'14px 18px',borderLeft:alert?`3px solid ${T.amber}`:'',transition:'all 0.2s'}}>
-            {/* Header row */}
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                  <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{w.sym}</span>
-                  <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,padding:'1px 6px',borderRadius:4,background:T.surface,border:`1px solid ${T.border}`}}>{w.type||'crypto'}</span>
-                  {alert&&<span title="Price alert triggered">🔔</span>}
-                </div>
-                {w.name&&w.name!==w.sym&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{w.name}</div>}
-                {(w.alertHigh||w.alertLow)&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginTop:2}}>
-                  {w.alertHigh?`↑ $${fmtN(w.alertHigh)}  `:''}
-                  {w.alertLow?`↓ $${fmtN(w.alertLow)}`:''}
-                </div>}
-              </div>
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                {p?(
-                  <div style={{textAlign:'right'}}>
-                    <div style={{fontSize:16,fontFamily:T.fD,fontWeight:700,color:T.text}}>${fmtN(p.price)}</div>
-                    <div style={{fontSize:10,fontFamily:T.fM,color:chartColor,fontWeight:600}}>{ch>=0?'▲':'▼'} {Math.abs(ch)}% 24h</div>
+      ):(
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
+          {watchlist.map(w=>{
+            const p=prices[w.sym];
+            const alert=p&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
+            const ch=Number(p?.change||0);
+            const ch7=Number(p?.change7d||0);
+            const chartPts=charts[w.sym]||[];
+            const chartColor=ch>=0?T.emerald:T.rose;
+            const isExpanded=expandedSym===w.sym;
+            const minP=chartPts.length>0?Math.min(...chartPts.map(x=>x.p)):0;
+            const maxP=chartPts.length>0?Math.max(...chartPts.map(x=>x.p)):0;
+            return (
+              <GlassCard key={w.id} style={{padding:'18px 20px',borderLeft:`3px solid ${alert?T.amber:chartColor}44`,transition:'all 0.2s'}}>
+                {/* Header row */}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginBottom:3}}>
+                      <span style={{fontSize:16,fontFamily:T.fD,fontWeight:800,color:T.text}}>{w.sym}</span>
+                      <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,padding:'1px 6px',borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,textTransform:'uppercase'}}>{w.type||'crypto'}</span>
+                      {alert&&<span style={{fontSize:10}}>🔔</span>}
+                    </div>
+                    {w.name&&w.name!==w.sym&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{w.name}</div>}
                   </div>
-                ):(
-                  <div style={{textAlign:'right'}}>
-                    <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>—</div>
-                    <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>tap Refresh</div>
-                  </div>
-                )}
-                {sparkPoints.length>1&&(
-                  <button onClick={()=>setExpandedSym(isExpanded?null:w.sym)}
-                    title={isExpanded?'Collapse chart':'Expand chart'}
-                    style={{padding:'4px 8px',borderRadius:6,background:isExpanded?T.accentDim:T.surface,border:`1px solid ${isExpanded?T.accent+'55':T.border}`,fontSize:9,fontFamily:T.fM,color:isExpanded?T.accent:T.textSub,display:'flex',alignItems:'center',gap:4}}>
-                    <span>{isExpanded?'▼':'▶'}</span><span style={{letterSpacing:'0.05em'}}>Chart</span>
-                  </button>
-                )}
-                {chartLoading&&sparkPoints.length===0&&(
-                  <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,animation:'dotPulse 1.5s infinite'}}>chart…</span>
-                )}
-                <button onClick={()=>setWatchlist(p=>p.filter(x=>x.id!==w.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.5}}><IcoTrash size={10} stroke={T.rose} /></button>
-              </div>
-            </div>
-
-            {/* Inline sparkline (collapsed state) */}
-            {!isExpanded && sparkPoints.length>1 && (
-              <div style={{marginTop:10,height:46,cursor:'pointer'}} onClick={()=>setExpandedSym(w.sym)} title="Click to expand chart">
-                <ResponsiveContainer width="100%" height={46}>
-                  <AreaChart data={sparkPoints} margin={{top:2,right:0,left:0,bottom:2}}>
-                    <defs>
-                      <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={chartColor} stopOpacity={0.28}/>
-                        <stop offset="100%" stopColor={chartColor} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="p" stroke={chartColor} strokeWidth={1.5} fill={`url(#${gradId})`} dot={false} isAnimationActive={false}/>
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Expanded chart */}
-            {isExpanded && (
-              <div style={{marginTop:14}}>
-                {/* Range selector */}
-                <div style={{display:'flex',gap:6,marginBottom:12}}>
-                  {[['7','7D'],['30','1M'],['90','3M']].map(([d,label])=>(
-                    <button key={d}
-                      onClick={()=>loadRangeChart(w,d)}
-                      style={{padding:'3px 12px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:700,cursor:'pointer',
-                        border:`1px solid ${activeRange===d?T.accent+'66':T.border}`,
-                        background:activeRange===d?T.accentDim:T.surface,
-                        color:activeRange===d?T.accent:T.textSub,transition:'all 0.15s'}}>
-                      {label}
-                    </button>
-                  ))}
-                  <div style={{marginLeft:'auto',fontSize:9,fontFamily:T.fM,color:T.textMuted,display:'flex',alignItems:'center'}}>
-                    {expandPoints.length>0&&`${expandPoints[0]?.t} – ${expandPoints[expandPoints.length-1]?.t}`}
+                  <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                    {p&&(
+                      <div style={{textAlign:'right'}}>
+                        <div style={{fontSize:18,fontFamily:T.fD,fontWeight:800,color:T.text,lineHeight:1}}>${p.price>=1?fmtN(p.price):p.price.toFixed(6)}</div>
+                        <div style={{display:'flex',gap:6,justifyContent:'flex-end',marginTop:3}}>
+                          <span style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:ch>=0?T.emerald:T.rose,background:`${ch>=0?T.emerald:T.rose}15`,padding:'1px 6px',borderRadius:4}}>{ch>=0?'+':''}{ch}% 24h</span>
+                          {p.change7d!==undefined&&<span style={{fontSize:10,fontFamily:T.fM,color:ch7>=0?T.emerald:T.rose,opacity:0.7}}>{ch7>=0?'+':''}{ch7}% 7d</span>}
+                        </div>
+                      </div>
+                    )}
+                    {!p&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted,fontStyle:'italic'}}>loading…</div>}
+                    <button onClick={()=>setWatchlist(prev=>prev.filter(x=>x.id!==w.id))} style={{padding:5,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.5,marginLeft:4}}><IcoTrash size={10} stroke={T.rose} /></button>
                   </div>
                 </div>
-                {expandPoints.length>1?(
-                  <div style={{height:180}}>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <AreaChart data={expandPoints} margin={{top:4,right:10,left:4,bottom:4}}>
+
+                {/* Sparkline chart — always visible */}
+                {chartPts.length>1&&(
+                  <div style={{marginBottom:10}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                      <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,letterSpacing:'0.08em'}}>7-DAY PRICE</span>
+                      <div style={{display:'flex',gap:8,fontSize:9,fontFamily:T.fM}}>
+                        <span style={{color:T.textMuted}}>L ${minP>=1?fmtN(minP):minP.toFixed(4)}</span>
+                        <span style={{color:T.textMuted}}>H ${maxP>=1?fmtN(maxP):maxP.toFixed(4)}</span>
+                      </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height={isExpanded?120:60}>
+                      <AreaChart data={chartPts} margin={{top:2,right:2,left:2,bottom:2}}>
                         <defs>
-                          <linearGradient id={`${gradId}_exp`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={chartColor} stopOpacity={0.32}/>
-                            <stop offset="100%" stopColor={chartColor} stopOpacity={0}/>
+                          <linearGradient id={`wg_${w.sym}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={chartColor} stopOpacity={0.25}/>
+                            <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false}/>
-                        <XAxis dataKey="t" tick={{fontSize:8,fontFamily:T.fM,fill:T.textMuted}} axisLine={false} tickLine={false} interval="preserveStartEnd"/>
-                        <YAxis tick={{fontSize:8,fontFamily:T.fM,fill:T.textMuted}} axisLine={false} tickLine={false} tickFormatter={v=>`$${fmtN(v)}`} domain={['auto','auto']} width={58}/>
+                        {isExpanded&&<CartesianGrid stroke={T.border} strokeDasharray="3 3" vertical={false}/>}
+                        {isExpanded&&<XAxis dataKey="t" tick={{fill:T.textMuted,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false}/>}
+                        {isExpanded&&<YAxis domain={['auto','auto']} tick={{fill:T.textMuted,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} width={55} tickFormatter={v=>v>=1?'$'+fmtN(v):'$'+v.toFixed(4)}/>}
                         <Tooltip
-                          contentStyle={{background:T.bg2,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:10,padding:'6px 10px'}}
-                          labelStyle={{color:T.textSub,marginBottom:2}}
-                          itemStyle={{color:chartColor,fontWeight:700}}
-                          formatter={v=>[`$${fmtN(v)}`,'Price']}
+                          contentStyle={{background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:8,padding:'6px 10px'}}
+                          labelStyle={{color:T.textSub,fontSize:9,fontFamily:T.fM}}
+                          itemStyle={{color:chartColor,fontSize:11,fontFamily:T.fD,fontWeight:700}}
+                          formatter={v=>[`$${v>=1?fmtN(v):v.toFixed(6)}`,'Price']}
                         />
-                        <Area type="monotone" dataKey="p" stroke={chartColor} strokeWidth={2} fill={`url(#${gradId}_exp)`} dot={false} activeDot={{r:3,fill:chartColor,strokeWidth:0}}/>
+                        <Area type="monotone" dataKey="p" stroke={chartColor} strokeWidth={1.5} fill={`url(#wg_${w.sym})`} dot={false} activeDot={{r:3,fill:chartColor,strokeWidth:0}}/>
                       </AreaChart>
                     </ResponsiveContainer>
-                  </div>
-                ):(
-                  <div style={{height:100,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontFamily:T.fM,color:T.textMuted}}>
-                    Loading chart data…
+                    <button onClick={()=>setExpandedSym(isExpanded?null:w.sym)} style={{width:'100%',marginTop:4,padding:'3px',borderRadius:5,background:'transparent',border:`1px solid ${T.border}`,fontSize:8,fontFamily:T.fM,color:T.textMuted,cursor:'pointer',transition:'all 0.15s'}}
+                      onMouseEnter={e=>e.currentTarget.style.borderColor=chartColor+'55'}
+                      onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                      {isExpanded?'▲ Collapse':'▼ Expand chart'}
+                    </button>
                   </div>
                 )}
-              </div>
-            )}
-          </GlassCard>
-        );
-      })}
+                {chartPts.length<=1&&p&&(
+                  <div style={{height:44,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:T.r,background:T.surface,marginBottom:10}}>
+                    <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>Chart loading — hit ↻ Refresh</span>
+                  </div>
+                )}
+
+                {/* Alert badges */}
+                {(w.alertHigh||w.alertLow)&&(
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+                    {w.alertHigh&&<span style={{fontSize:9,fontFamily:T.fM,color:T.amber,background:T.amberDim,padding:'2px 7px',borderRadius:99,border:`1px solid ${T.amber}33`}}>↑ ${fmtN(w.alertHigh)}</span>}
+                    {w.alertLow&&<span style={{fontSize:9,fontFamily:T.fM,color:T.sky,background:T.skyDim,padding:'2px 7px',borderRadius:99,border:`1px solid ${T.sky}33`}}>↓ ${fmtN(w.alertLow)}</span>}
+                  </div>
+                )}
+              </GlassCard>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -11008,13 +10925,27 @@ export default function LifeOS() {
   // inline-style references to T.bg / T.accent etc. pick up the new values.
   const [themeVersion, setThemeVersion] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [pinUnlocked, setPinUnlocked] = useState(true); // PIN disabled — always unlocked
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const [showWeeklyReview,  setShowWeeklyReview ] = useState(false);
 
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
+  // ── v65: clear any stored PIN so the lock screen never blocks access again
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('los_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.pin) {
+          delete parsed.pin;
+          localStorage.setItem('los_settings', JSON.stringify(parsed));
+        }
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [habits,        setHabits        ] = useLocalStorage('los_habits',       []);
   const [habitLogs,     setHabitLogs     ] = useDebouncedLocalStorage('los_habitlogs',    {}, 400);
   const [expenses,      setExpenses      ] = useLocalStorage('los_expenses',     []);
@@ -11737,7 +11668,7 @@ export default function LifeOS() {
     <MoneyContext.Provider value={{ expenses, incomes, debts, assets, investments, budgets, subscriptions, bills, computed }}>
     <HealthContext.Provider value={{ vitals, habits, habitLogs }}>
     <GrowthContext.Provider value={{ goals, focusSessions, totalXP }}>
-    {settings.pin && !pinUnlocked && <PinLockOverlay pin={settings.pin} onUnlock={()=>setPinUnlocked(true)} />}
+    {/* PIN LOCK DISABLED */}
     {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} onSkip={()=>{ setShowOnboarding(false); actions.updateSettings({...settings, onboarded:true}); }} actions={actions} settings={settings} />}
     <GlobalAIPanel open={showAIPanel} onClose={()=>setShowAIPanel(false)} data={data} />
     <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
