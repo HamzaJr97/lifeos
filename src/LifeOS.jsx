@@ -7459,6 +7459,91 @@ function SettingsPage({ data, actions }) {
       return Math.round(total / 1024);
     } catch { return 0; }
   })();
+  // ── GIST SYNC ─────────────────────────────────────────────────────────────
+  const [gistToken, setGistToken] = useLocalStorage('los_gist_token', '');
+  const [gistId,    setGistId   ] = useLocalStorage('los_gist_id',    '');
+  const [syncStatus, setSyncStatus] = useState('');  // '', 'pushing', 'pulling', 'ok', 'error'
+  const [lastSync,   setLastSync  ] = useLocalStorage('los_last_sync', '');
+  const [showToken,  setShowToken ] = useState(false);
+
+  const KNOWN_KEYS = ['los_habits','los_habitlogs','los_expenses','los_incomes','los_debts',
+    'los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp',
+    'los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills',
+    'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions'];
+
+  const buildSnapshot = () => {
+    const snap = {};
+    KNOWN_KEYS.forEach(k => {
+      try { const v = localStorage.getItem(k); if (v !== null) snap[k] = JSON.parse(v); } catch {}
+    });
+    return snap;
+  };
+
+  const pushToGist = async () => {
+    if (!gistToken.trim()) { setSyncStatus('error'); alert('Enter your GitHub token first.'); return; }
+    setSyncStatus('pushing');
+    try {
+      const snapshot = buildSnapshot();
+      const body = {
+        description: 'LifeOS sync — ' + new Date().toISOString(),
+        public: false,
+        files: { 'lifeos_data.json': { content: JSON.stringify(snapshot, null, 2) } },
+      };
+      let url = 'https://api.github.com/gists';
+      let method = 'POST';
+      if (gistId) { url += '/' + gistId; method = 'PATCH'; }
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: 'token ' + gistToken.trim(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('GitHub API error ' + res.status);
+      const d = await res.json();
+      setGistId(d.id);
+      const ts = new Date().toLocaleString();
+      setLastSync(ts);
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus(''), 3000);
+    } catch (e) {
+      setSyncStatus('error');
+      alert('Push failed: ' + e.message + '\n\nCheck your token has the "gist" scope.');
+    }
+  };
+
+  const pullFromGist = async () => {
+    if (!gistToken.trim() || !gistId.trim()) {
+      alert('You need to push from this device first to create the Gist, or enter a Gist ID manually.');
+      return;
+    }
+    const confirmed = window.confirm(
+      'Pull from cloud?\n\nThis will OVERWRITE all data on this device with the cloud version and reload the app.'
+    );
+    if (!confirmed) return;
+    setSyncStatus('pulling');
+    try {
+      const res = await fetch('https://api.github.com/gists/' + gistId.trim(), {
+        headers: { Authorization: 'token ' + gistToken.trim() },
+      });
+      if (!res.ok) throw new Error('Gist not found — check ID and token. Error: ' + res.status);
+      const gist = await res.json();
+      const raw = gist.files?.['lifeos_data.json']?.content;
+      if (!raw) throw new Error('lifeos_data.json not found in Gist');
+      const d = JSON.parse(raw);
+      KNOWN_KEYS.forEach(k => {
+        if (d[k] !== undefined) {
+          try { localStorage.setItem(k, JSON.stringify(d[k])); } catch {}
+        }
+      });
+      setLastSync(new Date().toLocaleString());
+      setSyncStatus('ok');
+      window.location.reload();
+    } catch (e) {
+      setSyncStatus('error');
+      alert('Pull failed: ' + e.message);
+    }
+  };
+  // ── END GIST SYNC ──────────────────────────────────────────────────────────
+
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <div style={{ marginBottom:22 }}><SectionLabel>System</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Settings</h1></div>
@@ -7658,6 +7743,83 @@ function SettingsPage({ data, actions }) {
               </div>
               {lsUsageKB > 3500 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose, marginTop:5 }}>⚠ Approaching browser storage limit — export a backup now.</div>}
             </div>
+            {/* ── Gist Cloud Sync ───────────────────────────────────── */}
+            <div style={{ marginBottom:8, paddingBottom:16, borderBottom:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+                ☁️ {lang==='fr'?'Sync cloud gratuit (GitHub Gist)':'Free Cloud Sync (GitHub Gist)'}
+              </div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10, lineHeight:1.5 }}>
+                {lang==='fr'
+                  ? 'Sauvegardez vos données dans un Gist GitHub privé et synchronisez entre tous vos appareils. Gratuit, aucun serveur requis.'
+                  : 'Save your data to a private GitHub Gist and sync across all devices. Free, no server needed.'}
+              </div>
+
+              {/* Token input */}
+              <div style={{ marginBottom:8 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, display:'flex', justifyContent:'space-between' }}>
+                  <span>GitHub Personal Access Token (gist scope)</span>
+                  <a href="https://github.com/settings/tokens/new?scopes=gist&description=LifeOS+Sync" target="_blank" rel="noopener noreferrer" style={{ color:T.accent, fontSize:9 }}>
+                    Generate token ↗
+                  </a>
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <input
+                    type={showToken ? 'text' : 'password'}
+                    value={gistToken}
+                    onChange={e => setGistToken(e.target.value)}
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text }}
+                  />
+                  <button onClick={()=>setShowToken(v=>!v)} style={{ padding:'0 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, color:T.textSub }}>
+                    {showToken ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Gist ID (auto-filled after first push) */}
+              {gistId && (
+                <div style={{ marginBottom:8 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Gist ID (auto-filled — copy to other devices)</div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input
+                      value={gistId}
+                      onChange={e => setGistId(e.target.value)}
+                      style={{ flex:1, padding:'7px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:10, color:T.textSub }}
+                    />
+                    <button onClick={()=>navigator.clipboard.writeText(gistId).catch(()=>{})} style={{ padding:'0 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, color:T.textSub }}>
+                      📋
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!gistId && gistToken && (
+                <div style={{ marginBottom:8 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Gist ID (enter after pushing from another device)</div>
+                  <input
+                    value={gistId}
+                    onChange={e => setGistId(e.target.value)}
+                    placeholder="Paste Gist ID here to pull data"
+                    style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:10, color:T.text }}
+                  />
+                </div>
+              )}
+
+              {/* Sync buttons */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:lastSync?8:0 }}>
+                <button onClick={pushToGist} disabled={!gistToken.trim()||syncStatus==='pushing'||syncStatus==='pulling'}
+                  style={{ padding:'9px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, color:T.emerald, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor: !gistToken.trim()?'not-allowed':'pointer', opacity: !gistToken.trim()?0.4:1 }}>
+                  {syncStatus==='pushing' ? '⏳ Pushing…' : `☁️ ${lang==='fr'?'Pousser':'Push to Cloud'}`}
+                </button>
+                <button onClick={pullFromGist} disabled={!gistToken.trim()||!gistId.trim()||syncStatus==='pushing'||syncStatus==='pulling'}
+                  style={{ padding:'9px', borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}44`, color:T.sky, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor: (!gistToken.trim()||!gistId.trim())?'not-allowed':'pointer', opacity: (!gistToken.trim()||!gistId.trim())?0.4:1 }}>
+                  {syncStatus==='pulling' ? '⏳ Pulling…' : `📲 ${lang==='fr'?'Tirer':'Pull to Device'}`}
+                </button>
+              </div>
+              {syncStatus==='ok' && <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald }}>✓ {lang==='fr'?'Synchronisé avec succès !':'Sync successful!'}</div>}
+              {syncStatus==='error' && <div style={{ fontSize:10, fontFamily:T.fM, color:T.rose }}>✗ {lang==='fr'?'Échec — voir alerte ci-dessus':'Failed — see alert above'}</div>}
+              {lastSync && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>{lang==='fr'?'Dernier sync :':'Last sync:'} {lastSync}</div>}
+            </div>
+
             <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
             <Btn full onClick={()=>{ const d = { los_habits:data.habits, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes }; navigator.clipboard.writeText(JSON.stringify(d,null,2)).then(()=>alert('Data copied to clipboard!')).catch(()=>alert('Clipboard copy failed — try Export JSON instead')); }} color={T.textSub}>📋 Copy Data to Clipboard</Btn>
             <Btn full onClick={exportCSV} color={T.emerald}>📊 Export Expenses CSV</Btn>
