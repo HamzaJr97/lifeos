@@ -1407,18 +1407,18 @@ function EditVitalsModal({ open, onClose, vitals, onSave, weightUnit='lbs' }) {
 
 const SPEND_CATEGORIES = ['Groceries','Electronics','Clothing','Home & Garden','Health & Beauty','Entertainment','Travel','Dining','Subscriptions','Sports & Fitness','Books & Education','Gifts','Other'];
 
-function AddNoteModal({ open, onClose, onSave }) {
+function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
   const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [tag, setTag] = useState('General');
-  const [type, setType] = useState('note'); const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
+  const [type, setType] = useState(defaultType); const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
   const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
   const save = () => {
     if (!title.trim()) return;
     const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null } : {};
     onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, type, priority, dueDate, date:today(), archived:false, ...extra });
-    setTitle(''); setBody(''); setTag('General'); setType('note'); setPriority(2); setDueDate(''); setSpendCategory('Other'); setEstimatedCost(''); onClose();
+    setTitle(''); setBody(''); setTag('General'); setType(defaultType); setPriority(2); setDueDate(''); setSpendCategory('Other'); setEstimatedCost(''); onClose();
   };
   return (
-    <Modal open={open} onClose={onClose} title="📝 New Note">
+    <Modal open={open} onClose={onClose} title={defaultType==='task'?'✅ New Task':'📝 New Note'}>
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
           <Select value={type} onChange={e=>setType(e.target.value)}>{['note','task','idea','bookmark'].map(t=><option key={t}>{t}</option>)}</Select>
@@ -5920,6 +5920,8 @@ function KnowledgePage({ data, actions }) {
   const [notePriorityFilter, setNotePriorityFilter] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   const [noteSearch, setNoteSearch] = useState('');
+  const [taskSort, setTaskSort] = useState('due'); // 'due' | 'priority' | 'created'
+  const [showDone, setShowDone] = useState(false);
   const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
@@ -5955,6 +5957,8 @@ function KnowledgePage({ data, actions }) {
     const q = noteSearch.trim().toLowerCase();
     return [...notes].filter(n => {
       if (Boolean(n.archived) !== showArchived) return false;
+      // Tasks have their own dedicated tab — exclude them from Notes view unless explicitly filtered
+      if (noteTypeFilter === 'all' && (n.type||'note') === 'task') return false;
       if (noteTypeFilter !== 'all' && (n.type||'note') !== noteTypeFilter) return false;
       if (notePriorityFilter !== 'all' && (n.priority||2) !== notePriorityFilter) return false;
       if (q && !(n.title||'').toLowerCase().includes(q) && !(n.body||'').toLowerCase().includes(q)) return false;
@@ -5978,13 +5982,13 @@ function KnowledgePage({ data, actions }) {
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} defaultType={tab==='tasks'?'task':'note'} />
       <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
       <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
       <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Base de Connaissances':'Knowledge Base'}</h1></div><PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} /></div>
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
         {/* notes + quick notes merged into one "Notes" tab. AI assistant removed — use Global AI Panel (A key). */}
-        {['notes','courses','capsule','note analysis','gmail'].map(t=>(
+        {['notes','tasks','courses','capsule','note analysis','gmail'].map(t=>(
           <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
         ))}
       </div>
@@ -5998,7 +6002,7 @@ function KnowledgePage({ data, actions }) {
             <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn>
           </div>
           <div style={{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
-            {['all','note','task','idea','bookmark'].map(type=>(<button key={type} onClick={()=>setNoteTypeFilter(type)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:noteTypeFilter===type?T.amber+'33':'transparent', color:noteTypeFilter===type?T.amber:T.textSub, border:`1px solid ${noteTypeFilter===type?T.amber+'44':T.border}` }}>{type==='all'?'All types':type}</button>))}
+            {['all','note','idea','bookmark'].map(type=>(<button key={type} onClick={()=>setNoteTypeFilter(type)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:noteTypeFilter===type?T.amber+'33':'transparent', color:noteTypeFilter===type?T.amber:T.textSub, border:`1px solid ${noteTypeFilter===type?T.amber+'44':T.border}` }}>{type==='all'?'All types':type}</button>))}
             <div style={{ flex:1 }} />
             {['all',1,2,3].map(p=>(<button key={p} onClick={()=>setNotePriorityFilter(p)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:notePriorityFilter===p?T.violet+'33':'transparent', color:notePriorityFilter===p?T.violet:T.textSub, border:`1px solid ${notePriorityFilter===p?T.violet+'44':T.border}` }}>{p==='all'?'All priority':['🔴 High','🟡 Med','🔵 Low'][p-1]}</button>))}
             <button onClick={()=>setShowArchived(a=>!a)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:showArchived?T.surface:'transparent', color:showArchived?T.text:T.textSub, border:`1px solid ${T.border}` }}>{showArchived?'📦 Archived':'Active'}</button>
@@ -6068,6 +6072,186 @@ function KnowledgePage({ data, actions }) {
           <SpendingPlannerSection notes={notes} />
         </div>
       )}
+      {tab==='tasks' && (() => {
+        // ── Partition: active vs done ──────────────────────────────────────
+        const allTasks = [...notes].filter(n => (n.type||'note') === 'task' && !n.archived);
+        const todayStr = today();
+
+        const sortFn = (a, b) => {
+          if (taskSort === 'priority') return (a.priority||2) - (b.priority||2);
+          if (taskSort === 'due') {
+            if (!a.dueDate && !b.dueDate) return 0;
+            if (!a.dueDate) return 1;
+            if (!b.dueDate) return -1;
+            return a.dueDate < b.dueDate ? -1 : 1;
+          }
+          return (b.date||'') > (a.date||'') ? 1 : -1; // created desc
+        };
+
+        const activeTasks = allTasks.filter(n => !n.done).sort(sortFn);
+        const doneTasks   = allTasks.filter(n =>  n.done).sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
+
+        const PRIO_META = {
+          1: { label:'High',   dot:T.rose,    badge:`${T.roseDim}` },
+          2: { label:'Medium', dot:T.amber,   badge:`${T.amberDim}` },
+          3: { label:'Low',    dot:T.sky,     badge:`${T.skyDim}` },
+        };
+
+        const TaskRow = ({ n, dimmed }) => {
+          const pm = PRIO_META[n.priority||2] || PRIO_META[2];
+          const isOverdue = !n.done && n.dueDate && n.dueDate < todayStr;
+          const isDueToday = !n.done && n.dueDate === todayStr;
+          const dueMeta = isOverdue
+            ? { label:`Overdue — ${n.dueDate}`, color:T.rose }
+            : isDueToday
+            ? { label:'Due today', color:T.amber }
+            : n.dueDate
+            ? { label:`Due ${n.dueDate}`, color:T.textSub }
+            : null;
+          return (
+            <div className="los-row" style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${isOverdue?T.rose+'33':T.border}`, opacity:dimmed?0.55:1, transition:'all 0.18s' }}>
+              {/* Check button */}
+              <button
+                onClick={() => actions.updateNote(n.id, { done: !n.done })}
+                title={n.done ? 'Mark undone' : 'Mark done'}
+                style={{ width:20, height:20, borderRadius:'50%', flexShrink:0, marginTop:1,
+                  background: n.done ? T.emerald : 'transparent',
+                  border: `2px solid ${n.done ? T.emerald : T.border}`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  cursor:'pointer', transition:'all 0.15s' }}>
+                {n.done && <span style={{ fontSize:10, color:T.bg, fontWeight:900, lineHeight:1 }}>✓</span>}
+              </button>
+              {/* Content */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:7, flexWrap:'wrap', marginBottom:4 }}>
+                  <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:n.done?T.textSub:T.text,
+                    textDecoration:n.done?'line-through':'none', wordBreak:'break-word' }}>{n.title}</span>
+                  {/* Priority pill */}
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'1px 7px',
+                    borderRadius:99, fontSize:9, fontFamily:T.fM,
+                    background:pm.badge, border:`1px solid ${pm.dot}33`, color:pm.dot, flexShrink:0 }}>
+                    <span style={{ width:5, height:5, borderRadius:'50%', background:pm.dot, display:'inline-block' }} />
+                    {pm.label}
+                  </span>
+                  {n.tag && n.tag !== 'General' && (
+                    <span style={{ padding:'1px 7px', borderRadius:99, fontSize:9, fontFamily:T.fM,
+                      background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}>{n.tag}</span>
+                  )}
+                </div>
+                {n.body && (
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.55,
+                    overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical',
+                    marginBottom:dueMeta||n.estimatedCost?5:0 }}>{n.body}</div>
+                )}
+                {/* Meta row: due date + cost */}
+                <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+                  {dueMeta && (
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:dueMeta.color, display:'flex', alignItems:'center', gap:3 }}>
+                      📅 {dueMeta.label}
+                    </span>
+                  )}
+                  {n.estimatedCost > 0 && (
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>
+                      💰 ${fmtN(n.estimatedCost)}
+                    </span>
+                  )}
+                  {n.done && n.date && (
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>completed {n.date}</span>
+                  )}
+                </div>
+              </div>
+              {/* Actions */}
+              <div style={{ display:'flex', gap:4, flexShrink:0, marginTop:1 }}>
+                <button onClick={e=>{e.stopPropagation();setEditingNote(n);}}
+                  title="Edit"
+                  style={{ padding:'3px 5px', borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.7 }}>
+                  <IcoPencil size={10} stroke={T.accent} />
+                </button>
+                <button onClick={e=>{e.stopPropagation();actions.removeNote(n.id);}}
+                  title="Delete"
+                  style={{ padding:'3px 5px', borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}>
+                  <IcoTrash size={10} stroke={T.rose} />
+                </button>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div>
+            {/* ── Toolbar ──────────────────────────────────────────────── */}
+            <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em' }}>SORT</span>
+                {[['due','Due Date'],['priority','Priority'],['created','Created']].map(([v,l])=>(
+                  <button key={v} onClick={()=>setTaskSort(v)}
+                    style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM,
+                      background:taskSort===v?T.amberDim:'transparent',
+                      color:taskSort===v?T.amber:T.textSub,
+                      border:`1px solid ${taskSort===v?T.amber+'44':T.border}` }}>{l}</button>
+                ))}
+              </div>
+              <div style={{ flex:1 }} />
+              {/* Stats pills */}
+              <span style={{ fontSize:9, fontFamily:T.fM, padding:'3px 10px', borderRadius:99,
+                background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}>
+                {activeTasks.length} active
+              </span>
+              <span style={{ fontSize:9, fontFamily:T.fM, padding:'3px 10px', borderRadius:99,
+                background:T.emeraldDim, border:`1px solid ${T.emerald}33`, color:T.emerald }}>
+                ✓ {doneTasks.length} done
+              </span>
+              <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Task</Btn>
+            </div>
+
+            {/* ── Active tasks ──────────────────────────────────────────── */}
+            {activeTasks.length === 0 ? (
+              <GlassCard style={{ padding:36, textAlign:'center' }}>
+                <div style={{ fontSize:28, marginBottom:8 }}>🎯</div>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:5 }}>All clear!</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>No active tasks. Add one to get started.</div>
+              </GlassCard>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {activeTasks.map((n,i)=>(
+                  <div key={n.id||i} style={{ animation:`fadeUp 0.25s ease ${i*0.04}s both` }}>
+                    <TaskRow n={n} dimmed={false} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Completed section ─────────────────────────────────────── */}
+            {doneTasks.length > 0 && (
+              <div style={{ marginTop:28 }}>
+                <button onClick={()=>setShowDone(v=>!v)}
+                  style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px',
+                    borderRadius:T.r, background:`${T.emerald}08`, border:`1px solid ${T.emerald}22`,
+                    cursor:'pointer', transition:'all 0.15s', marginBottom:showDone?10:0 }}
+                  onMouseEnter={e=>e.currentTarget.style.background=`${T.emerald}14`}
+                  onMouseLeave={e=>e.currentTarget.style.background=`${T.emerald}08`}>
+                  <span style={{ fontSize:12 }}>✅</span>
+                  <span style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.emerald, flex:1, textAlign:'left' }}>
+                    Completed — {doneTasks.length} task{doneTasks.length!==1?'s':''}
+                  </span>
+                  <span style={{ fontSize:10, color:T.textMuted, fontFamily:T.fM,
+                    transform:showDone?'rotate(0deg)':'rotate(-90deg)', transition:'transform 0.2s' }}>▼</span>
+                </button>
+                {showDone && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6, animation:'slideDown 0.2s ease' }}>
+                    {doneTasks.map((n,i)=>(
+                      <div key={n.id||i} style={{ animation:`fadeUp 0.2s ease ${i*0.03}s both` }}>
+                        <TaskRow n={n} dimmed={true} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {tab==='courses' && (
         <CourseTrackerTab data={data} actions={actions} />
       )}
