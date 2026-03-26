@@ -3018,7 +3018,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
           body: streak >= 14
             ? `A ${streak}-day streak is serious momentum. Log it before midnight.`
             : `${streak} days in. Don't break the chain.`,
-          action: 'Log habit', actionModal: 'habit',
+          action: 'Log habit', actionModal: 'habit', actionNav: 'growth',
           dismissKey: `habit-risk-${h.id}-${today_}`,
           color: streak >= 7 ? T.amber : T.accent,
         });
@@ -5414,10 +5414,6 @@ function GrowthPage({ data, actions }) {
             </ResponsiveContainer>
           </GlassCard>
         </div>
-      )}
-
-      {tab==='recurring' && (
-        <RecurringDetectedCard detectedRecurring={detectedRecurring} cur={cur} actions={{}} />
       )}
 
       {tab==='habits' && (
@@ -9751,7 +9747,7 @@ function WatchlistTab() {
   };
 
   const refresh = async (tf) => {
-    const activeTf = tf || timeframe;
+    const activeTf = tf ?? timeframe;
     setLoading(true);
     const update = {};
     try {
@@ -9799,7 +9795,7 @@ function WatchlistTab() {
   };
 
   // Auto-refresh on mount if watchlist is not empty
-  useEffect(()=>{ if(watchlist.length>0) refresh(); },[watchlist.length]); // eslint-disable-line
+  useEffect(()=>{ if(watchlist.length>0) refresh(timeframe); },[watchlist.length, timeframe]); // eslint-disable-line
 
   const triggered = watchlist.filter(w=>prices[w.sym]?.price&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
 
@@ -10028,7 +10024,8 @@ function ScoreRing({ score, color, size=72, label }) {
           strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
           style={{transition:'stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1)'}}/>
         <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
-          style={{fontSize:size*0.22,fontFamily:T.fD,fontWeight:800,fill:color,transform:'rotate(90deg)',transformOrigin:`${size/2}px ${size/2}px`}}>
+          transform={`rotate(90, ${size/2}, ${size/2})`}
+          style={{fontSize:size*0.22,fontFamily:T.fD,fontWeight:800,fill:color}}>
           {score}
         </text>
       </svg>
@@ -10101,24 +10098,17 @@ function InvestorProfileTab({ data }) {
     }).join('\n');
     const allocStr=Object.entries(typeBreakdown).map(([t,v])=>`${t}: ${cur}${fmtN(v)} (${totalVal>0?((v/totalVal)*100).toFixed(0):0}%)`).join(', ');
     try {
-      const response=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
-          max_tokens:1000,
-          system:`You are a portfolio analyst. Respond ONLY in JSON with this exact structure no extra text:
+      const raw=await callAI(data.settings,{
+        max_tokens:1000,
+        system:`You are a portfolio analyst. Respond ONLY in JSON with this exact structure no extra text:
 {"summary":"2-sentence portfolio assessment","strengths":["str1","str2","str3"],"risks":["risk1","risk2","risk3"],"actions":["action1","action2","action3"],"riskReturnNote":"1 sentence on risk/return tradeoff","rebalanceNeeded":true}`,
-          messages:[{role:'user',content:`Investor: Risk=${profile.risk}, Horizon=${profile.horizon}, Style=${profile.style}, Target=${profile.target_return}%/yr
+        messages:[{role:'user',content:`Investor: Risk=${profile.risk}, Horizon=${profile.horizon}, Style=${profile.style}, Target=${profile.target_return}%/yr
 Portfolio (${cur}${fmtN(totalVal)} total, ${totalReturn.toFixed(1)}% total return):
 ${invSummary}
 Allocation: ${allocStr}
 Diversity score: ${diversificationScore}/100, Health: ${portfolioHealthScore}/100
 Notes: ${profile.notes||'none'}`}]
-        })
       });
-      const d=await response.json();
-      const raw=d.content?.[0]?.text||'';
       const clean=raw.replace(/```json|```/g,'').trim();
       const parsed=JSON.parse(clean);
       setAiAnalysis({...parsed,ts:new Date().toLocaleString(),totalVal,investments:investments.length});
@@ -11860,8 +11850,13 @@ export default function LifeOS() {
     setChallenges(p => p.some(c=>c.challengeId===challengeId) ? p : [...p, { id:Date.now(), challengeId, startDate:today(), done:[] }]);
   }, []);
   const toggleChallengeDay = useCallback((challengeId, day) => {
-    setChallenges(p => p.map(c => c.challengeId===challengeId ? { ...c, done:c.done.includes(day)?c.done.filter(d=>d!==day):[...c.done,day] } : c));
-  }, []);
+    setChallenges(p => p.map(c => {
+      if (c.challengeId !== challengeId) return c;
+      const alreadyDone = c.done.includes(day);
+      if (!alreadyDone) setTotalXP(x => Number(x) + 10);
+      return { ...c, done: alreadyDone ? c.done.filter(d => d !== day) : [...c.done, day] };
+    }));
+  }, [setTotalXP]);
   const leaveChallenge = useCallback((challengeId) => {
     setChallenges(p => p.filter(c => c.challengeId !== challengeId));
   }, []);
