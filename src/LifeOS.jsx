@@ -1125,15 +1125,16 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, curre
   );
 }
 
-function LogExpenseModal({ open, onClose, onSave }) {
+function LogExpenseModal({ open, onClose, onSave, goals=[], onGoalProgress }) {
   const [regret, setRegret] = useState(false);
   const [trigger, setTrigger] = useState('');   // friction log: what caused this
   const [subcategory, setSubcategory] = useState('');
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
   const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
+  const [goalId, setGoalId] = useState('');
 
-  useEffect(() => { if (!open) { setRegret(false); setTrigger(''); } }, [open]);
+  useEffect(() => { if (!open) { setRegret(false); setTrigger(''); setGoalId(''); } }, [open]);
 
   const TRIGGERS = [
     { id:'boredom',   label:'😴 Boredom',         emoji:'😴' },
@@ -1145,8 +1146,9 @@ function LogExpenseModal({ open, onClose, onSave }) {
 
   const save = () => {
     if (!amt) return;
-    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date, recurring, frequency:recurring?frequency:null, regret:!!regret, trigger:regret?trigger:'', subcategory:subcategory.trim() });
-    setAmt(''); setNote(''); setRecurring(false); setRegret(false); setTrigger(''); setSubcategory(''); onClose();
+    onSave({ id:Date.now(), amount:Number(amt), category:cat, note, date, recurring, frequency:recurring?frequency:null, regret:!!regret, trigger:regret?trigger:'', subcategory:subcategory.trim(), goalId:goalId||null });
+    if (goalId && onGoalProgress) onGoalProgress(goalId, Number(amt));
+    setAmt(''); setNote(''); setRecurring(false); setRegret(false); setTrigger(''); setSubcategory(''); setGoalId(''); onClose();
   };
 
   return (
@@ -1157,6 +1159,15 @@ function LogExpenseModal({ open, onClose, onSave }) {
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <Input value={subcategory} onChange={e=>setSubcategory(e.target.value)} placeholder="Subcategory (e.g. Groceries, Gym — optional)" />
+        {goals.length > 0 && (
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>Apply to goal (optional)</div>
+            <Select value={goalId} onChange={e=>setGoalId(e.target.value)}>
+              <option value="">— None —</option>
+              {goals.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
+            </Select>
+          </div>
+        )}
         <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontFamily:T.fM, color:T.textSub, cursor:'pointer', padding:'4px 2px' }}>
           <input type="checkbox" checked={recurring} onChange={e=>setRecurring(e.target.checked)} style={{ accentColor:T.sky }} />
           <span>Recurring</span>
@@ -2936,7 +2947,7 @@ function DailyBriefCard({ data, onNav, onModal }) {
 //   actionModal / actionNav — where the CTA goes
 //   dismissKey — unique key for daily snooze
 // ══════════════════════════════════════════════════════════════════════════════
-function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habitLogs={}, vitals=[], thisMonth, monthInc=0, savRate=0, incomes=[], assets=[], investments=[], goals=[], netWorth=0 }) {
+function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habitLogs={}, vitals=[], thisMonth, monthInc=0, savRate=0, incomes=[], assets=[], investments=[], goals=[], netWorth=0, notes=[], subscriptions=[] }) {
   const today_ = today();
   const now    = new Date();
   const dayOfMonth  = now.getDate();
@@ -2976,9 +2987,17 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
   });
 
   // ── 3. Budget about to bust — PROJECTED overshoot ─────────────────────────
+  // Compute monthly subscription total per budget category for inclusion in spend
+  const subMonthlyByCategory = (subscriptions||[]).reduce((acc, sub) => {
+    const n = Number(sub.amount||0);
+    const monthly = sub.cycle==='yearly' ? n/12 : sub.cycle==='weekly' ? n*4.33 : n;
+    const cat = sub.category || null;
+    if (cat) acc[cat] = (acc[cat]||0) + monthly;
+    return acc;
+  }, {});
   Object.entries(budgets||{}).forEach(([cat, limit]) => {
     const spent = (expenses||[]).filter(e=>e.date?.startsWith(thisMonth)&&e.category===cat)
-      .reduce((s,e)=>s+Number(e.amount||0),0);
+      .reduce((s,e)=>s+Number(e.amount||0),0) + (subMonthlyByCategory[cat]||0);
     const pct   = limit>0 ? (spent/Number(limit))*100 : 0;
     const proj  = monthPct > 0.05 ? spent / monthPct : spent; // extrapolate
     const overshoot = Math.round(proj - Number(limit));
@@ -3002,6 +3021,23 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
       });
     }
   });
+
+  // ── 3b. Task notes due soon ───────────────────────────────────────────────
+  const tomorrow_ = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
+  const dueSoonTasks = (notes||[]).filter(n => n.type==='task' && !n.done && n.dueDate && n.dueDate <= tomorrow_);
+  if (dueSoonTasks.length > 0) {
+    const overdue = dueSoonTasks.filter(n => n.dueDate < today_);
+    alerts.push({
+      id: 'tasks-due-soon', type:'task', severity: overdue.length > 0 ? 'urgent' : 'warn',
+      title: overdue.length > 0
+        ? `${overdue.length} overdue task${overdue.length > 1 ? 's' : ''}`
+        : `${dueSoonTasks.length} task${dueSoonTasks.length > 1 ? 's' : ''} due today`,
+      body: dueSoonTasks.slice(0,3).map(n=>n.title).join(' · '),
+      action: 'View tasks', actionNav: 'knowledge',
+      dismissKey: `tasks-due-${today_}`,
+      color: overdue.length > 0 ? T.rose : T.amber,
+    });
+  }
 
   // ── 4. Habit streak at risk ────────────────────────────────────────────────
   (habits||[]).forEach(h => {
@@ -3422,7 +3458,7 @@ function HomePage({ data, actions, onNav }) {
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
@@ -3664,6 +3700,7 @@ function HomePage({ data, actions, onNav }) {
             arrow: <Arrow delta={nwMonthlyDelta} fmt={d=>`${cur}${fmtN(Math.round(d))}/mo`} />,
             proj:  nwProj90 != null ? <ProjChip label={`90d → ${cur}${fmtN(nwProj90)}`} color={nwProj90 >= netWorth ? T.emerald : T.rose} /> : null,
             pct:   null,
+            sparkline: nwHist.slice(-6),
           },
           {
             label:'Financial Health', icon:'📊', color:T.emerald,
@@ -3710,6 +3747,24 @@ function HomePage({ data, actions, onNav }) {
                   {m.proj}
                 </div>
                 {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
+                {/* C5: NW mini sparkline — last 6 months */}
+                {m.sparkline && m.sparkline.length >= 2 && (() => {
+                  const pts = m.sparkline;
+                  const vals = pts.map(p=>p.value);
+                  const min = Math.min(...vals); const max = Math.max(...vals);
+                  const range = max - min || 1;
+                  const W=120, H=32, pad=2;
+                  const xs = pts.map((_,i) => pad + (i/(pts.length-1))*(W-pad*2));
+                  const ys = pts.map(p => (H-pad) - ((p.value-min)/range)*(H-pad*2));
+                  const d = xs.map((x,i)=>`${i===0?'M':'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+                  const rising = vals[vals.length-1] >= vals[0];
+                  return (
+                    <svg width={W} height={H} style={{ display:'block', marginTop:8, opacity:0.85 }}>
+                      <path d={d} fill="none" stroke={rising?T.emerald:T.rose} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
+                      <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r={2.5} fill={rising?T.emerald:T.rose}/>
+                    </svg>
+                  );
+                })()}
                 {/* Financial Health breakdown */}
                 {m.detail && (
                   <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:4, borderTop:`1px solid ${T.border}`, paddingTop:8 }}>
@@ -3801,7 +3856,7 @@ function HomePage({ data, actions, onNav }) {
 
       {/* ── Step 3: Proactive Alerts Panel — action buttons, dismissable, positive included */}
       {(()=>{
-        const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets, investments });
+        const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets, investments, notes, subscriptions:data.subscriptions||[] });
         const active = allAlerts.filter(a => !dismissed[a.dismissKey]);
         if (!active.length) return null;
         const SEV_COLOR = { urgent:T.rose, warn:T.amber, positive:T.emerald, info:T.sky };
@@ -4291,7 +4346,7 @@ function MoneyPage({ data, actions }) {
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} settings={data.settings} currency={cur} />
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} />
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <EditIncomeModal open={!!editIncome} onClose={()=>setEditIncome(null)} income={editIncome} onSave={(id,patch)=>{actions.updateIncome(id,patch);setEditIncome(null);}} />
       <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}} />
@@ -5121,11 +5176,64 @@ function HealthPage({ data, actions }) {
         ))}
       </div>
       <div style={{ display:'flex', gap:2, marginBottom:18, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {[{id:'overview',l:lang==='fr'?'Vue d\'ensemble':'Overview'},{id:'mealplan',l:lang==='fr'?'🍽 Repas':'🍽 Meals'},{id:'sleepcoach',l:lang==='fr'?'😴 Coach Sommeil':'😴 Sleep Coach'},{id:'custommetrics',l:lang==='fr'?'📊 Métriques':'📊 Custom Metrics'}].map(({id,l})=>(
+        {[{id:'overview',l:lang==='fr'?'Vue d\'ensemble':'Overview'},{id:'focus',l:'⏱ Focus'},{id:'mealplan',l:lang==='fr'?'🍽 Repas':'🍽 Meals'},{id:'sleepcoach',l:lang==='fr'?'😴 Coach Sommeil':'😴 Sleep Coach'},{id:'custommetrics',l:lang==='fr'?'📊 Métriques':'📊 Custom Metrics'}].map(({id,l})=>(
           <button key={id} className="los-tab" onClick={()=>setHealthTab(id)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:healthTab===id?T.skyDim:'transparent', color:healthTab===id?T.sky:T.textSub, border:`1px solid ${healthTab===id?T.sky+'33':'transparent'}`, transition:'all 0.18s' }}>{l}</button>
         ))}
       </div>
 
+      {healthTab==='focus' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:16, animation:'fadeUp 0.4s ease' }}>
+          <GlassCard style={{ padding:'22px', display:'flex', flexDirection:'column', alignItems:'center', maxWidth:360, margin:'0 auto', width:'100%' }}>
+            <SectionLabel>Pomodoro Focus Timer</SectionLabel>
+            {focusComplete ? (
+              <div style={{ width:'100%', display:'flex', flexDirection:'column', alignItems:'center', gap:14, padding:'16px 0' }}>
+                <div style={{ fontSize:38 }}>🎉</div>
+                <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent, textAlign:'center' }}>Session Complete!</div>
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, textAlign:'center' }}>{fmtTime(focusTime)} focused</div>
+                {(habits||[]).length > 0 && (
+                  <div style={{ width:'100%' }}>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Log a habit for this session?</div>
+                    <Select value={focusHabitId} onChange={e=>setFocusHabitId(e.target.value)} style={{ marginBottom:8 }}>
+                      <option value="">Skip</option>
+                      {(habits||[]).map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
+                    </Select>
+                  </div>
+                )}
+                <Btn full onClick={handleFocusLog} color={T.accent}>{focusHabitId ? '✓ Log Habit & Done' : 'Done'}</Btn>
+              </div>
+            ) : (<>
+              <div style={{ position:'relative', width:150, height:150, margin:'0 auto 16px' }}>
+                <svg width={150} height={150} style={{ transform:'rotate(-90deg)' }}>
+                  <circle cx={75} cy={75} r={64} fill="none" stroke={T.border} strokeWidth={5} />
+                  <circle cx={75} cy={75} r={64} fill="none" stroke={T.accent} strokeWidth={5} strokeDasharray={`${2*Math.PI*64*(fpct/100)} ${2*Math.PI*64*(1-fpct/100)}`} strokeLinecap="round" style={{ filter:`drop-shadow(0 0 5px ${T.accent})`, transition:'stroke-dasharray 1s linear' }} />
+                </svg>
+                <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                  <div style={{ fontSize:26, fontFamily:T.fM, fontWeight:600, color:T.text }}>{fmtTime(remaining)}</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>remaining</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:5, marginBottom:10 }}>
+                {[15*60,25*60,45*60,60*60].map(s=>(
+                  <button key={s} onClick={()=>{setFocusTime(s);setElapsed(0);setFocusActive(false);}} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:focusTime===s?T.accentDim:T.surface, color:focusTime===s?T.accent:T.textSub, border:`1px solid ${focusTime===s?T.accent+'44':T.border}` }}>{s/60}m</button>
+                ))}
+              </div>
+              {(habits||[]).length > 0 && (
+                <div style={{ width:'100%', marginBottom:10 }}>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:5 }}>Link habit (logged on complete)</div>
+                  <Select value={focusHabitId} onChange={e=>setFocusHabitId(e.target.value)}>
+                    <option value="">None</option>
+                    {(habits||[]).map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
+                  </Select>
+                </div>
+              )}
+              <button className="los-btn" onClick={()=>setFocusActive(!focusActive)} style={{ width:'100%', padding:'11px', borderRadius:T.r, background:focusActive?T.roseDim:T.accentDim, color:focusActive?T.rose:T.accent, border:`1px solid ${focusActive?T.rose+'44':T.accent+'44'}`, fontSize:11, fontFamily:T.fM, fontWeight:600, animation:focusActive?'glowPulse 2s infinite':'none' }}>
+                {focusActive?'⏸ PAUSE':'▶ START FOCUS'}
+              </button>
+            </>)}
+          </GlassCard>
+          <FocusBillingTab data={data} />
+        </div>
+      )}
       {healthTab==='mealplan' && <AIMealPlannerTab data={data} mealPlan={mealPlan} setMealPlan={setMealPlan} mealPlanLoading={mealPlanLoading} setMealPlanLoading={setMealPlanLoading} />}
       {healthTab==='sleepcoach' && <AISleepCoachTab data={data} sleepCoachTips={sleepCoachTips} setSleepCoachTips={setSleepCoachTips} sleepCoachLoading={sleepCoachLoading} setSleepCoachLoading={setSleepCoachLoading} />}
       {healthTab==='custommetrics' && <CustomMetricsTab data={data} actions={actions} />}
@@ -10573,7 +10681,7 @@ function buildAIBriefing(data) {
   const dismissed = (() => { try { return JSON.parse(localStorage.getItem('los_alerts_dismissed')||'{}'); } catch { return {}; } })();
   const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits,
     habitLogs, vitals, incomes, goals, thisMonth:thisM, monthInc, savRate,
-    netWorth:nw, assets, investments });
+    netWorth:nw, assets, investments, notes:data.notes||[], subscriptions:data.subscriptions||[] });
   const activeAlerts  = allAlerts.filter(a => !dismissed[a.dismissKey]);
   const urgentAlert   = activeAlerts.find(a => a.severity==='urgent'||a.severity==='warn');
   const positiveAlert = activeAlerts.find(a => a.severity==='positive');
@@ -11805,9 +11913,9 @@ export default function LifeOS() {
 
   const removeHabit = useCallback((habitId) => {
     const h = (habits||[]).find(x => x.id === habitId);
-    const savedLogs = habitLogs[habitId];
     setHabits(p => p.filter(x => x.id !== habitId));
-    setHabitLogs(p => { const n = {...p}; delete n[habitId]; return n; });
+    let savedLogs;
+    setHabitLogs(p => { savedLogs = p[habitId]; const n = {...p}; delete n[habitId]; return n; });
     pushEvent({ type:'habit_removed', title:'Habit removed', value:'', color:T.textSub, domain:'growth' });
     addToast(`Habit "${h?.name||'Habit'}" deleted`, () => {
       setHabits(p => h ? [...p, h] : p);
@@ -12047,8 +12155,21 @@ export default function LifeOS() {
   }, []);
 
   const updateInvestmentPrice = useCallback((invId, newPrice) => {
-    setInvestments(p => p.map(i => i.id === invId ? { ...i, currentPrice: newPrice } : i));
-  }, []);
+    setInvestments(p => {
+      const updated = p.map(i => i.id === invId ? { ...i, currentPrice: newPrice } : i);
+      // B7: snapshot NW immediately after price refresh so history stays fresh
+      const invVal  = updated.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+      const assetV  = _assets.reduce((s,a)=>s+Number(a.value||0),0);
+      const debtV   = _debts.reduce((s,d)=>s+Number(d.balance||0),0);
+      const nw      = assetV + invVal - debtV;
+      const month   = today().slice(0,7);
+      setNetWorthHistory(h => {
+        const filtered = (h||[]).filter(x => x.month !== month);
+        return [...filtered, { month, value: nw }].slice(-24);
+      });
+      return updated;
+    });
+  }, [_assets, _debts]);
 
   // ── CENTRAL COMPUTED VALUES — single source of truth for all pages ──────────
   const _thisMonth = today().slice(0,7);
@@ -12118,7 +12239,9 @@ export default function LifeOS() {
     netWorth: computed.nw,
     assets:_assets,
     investments:_investments,
-  }), [_bills, _budgets, _expenses, _habits, _habitLogs, _vitals, _incomes, _goals, thisMonth, monthInc, savRate, computed.nw, _assets, _investments]);
+    notes:_notes,
+    subscriptions:_subscriptions,
+  }), [_bills, _budgets, _expenses, _habits, _habitLogs, _vitals, _incomes, _goals, thisMonth, monthInc, savRate, computed.nw, _assets, _investments, _notes, _subscriptions]);
 
   // ── S2: XP Pop notifications ────────────────────────────────────────────────
   const [xpPops, setXPPops] = useState([]);
@@ -12244,7 +12367,7 @@ export default function LifeOS() {
       <BottomNav active={page} onNav={setPage} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
 
       {/* Global modals triggered from Command Palette / FAB */}
-      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpenseWithPop(e);setGlobalModal(null);}} />
+      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpenseWithPop(e);setGlobalModal(null);}} goals={_goals} onGoalProgress={actions.updateGoalProgress} />
       <LogIncomeModal open={globalModal==='income'} onClose={()=>setGlobalModal(null)} onSave={e=>{addIncomeWithPop(e);setGlobalModal(null);}} />
       <LogHabitModal open={globalModal==='habit'} onClose={()=>setGlobalModal(null)} habits={habits} habitLogs={habitLogs} onLog={logHabitWithPop} onAddHabit={actions.addHabit} />
       <LogVitalsModal open={globalModal==='vitals'} onClose={()=>setGlobalModal(null)} onSave={e=>{addVitalsWithPop(e);setGlobalModal(null);}} />
