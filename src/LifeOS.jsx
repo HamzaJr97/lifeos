@@ -1394,13 +1394,17 @@ function EditVitalsModal({ open, onClose, vitals, onSave, weightUnit='lbs' }) {
   );
 }
 
+const SPEND_CATEGORIES = ['Groceries','Electronics','Clothing','Home & Garden','Health & Beauty','Entertainment','Travel','Dining','Subscriptions','Sports & Fitness','Books & Education','Gifts','Other'];
+
 function AddNoteModal({ open, onClose, onSave }) {
   const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [tag, setTag] = useState('General');
   const [type, setType] = useState('note'); const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
+  const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
   const save = () => {
     if (!title.trim()) return;
-    onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, type, priority, dueDate, date:today(), archived:false });
-    setTitle(''); setBody(''); setTag('General'); setType('note'); setPriority(2); setDueDate(''); onClose();
+    const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null } : {};
+    onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, type, priority, dueDate, date:today(), archived:false, ...extra });
+    setTitle(''); setBody(''); setTag('General'); setType('note'); setPriority(2); setDueDate(''); setSpendCategory('Other'); setEstimatedCost(''); onClose();
   };
   return (
     <Modal open={open} onClose={onClose} title="📝 New Note">
@@ -1415,7 +1419,24 @@ function AddNoteModal({ open, onClose, onSave }) {
           <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>Priority:</div>
           {[1,2,3].map(p=><button key={p} onClick={()=>setPriority(p)} style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, background:priority===p?[T.rose,T.amber,T.sky][p-1]+'33':'transparent', color:priority===p?[T.rose,T.amber,T.sky][p-1]:T.textSub, border:`1px solid ${priority===p?[T.rose,T.amber,T.sky][p-1]+'55':T.border}` }}>{['🔴 High','🟡 Med','🔵 Low'][p-1]}</button>)}
         </div>
-        {type==='task' && <Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} placeholder="Due date (tasks)" />}
+        {type==='task' && (
+          <>
+            <Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} placeholder="Due date (tasks)" />
+            <div style={{ padding:'12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22` }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:8, fontWeight:600, letterSpacing:'0.06em' }}>🛒 SPENDING PLAN (OPTIONAL)</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Category</div>
+                  <Select value={spendCategory} onChange={e=>setSpendCategory(e.target.value)}>{SPEND_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Select>
+                </div>
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Estimated cost ($)</div>
+                  <Input type="number" value={estimatedCost} onChange={e=>setEstimatedCost(e.target.value)} placeholder="0.00" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
         <Btn full onClick={save} color={T.amber}>Save {type.charAt(0).toUpperCase()+type.slice(1)}</Btn>
       </div>
     </Modal>
@@ -5726,16 +5747,20 @@ function EditNoteModal({ open, onClose, note, onSave }) {
   const [tag, setTag] = useState('General'); const [type, setType] = useState('note');
   const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
   const [done, setDone] = useState(false);
+  const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
   useEffect(() => {
     if (note && open) {
       setTitle(note.title || ''); setBody(note.body || ''); setTag(note.tag || 'General');
       setType(note.type || 'note'); setPriority(note.priority || 2);
       setDueDate(note.dueDate || ''); setDone(!!note.done);
+      setSpendCategory(note.spendCategory || 'Other');
+      setEstimatedCost(note.estimatedCost != null ? String(note.estimatedCost) : '');
     }
   }, [note, open]);
   const save = () => {
     if (!title.trim()) return;
-    onSave(note.id, { title: title.trim(), body: body.trim(), tag, type, priority, dueDate, done });
+    const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null } : {};
+    onSave(note.id, { title: title.trim(), body: body.trim(), tag, type, priority, dueDate, done, ...extra });
     onClose();
   };
   return (
@@ -5758,6 +5783,19 @@ function EditNoteModal({ open, onClose, note, onSave }) {
               <input type="checkbox" checked={done} onChange={e=>setDone(e.target.checked)} />
               <span>{done ? '✅ Task completed' : 'Mark as done'}</span>
             </label>
+            <div style={{ padding:'12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22` }}>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:8, fontWeight:600, letterSpacing:'0.06em' }}>🛒 SPENDING PLAN</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Category</div>
+                  <Select value={spendCategory} onChange={e=>setSpendCategory(e.target.value)}>{SPEND_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Select>
+                </div>
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Estimated cost ($)</div>
+                  <Input type="number" value={estimatedCost} onChange={e=>setEstimatedCost(e.target.value)} placeholder="0.00" />
+                </div>
+              </div>
+            </div>
           </>
         )}
         <Btn full onClick={save} color={T.amber}>{lang==='fr'?'Enregistrer':'Save Changes'}</Btn>
@@ -5922,6 +5960,8 @@ function KnowledgePage({ data, actions }) {
               <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ Quick Note</Btn>
             </div>
           )}
+          {/* ── Spending Planner ─────────────────────────────────────────── */}
+          <SpendingPlannerSection notes={notes} />
         </div>
       )}
       {tab==='courses' && (
@@ -5942,6 +5982,95 @@ function KnowledgePage({ data, actions }) {
   );
 }
 
+
+// ── SPENDING PLANNER SECTION ──────────────────────────────────────────────────
+function SpendingPlannerSection({ notes }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const spendTasks = useMemo(() => (notes||[]).filter(n => n.type === 'task' && n.estimatedCost > 0), [notes]);
+  if (spendTasks.length === 0) return null;
+
+  const byCategory = spendTasks.reduce((acc, n) => {
+    const cat = n.spendCategory || 'Other';
+    acc[cat] = (acc[cat] || 0) + Number(n.estimatedCost || 0);
+    return acc;
+  }, {});
+  const total = Object.values(byCategory).reduce((s, v) => s + v, 0);
+  const chartData = Object.entries(byCategory).sort((a,b) => b[1]-a[1]).map(([cat, val]) => ({ cat, val }));
+  const doneTasks = spendTasks.filter(n => n.done);
+  const doneTotal = doneTasks.reduce((s,n) => s + Number(n.estimatedCost||0), 0);
+  const CAT_COLORS = ['#00f5d4','#8b5cf6','#fbbf24','#fb7185','#34d399','#38bdf8','#c084fc','#f97316','#a78bfa','#22d3ee','#4ade80','#e879f9','#94a3b8'];
+
+  return (
+    <div style={{ marginTop:28 }}>
+      <button onClick={()=>setCollapsed(c=>!c)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'12px 16px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22`, cursor:'pointer', transition:'all 0.18s' }}
+        onMouseEnter={e=>e.currentTarget.style.background=`${T.amber}13`}
+        onMouseLeave={e=>e.currentTarget.style.background=`${T.amber}08`}>
+        <span style={{ fontSize:14 }}>🛒</span>
+        <div style={{ flex:1, textAlign:'left' }}>
+          <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.amber }}>Spending Planner</div>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{spendTasks.length} planned purchases · ${fmtN(total)} total · ${fmtN(doneTotal)} completed</div>
+        </div>
+        <span style={{ fontSize:10, color:T.textMuted, fontFamily:T.fM, transform:collapsed?'rotate(-90deg)':'rotate(0deg)', transition:'transform 0.2s' }}>▼</span>
+      </button>
+      {!collapsed && (
+        <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:12, animation:'slideDown 0.25s ease' }}>
+          {/* Summary stats */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+            {[
+              { label:'Planned Spend', val:`$${fmtN(total)}`, color:T.amber },
+              { label:'Completed', val:`$${fmtN(doneTotal)}`, color:T.emerald },
+              { label:'Remaining', val:`$${fmtN(total - doneTotal)}`, color:T.rose },
+            ].map(s=>(
+              <div key={s.label} style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, textAlign:'center' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', marginBottom:4 }}>{s.label}</div>
+                <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+              </div>
+            ))}
+          </div>
+          {/* Bar chart by category */}
+          <GlassCard style={{ padding:'16px 18px' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:12 }}>Budget by Category</div>
+            <ResponsiveContainer width="100%" height={Math.max(80, chartData.length * 34)}>
+              <BarChart data={chartData} layout="vertical" margin={{ top:0, right:50, left:8, bottom:0 }}>
+                <XAxis type="number" hide />
+                <YAxis type="category" dataKey="cat" tick={{ fill:T.textSub, fontSize:10, fontFamily:T.fM }} axisLine={false} tickLine={false} width={90} />
+                <Tooltip
+                  contentStyle={{ background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:8, padding:'6px 10px' }}
+                  formatter={(v) => [`$${fmtN(v)}`, 'Budget']}
+                  labelStyle={{ color:T.textSub, fontSize:9, fontFamily:T.fM }}
+                  itemStyle={{ color:T.amber, fontSize:11, fontFamily:T.fD, fontWeight:700 }}
+                />
+                <Bar dataKey="val" radius={[0,4,4,0]}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={entry.cat} fill={CAT_COLORS[index % CAT_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </GlassCard>
+          {/* Task list */}
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {spendTasks.sort((a,b) => Number(b.estimatedCost||0) - Number(a.estimatedCost||0)).map(n => {
+              const catIdx = SPEND_CATEGORIES.indexOf(n.spendCategory||'Other');
+              const col = CAT_COLORS[catIdx >= 0 ? catIdx % CAT_COLORS.length : 0];
+              return (
+                <div key={n.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:T.r, background:n.done?`${T.emerald}06`:T.surface, border:`1px solid ${n.done?T.emerald+'22':T.border}`, opacity:n.done?0.65:1, transition:'all 0.2s' }}>
+                  <div style={{ width:8, height:8, borderRadius:'50%', background:col, flexShrink:0 }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, textDecoration:n.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.title}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{n.spendCategory||'Other'}{n.dueDate&&` · due ${n.dueDate}`}</div>
+                  </div>
+                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:n.done?T.emerald:T.amber, flexShrink:0 }}>${fmtN(n.estimatedCost)}</div>
+                  {n.done && <span style={{ fontSize:9, color:T.emerald }}>✓</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── COMPOUND GROWTH SIMULATOR CARD ───────────────────────────────────────────
 function CompoundGrowthCard({ cur }) {
@@ -9521,16 +9650,26 @@ function WatchlistTab() {
   const lang = useLang();
   const [watchlist, setWatchlist] = useLocalStorage('los_watchlist', []);
   const [prices, setPrices] = useState({});
-  const [charts, setCharts] = useState({}); // 7-day OHLC history per sym
+  const [charts, setCharts] = useState({}); // chart history per sym
   const [loading, setLoading] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [corsBlocked, setCorsBlocked] = useState(false); // stock CORS detection
   const [hi, setHi] = useState(''); const [lo, setLo] = useState('');
   const [assetType, setAssetType] = useState('crypto');
-  const [expandedSym, setExpandedSym] = useState(null); // which card shows full chart
+  const [expandedSym, setExpandedSym] = useState(null);
+  const [timeframe, setTimeframe] = useState('1M'); // 1M / 1Y / 5Y / All
 
   const COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos',NEAR:'near',SUI:'sui',TON:'the-open-network',SHIB:'shiba-inu',TRX:'tron',APT:'aptos'};
+
+  // Timeframe → CoinGecko days param + Yahoo range
+  const TIMEFRAME_MAP = {
+    '1M': { cgDays: 30, yfRange: '1mo', label: '30-day' },
+    '1Y': { cgDays: 365, yfRange: '1y', label: '1-year' },
+    '5Y': { cgDays: 1825, yfRange: '5y', label: '5-year' },
+    'All': { cgDays: 'max', yfRange: 'max', label: 'All-time' },
+  };
 
   const searchDebounceRef = React.useRef(null);
   const handleSearchChange = (q) => {
@@ -9545,9 +9684,16 @@ function WatchlistTab() {
           const d = await res.json();
           setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
         } else {
-          const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
-          const d = await res.json();
-          setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
+          // Yahoo Finance search — CORS may block in browser
+          try {
+            const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
+            const d = await res.json();
+            setCorsBlocked(false);
+            setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
+          } catch(corsErr) {
+            setCorsBlocked(true);
+            setSearchResults([]);
+          }
         }
       } catch { setSearchResults([]); }
       setSearching(false);
@@ -9567,22 +9713,45 @@ function WatchlistTab() {
     setSearchQ(''); setHi(''); setLo('');
   };
 
-  // Fetch 7-day chart history for a single crypto coin
-  const fetchCryptoChart = async (coinId, sym) => {
+  // Fetch chart history for crypto with dynamic timeframe
+  const fetchCryptoChart = async (coinId, sym, tf) => {
+    const { cgDays } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     try {
-      const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=7&interval=daily`);
+      const interval = cgDays === 'max' || cgDays >= 365 ? 'daily' : 'daily';
+      const url = cgDays === 'max'
+        ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=max`
+        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}&interval=${interval}`;
+      const res = await fetch(url);
       const d = await res.json();
       if (d.prices && d.prices.length > 0) {
-        const pts = d.prices.map(([ts, price]) => ({
-          t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}),
-          p: price,
-        }));
-        setCharts(prev => ({...prev, [sym]: pts}));
+        const all = d.prices.map(([ts, price]) => ({ t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: price }));
+        // Downsample to max 60 pts for large ranges
+        const step = all.length > 60 ? Math.ceil(all.length / 60) : 1;
+        const pts = all.filter((_,i) => i % step === 0);
+        setCharts(prev => ({...prev, [`${sym}_${tf}`]: pts}));
       }
     } catch {}
   };
 
-  const refresh = async () => {
+  // Fetch stock chart with dynamic timeframe
+  const fetchStockChart = async (sym, tf) => {
+    const { yfRange } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
+    const interval = tf === '1M' ? '1d' : tf === '1Y' ? '1wk' : '1mo';
+    try {
+      const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`);
+      if (!r2.ok) throw new Error('cors');
+      const d2 = await r2.json();
+      const ts = d2?.chart?.result?.[0]?.timestamp||[];
+      const closes = d2?.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
+      if (closes.length > 0) {
+        const pts = ts.map((t,idx)=>({ t: new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: closes[idx]||null })).filter(pt=>pt.p!==null);
+        setCharts(prev=>({...prev,[`${sym}_${tf}`]:pts}));
+      }
+    } catch { /* CORS blocked — charts unavailable but price may still show */ }
+  };
+
+  const refresh = async (tf) => {
+    const activeTf = tf || timeframe;
     setLoading(true);
     const update = {};
     try {
@@ -9596,56 +9765,65 @@ function WatchlistTab() {
             const id=w.coinId||COIN_IDS[w.sym];
             if(id&&d[id]) update[w.sym]={price:d[id].usd,change:d[id].usd_24h_change?.toFixed(2)||'0',change7d:d[id].usd_7d_change?.toFixed(2)||'0'};
           });
-          // Fetch chart history for each crypto (staggered to avoid rate limits)
           cryptoItems.forEach((w,i) => {
             const id = w.coinId||COIN_IDS[w.sym];
-            if (id) setTimeout(()=>fetchCryptoChart(id, w.sym), i*300);
+            if (id) setTimeout(()=>fetchCryptoChart(id, w.sym, activeTf), i*350);
           });
         }
       }
       const stockItems = watchlist.filter(w=>w.type==='stock'&&!COIN_IDS[w.sym]);
       if (stockItems.length > 0) {
         const syms = stockItems.map(w=>w.sym).join(',');
-        const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
-        const d = await res.json();
-        (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
-        // Fetch 7-day chart for each stock via Yahoo Finance
-        stockItems.forEach((w,i) => {
-          setTimeout(async () => {
-            try {
-              const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${w.sym}?interval=1d&range=7d`);
-              const d2 = await r2.json();
-              const ts = d2?.chart?.result?.[0]?.timestamp||[];
-              const closes = d2?.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
-              if (closes.length > 0) {
-                const pts = ts.map((t,idx)=>({
-                  t: new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}),
-                  p: closes[idx]||null,
-                })).filter(pt=>pt.p!==null);
-                setCharts(prev=>({...prev,[w.sym]:pts}));
-              }
-            } catch {}
-          }, i*300);
-        });
+        try {
+          const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
+          if (!res.ok) throw new Error('cors');
+          const d = await res.json();
+          setCorsBlocked(false);
+          (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
+          stockItems.forEach((w,i) => { setTimeout(()=>fetchStockChart(w.sym, activeTf), i*350); });
+        } catch {
+          setCorsBlocked(true);
+          // Mark stock items as cors-blocked
+          stockItems.forEach(w=>{ if(!update[w.sym]) update[w.sym]={price:null,change:'0',corsBlocked:true}; });
+        }
       }
     } catch {}
     setPrices(p=>({...p,...update}));
     setLoading(false);
   };
 
+  // Re-fetch charts when timeframe changes
+  const handleTimeframeChange = (tf) => {
+    setTimeframe(tf);
+    refresh(tf);
+  };
+
   // Auto-refresh on mount if watchlist is not empty
   useEffect(()=>{ if(watchlist.length>0) refresh(); },[watchlist.length]); // eslint-disable-line
 
-  const triggered = watchlist.filter(w=>prices[w.sym]&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
+  const triggered = watchlist.filter(w=>prices[w.sym]?.price&&((w.alertHigh&&prices[w.sym].price>=w.alertHigh)||(w.alertLow&&prices[w.sym].price<=w.alertLow)));
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
           <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Watchlist & Price Alerts</div>
-          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Live prices · 7-day charts · crypto via CoinGecko · stocks via Yahoo</div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Live prices · charts · crypto via CoinGecko · stocks via Yahoo</div>
         </div>
-        <Btn onClick={refresh} color={T.sky} style={{opacity:loading?0.5:1,fontSize:11}}>{loading?'⟳ Loading…':'↻ Refresh'}</Btn>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {/* Timeframe selector */}
+          <div style={{display:'flex',gap:2,background:T.surface,borderRadius:8,padding:2,border:`1px solid ${T.border}`}}>
+            {['1M','1Y','5Y','All'].map(tf=>(
+              <button key={tf} onClick={()=>handleTimeframeChange(tf)}
+                style={{padding:'3px 10px',borderRadius:6,fontSize:9,fontFamily:T.fM,fontWeight:600,border:'none',
+                  background:timeframe===tf?T.accentDim:'transparent',color:timeframe===tf?T.accent:T.textSub,
+                  transition:'all 0.15s',cursor:'pointer'}}>
+                {tf}
+              </button>
+            ))}
+          </div>
+          <Btn onClick={()=>refresh()} color={T.sky} style={{opacity:loading?0.5:1,fontSize:11}}>{loading?'⟳ Loading…':'↻ Refresh'}</Btn>
+        </div>
       </div>
 
       {triggered.length>0&&(
@@ -9654,11 +9832,19 @@ function WatchlistTab() {
         </div>
       )}
 
+      {/* CORS notice for stocks */}
+      {corsBlocked && (
+        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.violet}10`,border:`1px solid ${T.violet}33`,fontSize:11,fontFamily:T.fM,color:T.violet,lineHeight:1.6}}>
+          <div style={{fontWeight:700,marginBottom:4}}>📡 Yahoo Finance is blocked by your browser (CORS)</div>
+          <div style={{color:T.textSub,fontSize:10}}>Stock prices & charts can't be fetched directly from the browser. <b style={{color:T.violet}}>Tip:</b> Type the ticker symbol directly (e.g. <span style={{fontFamily:T.fM,color:T.text,background:T.surface,padding:'1px 5px',borderRadius:4}}>AAPL</span>) and add it manually — the symbol will be tracked and prices shown when available via proxy. Crypto via CoinGecko works fine.</div>
+        </div>
+      )}
+
       <GlassCard style={{padding:'14px 18px'}}>
         <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:10,fontWeight:600}}>Search & add</div>
         <div style={{display:'flex',gap:6,marginBottom:10}}>
           {['crypto','stock'].map(tp=>(
-            <button key={tp} onClick={()=>{setAssetType(tp);setSearchResults([]);setSearchQ('');}}
+            <button key={tp} onClick={()=>{setAssetType(tp);setSearchResults([]);setSearchQ('');setCorsBlocked(false);}}
               style={{padding:'5px 14px',borderRadius:99,fontSize:10,fontFamily:T.fM,fontWeight:600,cursor:'pointer',
                 border:`1px solid ${assetType===tp?T.accent+'55':T.border}`,
                 background:assetType===tp?T.accentDim:T.surface,color:assetType===tp?T.accent:T.textSub}}>
@@ -9670,10 +9856,16 @@ function WatchlistTab() {
           <Input
             value={searchQ}
             onChange={e=>handleSearchChange(e.target.value)}
-            placeholder={assetType==='crypto'?'Search Bitcoin, ETH, SOL, SUI…':'Search Apple, AAPL, Tesla, SPY…'}
+            placeholder={assetType==='crypto'?'Search Bitcoin, ETH, SOL, SUI…':corsBlocked?'Type ticker directly: AAPL, TSLA, SPY…':'Search Apple, AAPL, Tesla, SPY…'}
             onKeyDown={e=>e.key==='Enter'&&addManual()}
           />
           {searching&&<span style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',fontSize:9,color:T.textMuted}}>searching…</span>}
+          {assetType==='stock'&&corsBlocked&&searchQ.trim()&&(
+            <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:400,padding:'10px 14px',boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
+              <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Press <kbd style={{background:T.surface,padding:'1px 5px',borderRadius:4,fontSize:10}}>Enter</kbd> to add <b style={{color:T.text}}>{searchQ.trim().toUpperCase()}</b> directly</div>
+              <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>Yahoo Finance search is blocked — but you can still track the symbol and refresh manually.</div>
+            </div>
+          )}
           {searchResults.length>0&&(
             <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:400,overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.5)'}}>
               {searchResults.map((r,i)=>(
@@ -9702,20 +9894,22 @@ function WatchlistTab() {
         <GlassCard style={{padding:40,textAlign:'center'}}>
           <div style={{fontSize:32,marginBottom:12}}>📈</div>
           <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:6}}>Your watchlist is empty</div>
-          <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Search for a crypto or stock above to track it with live prices and 7-day charts.</div>
+          <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Search for a crypto or stock above to track it with live prices and charts.</div>
         </GlassCard>
       ):(
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(340px,1fr))',gap:14}}>
           {watchlist.map(w=>{
             const p=prices[w.sym];
-            const alert=p&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
+            const alert=p?.price&&((w.alertHigh&&p.price>=w.alertHigh)||(w.alertLow&&p.price<=w.alertLow));
             const ch=Number(p?.change||0);
             const ch7=Number(p?.change7d||0);
-            const chartPts=charts[w.sym]||[];
+            const chartKey = `${w.sym}_${timeframe}`;
+            const chartPts=charts[chartKey]||[];
             const chartColor=ch>=0?T.emerald:T.rose;
             const isExpanded=expandedSym===w.sym;
             const minP=chartPts.length>0?Math.min(...chartPts.map(x=>x.p)):0;
             const maxP=chartPts.length>0?Math.max(...chartPts.map(x=>x.p)):0;
+            const isCorsBlocked = p?.corsBlocked;
             return (
               <GlassCard key={w.id} style={{padding:'18px 20px',borderLeft:`3px solid ${alert?T.amber:chartColor}44`,transition:'all 0.2s'}}>
                 {/* Header row */}
@@ -9725,11 +9919,12 @@ function WatchlistTab() {
                       <span style={{fontSize:16,fontFamily:T.fD,fontWeight:800,color:T.text}}>{w.sym}</span>
                       <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,padding:'1px 6px',borderRadius:4,background:T.surface,border:`1px solid ${T.border}`,textTransform:'uppercase'}}>{w.type||'crypto'}</span>
                       {alert&&<span style={{fontSize:10}}>🔔</span>}
+                      {isCorsBlocked&&<span style={{fontSize:9,fontFamily:T.fM,color:T.violet,background:T.violetDim,padding:'1px 6px',borderRadius:4}}>⚠ CORS</span>}
                     </div>
                     {w.name&&w.name!==w.sym&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{w.name}</div>}
                   </div>
                   <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                    {p&&(
+                    {p?.price&&(
                       <div style={{textAlign:'right'}}>
                         <div style={{fontSize:18,fontFamily:T.fD,fontWeight:800,color:T.text,lineHeight:1}}>${p.price>=1?fmtN(p.price):p.price.toFixed(6)}</div>
                         <div style={{display:'flex',gap:6,justifyContent:'flex-end',marginTop:3}}>
@@ -9738,22 +9933,28 @@ function WatchlistTab() {
                         </div>
                       </div>
                     )}
+                    {isCorsBlocked&&!p?.price&&(
+                      <div style={{textAlign:'right',fontSize:10,fontFamily:T.fM,color:T.violet}}>
+                        <div>Price unavailable</div>
+                        <div style={{fontSize:9,color:T.textMuted,marginTop:2}}>Yahoo blocked</div>
+                      </div>
+                    )}
                     {!p&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted,fontStyle:'italic'}}>loading…</div>}
                     <button onClick={()=>setWatchlist(prev=>prev.filter(x=>x.id!==w.id))} style={{padding:5,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.5,marginLeft:4}}><IcoTrash size={10} stroke={T.rose} /></button>
                   </div>
                 </div>
 
-                {/* Sparkline chart — always visible */}
+                {/* Chart */}
                 {chartPts.length>1&&(
                   <div style={{marginBottom:10}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                      <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,letterSpacing:'0.08em'}}>7-DAY PRICE</span>
+                      <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,letterSpacing:'0.08em'}}>{TIMEFRAME_MAP[timeframe]?.label?.toUpperCase()||timeframe} PRICE</span>
                       <div style={{display:'flex',gap:8,fontSize:9,fontFamily:T.fM}}>
                         <span style={{color:T.textMuted}}>L ${minP>=1?fmtN(minP):minP.toFixed(4)}</span>
                         <span style={{color:T.textMuted}}>H ${maxP>=1?fmtN(maxP):maxP.toFixed(4)}</span>
                       </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={isExpanded?120:60}>
+                    <ResponsiveContainer width="100%" height={isExpanded?140:60}>
                       <AreaChart data={chartPts} margin={{top:2,right:2,left:2,bottom:2}}>
                         <defs>
                           <linearGradient id={`wg_${w.sym}`} x1="0" y1="0" x2="0" y2="1">
@@ -9762,7 +9963,7 @@ function WatchlistTab() {
                           </linearGradient>
                         </defs>
                         {isExpanded&&<CartesianGrid stroke={T.border} strokeDasharray="3 3" vertical={false}/>}
-                        {isExpanded&&<XAxis dataKey="t" tick={{fill:T.textMuted,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false}/>}
+                        {isExpanded&&<XAxis dataKey="t" tick={{fill:T.textMuted,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} interval="preserveStartEnd"/>}
                         {isExpanded&&<YAxis domain={['auto','auto']} tick={{fill:T.textMuted,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} width={55} tickFormatter={v=>v>=1?'$'+fmtN(v):'$'+v.toFixed(4)}/>}
                         <Tooltip
                           contentStyle={{background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:8,padding:'6px 10px'}}
@@ -9780,9 +9981,14 @@ function WatchlistTab() {
                     </button>
                   </div>
                 )}
-                {chartPts.length<=1&&p&&(
+                {chartPts.length<=1&&p&&!isCorsBlocked&&(
                   <div style={{height:44,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:T.r,background:T.surface,marginBottom:10}}>
                     <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>Chart loading — hit ↻ Refresh</span>
+                  </div>
+                )}
+                {isCorsBlocked&&chartPts.length<=1&&(
+                  <div style={{height:44,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:T.r,background:T.violetDim,marginBottom:10,border:`1px solid ${T.violet}22`}}>
+                    <span style={{fontSize:9,fontFamily:T.fM,color:T.violet}}>📡 Chart unavailable — Yahoo Finance CORS blocked</span>
                   </div>
                 )}
 
@@ -9801,49 +10007,395 @@ function WatchlistTab() {
     </div>
   );
 }
+
 // ── INVESTOR PROFILE ──────────────────────────────────────────────────────────
+const TYPE_COLORS = {Stock:T.emerald,ETF:T.sky,Crypto:T.violet,Bond:T.amber,REIT:T.accent,Other:T.rose};
+const TARGET_ALLOC = {
+  conservative: {Stock:20,ETF:30,Bond:40,Crypto:0,REIT:5,Other:5},
+  moderate:     {Stock:40,ETF:25,Bond:15,Crypto:10,REIT:5,Other:5},
+  aggressive:   {Stock:50,ETF:10,Bond:0,Crypto:35,REIT:0,Other:5},
+};
+
+function ScoreRing({ score, color, size=72, label }) {
+  const r = (size/2) - 6;
+  const circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+      <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={6}/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+          style={{transition:'stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1)'}}/>
+        <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
+          style={{fontSize:size*0.22,fontFamily:T.fD,fontWeight:800,fill:color,transform:'rotate(90deg)',transformOrigin:`${size/2}px ${size/2}px`}}>
+          {score}
+        </text>
+      </svg>
+      {label && <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,textAlign:'center',letterSpacing:'0.06em'}}>{label}</div>}
+    </div>
+  );
+}
+
 function InvestorProfileTab({ data }) {
-  const {investments=[],settings={}}=data;
+  const {investments=[],settings={},assets=[],debts=[]}=data;
   const cur=settings.currency||'$';
   const [profile,setProfile]=useLocalStorage('los_investor_profile',{risk:'moderate',horizon:'long',style:'passive',target_return:8,notes:''});
-  const typeBreakdown=(investments||[]).reduce((acc,inv)=>{ acc[inv.type]=(acc[inv.type]||0)+Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0); return acc; },{});
-  const totalVal=Object.values(typeBreakdown).reduce((s,v)=>s+v,0);
-  const RISK=[{id:'conservative',label:'Conservative',desc:'Preserve capital',emoji:'🛡️',color:T.sky},{id:'moderate',label:'Moderate',desc:'Balanced growth',emoji:'⚖️',color:T.amber},{id:'aggressive',label:'Aggressive',desc:'Max growth',emoji:'🚀',color:T.rose}];
+  const [aiAnalysis,setAiAnalysis]=useLocalStorage('los_investor_ai',null);
+  const [aiLoading,setAiLoading]=useState(false);
+  const [activeSection,setActiveSection]=useState('overview');
   const upd=(k,v)=>setProfile(p=>({...p,[k]:v}));
+
+  const typeBreakdown=useMemo(()=>(investments||[]).reduce((acc,inv)=>{
+    acc[inv.type]=(acc[inv.type]||0)+Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0);
+    return acc;
+  },{}), [investments]);
+  const totalVal=Object.values(typeBreakdown).reduce((s,v)=>s+v,0);
+
+  const totalGain=useMemo(()=>(investments||[]).reduce((s,inv)=>{
+    const cost=Number(inv.quantity||0)*Number(inv.buyPrice||0);
+    const curr=Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0);
+    return s+(curr-cost);
+  },0),[investments]);
+  const totalCost=useMemo(()=>(investments||[]).reduce((s,inv)=>s+Number(inv.quantity||0)*Number(inv.buyPrice||0),0),[investments]);
+  const totalReturn=totalCost>0?((totalGain/totalCost)*100):0;
+  const numTypes=Object.keys(typeBreakdown).length;
+  const maxWeight=totalVal>0?Math.max(...Object.values(typeBreakdown))/totalVal:1;
+
+  const diversificationScore=useMemo(()=>{
+    if(totalVal===0) return 0;
+    const hhi=Object.values(typeBreakdown).reduce((s,v)=>s+Math.pow(v/totalVal,2),0);
+    return Math.max(0,Math.min(100,Math.round((1-hhi)*140)));
+  },[typeBreakdown,totalVal]);
+
+  const portfolioHealthScore=useMemo(()=>{
+    if(investments.length===0) return 0;
+    let score=50;
+    score+=Math.min(20,numTypes*5);
+    score+=Math.min(15,investments.length*2);
+    if(totalReturn>0) score+=Math.min(10,totalReturn/2);
+    if(maxWeight<0.6) score+=10;
+    const hasBond=(typeBreakdown['Bond']||0)>0;
+    if(profile.risk==='moderate'&&hasBond) score+=5;
+    return Math.max(0,Math.min(100,Math.round(score)));
+  },[investments,numTypes,totalReturn,maxWeight,typeBreakdown,profile.risk]);
+
+  const targetAlloc=TARGET_ALLOC[profile.risk]||TARGET_ALLOC.moderate;
+  const allocDelta=Object.entries(targetAlloc).map(([type,tgt])=>{
+    const actual=totalVal>0?((typeBreakdown[type]||0)/totalVal*100):0;
+    return {type,target:tgt,actual:Math.round(actual),delta:Math.round(actual-tgt)};
+  }).filter(d=>d.target>0||d.actual>0);
+
+  const pieData=Object.entries(typeBreakdown).filter(([,v])=>v>0).map(([type,val])=>({name:type,value:Math.round(val)}));
+
+  const scoreColor=s=>s>=75?T.emerald:s>=50?T.amber:T.rose;
+
+  const runAiAnalysis=async()=>{
+    if(aiLoading||!(investments||[]).length) return;
+    setAiLoading(true);
+    const invSummary=(investments||[]).map(inv=>{
+      const cost=Number(inv.quantity||0)*Number(inv.buyPrice||0);
+      const curr=Number(inv.quantity||0)*Number(inv.currentPrice||inv.buyPrice||0);
+      const pnl=curr-cost;
+      return `${inv.symbol||inv.name} (${inv.type}): ${cur}${fmtN(curr)} value, ${pnl>=0?'+':''}${cur}${fmtN(pnl)} P&L`;
+    }).join('\n');
+    const allocStr=Object.entries(typeBreakdown).map(([t,v])=>`${t}: ${cur}${fmtN(v)} (${totalVal>0?((v/totalVal)*100).toFixed(0):0}%)`).join(', ');
+    try {
+      const response=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:1000,
+          system:`You are a portfolio analyst. Respond ONLY in JSON with this exact structure no extra text:
+{"summary":"2-sentence portfolio assessment","strengths":["str1","str2","str3"],"risks":["risk1","risk2","risk3"],"actions":["action1","action2","action3"],"riskReturnNote":"1 sentence on risk/return tradeoff","rebalanceNeeded":true}`,
+          messages:[{role:'user',content:`Investor: Risk=${profile.risk}, Horizon=${profile.horizon}, Style=${profile.style}, Target=${profile.target_return}%/yr
+Portfolio (${cur}${fmtN(totalVal)} total, ${totalReturn.toFixed(1)}% total return):
+${invSummary}
+Allocation: ${allocStr}
+Diversity score: ${diversificationScore}/100, Health: ${portfolioHealthScore}/100
+Notes: ${profile.notes||'none'}`}]
+        })
+      });
+      const d=await response.json();
+      const raw=d.content?.[0]?.text||'';
+      const clean=raw.replace(/```json|```/g,'').trim();
+      const parsed=JSON.parse(clean);
+      setAiAnalysis({...parsed,ts:new Date().toLocaleString(),totalVal,investments:investments.length});
+    } catch(e){ setAiAnalysis({summary:`Analysis error: ${e.message}`,strengths:[],risks:[],actions:[],riskReturnNote:'',rebalanceNeeded:false,ts:new Date().toLocaleString(),totalVal,investments:investments.length}); }
+    setAiLoading(false);
+  };
+
+  const RISK=[
+    {id:'conservative',label:'Conservative',desc:'Capital preservation',emoji:'🛡️',color:T.sky},
+    {id:'moderate',label:'Moderate',desc:'Balanced growth',emoji:'⚖️',color:T.amber},
+    {id:'aggressive',label:'Aggressive',desc:'Maximum growth',emoji:'🚀',color:T.rose},
+  ];
+  const sections=[{id:'overview',label:'Overview'},{id:'setup',label:'Profile Setup'},{id:'insights',label:'AI Insights'}];
+
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Investor Profile</div>
-      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-        {RISK.map(rp=>(
-          <GlassCard key={rp.id} onClick={()=>upd('risk',rp.id)} style={{padding:'14px 18px',flex:1,minWidth:130,cursor:'pointer',borderColor:profile.risk===rp.id?`${rp.color}55`:T.border,background:profile.risk===rp.id?`${rp.color}11`:T.surface}}>
-            <div style={{fontSize:22,marginBottom:6}}>{rp.emoji}</div>
-            <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:profile.risk===rp.id?rp.color:T.text}}>{rp.label}</div>
-            <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:3}}>{rp.desc}</div>
-          </GlassCard>
+    <div style={{display:'flex',flexDirection:'column',gap:16,animation:'fadeUp 0.4s ease'}}>
+      <div style={{display:'flex',gap:2,background:T.surface,borderRadius:T.r,padding:3,width:'fit-content',border:`1px solid ${T.border}`}}>
+        {sections.map(s=>(
+          <button key={s.id} onClick={()=>setActiveSection(s.id)} style={{padding:'5px 16px',borderRadius:8,fontSize:9,fontFamily:T.fM,textTransform:'uppercase',letterSpacing:'0.07em',
+            background:activeSection===s.id?T.violetDim:'transparent',color:activeSection===s.id?T.violet:T.textSub,
+            border:`1px solid ${activeSection===s.id?T.violet+'33':'transparent'}`,transition:'all 0.15s',cursor:'pointer'}}>
+            {s.label}
+          </button>
         ))}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Time Horizon</div>
-          <Select value={profile.horizon} onChange={e=>upd('horizon',e.target.value)}>{['short','medium','long'].map(h=><option key={h}>{h}</option>)}</Select></div>
-        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Style</div>
-          <Select value={profile.style} onChange={e=>upd('style',e.target.value)}>{['passive','active','value','growth','dividend','momentum'].map(s=><option key={s}>{s}</option>)}</Select></div>
-        <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Target Annual Return %</div>
-          <Input type="number" value={profile.target_return} onChange={e=>upd('target_return',Number(e.target.value))} /></div>
-      </div>
-      <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Investment Policy Notes</div>
-        <textarea value={profile.notes} onChange={e=>upd('notes',e.target.value)} placeholder="Your rules, thesis, constraints…" rows={3} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} /></div>
-      {totalVal>0&&(
-        <GlassCard style={{padding:'18px 20px'}}>
-          <SectionLabel>Current Allocation</SectionLabel>
-          {Object.entries(typeBreakdown).map(([type,val])=>{
-            const pct=(val/totalVal)*100;
-            const col={Stock:T.emerald,ETF:T.sky,Crypto:T.violet,Bond:T.amber,REIT:T.accent,Other:T.rose}[type]||T.textSub;
-            return (<div key={type} style={{marginBottom:10}}>
-              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4,fontSize:11,fontFamily:T.fM}}><span style={{color:T.text}}>{type}</span><span style={{color:col,fontWeight:600}}>{cur}{fmtN(val)} ({pct.toFixed(0)}%)</span></div>
-              <ProgressBar pct={pct} color={col} height={5} />
-            </div>);
-          })}
-        </GlassCard>
+
+      {activeSection==='overview'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          {investments.length===0&&(
+            <GlassCard style={{padding:40,textAlign:'center'}}>
+              <div style={{fontSize:36,marginBottom:12}}>📊</div>
+              <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:6}}>No investments tracked yet</div>
+              <div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add investments in the Portfolio tab to see your analysis.</div>
+            </GlassCard>
+          )}
+          {investments.length>0&&(<>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))',gap:12}}>
+              <GlassCard style={{padding:'20px 16px',textAlign:'center'}}>
+                <ScoreRing score={portfolioHealthScore} color={scoreColor(portfolioHealthScore)} label="HEALTH SCORE" />
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:8}}>{portfolioHealthScore>=75?'Strong portfolio':'Needs attention'}</div>
+              </GlassCard>
+              <GlassCard style={{padding:'20px 16px',textAlign:'center'}}>
+                <ScoreRing score={diversificationScore} color={scoreColor(diversificationScore)} size={72} label="DIVERSIFICATION" />
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:8}}>{numTypes} asset {numTypes===1?'class':'classes'}</div>
+              </GlassCard>
+              <GlassCard style={{padding:'20px 16px',display:'flex',flexDirection:'column',gap:10}}>
+                <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,letterSpacing:'0.08em'}}>PORTFOLIO VALUE</div>
+                <div style={{fontSize:22,fontFamily:T.fD,fontWeight:800,color:T.text}}>{cur}{fmtN(totalVal)}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:12,fontFamily:T.fM,color:totalReturn>=0?T.emerald:T.rose,fontWeight:600}}>{totalReturn>=0?'+':''}{totalReturn.toFixed(1)}%</span>
+                  <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>total return</span>
+                </div>
+                <div style={{fontSize:11,fontFamily:T.fM,color:totalGain>=0?T.emerald:T.rose}}>{totalGain>=0?'+':''}{cur}{fmtN(totalGain)} P&L</div>
+              </GlassCard>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              <GlassCard style={{padding:'18px 16px'}}>
+                <SectionLabel>Current Allocation</SectionLabel>
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} dataKey="value" paddingAngle={3} strokeWidth={0}>
+                      {pieData.map((entry)=><Cell key={entry.name} fill={TYPE_COLORS[entry.name]||T.textSub} opacity={0.9}/>)}
+                    </Pie>
+                    <Tooltip contentStyle={{background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:8,padding:'6px 10px'}}
+                      formatter={(v)=>[`${cur}${fmtN(v)}`,"Value"]} itemStyle={{color:T.text,fontSize:11,fontFamily:T.fD,fontWeight:700}} labelStyle={{color:T.textSub,fontSize:9}}/>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{display:'flex',flexWrap:'wrap',gap:'6px 14px',marginTop:4}}>
+                  {pieData.map(d=>(
+                    <div key={d.name} style={{display:'flex',alignItems:'center',gap:5,fontSize:9,fontFamily:T.fM}}>
+                      <div style={{width:7,height:7,borderRadius:'50%',background:TYPE_COLORS[d.name]||T.textSub}}/>
+                      <span style={{color:T.textSub}}>{d.name}</span>
+                      <span style={{color:T.text,fontWeight:600}}>{totalVal>0?((d.value/totalVal)*100).toFixed(0):0}%</span>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+              <GlassCard style={{padding:'18px 16px'}}>
+                <SectionLabel>Target vs Actual ({profile.risk})</SectionLabel>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+                  {allocDelta.map(row=>{
+                    const col=TYPE_COLORS[row.type]||T.textSub;
+                    const over=row.delta>5;const under=row.delta<-5;
+                    const statusColor=over?T.rose:under?T.amber:T.emerald;
+                    return (
+                      <div key={row.type}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                          <span style={{fontSize:10,fontFamily:T.fM,color:T.text}}>{row.type}</span>
+                          <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                            <span style={{fontSize:9,color:T.textSub}}>{row.actual}%</span>
+                            <span style={{fontSize:8,color:T.textMuted}}>/ {row.target}% target</span>
+                            {Math.abs(row.delta)>3&&<span style={{fontSize:8,color:statusColor,background:`${statusColor}18`,padding:'1px 5px',borderRadius:3}}>{row.delta>0?'+':''}{row.delta}%</span>}
+                          </div>
+                        </div>
+                        <div style={{position:'relative',height:6,borderRadius:3,background:'rgba(255,255,255,0.06)'}}>
+                          <div style={{position:'absolute',top:-1,bottom:-1,left:`${Math.min(row.target,100)}%`,width:2,background:`${col}55`,borderRadius:1,transform:'translateX(-50%)'}}/>
+                          <div style={{height:'100%',borderRadius:3,background:col,width:`${Math.min(row.actual,100)}%`,transition:'width 0.6s ease',opacity:0.85}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </GlassCard>
+            </div>
+            <GlassCard style={{padding:'18px 20px'}}>
+              <SectionLabel>Risk / Return Tradeoff</SectionLabel>
+              <div style={{display:'flex',gap:12,alignItems:'center',marginTop:10,flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:180}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>LOW RISK</span>
+                    <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>HIGH RISK</span>
+                  </div>
+                  <div style={{position:'relative',height:10,borderRadius:5,background:`linear-gradient(90deg,${T.sky}33,${T.amber}33,${T.rose}33)`,border:`1px solid ${T.border}`}}>
+                    {['conservative','moderate','aggressive'].map((r,i)=>{
+                      const pos=[15,50,85][i];
+                      const rc=RISK.find(x=>x.id===r);
+                      const active=profile.risk===r;
+                      return <div key={r} style={{position:'absolute',top:'50%',left:`${pos}%`,transform:'translate(-50%,-50%)',
+                        width:active?16:8,height:active?16:8,borderRadius:'50%',
+                        background:active?(rc?.color||T.accent):'rgba(255,255,255,0.1)',
+                        border:active?`2px solid ${rc?.color}`:`1px solid rgba(255,255,255,0.15)`,
+                        transition:'all 0.3s',boxShadow:active?`0 0 10px ${rc?.color}55`:''}} />;
+                    })}
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-around',marginTop:6}}>
+                    {RISK.map(r=><span key={r.id} style={{fontSize:9,fontFamily:T.fM,color:profile.risk===r.id?r.color:T.textMuted,fontWeight:profile.risk===r.id?700:400}}>{r.emoji} {r.label}</span>)}
+                  </div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:8,minWidth:140}}>
+                  {[
+                    {label:'Target Return',val:`${profile.target_return}%/yr`,color:T.violet},
+                    {label:'Actual Return',val:`${totalReturn.toFixed(1)}%`,color:totalReturn>=0?T.emerald:T.rose},
+                    {label:'Style',val:profile.style,color:T.accent},
+                    {label:'Horizon',val:profile.horizon,color:T.sky},
+                  ].map(m=>(
+                    <div key={m.label} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 10px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`}}>
+                      <span style={{fontSize:9,fontFamily:T.fM,color:T.textSub}}>{m.label}</span>
+                      <span style={{fontSize:10,fontFamily:T.fM,color:m.color,fontWeight:600,textTransform:'capitalize'}}>{m.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </GlassCard>
+          </>)}
+        </div>
+      )}
+
+      {activeSection==='setup'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+            {RISK.map(rp=>(
+              <GlassCard key={rp.id} onClick={()=>upd('risk',rp.id)} style={{padding:'16px 18px',flex:1,minWidth:120,cursor:'pointer',
+                borderColor:profile.risk===rp.id?`${rp.color}55`:T.border,background:profile.risk===rp.id?`${rp.color}0f`:T.surface,transition:'all 0.18s'}}>
+                <div style={{fontSize:24,marginBottom:8}}>{rp.emoji}</div>
+                <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:profile.risk===rp.id?rp.color:T.text}}>{rp.label}</div>
+                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:3}}>{rp.desc}</div>
+              </GlassCard>
+            ))}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Time Horizon</div>
+              <Select value={profile.horizon} onChange={e=>upd('horizon',e.target.value)}>{['short','medium','long'].map(h=><option key={h}>{h}</option>)}</Select></div>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Strategy Style</div>
+              <Select value={profile.style} onChange={e=>upd('style',e.target.value)}>{['passive','active','value','growth','dividend','momentum'].map(s=><option key={s}>{s}</option>)}</Select></div>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Target Annual Return %</div>
+              <Input type="number" value={profile.target_return} onChange={e=>upd('target_return',Number(e.target.value))} /></div>
+          </div>
+          <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Investment Policy Statement</div>
+            <textarea value={profile.notes} onChange={e=>upd('notes',e.target.value)} placeholder="Your rules, thesis, constraints…" rows={4} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} /></div>
+          <GlassCard style={{padding:'16px 18px'}}>
+            <SectionLabel>Recommended Allocation for "{profile.risk}"</SectionLabel>
+            <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:10}}>
+              {Object.entries(TARGET_ALLOC[profile.risk]||{}).filter(([,v])=>v>0).map(([type,pct])=>{
+                const col=TYPE_COLORS[type]||T.textSub;
+                return (<div key={type}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3,fontSize:10,fontFamily:T.fM}}>
+                    <span style={{color:T.text}}>{type}</span><span style={{color:col,fontWeight:600}}>{pct}%</span>
+                  </div>
+                  <ProgressBar pct={pct} color={col} height={5}/>
+                </div>);
+              })}
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {activeSection==='insights'&&(
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+            <div>
+              <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>AI Portfolio Analysis</div>
+              <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Powered by Claude · analyses holdings, allocation & risk profile</div>
+            </div>
+            <Btn onClick={runAiAnalysis} color={T.violet} style={{opacity:aiLoading||!investments.length?0.5:1}}>
+              {aiLoading?'⟳ Analysing…':'✦ Run AI Analysis'}
+            </Btn>
+          </div>
+          {!settings.aiApiKey&&(
+            <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.amber}10`,border:`1px solid ${T.amber}33`,fontSize:11,fontFamily:T.fM,color:T.amber}}>
+              ⚠️ No API key configured. Go to Settings → AI Provider to add your Anthropic key.
+            </div>
+          )}
+          {investments.length===0&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Add investments to get AI analysis.</div></GlassCard>}
+          {aiLoading&&(
+            <GlassCard style={{padding:40,textAlign:'center'}}>
+              <div style={{fontSize:32,marginBottom:12,animation:'spin 1.2s linear infinite',display:'inline-block'}}>✦</div>
+              <div style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.violet,marginBottom:6}}>Analysing your portfolio…</div>
+              <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>Evaluating {investments.length} positions across {Object.keys(typeBreakdown).length} asset classes</div>
+            </GlassCard>
+          )}
+          {aiAnalysis&&!aiLoading&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12,animation:'fadeUp 0.4s ease'}}>
+              <GlassCard style={{padding:'20px 22px',borderLeft:`3px solid ${T.violet}`}}>
+                <div style={{display:'flex',gap:14,alignItems:'flex-start',flexWrap:'wrap'}}>
+                  <div style={{flex:1,minWidth:180}}>
+                    <div style={{fontSize:9,fontFamily:T.fM,color:T.violet,letterSpacing:'0.1em',textTransform:'uppercase',marginBottom:8}}>Portfolio Assessment</div>
+                    <div style={{fontSize:13,fontFamily:T.fM,color:T.text,lineHeight:1.6}}>{aiAnalysis.summary}</div>
+                    {aiAnalysis.riskReturnNote&&<div style={{marginTop:10,padding:'8px 12px',borderRadius:T.r,background:T.violetDim,border:`1px solid ${T.violet}22`,fontSize:11,fontFamily:T.fM,color:T.textSub,lineHeight:1.5}}>⚡ {aiAnalysis.riskReturnNote}</div>}
+                  </div>
+                  <div style={{display:'flex',gap:14,flexShrink:0}}>
+                    <ScoreRing score={portfolioHealthScore} color={scoreColor(portfolioHealthScore)} size={64} label="HEALTH" />
+                    <ScoreRing score={diversificationScore} color={scoreColor(diversificationScore)} size={64} label="DIVERSITY" />
+                  </div>
+                </div>
+                {aiAnalysis.rebalanceNeeded&&<div style={{marginTop:12,padding:'8px 12px',borderRadius:T.r,background:`${T.amber}10`,border:`1px solid ${T.amber}33`,fontSize:11,fontFamily:T.fM,color:T.amber}}>🔄 Rebalancing recommended — allocation drifted from your {profile.risk} target</div>}
+              </GlassCard>
+              {aiAnalysis.strengths?.length>0&&(
+                <GlassCard style={{padding:'16px 20px'}}>
+                  <SectionLabel>✅ Portfolio Strengths</SectionLabel>
+                  <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+                    {aiAnalysis.strengths.map((s,i)=>(
+                      <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'8px 10px',borderRadius:T.r,background:`${T.emerald}08`,border:`1px solid ${T.emerald}18`}}>
+                        <span style={{fontSize:13,color:T.emerald,flexShrink:0}}>✓</span>
+                        <span style={{fontSize:11,fontFamily:T.fM,color:T.text,lineHeight:1.5}}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+              {aiAnalysis.risks?.length>0&&(
+                <GlassCard style={{padding:'16px 20px'}}>
+                  <SectionLabel>⚠️ Key Risks</SectionLabel>
+                  <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+                    {aiAnalysis.risks.map((r,i)=>(
+                      <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'8px 10px',borderRadius:T.r,background:`${T.rose}08`,border:`1px solid ${T.rose}18`}}>
+                        <span style={{fontSize:13,color:T.rose,flexShrink:0}}>⚠</span>
+                        <span style={{fontSize:11,fontFamily:T.fM,color:T.text,lineHeight:1.5}}>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+              {aiAnalysis.actions?.length>0&&(
+                <GlassCard style={{padding:'16px 20px'}}>
+                  <SectionLabel>🎯 Actionable Next Steps</SectionLabel>
+                  <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:8}}>
+                    {aiAnalysis.actions.map((a,i)=>(
+                      <div key={i} style={{display:'flex',gap:10,alignItems:'flex-start',padding:'10px 12px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`}}>
+                        <div style={{width:18,height:18,borderRadius:'50%',background:T.violetDim,border:`1px solid ${T.violet}44`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:9,fontFamily:T.fM,color:T.violet,fontWeight:700}}>{i+1}</div>
+                        <span style={{fontSize:11,fontFamily:T.fM,color:T.text,lineHeight:1.5}}>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              )}
+              <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,textAlign:'center'}}>Analysis generated {aiAnalysis.ts} · {aiAnalysis.investments} positions · {cur}{fmtN(aiAnalysis.totalVal)} portfolio</div>
+            </div>
+          )}
+          {!aiAnalysis&&!aiLoading&&investments.length>0&&(
+            <GlassCard style={{padding:40,textAlign:'center'}}>
+              <div style={{fontSize:36,marginBottom:12}}>✦</div>
+              <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text,marginBottom:6}}>Ready to analyse</div>
+              <div style={{fontSize:11,fontFamily:T.fM,color:T.textSub,marginBottom:16}}>Click "Run AI Analysis" to get a deep assessment of your {investments.length} positions</div>
+              <Btn onClick={runAiAnalysis} color={T.violet}>✦ Run AI Analysis</Btn>
+            </GlassCard>
+          )}
+        </div>
       )}
     </div>
   );
