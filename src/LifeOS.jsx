@@ -1411,11 +1411,15 @@ function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
   const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [tag, setTag] = useState('General');
   const [type, setType] = useState(defaultType); const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
   const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
+  const [paymentPlan, setPaymentPlan] = useState('none'); const [paymentStartDate, setPaymentStartDate] = useState(today().slice(0,7));
+  const cost = Number(estimatedCost) || 0;
+  const monthly4x = cost > 0 ? (cost / 4) : 0;
+  const paymentEndDate = (() => { if (!paymentStartDate) return ''; const d = new Date(paymentStartDate + '-01'); d.setMonth(d.getMonth() + 3); return d.toISOString().slice(0,7); })();
   const save = () => {
     if (!title.trim()) return;
-    const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null } : {};
+    const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null, paymentPlan: paymentPlan !== 'none' ? paymentPlan : null, paymentStartDate: paymentPlan !== 'none' && paymentStartDate ? paymentStartDate : null } : {};
     onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, type, priority, dueDate, date:today(), archived:false, ...extra });
-    setTitle(''); setBody(''); setTag('General'); setType(defaultType); setPriority(2); setDueDate(''); setSpendCategory('Other'); setEstimatedCost(''); onClose();
+    setTitle(''); setBody(''); setTag('General'); setType(defaultType); setPriority(2); setDueDate(''); setSpendCategory('Other'); setEstimatedCost(''); setPaymentPlan('none'); setPaymentStartDate(today().slice(0,7)); onClose();
   };
   return (
     <Modal open={open} onClose={onClose} title={defaultType==='task'?'✅ New Task':'📝 New Note'}>
@@ -1435,16 +1439,55 @@ function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
             <Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} placeholder="Due date (tasks)" />
             <div style={{ padding:'12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22` }}>
               <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:8, fontWeight:600, letterSpacing:'0.06em' }}>🛒 SPENDING PLAN (OPTIONAL)</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                 <div>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Category</div>
                   <Select value={spendCategory} onChange={e=>setSpendCategory(e.target.value)}>{SPEND_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Select>
                 </div>
                 <div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Estimated cost ($)</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Estimated cost</div>
                   <Input type="number" value={estimatedCost} onChange={e=>setEstimatedCost(e.target.value)} placeholder="0.00" />
                 </div>
               </div>
+              {cost > 0 && (
+                <>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Payment plan</div>
+                  <div style={{ display:'flex', gap:6, marginBottom: paymentPlan==='4x' ? 10 : 0 }}>
+                    {['none','4x'].map(plan=>(
+                      <button key={plan} onClick={()=>setPaymentPlan(plan)} style={{ flex:1, padding:'6px 8px', borderRadius:8, fontSize:10, fontFamily:T.fM, fontWeight:600, background:paymentPlan===plan?(plan==='4x'?`${T.violet}33`:T.accentDim):'transparent', color:paymentPlan===plan?(plan==='4x'?T.violet:T.accent):T.textSub, border:`1px solid ${paymentPlan===plan?(plan==='4x'?T.violet+'55':T.accent+'55'):T.border}`, transition:'all 0.15s' }}>
+                        {plan==='none' ? '💳 Full' : '4️⃣ 4× Monthly'}
+                      </button>
+                    ))}
+                  </div>
+                  {paymentPlan==='4x' && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>First payment month</div>
+                        <Input type="month" value={paymentStartDate} onChange={e=>setPaymentStartDate(e.target.value)} />
+                      </div>
+                      <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.violet}12`, border:`1px solid ${T.violet}33` }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:4 }}>
+                          {Array.from({length:4},(_,i)=>{
+                            const d=new Date((paymentStartDate||today().slice(0,7))+'-01'); d.setMonth(d.getMonth()+i);
+                            const mo=d.toLocaleString('default',{month:'short'})+' '+d.getFullYear();
+                            return (
+                              <div key={i} style={{ textAlign:'center', padding:'6px 4px', borderRadius:6, background:`${T.violet}18`, border:`1px solid ${T.violet}22` }}>
+                                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>Pmt {i+1}</div>
+                                <div style={{ fontSize:9, fontFamily:T.fD, fontWeight:700, color:T.violet }}>${fmtN(monthly4x)}</div>
+                                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:1 }}>{mo}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                          <span style={{ color:T.textSub }}>Total · {paymentStartDate} → {paymentEndDate}</span>
+                          <span style={{ color:T.violet, fontWeight:700 }}>${fmtN(cost)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </>
         )}
@@ -4589,6 +4632,89 @@ function MoneyPage({ data, actions }) {
               ))}
             </GlassCard>
           ); })()}
+
+          {/* ── Potential Spending from Tasks ──────────────────────────────── */}
+          {(() => {
+            const spendTasks = (data.notes||[]).filter(n => n.type === 'task' && n.estimatedCost > 0);
+            if (spendTasks.length === 0) return null;
+            const allSlots = spendTasks.flatMap(getTaskPaymentSlots);
+            const slotsThisMonth = allSlots.filter(s => s.month === selectedMonth);
+            const totalPotential = slotsThisMonth.reduce((sum,s) => sum + s.amount, 0);
+            const totalAll = allSlots.reduce((sum,s) => sum + s.amount, 0);
+            // Group all future slots by month for timeline
+            const byMonthAll = {};
+            allSlots.forEach(s => { byMonthAll[s.month] = (byMonthAll[s.month]||0) + s.amount; });
+            const months6 = Array.from({length:6},(_,i)=>{ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+i); return d.toISOString().slice(0,7); });
+            if (totalPotential === 0 && slotsThisMonth.length === 0 && Object.keys(byMonthAll).length === 0) return null;
+            return (
+              <GlassCard style={{ padding:'20px 22px', border:`1px solid ${T.amber}22`, background:`${T.amber}04` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+                  <div>
+                    <SectionLabel>🛒 Potential Spending from Tasks</SectionLabel>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{spendTasks.length} task{spendTasks.length!==1?'s':''} with spending plans · {cur}{fmtN(totalAll)} total pipeline</div>
+                  </div>
+                  {totalPotential > 0 && (
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Due this month</div>
+                      <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{cur}{fmtN(totalPotential)}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* This month's task payments */}
+                {slotsThisMonth.length > 0 && (
+                  <div style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>Due in {selectedMonth}</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                      {slotsThisMonth.map((slot,i) => (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:T.r, background:slot.done?`${T.emerald}06`:`${T.amber}08`, border:`1px solid ${slot.done?T.emerald+'22':(slot.installment?T.violet+'33':T.amber+'22')}`, opacity:slot.done?0.6:1 }}>
+                          <div style={{ width:6, height:6, borderRadius:'50%', background:slot.installment?T.violet:T.amber, flexShrink:0 }} />
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, textDecoration:slot.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{slot.taskTitle}</div>
+                            <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>
+                              {slot.category}{slot.installment ? ` · Installment ${slot.installment}/4` : ''}
+                            </div>
+                          </div>
+                          {slot.installment && <span style={{ fontSize:8, fontFamily:T.fM, color:T.violet, background:`${T.violet}18`, padding:'1px 5px', borderRadius:4, border:`1px solid ${T.violet}22`, flexShrink:0 }}>4× plan</span>}
+                          <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:slot.done?T.emerald:(slot.installment?T.violet:T.amber), flexShrink:0 }}>{cur}{fmtN(slot.amount)}</span>
+                          {slot.done && <span style={{ fontSize:9, color:T.emerald }}>✓</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {selMonthInc > 0 && (
+                      <div style={{ marginTop:8, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                        <span style={{ color:T.textSub }}>After task spending: {cur}{fmtN(Math.max(0, selMonthInc - selMonthExp - totalPotential))} remaining</span>
+                        <span style={{ color:(selMonthInc-selMonthExp-totalPotential)>0?T.emerald:T.rose, fontWeight:700 }}>
+                          {cur}{fmtN(selMonthExp + totalPotential)} projected total spend
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 6-month timeline */}
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>6-Month Spending Pipeline</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:5 }}>
+                    {months6.map(m => {
+                      const amt = byMonthAll[m] || 0;
+                      const isNow = m === today().slice(0,7);
+                      const isSel = m === selectedMonth;
+                      const d = new Date(m+'-01');
+                      const label = d.toLocaleString('default',{month:'short'});
+                      return (
+                        <div key={m} style={{ textAlign:'center', padding:'8px 4px', borderRadius:T.r, background: isSel ? `${T.accent}10` : (amt>0?`${T.amber}08`:T.surface), border:`1px solid ${isSel?T.accent+'44':(amt>0?T.amber+'22':T.border)}`, transition:'all 0.15s' }}>
+                          <div style={{ fontSize:8, fontFamily:T.fM, color: isNow?T.accent:T.textSub, fontWeight:isNow?700:400, letterSpacing:'0.06em', marginBottom:4 }}>{label}{isNow?' ◆':''}</div>
+                          <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:amt>0?T.amber:T.textMuted }}>{amt>0?`${cur}${fmtN(amt)}`:'—'}</div>
+                          {amt>0 && <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>{(allSlots.filter(s=>s.month===m).length)} item{allSlots.filter(s=>s.month===m).length!==1?'s':''}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </GlassCard>
+            );
+          })()}
         </div>
       )}
 
@@ -5852,6 +5978,7 @@ function EditNoteModal({ open, onClose, note, onSave }) {
   const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
   const [done, setDone] = useState(false);
   const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
+  const [paymentPlan, setPaymentPlan] = useState('none'); const [paymentStartDate, setPaymentStartDate] = useState(today().slice(0,7));
   useEffect(() => {
     if (note && open) {
       setTitle(note.title || ''); setBody(note.body || ''); setTag(note.tag || 'General');
@@ -5859,11 +5986,16 @@ function EditNoteModal({ open, onClose, note, onSave }) {
       setDueDate(note.dueDate || ''); setDone(!!note.done);
       setSpendCategory(note.spendCategory || 'Other');
       setEstimatedCost(note.estimatedCost != null ? String(note.estimatedCost) : '');
+      setPaymentPlan(note.paymentPlan || 'none');
+      setPaymentStartDate(note.paymentStartDate || today().slice(0,7));
     }
   }, [note, open]);
+  const cost = Number(estimatedCost) || 0;
+  const monthly4x = cost > 0 ? (cost / 4) : 0;
+  const paymentEndDate = (() => { if (!paymentStartDate) return ''; const d = new Date(paymentStartDate + '-01'); d.setMonth(d.getMonth() + 3); return d.toISOString().slice(0,7); })();
   const save = () => {
     if (!title.trim()) return;
-    const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null } : {};
+    const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null, paymentPlan: paymentPlan !== 'none' ? paymentPlan : null, paymentStartDate: paymentPlan !== 'none' && paymentStartDate ? paymentStartDate : null } : {};
     onSave(note.id, { title: title.trim(), body: body.trim(), tag, type, priority, dueDate, done, ...extra });
     onClose();
   };
@@ -5889,16 +6021,55 @@ function EditNoteModal({ open, onClose, note, onSave }) {
             </label>
             <div style={{ padding:'12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22` }}>
               <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:8, fontWeight:600, letterSpacing:'0.06em' }}>🛒 SPENDING PLAN</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
                 <div>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Category</div>
                   <Select value={spendCategory} onChange={e=>setSpendCategory(e.target.value)}>{SPEND_CATEGORIES.map(c=><option key={c}>{c}</option>)}</Select>
                 </div>
                 <div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Estimated cost ($)</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Estimated cost</div>
                   <Input type="number" value={estimatedCost} onChange={e=>setEstimatedCost(e.target.value)} placeholder="0.00" />
                 </div>
               </div>
+              {cost > 0 && (
+                <>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Payment plan</div>
+                  <div style={{ display:'flex', gap:6, marginBottom: paymentPlan==='4x' ? 10 : 0 }}>
+                    {['none','4x'].map(plan=>(
+                      <button key={plan} onClick={()=>setPaymentPlan(plan)} style={{ flex:1, padding:'6px 8px', borderRadius:8, fontSize:10, fontFamily:T.fM, fontWeight:600, background:paymentPlan===plan?(plan==='4x'?`${T.violet}33`:T.accentDim):'transparent', color:paymentPlan===plan?(plan==='4x'?T.violet:T.accent):T.textSub, border:`1px solid ${paymentPlan===plan?(plan==='4x'?T.violet+'55':T.accent+'55'):T.border}`, transition:'all 0.15s' }}>
+                        {plan==='none' ? '💳 Full' : '4️⃣ 4× Monthly'}
+                      </button>
+                    ))}
+                  </div>
+                  {paymentPlan==='4x' && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>First payment month</div>
+                        <Input type="month" value={paymentStartDate} onChange={e=>setPaymentStartDate(e.target.value)} />
+                      </div>
+                      <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.violet}12`, border:`1px solid ${T.violet}33` }}>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:4 }}>
+                          {Array.from({length:4},(_,i)=>{
+                            const d=new Date((paymentStartDate||today().slice(0,7))+'-01'); d.setMonth(d.getMonth()+i);
+                            const mo=d.toLocaleString('default',{month:'short'})+' '+d.getFullYear();
+                            return (
+                              <div key={i} style={{ textAlign:'center', padding:'6px 4px', borderRadius:6, background:`${T.violet}18`, border:`1px solid ${T.violet}22` }}>
+                                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>Pmt {i+1}</div>
+                                <div style={{ fontSize:9, fontFamily:T.fD, fontWeight:700, color:T.violet }}>${fmtN(monthly4x)}</div>
+                                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:1 }}>{mo}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop:8, display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                          <span style={{ color:T.textSub }}>Total · {paymentStartDate} → {paymentEndDate}</span>
+                          <span style={{ color:T.violet, fontWeight:700 }}>${fmtN(cost)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </>
         )}
@@ -6272,10 +6443,41 @@ function KnowledgePage({ data, actions }) {
 
 
 // ── SPENDING PLANNER SECTION ──────────────────────────────────────────────────
+// Helper: get all monthly payment slots for a task
+function getTaskPaymentSlots(task) {
+  if (!task.estimatedCost || task.estimatedCost <= 0) return [];
+  if (task.paymentPlan === '4x' && task.paymentStartDate) {
+    const monthly = task.estimatedCost / 4;
+    return Array.from({length:4}, (_,i) => {
+      const d = new Date(task.paymentStartDate + '-01');
+      d.setMonth(d.getMonth() + i);
+      return { month: d.toISOString().slice(0,7), amount: monthly, installment: i+1, of: 4, taskId: task.id, taskTitle: task.title, category: task.spendCategory||'Other', done: task.done };
+    });
+  }
+  // Single payment: use dueDate month or current month
+  const month = task.dueDate?.slice(0,7) || new Date().toISOString().slice(0,7);
+  return [{ month, amount: task.estimatedCost, installment: null, of: null, taskId: task.id, taskTitle: task.title, category: task.spendCategory||'Other', done: task.done }];
+}
+
 function SpendingPlannerSection({ notes }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [view, setView] = useState('month'); // 'month' | 'list'
   const spendTasks = useMemo(() => (notes||[]).filter(n => n.type === 'task' && n.estimatedCost > 0), [notes]);
   if (spendTasks.length === 0) return null;
+
+  // All payment slots across all tasks
+  const allSlots = useMemo(() => spendTasks.flatMap(getTaskPaymentSlots), [spendTasks]);
+
+  // Group slots by month
+  const byMonth = useMemo(() => {
+    const m = {};
+    allSlots.forEach(slot => {
+      if (!m[slot.month]) m[slot.month] = { total:0, slots:[] };
+      m[slot.month].total += slot.amount;
+      m[slot.month].slots.push(slot);
+    });
+    return Object.entries(m).sort((a,b) => a[0]<b[0]?-1:1);
+  }, [allSlots]);
 
   const byCategory = spendTasks.reduce((acc, n) => {
     const cat = n.spendCategory || 'Other';
@@ -6286,7 +6488,9 @@ function SpendingPlannerSection({ notes }) {
   const chartData = Object.entries(byCategory).sort((a,b) => b[1]-a[1]).map(([cat, val]) => ({ cat, val }));
   const doneTasks = spendTasks.filter(n => n.done);
   const doneTotal = doneTasks.reduce((s,n) => s + Number(n.estimatedCost||0), 0);
+  const tasks4x = spendTasks.filter(n => n.paymentPlan === '4x');
   const CAT_COLORS = ['#00f5d4','#8b5cf6','#fbbf24','#fb7185','#34d399','#38bdf8','#c084fc','#f97316','#a78bfa','#22d3ee','#4ade80','#e879f9','#94a3b8'];
+  const thisMonth = new Date().toISOString().slice(0,7);
 
   return (
     <div style={{ marginTop:28 }}>
@@ -6296,7 +6500,10 @@ function SpendingPlannerSection({ notes }) {
         <span style={{ fontSize:14 }}>🛒</span>
         <div style={{ flex:1, textAlign:'left' }}>
           <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.amber }}>Spending Planner</div>
-          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{spendTasks.length} planned purchases · ${fmtN(total)} total · ${fmtN(doneTotal)} completed</div>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>
+            {spendTasks.length} planned · ${fmtN(total)} total · ${fmtN(doneTotal)} completed
+            {tasks4x.length > 0 && <span style={{ marginLeft:6, color:T.violet }}>· {tasks4x.length} on 4× plan</span>}
+          </div>
         </div>
         <span style={{ fontSize:10, color:T.textMuted, fontFamily:T.fM, transform:collapsed?'rotate(-90deg)':'rotate(0deg)', transition:'transform 0.2s' }}>▼</span>
       </button>
@@ -6315,45 +6522,121 @@ function SpendingPlannerSection({ notes }) {
               </div>
             ))}
           </div>
-          {/* Bar chart by category */}
-          <GlassCard style={{ padding:'16px 18px' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:12 }}>Budget by Category</div>
-            <ResponsiveContainer width="100%" height={Math.max(80, chartData.length * 34)}>
-              <BarChart data={chartData} layout="vertical" margin={{ top:0, right:50, left:8, bottom:0 }}>
-                <XAxis type="number" hide />
-                <YAxis type="category" dataKey="cat" tick={{ fill:T.textSub, fontSize:10, fontFamily:T.fM }} axisLine={false} tickLine={false} width={90} />
-                <Tooltip
-                  contentStyle={{ background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:8, padding:'6px 10px' }}
-                  formatter={(v) => [`$${fmtN(v)}`, 'Budget']}
-                  labelStyle={{ color:T.textSub, fontSize:9, fontFamily:T.fM }}
-                  itemStyle={{ color:T.amber, fontSize:11, fontFamily:T.fD, fontWeight:700 }}
-                />
-                <Bar dataKey="val" radius={[0,4,4,0]}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={entry.cat} fill={CAT_COLORS[index % CAT_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </GlassCard>
-          {/* Task list */}
-          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            {spendTasks.sort((a,b) => Number(b.estimatedCost||0) - Number(a.estimatedCost||0)).map(n => {
-              const catIdx = SPEND_CATEGORIES.indexOf(n.spendCategory||'Other');
-              const col = CAT_COLORS[catIdx >= 0 ? catIdx % CAT_COLORS.length : 0];
-              return (
-                <div key={n.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:T.r, background:n.done?`${T.emerald}06`:T.surface, border:`1px solid ${n.done?T.emerald+'22':T.border}`, opacity:n.done?0.65:1, transition:'all 0.2s' }}>
-                  <div style={{ width:8, height:8, borderRadius:'50%', background:col, flexShrink:0 }} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, textDecoration:n.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.title}</div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{n.spendCategory||'Other'}{n.dueDate&&` · due ${n.dueDate}`}</div>
-                  </div>
-                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:n.done?T.emerald:T.amber, flexShrink:0 }}>${fmtN(n.estimatedCost)}</div>
-                  {n.done && <span style={{ fontSize:9, color:T.emerald }}>✓</span>}
-                </div>
-              );
-            })}
+
+          {/* View toggle */}
+          <div style={{ display:'flex', gap:4, background:T.surface, borderRadius:8, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
+            {[{k:'month',label:'📅 By Month'},{k:'list',label:'📋 All Tasks'}].map(({k,label})=>(
+              <button key={k} onClick={()=>setView(k)} style={{ padding:'4px 12px', borderRadius:6, fontSize:9, fontFamily:T.fM, background:view===k?T.accentDim:'transparent', color:view===k?T.accent:T.textSub, border:`1px solid ${view===k?T.accent+'33':'transparent'}`, transition:'all 0.15s' }}>{label}</button>
+            ))}
           </div>
+
+          {view==='month' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {byMonth.length === 0 && (
+                <div style={{ padding:16, textAlign:'center', fontSize:10, fontFamily:T.fM, color:T.textMuted }}>No months mapped yet — add due dates or payment start dates to your tasks.</div>
+              )}
+              {byMonth.map(([month, data]) => {
+                const isCurrentMonth = month === thisMonth;
+                const isPast = month < thisMonth;
+                const d = new Date(month + '-01');
+                const label = d.toLocaleString('default',{month:'long',year:'numeric'});
+                return (
+                  <div key={month} style={{ borderRadius:T.r, background: isCurrentMonth ? `${T.accent}06` : T.surface, border:`1px solid ${isCurrentMonth ? T.accent+'33' : isPast ? T.border : T.amber+'22'}`, overflow:'hidden' }}>
+                    {/* Month header */}
+                    <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:`1px solid ${T.border}` }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        {isCurrentMonth && <span style={{ fontSize:8, fontFamily:T.fM, color:T.accent, background:T.accentDim, padding:'1px 6px', borderRadius:99, border:`1px solid ${T.accent}33` }}>NOW</span>}
+                        {isPast && <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, background:T.surface, padding:'1px 6px', borderRadius:99, border:`1px solid ${T.border}` }}>PAST</span>}
+                        <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:isPast?T.textSub:T.text }}>{label}</span>
+                      </div>
+                      <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:isPast?T.textMuted:T.amber }}>${fmtN(data.total)}</span>
+                    </div>
+                    {/* Slots in this month */}
+                    <div style={{ padding:'8px 14px', display:'flex', flexDirection:'column', gap:5 }}>
+                      {data.slots.map((slot,i) => (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:8, opacity:slot.done?0.5:1 }}>
+                          <div style={{ width:6, height:6, borderRadius:'50%', background:slot.installment?T.violet:T.amber, flexShrink:0 }} />
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <span style={{ fontSize:10, fontFamily:T.fM, color:slot.done?T.textSub:T.text, textDecoration:slot.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'block' }}>{slot.taskTitle}</span>
+                            <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>
+                              {slot.category}{slot.installment ? ` · Installment ${slot.installment}/4` : ''}
+                            </span>
+                          </div>
+                          {slot.installment && (
+                            <span style={{ fontSize:8, fontFamily:T.fM, color:T.violet, background:`${T.violet}18`, padding:'1px 5px', borderRadius:4, border:`1px solid ${T.violet}22`, flexShrink:0 }}>4× pmt</span>
+                          )}
+                          <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:slot.done?T.emerald:(slot.installment?T.violet:T.amber), flexShrink:0 }}>${fmtN(slot.amount)}</span>
+                          {slot.done && <span style={{ fontSize:9, color:T.emerald }}>✓</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Month-by-month bar chart */}
+              {byMonth.length > 1 && (
+                <GlassCard style={{ padding:'14px 16px' }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Monthly Spending Forecast</div>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <BarChart data={byMonth.map(([m,d])=>({ month: new Date(m+'-01').toLocaleString('default',{month:'short'}), total: d.total }))} margin={{top:0,right:0,left:0,bottom:0}}>
+                      <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip contentStyle={{ background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:8 }} formatter={v=>[`$${fmtN(v)}`,'Planned']} labelStyle={{color:T.textSub,fontSize:9}} itemStyle={{color:T.amber}} />
+                      <Bar dataKey="total" fill={T.amber} opacity={0.75} radius={[4,4,0,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </GlassCard>
+              )}
+            </div>
+          )}
+
+          {view==='list' && (
+            <>
+              {/* Bar chart by category */}
+              {chartData.length > 0 && (
+                <GlassCard style={{ padding:'16px 18px' }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:12 }}>Budget by Category</div>
+                  <ResponsiveContainer width="100%" height={Math.max(80, chartData.length * 34)}>
+                    <BarChart data={chartData} layout="vertical" margin={{ top:0, right:50, left:8, bottom:0 }}>
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="cat" tick={{ fill:T.textSub, fontSize:10, fontFamily:T.fM }} axisLine={false} tickLine={false} width={90} />
+                      <Tooltip contentStyle={{ background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:8, padding:'6px 10px' }} formatter={(v) => [`$${fmtN(v)}`, 'Budget']} labelStyle={{ color:T.textSub, fontSize:9, fontFamily:T.fM }} itemStyle={{ color:T.amber, fontSize:11, fontFamily:T.fD, fontWeight:700 }} />
+                      <Bar dataKey="val" radius={[0,4,4,0]}>
+                        {chartData.map((entry, index) => (<Cell key={entry.cat} fill={CAT_COLORS[index % CAT_COLORS.length]} />))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </GlassCard>
+              )}
+              {/* Task list */}
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {[...spendTasks].sort((a,b) => Number(b.estimatedCost||0) - Number(a.estimatedCost||0)).map(n => {
+                  const catIdx = SPEND_CATEGORIES.indexOf(n.spendCategory||'Other');
+                  const col = CAT_COLORS[catIdx >= 0 ? catIdx % CAT_COLORS.length : 0];
+                  const is4x = n.paymentPlan === '4x';
+                  const monthly = is4x ? n.estimatedCost / 4 : null;
+                  const endDate = is4x && n.paymentStartDate ? (() => { const d=new Date(n.paymentStartDate+'-01'); d.setMonth(d.getMonth()+3); return d.toISOString().slice(0,7); })() : null;
+                  return (
+                    <div key={n.id} style={{ padding:'10px 12px', borderRadius:T.r, background:n.done?`${T.emerald}06`:T.surface, border:`1px solid ${n.done?T.emerald+'22':(is4x?T.violet+'33':T.border)}`, opacity:n.done?0.65:1, transition:'all 0.2s' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:is4x?T.violet:col, flexShrink:0 }} />
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, textDecoration:n.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.title}</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>
+                            {n.spendCategory||'Other'}{n.dueDate&&` · due ${n.dueDate}`}
+                            {is4x && n.paymentStartDate && ` · 4× from ${n.paymentStartDate} → ${endDate}`}
+                          </div>
+                        </div>
+                        {is4x && <span style={{ fontSize:8, fontFamily:T.fM, color:T.violet, background:`${T.violet}18`, padding:'2px 6px', borderRadius:4, border:`1px solid ${T.violet}33`, flexShrink:0 }}>4× ${fmtN(monthly)}/mo</span>}
+                        <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:n.done?T.emerald:(is4x?T.violet:T.amber), flexShrink:0 }}>${fmtN(n.estimatedCost)}</div>
+                        {n.done && <span style={{ fontSize:9, color:T.emerald }}>✓</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
