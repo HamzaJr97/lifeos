@@ -518,6 +518,357 @@ const IcoRefresh   = (p) => <Ico {...p} d={<><polyline points="23 4 23 10 17 10"
 const IcoChevLeft  = (p) => <Ico {...p} d={<polyline points="15 18 9 12 15 6"/>} />;
 const IcoTrendUp   = (p) => <Ico {...p} d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />;
 const IcoKanban    = (p) => <Ico {...p} d={<><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></>} />;
+const IcoCloud     = (p) => <Ico {...p} d={<><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></>} />;
+const IcoCloudOff  = (p) => <Ico {...p} d={<><path d="M22.61 16.95A5 5 0 0 0 18 10h-1.26a8 8 0 0 0-7.05-6M5 5a8 8 0 0 0 4 15h9a5 5 0 0 0 1.7-.3"/><line x1="1" y1="1" x2="23" y2="23"/></>} />;
+const IcoUpload    = (p) => <Ico {...p} d={<><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></>} />;
+const IcoDownload  = (p) => <Ico {...p} d={<><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></>} />;
+const IcoPhone     = (p) => <Ico {...p} d={<><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></>} />;
+const IcoLink      = (p) => <Ico {...p} d={<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>} />;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── GIST AUTO-SYNC HOOK ───────────────────────────────────────────────────────
+// Reads token + gistId directly from localStorage (set by SettingsPage).
+// Returns { syncStatus, lastSync, lastSyncTs, push, pull, isConfigured }
+// ══════════════════════════════════════════════════════════════════════════════
+const GIST_SYNC_KNOWN_KEYS = [
+  'los_habits','los_habitlogs','los_expenses','los_incomes','los_debts',
+  'los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp',
+  'los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills',
+  'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions'
+];
+
+function buildGistSnapshot() {
+  const snap = {};
+  GIST_SYNC_KNOWN_KEYS.forEach(k => {
+    try { const v = localStorage.getItem(k); if (v !== null) snap[k] = JSON.parse(v); } catch {}
+  });
+  snap._syncedAt = new Date().toISOString();
+  return snap;
+}
+
+function useGistAutoSync(data) {
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle | pushing | pulling | ok | error
+  const [lastSync,   setLastSync  ] = useState(() => localStorage.getItem('los_last_sync') || '');
+  const [lastSyncTs, setLastSyncTs] = useState(() => localStorage.getItem('los_last_sync_ts') || '');
+  const [autoSyncEnabled] = useState(() => localStorage.getItem('los_auto_sync') !== 'false');
+  const pushTimerRef = useRef(null);
+  const didInitRef   = useRef(false);
+  const pushInFlightRef = useRef(false);
+
+  const getCredentials = () => ({
+    token: (localStorage.getItem('los_gist_token') || '').replace(/^"(.*)"$/, '$1').trim(),
+    gistId: (localStorage.getItem('los_gist_id')   || '').replace(/^"(.*)"$/, '$1').trim(),
+  });
+
+  const push = useCallback(async (silent = false) => {
+    const { token, gistId } = getCredentials();
+    if (!token) return false;
+    if (pushInFlightRef.current) return false;
+    pushInFlightRef.current = true;
+    if (!silent) setSyncStatus('pushing');
+    try {
+      const snapshot = buildGistSnapshot();
+      const body = {
+        description: 'LifeOS sync — ' + new Date().toISOString(),
+        public: false,
+        files: { 'lifeos_data.json': { content: JSON.stringify(snapshot, null, 2) } },
+      };
+      let url = 'https://api.github.com/gists';
+      let method = 'POST';
+      if (gistId) { url += '/' + gistId; method = 'PATCH'; }
+      const res = await fetch(url, {
+        method,
+        headers: { Authorization: 'token ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('GitHub ' + res.status);
+      const d = await res.json();
+      // persist gist id in case it was just created
+      if (!gistId && d.id) localStorage.setItem('los_gist_id', JSON.stringify(d.id));
+      const ts = new Date().toLocaleString();
+      localStorage.setItem('los_last_sync', ts);
+      localStorage.setItem('los_last_sync_ts', new Date().toISOString());
+      setLastSync(ts);
+      setLastSyncTs(new Date().toISOString());
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+      return true;
+    } catch (e) {
+      setSyncStatus('error');
+      if (!silent) alert('Sync push failed: ' + e.message + '\n\nCheck your GitHub token (Settings → Data Management).');
+      return false;
+    } finally {
+      pushInFlightRef.current = false;
+    }
+  }, []);
+
+  const pull = useCallback(async () => {
+    const { token, gistId } = getCredentials();
+    if (!token || !gistId) return false;
+    setSyncStatus('pulling');
+    try {
+      const res = await fetch('https://api.github.com/gists/' + gistId, {
+        headers: { Authorization: 'token ' + token },
+      });
+      if (!res.ok) throw new Error('Gist not found (' + res.status + ')');
+      const gist = await res.json();
+      const raw = gist.files?.['lifeos_data.json']?.content;
+      if (!raw) throw new Error('lifeos_data.json missing in Gist');
+      const d = JSON.parse(raw);
+      // Check if cloud data is newer than local
+      const cloudTs  = d._syncedAt || '';
+      const localTs  = localStorage.getItem('los_last_sync_ts') || '';
+      if (cloudTs && localTs && cloudTs <= localTs) {
+        setSyncStatus('ok');
+        setTimeout(() => setSyncStatus('idle'), 2000);
+        return 'up-to-date';
+      }
+      GIST_SYNC_KNOWN_KEYS.forEach(k => {
+        if (d[k] !== undefined) {
+          try { localStorage.setItem(k, JSON.stringify(d[k])); } catch {}
+        }
+      });
+      const ts = new Date().toLocaleString();
+      localStorage.setItem('los_last_sync', ts);
+      localStorage.setItem('los_last_sync_ts', new Date().toISOString());
+      setSyncStatus('ok');
+      setTimeout(() => { window.location.reload(); }, 800);
+      return 'reloading';
+    } catch (e) {
+      setSyncStatus('error');
+      setTimeout(() => setSyncStatus('idle'), 4000);
+      return false;
+    }
+  }, []);
+
+  // ── Auto-pull on first app open (once per session) ─────────────────────────
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+    const { token, gistId } = getCredentials();
+    if (!token || !gistId || !autoSyncEnabled) return;
+    // only auto-pull if last sync was > 5 minutes ago
+    const lastTs = localStorage.getItem('los_last_sync_ts');
+    const minsAgo = lastTs ? (Date.now() - new Date(lastTs).getTime()) / 60000 : 9999;
+    if (minsAgo < 5) return;
+    // Silent pull — if cloud is newer, reload; else no-op
+    pull().catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Auto-push when data changes (debounced 30s) ────────────────────────────
+  const dataFingerprint = useMemo(() => {
+    const d = data;
+    return [
+      (d.expenses||[]).length, (d.incomes||[]).length, (d.habits||[]).length,
+      (d.notes||[]).length,    (d.goals||[]).length,   (d.vitals||[]).length,
+      (d.debts||[]).length,    (d.investments||[]).length,
+    ].join(',');
+  }, [data]);
+
+  useEffect(() => {
+    const { token } = getCredentials();
+    if (!token || !autoSyncEnabled) return;
+    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
+    pushTimerRef.current = setTimeout(() => { push(true); }, 30000);
+    return () => { if (pushTimerRef.current) clearTimeout(pushTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataFingerprint]);
+
+  // ── Auto-push on tab/window blur (user leaving the app) ───────────────────
+  useEffect(() => {
+    const handleBlur = () => {
+      const { token } = getCredentials();
+      if (!token || !autoSyncEnabled) return;
+      push(true);
+    };
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') handleBlur();
+    });
+    return () => {
+      window.removeEventListener('blur', handleBlur);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [push]);
+
+  const { token, gistId } = getCredentials();
+  const isConfigured = Boolean(token && gistId);
+  const isPartial    = Boolean(token && !gistId);
+
+  return { syncStatus, lastSync, lastSyncTs, push, pull, isConfigured, isPartial };
+}
+
+// ── SYNC MODAL ────────────────────────────────────────────────────────────────
+function SyncModal({ open, onClose, syncStatus, lastSync, onPush, onPull, isConfigured, isPartial }) {
+  const [step, setStep] = useState('status'); // 'status' | 'setup' | 'iphone'
+  const [token, setToken] = useState(() => (localStorage.getItem('los_gist_token') || '').replace(/^"(.*)"$/, '$1'));
+  const [gistId, setGistId] = useState(() => (localStorage.getItem('los_gist_id')  || '').replace(/^"(.*)"$/, '$1'));
+  const [showToken, setShowToken] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // sync local state with localStorage changes
+  useEffect(() => {
+    if (open) {
+      setToken((localStorage.getItem('los_gist_token') || '').replace(/^"(.*)"$/, '$1'));
+      setGistId((localStorage.getItem('los_gist_id')   || '').replace(/^"(.*)"$/, '$1'));
+      setStep(isConfigured || isPartial ? 'status' : 'setup');
+    }
+  }, [open, isConfigured, isPartial]);
+
+  const saveCredentials = () => {
+    if (token.trim()) localStorage.setItem('los_gist_token', JSON.stringify(token.trim()));
+    if (gistId.trim()) localStorage.setItem('los_gist_id', JSON.stringify(gistId.trim()));
+    setStep('status');
+  };
+
+  const copyGistId = () => {
+    navigator.clipboard.writeText(gistId).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }).catch(() => {});
+  };
+
+  const STATUS_COLOR = { idle:T.textMuted, pushing:T.amber, pulling:T.sky, ok:T.emerald, error:T.rose };
+  const STATUS_LABEL = { idle:'Ready', pushing:'Pushing to cloud…', pulling:'Pulling from cloud…', ok:'Synced ✓', error:'Sync failed' };
+
+  return (
+    <Modal open={open} onClose={onClose} title="☁️ Cross-Device Sync">
+      {/* Tab nav */}
+      <div style={{ display:'flex', gap:2, background:T.surface, borderRadius:8, padding:3, marginBottom:16, border:`1px solid ${T.border}` }}>
+        {[{k:'status',label:'Status'},{k:'setup',label:'⚙️ Setup'},{k:'iphone',label:'📱 iPhone Guide'}].map(({k,label})=>(
+          <button key={k} onClick={()=>setStep(k)} style={{ flex:1, padding:'5px 0', borderRadius:6, fontSize:9, fontFamily:T.fM, background:step===k?T.accentDim:'transparent', color:step===k?T.accent:T.textSub, border:`1px solid ${step===k?T.accent+'33':'transparent'}`, transition:'all 0.15s' }}>{label}</button>
+        ))}
+      </div>
+
+      {/* STATUS TAB */}
+      {step==='status' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Status indicator */}
+          <div style={{ padding:'16px', borderRadius:T.r, background:T.surface, border:`1px solid ${STATUS_COLOR[syncStatus]||T.border}33`, display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:10, height:10, borderRadius:'50%', background:STATUS_COLOR[syncStatus]||T.textMuted, flexShrink:0, animation:syncStatus==='pushing'||syncStatus==='pulling'?'dotPulse 1s infinite':'none' }} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{STATUS_LABEL[syncStatus]||'Ready'}</div>
+              {lastSync && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>Last sync: {lastSync}</div>}
+              {!isConfigured && !isPartial && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:4 }}>⚠️ Not configured — go to Setup tab</div>}
+            </div>
+          </div>
+
+          {/* Config summary */}
+          {(isConfigured || isPartial) && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>GitHub token</span>
+                <span style={{ fontSize:10, fontFamily:T.fM, color:token?T.emerald:T.rose }}>{token ? '●●●●●●●● set' : 'not set'}</span>
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Gist ID</span>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:10, fontFamily:T.fM, color:gistId?T.emerald:T.amber }}>{gistId ? gistId.slice(0,8)+'…' : 'not set (push first)'}</span>
+                  {gistId && <button onClick={copyGistId} style={{ fontSize:9, padding:'2px 6px', borderRadius:4, background:T.accentDim, color:T.accent, border:`1px solid ${T.accent}33` }}>{copied?'✓':'Copy'}</button>}
+                </div>
+              </div>
+              <div style={{ padding:'8px 12px', borderRadius:T.r, background:`${T.sky}08`, border:`1px solid ${T.sky}22`, fontSize:9, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+                💡 Auto-sync is active — changes push automatically after 30s of inactivity, and when you leave the app. On iPhone, open the app and wait a moment for the pull.
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <button onClick={()=>onPush(false)} disabled={!token||syncStatus==='pushing'||syncStatus==='pulling'}
+              style={{ padding:'10px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, color:T.emerald, fontSize:11, fontFamily:T.fM, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:6, cursor:!token?'not-allowed':'pointer', opacity:!token?0.4:1 }}>
+              <IcoUpload size={13} stroke={T.emerald} />
+              {syncStatus==='pushing'?'Pushing…':'Push to Cloud'}
+            </button>
+            <button onClick={()=>onPull()} disabled={!token||!gistId||syncStatus==='pushing'||syncStatus==='pulling'}
+              style={{ padding:'10px', borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}44`, color:T.sky, fontSize:11, fontFamily:T.fM, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:6, cursor:(!token||!gistId)?'not-allowed':'pointer', opacity:(!token||!gistId)?0.4:1 }}>
+              <IcoDownload size={13} stroke={T.sky} />
+              {syncStatus==='pulling'?'Pulling…':'Pull to Device'}
+            </button>
+          </div>
+          {syncStatus==='error' && <div style={{ fontSize:10, fontFamily:T.fM, color:T.rose, textAlign:'center' }}>Sync failed — check your token in the Setup tab.</div>}
+        </div>
+      )}
+
+      {/* SETUP TAB */}
+      {step==='setup' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+            You need a free GitHub account. The token is stored only in your browser — never sent anywhere except GitHub.
+          </div>
+          {/* Step 1 */}
+          <div style={{ padding:'12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, fontWeight:700, marginBottom:6 }}>Step 1 — Generate a GitHub token</div>
+            <a href="https://github.com/settings/tokens/new?scopes=gist&description=LifeOS+Sync" target="_blank" rel="noopener noreferrer"
+              style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'7px 12px', borderRadius:T.r, background:T.accentDim, color:T.accent, fontSize:10, fontFamily:T.fM, fontWeight:600, border:`1px solid ${T.accent}33`, textDecoration:'none' }}>
+              <IcoLink size={12} stroke={T.accent} /> Open GitHub → New Token ↗
+            </a>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>Select scope: ✅ gist — then click "Generate token" and copy it.</div>
+          </div>
+          {/* Step 2 */}
+          <div style={{ padding:'12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, fontWeight:700, marginBottom:6 }}>Step 2 — Paste token here</div>
+            <div style={{ display:'flex', gap:6 }}>
+              <input type={showToken?'text':'password'} value={token} onChange={e=>setToken(e.target.value)} placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text }} />
+              <button onClick={()=>setShowToken(v=>!v)} style={{ padding:'0 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}>{showToken?'🙈':'👁'}</button>
+            </div>
+          </div>
+          {/* Gist ID (optional) */}
+          <div style={{ padding:'12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.accent, fontWeight:700, marginBottom:4 }}>Step 3 — Gist ID <span style={{ color:T.textMuted, fontWeight:400 }}>(leave empty on first device — filled automatically after first push)</span></div>
+            <input value={gistId} onChange={e=>setGistId(e.target.value)} placeholder="Paste Gist ID here if syncing a second device"
+              style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text }} />
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>On your second device (iPhone), push from Firefox first, then copy the Gist ID shown in Status and paste it here.</div>
+          </div>
+          <button onClick={saveCredentials} style={{ padding:'10px', borderRadius:T.r, background:T.accentDim, color:T.accent, border:`1px solid ${T.accent}44`, fontFamily:T.fM, fontSize:12, fontWeight:700 }}>
+            Save & Enable Sync
+          </button>
+          {token && !gistId && (
+            <button onClick={()=>{ saveCredentials(); setTimeout(()=>onPush(false),100); onClose(); }} style={{ padding:'10px', borderRadius:T.r, background:T.emeraldDim, color:T.emerald, border:`1px solid ${T.emerald}44`, fontFamily:T.fM, fontSize:12, fontWeight:700 }}>
+              Save & Push Now (creates the cloud Gist)
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* IPHONE GUIDE TAB */}
+      {step==='iphone' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.sky}08`, border:`1px solid ${T.sky}22`, fontSize:10, fontFamily:T.fM, color:T.sky, lineHeight:1.6, fontWeight:600 }}>
+            📱 How to sync Firefox → iPhone Safari
+          </div>
+          {[
+            { emoji:'1️⃣', title:'On Firefox (this device)', body:'Go to Setup tab → paste your GitHub token → click "Save & Push Now". This uploads your data to a private GitHub Gist.' },
+            { emoji:'2️⃣', title:'Copy your Gist ID', body:'After pushing, go to Status tab — you\'ll see your Gist ID. Tap "Copy" to copy it to clipboard.' },
+            { emoji:'3️⃣', title:'On iPhone — open the app', body:'Open your LifeOS URL in Safari on iPhone. GitHub Pages works fine in mobile Safari.' },
+            { emoji:'4️⃣', title:'On iPhone — go to Settings', body:'Tap Settings in the sidebar → Data Management → Free Cloud Sync section.' },
+            { emoji:'5️⃣', title:'On iPhone — enter credentials', body:'Paste the same GitHub token (you can email it to yourself or use iCloud Notes/AirDrop). Paste the Gist ID you copied in step 2.' },
+            { emoji:'6️⃣', title:'Pull to device', body:'Tap "Pull to Device" — the app will reload with all your Firefox data. From now on, auto-sync keeps both devices in sync automatically.' },
+          ].map((step, i) => (
+            <div key={i} style={{ display:'flex', gap:10, padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:16, flexShrink:0 }}>{step.emoji}</div>
+              <div>
+                <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{step.title}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{step.body}</div>
+              </div>
+            </div>
+          ))}
+          <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.violet}08`, border:`1px solid ${T.violet}22`, fontSize:9, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+            💡 <b style={{color:T.violet}}>Auto-sync</b>: once both devices are set up, changes auto-push every 30 seconds and when you leave the app. On the other device, the app auto-pulls when opened (if data is more than 5 min old). You never need to manually push/pull again.
+          </div>
+          {gistId && (
+            <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.emerald}08`, border:`1px solid ${T.emerald}33` }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Your Gist ID (copy to your iPhone)</div>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                <code style={{ flex:1, fontSize:11, fontFamily:T.fM, color:T.emerald, wordBreak:'break-all' }}>{gistId}</code>
+                <button onClick={copyGistId} style={{ padding:'5px 10px', borderRadius:T.r, background:T.emeraldDim, color:T.emerald, border:`1px solid ${T.emerald}33`, fontSize:10, fontFamily:T.fM, fontWeight:600, flexShrink:0 }}>{copied?'✓ Copied':'Copy'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 // ── SHARED UI COMPONENTS ──────────────────────────────────────────────────────
 const GlassCard = ({ children, style={}, className='', onClick }) => (
@@ -8064,7 +8415,7 @@ function CustomCatInput({ onAdd }) {
 }
 
 // ── SETTINGS PAGE ─────────────────────────────────────────────────────────────
-function SettingsPage({ data, actions }) {
+function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
   const lang = useLang();
   const {settings={}} = data;
   const [name, setName] = useState(settings.name||'');
@@ -8159,90 +8510,7 @@ function SettingsPage({ data, actions }) {
       return Math.round(total / 1024);
     } catch { return 0; }
   })();
-  // ── GIST SYNC ─────────────────────────────────────────────────────────────
-  const [gistToken, setGistToken] = useLocalStorage('los_gist_token', '');
-  const [gistId,    setGistId   ] = useLocalStorage('los_gist_id',    '');
-  const [syncStatus, setSyncStatus] = useState('');  // '', 'pushing', 'pulling', 'ok', 'error'
-  const [lastSync,   setLastSync  ] = useLocalStorage('los_last_sync', '');
-  const [showToken,  setShowToken ] = useState(false);
-
-  const KNOWN_KEYS = ['los_habits','los_habitlogs','los_expenses','los_incomes','los_debts',
-    'los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp',
-    'los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills',
-    'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions'];
-
-  const buildSnapshot = () => {
-    const snap = {};
-    KNOWN_KEYS.forEach(k => {
-      try { const v = localStorage.getItem(k); if (v !== null) snap[k] = JSON.parse(v); } catch {}
-    });
-    return snap;
-  };
-
-  const pushToGist = async () => {
-    if (!gistToken.trim()) { setSyncStatus('error'); alert('Enter your GitHub token first.'); return; }
-    setSyncStatus('pushing');
-    try {
-      const snapshot = buildSnapshot();
-      const body = {
-        description: 'LifeOS sync — ' + new Date().toISOString(),
-        public: false,
-        files: { 'lifeos_data.json': { content: JSON.stringify(snapshot, null, 2) } },
-      };
-      let url = 'https://api.github.com/gists';
-      let method = 'POST';
-      if (gistId) { url += '/' + gistId; method = 'PATCH'; }
-      const res = await fetch(url, {
-        method,
-        headers: { Authorization: 'token ' + gistToken.trim(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error('GitHub API error ' + res.status);
-      const d = await res.json();
-      setGistId(d.id);
-      const ts = new Date().toLocaleString();
-      setLastSync(ts);
-      setSyncStatus('ok');
-      setTimeout(() => setSyncStatus(''), 3000);
-    } catch (e) {
-      setSyncStatus('error');
-      alert('Push failed: ' + e.message + '\n\nCheck your token has the "gist" scope.');
-    }
-  };
-
-  const pullFromGist = async () => {
-    if (!gistToken.trim() || !gistId.trim()) {
-      alert('You need to push from this device first to create the Gist, or enter a Gist ID manually.');
-      return;
-    }
-    const confirmed = window.confirm(
-      'Pull from cloud?\n\nThis will OVERWRITE all data on this device with the cloud version and reload the app.'
-    );
-    if (!confirmed) return;
-    setSyncStatus('pulling');
-    try {
-      const res = await fetch('https://api.github.com/gists/' + gistId.trim(), {
-        headers: { Authorization: 'token ' + gistToken.trim() },
-      });
-      if (!res.ok) throw new Error('Gist not found — check ID and token. Error: ' + res.status);
-      const gist = await res.json();
-      const raw = gist.files?.['lifeos_data.json']?.content;
-      if (!raw) throw new Error('lifeos_data.json not found in Gist');
-      const d = JSON.parse(raw);
-      KNOWN_KEYS.forEach(k => {
-        if (d[k] !== undefined) {
-          try { localStorage.setItem(k, JSON.stringify(d[k])); } catch {}
-        }
-      });
-      setLastSync(new Date().toLocaleString());
-      setSyncStatus('ok');
-      window.location.reload();
-    } catch (e) {
-      setSyncStatus('error');
-      alert('Pull failed: ' + e.message);
-    }
-  };
-  // ── END GIST SYNC ──────────────────────────────────────────────────────────
+  // ── END GIST SYNC (now managed by useGistAutoSync in root) ────────────────
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
@@ -8441,82 +8709,61 @@ function SettingsPage({ data, actions }) {
               </div>
               {lsUsageKB > 3500 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose, marginTop:5 }}>⚠ Approaching browser storage limit — export a backup now.</div>}
             </div>
-            {/* ── Gist Cloud Sync ───────────────────────────────────── */}
-            <div style={{ marginBottom:8, paddingBottom:16, borderBottom:`1px solid ${T.border}` }}>
-              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
-                ☁️ {lang==='fr'?'Sync cloud gratuit (GitHub Gist)':'Free Cloud Sync (GitHub Gist)'}
-              </div>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10, lineHeight:1.5 }}>
-                {lang==='fr'
-                  ? 'Sauvegardez vos données dans un Gist GitHub privé et synchronisez entre tous vos appareils. Gratuit, aucun serveur requis.'
-                  : 'Save your data to a private GitHub Gist and sync across all devices. Free, no server needed.'}
-              </div>
-
-              {/* Token input */}
-              <div style={{ marginBottom:8 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, display:'flex', justifyContent:'space-between' }}>
-                  <span>GitHub Personal Access Token (gist scope)</span>
-                  <a href="https://github.com/settings/tokens/new?scopes=gist&description=LifeOS+Sync" target="_blank" rel="noopener noreferrer" style={{ color:T.accent, fontSize:9 }}>
-                    Generate token ↗
-                  </a>
-                </div>
-                <div style={{ display:'flex', gap:6 }}>
-                  <input
-                    type={showToken ? 'text' : 'password'}
-                    value={gistToken}
-                    onChange={e => setGistToken(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-                    style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text }}
-                  />
-                  <button onClick={()=>setShowToken(v=>!v)} style={{ padding:'0 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, color:T.textSub }}>
-                    {showToken ? '🙈' : '👁'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Gist ID (auto-filled after first push) */}
-              {gistId && (
-                <div style={{ marginBottom:8 }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Gist ID (auto-filled — copy to other devices)</div>
-                  <div style={{ display:'flex', gap:6 }}>
-                    <input
-                      value={gistId}
-                      onChange={e => setGistId(e.target.value)}
-                      style={{ flex:1, padding:'7px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:10, color:T.textSub }}
-                    />
-                    <button onClick={()=>navigator.clipboard.writeText(gistId).catch(()=>{})} style={{ padding:'0 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, color:T.textSub }}>
-                      📋
-                    </button>
+            {/* ── Cloud Auto-Sync ───────────────────────────────────── */}
+            {(() => {
+              const { syncStatus, lastSync, isConfigured, isPartial, push, pull } = gistSync;
+              const syncColor = syncStatus==='ok'?T.emerald:syncStatus==='error'?T.rose:isConfigured?T.sky:T.amber;
+              return (
+                <div style={{ marginBottom:8, paddingBottom:16, borderBottom:`1px solid ${T.border}` }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, display:'flex', alignItems:'center', gap:6 }}>
+                      <IcoCloud size={14} stroke={syncColor} /> {lang==='fr'?'Sync automatique':'Auto Cloud Sync'}
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <div style={{ width:7, height:7, borderRadius:'50%', background:syncColor, flexShrink:0, animation:syncStatus==='pushing'||syncStatus==='pulling'?'dotPulse 1s infinite':'none' }} />
+                      <span style={{ fontSize:9, fontFamily:T.fM, color:syncColor }}>
+                        {syncStatus==='pushing'?'Pushing…':syncStatus==='pulling'?'Pulling…':syncStatus==='ok'?'Synced':isConfigured?'Ready':'Not configured'}
+                      </span>
+                    </div>
                   </div>
+                  {isConfigured ? (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ padding:'10px 12px', borderRadius:T.r, background:`${T.sky}08`, border:`1px solid ${T.sky}22`, fontSize:9, fontFamily:T.fM, color:T.textSub, lineHeight:1.7 }}>
+                        ✅ Auto-sync is active — changes are pushed automatically every 30 seconds and when you leave the app. The other device pulls automatically on startup.
+                        {lastSync && <span style={{ display:'block', marginTop:4, color:T.textMuted }}>Last synced: {lastSync}</span>}
+                      </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
+                        <button onClick={()=>push(false)} disabled={syncStatus==='pushing'||syncStatus==='pulling'}
+                          style={{ padding:'8px 6px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, color:T.emerald, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}>
+                          <IcoUpload size={11} stroke={T.emerald}/> Push
+                        </button>
+                        <button onClick={()=>pull()} disabled={syncStatus==='pushing'||syncStatus==='pulling'}
+                          style={{ padding:'8px 6px', borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}44`, color:T.sky, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}>
+                          <IcoDownload size={11} stroke={T.sky}/> Pull
+                        </button>
+                        <button onClick={()=>onOpenSyncModal && onOpenSyncModal()}
+                          style={{ padding:'8px 6px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
+                          ⚙️ Manage
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+                        {lang==='fr'
+                          ? 'Synchronisez vos données entre Firefox et iPhone automatiquement. Gratuit via GitHub Gist, aucun serveur requis.'
+                          : 'Sync data between Firefox and iPhone automatically. Free via GitHub Gist — no server needed.'}
+                      </div>
+                      {isPartial && <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'7px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33` }}>Token set — push first to create your Gist, then copy the ID to your other device.</div>}
+                      <button onClick={()=>onOpenSyncModal && onOpenSyncModal()}
+                        style={{ padding:'10px', borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}44`, color:T.sky, fontSize:11, fontFamily:T.fM, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <IcoCloud size={14} stroke={T.sky}/> Set Up Sync / iPhone Guide
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-              {!gistId && gistToken && (
-                <div style={{ marginBottom:8 }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Gist ID (enter after pushing from another device)</div>
-                  <input
-                    value={gistId}
-                    onChange={e => setGistId(e.target.value)}
-                    placeholder="Paste Gist ID here to pull data"
-                    style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:10, color:T.text }}
-                  />
-                </div>
-              )}
-
-              {/* Sync buttons */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:lastSync?8:0 }}>
-                <button onClick={pushToGist} disabled={!gistToken.trim()||syncStatus==='pushing'||syncStatus==='pulling'}
-                  style={{ padding:'9px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}44`, color:T.emerald, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor: !gistToken.trim()?'not-allowed':'pointer', opacity: !gistToken.trim()?0.4:1 }}>
-                  {syncStatus==='pushing' ? '⏳ Pushing…' : `☁️ ${lang==='fr'?'Pousser':'Push to Cloud'}`}
-                </button>
-                <button onClick={pullFromGist} disabled={!gistToken.trim()||!gistId.trim()||syncStatus==='pushing'||syncStatus==='pulling'}
-                  style={{ padding:'9px', borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}44`, color:T.sky, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor: (!gistToken.trim()||!gistId.trim())?'not-allowed':'pointer', opacity: (!gistToken.trim()||!gistId.trim())?0.4:1 }}>
-                  {syncStatus==='pulling' ? '⏳ Pulling…' : `📲 ${lang==='fr'?'Tirer':'Pull to Device'}`}
-                </button>
-              </div>
-              {syncStatus==='ok' && <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald }}>✓ {lang==='fr'?'Synchronisé avec succès !':'Sync successful!'}</div>}
-              {syncStatus==='error' && <div style={{ fontSize:10, fontFamily:T.fM, color:T.rose }}>✗ {lang==='fr'?'Échec — voir alerte ci-dessus':'Failed — see alert above'}</div>}
-              {lastSync && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>{lang==='fr'?'Dernier sync :':'Last sync:'} {lastSync}</div>}
-            </div>
+              );
+            })()}
 
             <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
             <Btn full onClick={()=>{ const d = { los_habits:data.habits, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes }; navigator.clipboard.writeText(JSON.stringify(d,null,2)).then(()=>alert('Data copied to clipboard!')).catch(()=>alert('Clipboard copy failed — try Export JSON instead')); }} color={T.textSub}>📋 Copy Data to Clipboard</Btn>
@@ -12046,6 +12293,7 @@ export default function LifeOS() {
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const [showWeeklyReview,  setShowWeeklyReview ] = useState(false);
+  const [showSyncModal,     setShowSyncModal    ] = useState(false);
 
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
@@ -12698,6 +12946,9 @@ export default function LifeOS() {
   const cur = settings.currency||'$';
   const { monthInc, monthExp, invVal, nw, savRate, thisMonth } = computed;
 
+  // ── Auto-sync across devices ─────────────────────────────────────────────────
+  const gistSync = useGistAutoSync(data);
+
   // ── S3: Smart Alerts — computed centrally for TopBar bell ────────────────────
   const smartAlerts = useMemo(() => computeSmartAlerts({
     bills:_bills, budgets:_budgets, expenses:_expenses, habits:_habits,
@@ -12788,7 +13039,7 @@ export default function LifeOS() {
     calendar:  eb(<CalendarPage  data={data} />),
     intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} />),
     archive:   eb(<ArchivePage   data={data} />),
-    settings:  eb(<SettingsPage  data={data} actions={actions} />),
+    settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} />),
   };
 
   // Global modal handler for Command Palette quick actions
@@ -12810,6 +13061,16 @@ export default function LifeOS() {
     <GlobalAIPanel open={showAIPanel} onClose={()=>setShowAIPanel(false)} data={data} />
     <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
     <WeeklyReviewModal  open={showWeeklyReview}  onClose={()=>setShowWeeklyReview(false)}  data={data} actions={actions} />
+    <SyncModal
+      open={showSyncModal}
+      onClose={()=>setShowSyncModal(false)}
+      syncStatus={gistSync.syncStatus}
+      lastSync={gistSync.lastSync}
+      onPush={gistSync.push}
+      onPull={gistSync.pull}
+      isConfigured={gistSync.isConfigured}
+      isPartial={gistSync.isPartial}
+    />
     <BadgeUnlockModal badge={showBadge} onClose={()=>setShowBadge(null)} />
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
@@ -12883,6 +13144,37 @@ export default function LifeOS() {
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
                   <IcoCalendar size={15} stroke="currentColor" />
                   {hasNew && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+                </button>
+              );
+            })()}
+            {/* ── Sync button ── */}
+            {(() => {
+              const { syncStatus, isConfigured, isPartial } = gistSync;
+              const syncColor = syncStatus==='ok' ? T.emerald : syncStatus==='error' ? T.rose : syncStatus==='pushing'||syncStatus==='pulling' ? T.amber : isConfigured ? T.sky : T.textMuted;
+              const syncIcon = syncStatus==='pushing'||syncStatus==='pulling'
+                ? <IcoRefresh size={14} stroke={syncColor} style={{animation:'spin 1s linear infinite'}} />
+                : isConfigured
+                  ? <IcoCloud size={14} stroke={syncColor} />
+                  : <IcoCloudOff size={14} stroke={syncColor} />;
+              const tip = syncStatus==='pushing' ? 'Syncing…'
+                : syncStatus==='pulling' ? 'Pulling…'
+                : syncStatus==='ok' ? 'Synced ✓'
+                : syncStatus==='error' ? 'Sync error — click to check'
+                : isConfigured ? 'Auto-sync on · click for details'
+                : isPartial ? 'Sync: push first to create Gist'
+                : 'Click to set up cross-device sync';
+              return (
+                <button onClick={()=>setShowSyncModal(true)} title={tip}
+                  style={{ position:'relative', padding:'5px 7px', borderRadius:7, background: isConfigured ? (syncStatus==='ok'?`${T.emerald}15`:`${T.sky}0a`) : 'transparent', border:`1px solid ${isConfigured ? syncColor+'33' : 'transparent'}`, color:syncColor, display:'flex', alignItems:'center', justifyContent:'center', gap:4, transition:'all 0.2s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=`${syncColor}18`;e.currentTarget.style.borderColor=syncColor+'44';}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=isConfigured?`${syncColor}0a`:'transparent';e.currentTarget.style.borderColor=isConfigured?syncColor+'33':'transparent';}}>
+                  {syncIcon}
+                  {!isMobile && isConfigured && <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600 }}>
+                    {syncStatus==='pushing'?'Sync…':syncStatus==='pulling'?'Pull…':syncStatus==='ok'?'Synced':'Sync'}
+                  </span>}
+                  {!isConfigured && !isMobile && <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>Sync</span>}
+                  {syncStatus==='error' && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.rose, animation:'dotPulse 2s infinite' }} />}
+                  {!isConfigured && <span style={{ position:'absolute', top:-2, right:-2, width:5, height:5, borderRadius:'50%', background:T.amber, opacity:0.8 }} />}
                 </button>
               );
             })()}
