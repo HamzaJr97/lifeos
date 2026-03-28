@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v64
+// LifeOS — Personal Life Operating System  |  v72
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -51,6 +51,12 @@ import {
     @keyframes fabItemIn { from { opacity:0; transform:scale(0.4); } to { opacity:1; transform:scale(1); } }
     @keyframes badgeIn { from { opacity:0; transform:scale(0.7) rotateY(90deg); } to { opacity:1; transform:scale(1) rotateY(0deg); } }
     @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+    @keyframes float { 0%,100% { transform:translateY(0px) scale(1); opacity:0.7; } 50% { transform:translateY(-18px) scale(1.08); opacity:1; } }
+    @keyframes floatSlow { 0%,100% { transform:translateY(0px) translateX(0px); } 33% { transform:translateY(-12px) translateX(8px); } 66% { transform:translateY(6px) translateX(-6px); } }
+    @keyframes pulseGlow { 0%,100% { opacity:0.4; transform:scale(1); } 50% { opacity:0.9; transform:scale(1.15); } }
+    @keyframes ambientDrift { 0% { transform:translate(0,0) scale(1); } 25% { transform:translate(60px,-40px) scale(1.12); } 50% { transform:translate(20px,60px) scale(0.95); } 75% { transform:translate(-50px,10px) scale(1.06); } 100% { transform:translate(0,0) scale(1); } }
+    @keyframes graphEdge { from { stroke-dashoffset:200; opacity:0; } to { stroke-dashoffset:0; opacity:1; } }
+    @keyframes nodeFloat { 0%,100% { transform:translate(0,0); } 50% { transform:translate(0,-4px); } }
     @media (max-width:767px) {
       .los-desktop-only { display:none !important; }
       .los-mobile-only { display:flex !important; }
@@ -7884,7 +7890,7 @@ function DataIngestTab({ data, actions }) {
 }
 
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
-function IntelligencePage({ data, actions={} }) {
+function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpenParallel, onOpenAmbient }) {
   const lang = useLang();
   const [tab, setTab] = useState('overview');
   const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
@@ -7996,7 +8002,7 @@ function IntelligencePage({ data, actions={} }) {
         <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
         <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>AI-powered insights · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights</div>
       </div>
-      {/* Tab nav — 5 focused tabs; AI coach is the Global AI Panel (A key / brain icon) */}
+      {/* Tab nav — focused tabs; AI coach is the Global AI Panel (A key / brain icon) */}
       <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
         {[
           {id:'overview',   l:'🧠 Overview'},
@@ -8014,6 +8020,29 @@ function IntelligencePage({ data, actions={} }) {
           <kbd style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:3, padding:'1px 4px', fontSize:8, color:T.accent }}>A</kbd>
         </div>
       </div>
+
+      {/* ── New Feature launch cards — always visible at top of overview ── */}
+      {tab==='overview' && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10, marginBottom:22 }}>
+          {[
+            { icon:'📡', title:'Pattern Engine', sub:'Hidden correlations in your data', color:'#c084fc', bg:'rgba(192,132,252,0.08)', border:'rgba(192,132,252,0.25)', key:'G', action: onOpenPatterns },
+            { icon:'🕸️', title:'Life Graph',    sub:'Visual map of everything connected', color:T.accent,  bg:T.accentLo,              border:T.accent+'33',           key:'G', action: onOpenGraph    },
+            { icon:'🔀', title:'Parallel You',  sub:'Simulate alternate timelines',      color:T.sky,    bg:'rgba(56,189,248,0.08)',   border:'rgba(56,189,248,0.25)', key:'Z', action: onOpenParallel },
+            { icon:'🌊', title:'Ambient Mode',  sub:'Living dashboard screensaver',      color:T.amber,  bg:T.amberDim,               border:T.amber+'33',           key:'`', action: onOpenAmbient  },
+          ].map((feat,i)=>(
+            <button key={i} onClick={feat.action} style={{ padding:'16px', borderRadius:14, background:feat.bg, border:`1px solid ${feat.border}`, textAlign:'left', cursor:'pointer', transition:'all 0.18s', display:'flex', flexDirection:'column', gap:6 }}
+              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.borderColor=feat.color+'66';}}
+              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.borderColor=feat.border;}}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <span style={{ fontSize:22 }}>{feat.icon}</span>
+                <kbd style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:3, padding:'1px 5px', fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{feat.key}</kbd>
+              </div>
+              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:feat.color }}>{feat.title}</div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.4 }}>{feat.sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab==='overview' && (
         <>
@@ -12279,6 +12308,833 @@ function GoogleCalendarTab({ data }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── FEATURE: PATTERN ENGINE — AI correlation finder ───────────────────────────
+// Runs on existing data, surfaces hidden cross-domain correlations. No new data
+// required — it mines what the user already has.
+// ══════════════════════════════════════════════════════════════════════════════
+function PatternEngine({ data, open, onClose }) {
+  const { expenses=[], vitals=[], habits=[], habitLogs={}, incomes=[], settings={}, goals=[] } = data;
+  const [patterns, setPatterns] = useLocalStorage('los_pattern_cache', null);
+  const [loading, setLoading] = useState(false);
+  const [lastRun, setLastRun] = useLocalStorage('los_pattern_lastrun', null);
+  const [selectedPattern, setSelectedPattern] = useState(null);
+
+  // ── Local correlation engine — runs deterministically before AI call ─────────
+  const localCorrelations = useMemo(() => {
+    const results = [];
+    const cur = settings.currency || '$';
+
+    // 1. Weekend vs weekday spending
+    const weekendExp = (expenses||[]).filter(e => { const d = new Date(e.date||'').getDay(); return d === 0 || d === 6; }).reduce((s,e) => s + Number(e.amount||0), 0);
+    const weekdayExp = (expenses||[]).filter(e => { const d = new Date(e.date||'').getDay(); return d >= 1 && d <= 5; }).reduce((s,e) => s + Number(e.amount||0), 0);
+    const weekendDays = (expenses||[]).filter(e => { const d = new Date(e.date||'').getDay(); return d===0||d===6; }).length;
+    const weekdayDays = (expenses||[]).filter(e => { const d = new Date(e.date||'').getDay(); return d>=1&&d<=5; }).length;
+    if (weekendDays > 3 && weekdayDays > 3) {
+      const wkndAvg = weekendExp / weekendDays;
+      const wkdyAvg = weekdayExp / weekdayDays;
+      if (wkndAvg > wkdyAvg * 1.3) {
+        results.push({ icon:'📅', title:'Weekend Spending Surge', strength: Math.min(99, Math.round((wkndAvg/wkdyAvg-1)*100)), color: '#fbbf24',
+          desc:`You spend ${cur}${wkndAvg.toFixed(0)}/day on weekends vs ${cur}${wkdyAvg.toFixed(0)}/day on weekdays — ${Math.round((wkndAvg/wkdyAvg-1)*100)}% more. Weekend "treat yourself" spending is the most common silent budget killer.`,
+          action: 'Set a weekend cash envelope to cap this pattern.' });
+      }
+    }
+
+    // 2. Sleep → mood correlation
+    const vWithBoth = (vitals||[]).filter(v => v.sleep && v.mood);
+    if (vWithBoth.length >= 5) {
+      const highSleep = vWithBoth.filter(v => Number(v.sleep) >= 7);
+      const lowSleep  = vWithBoth.filter(v => Number(v.sleep) <  7);
+      if (highSleep.length >= 2 && lowSleep.length >= 2) {
+        const avgMoodHigh = highSleep.reduce((s,v)=>s+Number(v.mood),0)/highSleep.length;
+        const avgMoodLow  = lowSleep.reduce((s,v)=>s+Number(v.mood),0)/lowSleep.length;
+        const diff = avgMoodHigh - avgMoodLow;
+        if (Math.abs(diff) >= 1) {
+          results.push({ icon:'😴', title:'Sleep Quality Drives Mood', strength: Math.min(99, Math.round(Math.abs(diff)/10*100 + 40)), color: '#38bdf8',
+            desc:`On nights with 7h+ sleep, your average mood is ${avgMoodHigh.toFixed(1)}/10. Under 7h it drops to ${avgMoodLow.toFixed(1)}/10 — a ${diff.toFixed(1)}-point difference. Every hour of sleep lost costs you measurable wellbeing.`,
+            action: 'Protect your sleep window. Even 30 min more makes a measurable difference.' });
+        }
+      }
+    }
+
+    // 3. Habit consistency → XP growth
+    const habitStreaks = (habits||[]).map(h => getStreak(h.id, habitLogs));
+    const avgStreak = habitStreaks.length ? habitStreaks.reduce((s,x)=>s+x,0)/habitStreaks.length : 0;
+    const totalLogs = Object.values(habitLogs).flat().length;
+    if (totalLogs > 20 && avgStreak > 0) {
+      results.push({ icon:'🔥', title:'Habit Compound Effect', strength: Math.min(99, Math.round(avgStreak * 3 + 40)), color: '#00f5d4',
+        desc:`Your ${(habits||[]).length} habits have ${totalLogs} total logs with an average streak of ${avgStreak.toFixed(1)} days. Habit logging is your biggest XP driver — each streak day multiplies compounding returns.`,
+        action: 'Focus on extending your longest streak first. Chains create momentum.' });
+    }
+
+    // 4. Income → savings rate correlation
+    const months = [...new Set([...(incomes||[]), ...(expenses||[])].map(x => x.date?.slice(0,7)).filter(Boolean))].sort();
+    if (months.length >= 3) {
+      const monthData = months.slice(-6).map(m => {
+        const inc = (incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+        const exp = (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+        return { m, inc, exp, saved: inc - exp, rate: inc > 0 ? ((inc-exp)/inc)*100 : 0 };
+      }).filter(m => m.inc > 0);
+      if (monthData.length >= 3) {
+        const bestMonth  = monthData.reduce((a,b)=>b.rate>a.rate?b:a);
+        const worstMonth = monthData.reduce((a,b)=>b.rate<a.rate?b:a);
+        if (bestMonth.rate - worstMonth.rate > 15) {
+          results.push({ icon:'💰', title:'Savings Rate Volatility', strength: Math.min(99, Math.round((bestMonth.rate - worstMonth.rate) * 1.5)), color: '#34d399',
+            desc:`Your savings rate swings between ${worstMonth.rate.toFixed(0)}% (${worstMonth.m}) and ${bestMonth.rate.toFixed(0)}% (${bestMonth.m}) — a ${(bestMonth.rate-worstMonth.rate).toFixed(0)}-point gap. Inconsistency is the enemy of wealth-building.`,
+            action: `Automate ${cur}${Math.round(bestMonth.saved * 0.8)} in savings on payday to lock in your best months.` });
+        }
+      }
+    }
+
+    // 5. Goal alignment
+    const activeGoals = (goals||[]).filter(g => Number(g.target||0) > 0);
+    if (activeGoals.length > 0) {
+      const behind = activeGoals.filter(g => (Number(g.current||0)/Number(g.target||1)) < 0.3 && g.deadline && new Date(g.deadline) < new Date(Date.now() + 90*24*60*60*1000));
+      if (behind.length > 0) {
+        results.push({ icon:'🎯', title:'Goals at Risk', strength: Math.min(99, 60 + behind.length * 10), color: '#fb7185',
+          desc:`${behind.length} goal${behind.length>1?'s are':' is'} under 30% complete with deadlines in the next 90 days: ${behind.map(g=>g.name).join(', ')}. These need immediate attention.`,
+          action: 'Break each at-risk goal into weekly micro-targets and log progress daily.' });
+      }
+    }
+
+    return results;
+  }, [expenses, vitals, habits, habitLogs, incomes, goals, settings]);
+
+  const runAIPatterns = async () => {
+    if (loading) return;
+    setLoading(true);
+    const cur = settings.currency || '$';
+    const snap = {
+      expenses: (expenses||[]).slice(-60).map(e => `${e.date} ${e.category} ${cur}${e.amount}`).join('\n'),
+      vitals:   (vitals||[]).slice(-30).map(v => `${v.date} mood:${v.mood} sleep:${v.sleep}h energy:${v.energy}`).join('\n'),
+      habits:   (habits||[]).map(h => `${h.name}: ${getStreak(h.id, habitLogs)}d streak, ${(habitLogs[h.id]||[]).length} total logs`).join('\n'),
+    };
+    try {
+      const text = await callAI(settings, {
+        max_tokens: 900,
+        messages:[{ role:'user', content:`You are a data scientist analyzing personal life data. Find 3 surprising hidden correlations across these datasets. Format each as JSON: {"icon":"emoji","title":"Short title","strength":75,"color":"#hex","desc":"2 sentence observation with specific numbers","action":"One concrete next action"}\n\nReturn a JSON array only.\n\nEXPENSES (last 60):\n${snap.expenses||'No data'}\n\nVITALS (last 30):\n${snap.vitals||'No data'}\n\nHABITS:\n${snap.habits||'No data'}` }]
+      });
+      try {
+        const cleaned = text.replace(/```json|```/g,'').trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const all = [...localCorrelations, ...parsed].slice(0, 8);
+          setPatterns({ items: all, ts: new Date().toLocaleString(), aiCount: parsed.length });
+          setLastRun(new Date().toLocaleString());
+        } else throw new Error('empty');
+      } catch {
+        setPatterns({ items: localCorrelations, ts: new Date().toLocaleString(), aiCount: 0 });
+        setLastRun(new Date().toLocaleString());
+      }
+    } catch {
+      setPatterns({ items: localCorrelations, ts: new Date().toLocaleString(), aiCount: 0 });
+      setLastRun(new Date().toLocaleString());
+    }
+    setLoading(false);
+  };
+
+  if (!open) return null;
+  const displayItems = patterns?.items || localCorrelations;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9980, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', animation:'fadeIn 0.2s ease' }} />
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9981, width:'min(700px,96vw)', maxHeight:'88vh', overflowY:'auto', background:'#07071a', border:`1px solid rgba(139,92,246,0.4)`, borderRadius:20, boxShadow:'0 32px 80px rgba(0,0,0,0.8)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+        {/* Header */}
+        <div style={{ position:'sticky', top:0, zIndex:10, padding:'20px 24px 16px', background:'#07071aee', backdropFilter:'blur(16px)', borderBottom:`1px solid rgba(139,92,246,0.2)` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:38, height:38, borderRadius:12, background:'rgba(139,92,246,0.15)', border:'1px solid rgba(139,92,246,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📡</div>
+              <div>
+                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:T.text }}>Pattern Engine</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Hidden correlations across your life data</div>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+          </div>
+          <div style={{ display:'flex', gap:10, alignItems:'center', marginTop:10, flexWrap:'wrap' }}>
+            <button onClick={runAIPatterns} disabled={loading} style={{ padding:'8px 18px', borderRadius:T.r, background:loading?T.surface:'rgba(139,92,246,0.18)', border:`1px solid ${loading?T.border:'rgba(139,92,246,0.5)'}`, color:loading?T.textSub:'#c084fc', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
+              {loading ? <><div style={{ width:10, height:10, borderRadius:'50%', border:'2px solid rgba(139,92,246,0.3)', borderTopColor:'#c084fc', animation:'spin 0.8s linear infinite' }}/> Analyzing…</> : '🔍 Run Deep Analysis'}
+            </button>
+            {patterns?.ts && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Last run: {patterns.ts} · {patterns.aiCount||0} AI + {localCorrelations.length} local patterns</span>}
+            {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>⚠️ Add API key for AI patterns</span>}
+          </div>
+        </div>
+
+        {/* Pattern cards */}
+        <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:12 }}>
+          {displayItems.length === 0 && (
+            <div style={{ textAlign:'center', padding:'48px 0', color:T.textMuted, fontFamily:T.fM, fontSize:12 }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>🔭</div>
+              Log more data across habits, health, and finances to generate correlations.
+            </div>
+          )}
+          {displayItems.map((p, i) => (
+            <div key={i} onClick={() => setSelectedPattern(selectedPattern===i?null:i)}
+              style={{ padding:'18px 20px', borderRadius:14, background:selectedPattern===i?`${p.color}12`:T.surface, border:`1px solid ${selectedPattern===i?p.color+'44':T.border}`, cursor:'pointer', transition:'all 0.2s', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:selectedPattern===i?10:0 }}>
+                <div style={{ fontSize:22, flexShrink:0 }}>{p.icon}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
+                    <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{p.title}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                      <div style={{ height:4, width:Math.max(20, Math.min(80, (p.strength||50) * 0.8)), borderRadius:99, background:`linear-gradient(90deg,${p.color}88,${p.color})` }} />
+                      <span style={{ fontSize:9, fontFamily:T.fM, color:p.color, fontWeight:700 }}>{p.strength||'?'}%</span>
+                    </div>
+                  </div>
+                  {selectedPattern !== i && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.desc}</div>}
+                </div>
+                <div style={{ fontSize:10, color:T.textMuted, flexShrink:0 }}>{selectedPattern===i?'▲':'▼'}</div>
+              </div>
+              {selectedPattern === i && (
+                <>
+                  <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, lineHeight:1.7, marginBottom:12, borderLeft:`3px solid ${p.color}55`, paddingLeft:12 }}>{p.desc}</div>
+                  <div style={{ padding:'10px 14px', borderRadius:T.r, background:`${p.color}12`, border:`1px solid ${p.color}33` }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:p.color, fontWeight:700, letterSpacing:'0.1em', marginBottom:4 }}>ACTION</div>
+                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{p.action}</div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── FEATURE: LIFE GRAPH — interactive node map of everything connected ─────────
+// Force-directed graph built with pure SVG + physics simulation. Every habit,
+// goal, expense category, note, and vitals metric is a node; AI draws edges.
+// ══════════════════════════════════════════════════════════════════════════════
+function LifeGraph({ data, open, onClose }) {
+  const { expenses=[], habits=[], goals=[], notes=[], vitals=[], settings={}, habitLogs={} } = data;
+  const svgRef = useRef(null);
+  const animRef = useRef(null);
+  const [nodes, setNodes] = useState([]);
+  const [edges, setEdges] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [viewBox, setViewBox] = useState('0 0 800 560');
+  const [drag, setDrag] = useState(null);
+  const nodeMap = useRef({});
+
+  const W = 800, H = 560;
+
+  // Build nodes from data
+  useEffect(() => {
+    if (!open) return;
+    const newNodes = [];
+    const addNode = (id, label, group, color, size, meta={}) => {
+      newNodes.push({ id, label, group, color, size: size||18, x: W/2 + (Math.random()-0.5)*320, y: H/2 + (Math.random()-0.5)*220, vx:0, vy:0, meta });
+    };
+
+    // Core life domains
+    addNode('core_finance', 'Finance', 'domain', '#00f5d4', 32, { desc:'Your financial life' });
+    addNode('core_health',  'Health',  'domain', '#38bdf8', 32, { desc:'Your health & vitals' });
+    addNode('core_growth',  'Growth',  'domain', '#8b5cf6', 32, { desc:'Habits & goals' });
+    addNode('core_knowledge','Knowledge','domain','#fbbf24', 32, { desc:'Notes & learning' });
+
+    // Expense categories
+    const catMap = {};
+    (expenses||[]).forEach(e => { if (e.category) catMap[e.category] = (catMap[e.category]||0) + Number(e.amount||0); });
+    Object.entries(catMap).slice(0,8).forEach(([cat, total]) => {
+      addNode(`cat_${cat}`, cat.split(' ').slice(-1)[0], 'expense', '#fb7185', 14 + Math.min(12, total/200), { desc:`${cat}: ${settings.currency||'$'}${Math.round(total)}` });
+    });
+
+    // Habits
+    (habits||[]).slice(0,8).forEach(h => {
+      const streak = getStreak(h.id, habitLogs);
+      addNode(`habit_${h.id}`, h.name.slice(0,12), 'habit', '#00f5d4', 14 + Math.min(10, streak), { desc:`${h.name} · ${streak}d streak` });
+    });
+
+    // Goals
+    (goals||[]).slice(0,6).forEach(g => {
+      const pct = Math.round((Number(g.current||0)/Math.max(1,Number(g.target||1)))*100);
+      addNode(`goal_${g.id}`, g.name.slice(0,12), 'goal', '#8b5cf6', 16, { desc:`${g.name} · ${pct}%` });
+    });
+
+    // Notes (group by tag)
+    const tagMap = {};
+    (notes||[]).forEach(n => { tagMap[n.tag] = (tagMap[n.tag]||0) + 1; });
+    Object.entries(tagMap).slice(0,6).forEach(([tag, count]) => {
+      addNode(`tag_${tag}`, tag.slice(0,10), 'note', '#fbbf24', 12 + Math.min(8, count*2), { desc:`${tag}: ${count} notes` });
+    });
+
+    // Vitals averages
+    if ((vitals||[]).length > 0) {
+      const avgSleep = (vitals||[]).slice(-14).reduce((s,v)=>s+Number(v.sleep||0),0)/Math.max(1,(vitals||[]).slice(-14).filter(v=>v.sleep).length);
+      const avgMood  = (vitals||[]).slice(-14).reduce((s,v)=>s+Number(v.mood||0),0)/Math.max(1,(vitals||[]).slice(-14).filter(v=>v.mood).length);
+      if (avgSleep > 0) addNode('vital_sleep', 'Sleep', 'vital', '#38bdf8', 14, { desc:`Avg sleep: ${avgSleep.toFixed(1)}h` });
+      if (avgMood  > 0) addNode('vital_mood',  'Mood',  'vital', '#34d399', 14, { desc:`Avg mood: ${avgMood.toFixed(1)}/10` });
+    }
+
+    // Build static edges (structural)
+    const staticEdges = [];
+    newNodes.filter(n=>n.group==='expense').forEach(n => staticEdges.push({ from:'core_finance', to:n.id, strength:0.6 }));
+    newNodes.filter(n=>n.group==='habit').forEach(n => staticEdges.push({ from:'core_growth', to:n.id, strength:0.6 }));
+    newNodes.filter(n=>n.group==='goal').forEach(n => staticEdges.push({ from:'core_growth', to:n.id, strength:0.5 }));
+    newNodes.filter(n=>n.group==='note').forEach(n => staticEdges.push({ from:'core_knowledge', to:n.id, strength:0.5 }));
+    newNodes.filter(n=>n.group==='vital').forEach(n => staticEdges.push({ from:'core_health', to:n.id, strength:0.7 }));
+    // Cross-domain insights
+    if (newNodes.find(n=>n.id==='vital_sleep') && newNodes.find(n=>n.id==='vital_mood'))
+      staticEdges.push({ from:'vital_sleep', to:'vital_mood', strength:0.9, label:'correlates', color:'#34d399' });
+    newNodes.filter(n=>n.group==='habit').forEach(n => {
+      if (newNodes.find(x=>x.id==='vital_mood')) staticEdges.push({ from:n.id, to:'vital_mood', strength:0.3, color:'rgba(0,245,212,0.3)' });
+    });
+
+    nodeMap.current = Object.fromEntries(newNodes.map(n=>[n.id,n]));
+    setNodes(newNodes);
+    setEdges(staticEdges);
+  }, [open, expenses, habits, goals, notes, vitals, habitLogs, settings]);
+
+  // Physics simulation
+  useEffect(() => {
+    if (!open || nodes.length === 0) return;
+    let localNodes = nodes.map(n => ({ ...n }));
+    let ticks = 0;
+
+    const tick = () => {
+      if (ticks > 300) { cancelAnimationFrame(animRef.current); return; }
+      ticks++;
+      // Repulsion
+      for (let i = 0; i < localNodes.length; i++) {
+        for (let j = i+1; j < localNodes.length; j++) {
+          const a = localNodes[i], b = localNodes[j];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          const force = Math.min(3000, (a.size+b.size) * 40) / (dist * dist);
+          const fx = (dx/dist)*force, fy = (dy/dist)*force;
+          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+        }
+      }
+      // Attraction along edges
+      edges.forEach(edge => {
+        const a = localNodes.find(n=>n.id===edge.from);
+        const b = localNodes.find(n=>n.id===edge.to);
+        if (!a || !b) return;
+        const dx = b.x-a.x, dy = b.y-a.y;
+        const dist = Math.sqrt(dx*dx+dy*dy)||1;
+        const targetDist = edge.from.startsWith('core_')||edge.to.startsWith('core_') ? 140 : 100;
+        const force = (dist - targetDist) * 0.04 * (edge.strength||0.5);
+        const fx = (dx/dist)*force, fy = (dy/dist)*force;
+        a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+      });
+      // Center gravity + dampen + clamp
+      localNodes.forEach(n => {
+        n.vx += (W/2 - n.x) * 0.002;
+        n.vy += (H/2 - n.y) * 0.002;
+        n.vx *= 0.88; n.vy *= 0.88;
+        n.x = Math.max(n.size+10, Math.min(W-n.size-10, n.x + n.vx));
+        n.y = Math.max(n.size+10, Math.min(H-n.size-10, n.y + n.vy));
+      });
+      if (ticks % 3 === 0) setNodes([...localNodes]);
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [open, edges]);
+
+  const fetchAIEdges = async () => {
+    if (aiLoading || nodes.length === 0) return;
+    setAiLoading(true);
+    const nodeList = nodes.map(n=>`${n.id}|${n.label}|${n.group}`).join('\n');
+    try {
+      const text = await callAI(settings, {
+        max_tokens: 600,
+        messages:[{ role:'user', content:`You are analyzing a life graph. Given these nodes, suggest 5 insightful cross-domain connections (not just parent→child). Each should reveal a real behavioral correlation.\n\nNodes:\n${nodeList}\n\nReturn ONLY a JSON array like: [{"from":"node_id","to":"node_id","label":"why they connect","color":"#hex"}]` }]
+      });
+      try {
+        const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+        if (Array.isArray(parsed)) {
+          setEdges(prev => {
+            const existingKeys = new Set(prev.map(e=>`${e.from}|${e.to}`));
+            const validNew = parsed.filter(e => nodes.find(n=>n.id===e.from) && nodes.find(n=>n.id===e.to) && !existingKeys.has(`${e.from}|${e.to}`));
+            return [...prev, ...validNew.map(e=>({...e, strength:0.4, aiGenerated:true}))];
+          });
+        }
+      } catch {}
+    } catch {}
+    setAiLoading(false);
+  };
+
+  const GROUP_COLORS = { domain:'#00f5d4', expense:'#fb7185', habit:'#00f5d4', goal:'#8b5cf6', note:'#fbbf24', vital:'#38bdf8' };
+
+  if (!open) return null;
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9970, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }} />
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9971, width:'min(900px,97vw)', background:'#040408', border:`1px solid rgba(0,245,212,0.25)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)', overflow:'hidden' }}>
+        {/* Header */}
+        <div style={{ padding:'18px 22px 14px', borderBottom:`1px solid rgba(255,255,255,0.07)`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(0,245,212,0.1)', border:'1px solid rgba(0,245,212,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🕸️</div>
+            <div>
+              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Graph</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{nodes.length} nodes · {edges.length} connections</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <button onClick={fetchAIEdges} disabled={aiLoading} style={{ padding:'6px 14px', borderRadius:8, background:'rgba(0,245,212,0.1)', border:'1px solid rgba(0,245,212,0.3)', color:T.accent, fontFamily:T.fM, fontSize:10, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer' }}>
+              {aiLoading ? '🤖 Connecting…' : '🤖 AI Connections'}
+            </button>
+            <button onClick={onClose} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div style={{ padding:'8px 22px', borderBottom:`1px solid rgba(255,255,255,0.05)`, display:'flex', gap:14, flexWrap:'wrap' }}>
+          {Object.entries(GROUP_COLORS).map(([g,c])=>(
+            <div key={g} style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <div style={{ width:8, height:8, borderRadius:'50%', background:c }} />
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'capitalize' }}>{g}</span>
+            </div>
+          ))}
+          <div style={{ display:'flex', alignItems:'center', gap:5, marginLeft:'auto' }}>
+            <div style={{ width:20, height:1, background:'rgba(0,245,212,0.6)', borderTop:'1px dashed rgba(0,245,212,0.6)' }} />
+            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>AI edge</span>
+          </div>
+        </div>
+
+        {/* SVG Canvas */}
+        <div style={{ position:'relative' }}>
+          <svg ref={svgRef} viewBox={viewBox} width="100%" style={{ display:'block', cursor:'grab', userSelect:'none', maxHeight:'55vh' }}
+            onMouseMove={e => {
+              if (!drag) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const scaleX = W / rect.width, scaleY = H / rect.height;
+              const nx = (e.clientX - rect.left) * scaleX;
+              const ny = (e.clientY - rect.top) * scaleY;
+              setNodes(prev => prev.map(n => n.id === drag ? { ...n, x:Math.max(n.size+5,Math.min(W-n.size-5,nx)), y:Math.max(n.size+5,Math.min(H-n.size-5,ny)), vx:0, vy:0 } : n));
+            }}
+            onMouseUp={() => setDrag(null)}
+            onMouseLeave={() => setDrag(null)}>
+            <defs>
+              <radialGradient id="bgGrad" cx="50%" cy="50%" r="60%">
+                <stop offset="0%"   stopColor="#070718" />
+                <stop offset="100%" stopColor="#040408" />
+              </radialGradient>
+            </defs>
+            <rect width={W} height={H} fill="url(#bgGrad)" />
+
+            {/* Edges */}
+            {edges.map((e, i) => {
+              const a = nodes.find(n=>n.id===e.from);
+              const b = nodes.find(n=>n.id===e.to);
+              if (!a||!b) return null;
+              const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+              const isAI = e.aiGenerated;
+              return (
+                <g key={i}>
+                  <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                    stroke={e.color||`rgba(0,245,212,${isAI?0.5:0.18})`}
+                    strokeWidth={isAI?1.5:1} strokeDasharray={isAI?'5 3':undefined}
+                    style={isAI?{animation:'graphEdge 0.8s ease forwards'}:{}} />
+                  {isAI && e.label && <text x={mx} y={my-5} textAnchor="middle" style={{ fontSize:8, fill:'rgba(0,245,212,0.7)', fontFamily:T.fM, pointerEvents:'none' }}>{e.label}</text>}
+                </g>
+              );
+            })}
+
+            {/* Nodes */}
+            {nodes.map(n => {
+              const isSelected = selected === n.id;
+              const col = GROUP_COLORS[n.group] || T.accent;
+              return (
+                <g key={n.id} style={{ cursor:'pointer', animation:n.group==='domain'?'nodeFloat 3s ease infinite':'none' }}
+                  onMouseDown={e => { e.preventDefault(); setDrag(n.id); }}
+                  onClick={() => setSelected(isSelected ? null : n.id)}
+                  onMouseEnter={() => setTooltip(n)} onMouseLeave={() => setTooltip(null)}>
+                  {isSelected && <circle cx={n.x} cy={n.y} r={n.size+8} fill={`${col}15`} stroke={col} strokeWidth={1} style={{ animation:'glowPulse 1.5s ease infinite' }} />}
+                  <circle cx={n.x} cy={n.y} r={n.size} fill={`${col}22`} stroke={col} strokeWidth={isSelected?2:1} />
+                  {n.group === 'domain' && <circle cx={n.x} cy={n.y} r={n.size*0.55} fill={`${col}33`} />}
+                  <text x={n.x} y={n.y+n.size+12} textAnchor="middle" style={{ fontSize: n.size>20?11:9, fill: isSelected?col:T.textSub, fontFamily:T.fM, pointerEvents:'none', fontWeight:isSelected?700:400 }}>{n.label}</text>
+                </g>
+              );
+            })}
+
+            {/* Tooltip */}
+            {tooltip && (
+              <g style={{ pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>
+                <rect x={Math.min(tooltip.x+tooltip.size+6, W-160)} y={tooltip.y-22} width={155} height={40} rx={8} fill="#0b0b1a" stroke="rgba(0,245,212,0.25)" strokeWidth={1} />
+                <text x={Math.min(tooltip.x+tooltip.size+14, W-152)} y={tooltip.y-7} style={{ fontSize:10, fill:T.text, fontFamily:T.fM, fontWeight:700 }}>{tooltip.label}</text>
+                <text x={Math.min(tooltip.x+tooltip.size+14, W-152)} y={tooltip.y+9} style={{ fontSize:8, fill:T.textSub, fontFamily:T.fM }}>{tooltip.meta?.desc||tooltip.group}</text>
+              </g>
+            )}
+          </svg>
+          {/* Selected node detail */}
+          {selected && (() => { const n = nodes.find(x=>x.id===selected); if(!n)return null; const col = GROUP_COLORS[n.group]||T.accent; return (
+            <div style={{ position:'absolute', bottom:12, left:16, padding:'10px 16px', borderRadius:10, background:`${col}15`, border:`1px solid ${col}44`, maxWidth:260, backdropFilter:'blur(8px)' }}>
+              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:col, marginBottom:3 }}>{n.label}</div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{n.meta?.desc}</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>
+                Connected to {edges.filter(e=>e.from===n.id||e.to===n.id).length} nodes
+              </div>
+            </div>
+          ); })()}
+        </div>
+
+        <div style={{ padding:'10px 22px 14px', borderTop:`1px solid rgba(255,255,255,0.05)`, fontSize:9, fontFamily:T.fM, color:T.textMuted, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span>Drag nodes to rearrange · Click to inspect · Solid lines = structural · Dashed = AI-discovered</span>
+          {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <span style={{ color:T.amber }}>⚠️ Add API key for AI edges</span>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── FEATURE: AMBIENT MODE — fullscreen living dashboard screensaver ────────────
+// Canvas-based particle system. Each metric becomes a floating glowing orb.
+// Press ESC or click to exit. Triggered from topbar or keyboard shortcut.
+// ══════════════════════════════════════════════════════════════════════════════
+function AmbientMode({ data, open, onClose }) {
+  const canvasRef = useRef(null);
+  const animRef   = useRef(null);
+  const { computed={}, habits=[], habitLogs={}, settings={}, vitals=[], goals=[], expenses=[] } = data;
+  const { nw=0, savRate=0, monthExp=0, monthInc=0 } = computed;
+  const cur = settings.currency || '$';
+
+  useEffect(() => {
+    if (!open || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width = window.innerWidth;
+    let H = canvas.height = window.innerHeight;
+
+    const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+    window.addEventListener('resize', resize);
+
+    // Build metric orbs from real data
+    const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
+    const avgMood = (vitals||[]).slice(-14).reduce((s,v)=>s+Number(v.mood||0),0)/Math.max(1,(vitals||[]).slice(-14).filter(v=>v.mood).length);
+    const completedGoals = (goals||[]).filter(g=>Number(g.current||0)>=Number(g.target||1)&&g.target>0).length;
+
+    const ORB_DATA = [
+      { label:'Net Worth',    value:`${cur}${fmtN(nw)}`,           color:'#00f5d4', size:64, pulseSpeed:0.012, glowR:90 },
+      { label:'Savings Rate', value:`${savRate.toFixed(0)}%`,       color:'#34d399', size:52, pulseSpeed:0.018, glowR:75 },
+      { label:'Best Streak',  value:`🔥 ${bestStreak}d`,           color:'#fbbf24', size:48, pulseSpeed:0.022, glowR:70 },
+      { label:'Monthly In',   value:`${cur}${fmtN(monthInc)}`,     color:'#38bdf8', size:50, pulseSpeed:0.016, glowR:72 },
+      { label:'Monthly Out',  value:`${cur}${fmtN(monthExp)}`,     color:'#fb7185', size:44, pulseSpeed:0.020, glowR:65 },
+      { label:'Avg Mood',     value:avgMood>0?`${avgMood.toFixed(1)}/10`:'—',color:'#8b5cf6', size:44, pulseSpeed:0.024, glowR:65 },
+      { label:'Goals Done',   value:`${completedGoals}/${(goals||[]).length}`,color:'#a78bfa', size:40, pulseSpeed:0.015, glowR:58 },
+      { label:'Habits',       value:`${(habits||[]).length} tracked`,color:'#00f5d4', size:38, pulseSpeed:0.019, glowR:56 },
+    ].filter(o => o.value !== '—');
+
+    // Orb physics state
+    const orbs = ORB_DATA.map((o, i) => ({
+      ...o,
+      x: W * (0.15 + 0.72 * (i % 4) / 3) + (Math.random()-0.5)*80,
+      y: H * (0.22 + 0.56 * Math.floor(i/4) / 1.5) + (Math.random()-0.5)*60,
+      vx: (Math.random()-0.5)*0.4, vy: (Math.random()-0.5)*0.4,
+      phase: Math.random()*Math.PI*2,
+      t: 0,
+    }));
+
+    // Floating particles
+    const PARTICLES = Array.from({ length: 80 }, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      r: Math.random()*2+0.5,
+      vx: (Math.random()-0.5)*0.3, vy: -Math.random()*0.4-0.1,
+      opacity: Math.random()*0.4+0.1,
+      color: ['#00f5d4','#8b5cf6','#fbbf24','#38bdf8'][Math.floor(Math.random()*4)],
+    }));
+
+    let frame = 0;
+    const draw = () => {
+      frame++;
+      // Background — deep space gradient
+      ctx.fillStyle = '#030308';
+      ctx.fillRect(0, 0, W, H);
+
+      // Subtle grid
+      ctx.strokeStyle = 'rgba(0,245,212,0.03)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 80) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+      // Floating particles
+      PARTICLES.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.y < -5) { p.y = H+5; p.x = Math.random()*W; }
+        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+        ctx.save(); ctx.globalAlpha = p.opacity; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); ctx.restore();
+      });
+
+      // Orbs
+      orbs.forEach(orb => {
+        orb.t += orb.pulseSpeed;
+        orb.x += orb.vx; orb.y += orb.vy;
+        // Soft bounce off walls
+        if (orb.x < orb.glowR) { orb.vx = Math.abs(orb.vx)*0.7; orb.x = orb.glowR; }
+        if (orb.x > W-orb.glowR) { orb.vx = -Math.abs(orb.vx)*0.7; orb.x = W-orb.glowR; }
+        if (orb.y < orb.glowR) { orb.vy = Math.abs(orb.vy)*0.7; orb.y = orb.glowR; }
+        if (orb.y > H-orb.glowR) { orb.vy = -Math.abs(orb.vy)*0.7; orb.y = H-orb.glowR; }
+
+        const pulse = 0.85 + 0.15*Math.sin(orb.t);
+        const r = orb.glowR * pulse;
+
+        // Glow rings
+        [1.4, 1.1, 0.85].forEach((scale, i) => {
+          const grd = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, r*scale);
+          grd.addColorStop(0, orb.color + Math.round([28,18,10][i]).toString(16).padStart(2,'0'));
+          grd.addColorStop(1, 'transparent');
+          ctx.save(); ctx.fillStyle = grd;
+          ctx.beginPath(); ctx.arc(orb.x, orb.y, r*scale, 0, Math.PI*2); ctx.fill(); ctx.restore();
+        });
+
+        // Core circle
+        ctx.save(); ctx.globalAlpha = 0.9;
+        const crd = ctx.createRadialGradient(orb.x-r*0.15, orb.y-r*0.15, 0, orb.x, orb.y, r*0.5);
+        crd.addColorStop(0, orb.color+'cc'); crd.addColorStop(1, orb.color+'22');
+        ctx.fillStyle = crd;
+        ctx.beginPath(); ctx.arc(orb.x, orb.y, r*0.5, 0, Math.PI*2); ctx.fill(); ctx.restore();
+
+        // Value text
+        ctx.save(); ctx.globalAlpha = 0.95; ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffffff'; ctx.font = `700 ${orb.size * 0.34 * pulse}px Syne, sans-serif`;
+        ctx.fillText(orb.value, orb.x, orb.y + 5);
+        ctx.fillStyle = orb.color; ctx.font = `400 ${orb.size * 0.19 * pulse}px "IBM Plex Mono", monospace`;
+        ctx.fillText(orb.label.toUpperCase(), orb.x, orb.y + orb.size*0.22*pulse + 12);
+        ctx.restore();
+      });
+
+      // Corner watermark
+      ctx.save(); ctx.fillStyle = 'rgba(0,245,212,0.15)'; ctx.font = '700 11px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+      ctx.fillText('LIFE OS  ·  AMBIENT', 24, H-18); ctx.restore();
+      ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.font = '400 10px "IBM Plex Mono", monospace'; ctx.textAlign = 'right';
+      ctx.fillText(new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}), W-24, H-18); ctx.restore();
+
+      // ESC hint
+      if (frame < 140) {
+        ctx.save(); ctx.globalAlpha = Math.max(0, (140-frame)/60); ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '400 11px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+        ctx.fillText('Press ESC or click anywhere to exit', W/2, H-20); ctx.restore();
+      }
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+    animRef.current = requestAnimationFrame(draw);
+
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:99999, cursor:'pointer' }}>
+      <canvas ref={canvasRef} style={{ display:'block', width:'100vw', height:'100vh' }} />
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── FEATURE: PARALLEL YOU — alternate timeline simulator ──────────────────────
+// Uses real historical data to simulate counterfactual scenarios:
+// "What if I had saved €500/mo more?" → diverging net worth timeline.
+// ══════════════════════════════════════════════════════════════════════════════
+function ParallelYou({ data, open, onClose }) {
+  const { expenses=[], incomes=[], habits=[], habitLogs={}, goals=[], settings={}, netWorthHistory=[], computed={} } = data;
+  const { nw=0 } = computed;
+  const cur = settings.currency || '$';
+
+  const [scenario, setScenario] = useState('savings');
+  const [param, setParam] = useState('');
+  const [months, setMonths] = useState(12);
+  const [result, setResult] = useState(null);
+  const [aiNarrative, setAiNarrative] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const SCENARIOS = [
+    { id:'savings',  label:'💰 Save more monthly',       unit:`extra ${cur}/month`,   placeholder:'e.g. 300',  default:'300' },
+    { id:'habit',    label:'🔥 Start a habit earlier',   unit:'months ago you started',placeholder:'e.g. 6',   default:'6'   },
+    { id:'expense',  label:'✂️ Cut a spending category',  unit:`${cur}/month less`,    placeholder:'e.g. 150',  default:'150' },
+    { id:'invest',   label:'📈 Invest more monthly',     unit:`extra ${cur}/month`,   placeholder:'e.g. 200',  default:'200' },
+  ];
+
+  const currentScenario = SCENARIOS.find(s => s.id === scenario);
+
+  const simulate = () => {
+    const months_ = Array.from({length: Number(months)||12}, (_,i) => {
+      const d = new Date(); d.setMonth(d.getMonth() - (Number(months)||12) + i + 1);
+      return d.toISOString().slice(0,7);
+    });
+    const val = Number(param || currentScenario?.default || 0);
+
+    // Real timeline — build from netWorthHistory or expense/income data
+    const realTimeline = months_.map(m => {
+      const histEntry = (netWorthHistory||[]).find(h=>h.month===m);
+      if (histEntry) return { month: m, real: histEntry.value };
+      const inc = (incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+      const exp = (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+      return { month: m, real: null, saved: inc - exp };
+    });
+
+    // Parallel timeline — apply counterfactual
+    let parallelCumulative = 0;
+    const parallelTimeline = months_.map((m, i) => {
+      let delta = 0;
+      if (scenario === 'savings')  delta = val;
+      if (scenario === 'invest')   delta = val * (1 + 0.007 * i);  // 7% annual growth compounded
+      if (scenario === 'expense')  delta = val;
+      if (scenario === 'habit') {
+        // XP / wellbeing proxy: more logs = higher score
+        const extraLogs = Math.floor(val * 1.5);
+        delta = extraLogs * 2; // arbitrary XP-based score
+      }
+      parallelCumulative += delta;
+      return { month: m, parallel: parallelCumulative };
+    });
+
+    // Merge timelines — anchor to current NW if we have it
+    let anchor = nw;
+    const baseReal = realTimeline[realTimeline.length-1]?.real || 0;
+    const merged = months_.map((m, i) => ({
+      month: m.slice(5),
+      real: realTimeline[i]?.real ?? (baseReal - (months_.length-1-i)*((realTimeline.find(r=>r.real)?.real||nw)/months_.length)),
+      parallel: (realTimeline[i]?.real ?? (nw - parallelTimeline[parallelTimeline.length-1].parallel)) + parallelTimeline[i].parallel,
+    }));
+
+    const realFinal = merged[merged.length-1]?.real || nw;
+    const parallelFinal = merged[merged.length-1]?.parallel || nw + parallelTimeline[parallelTimeline.length-1].parallel;
+    const totalDelta = parallelFinal - realFinal;
+
+    setResult({ merged, realFinal, parallelFinal, totalDelta, val, scenarioId: scenario, months: Number(months)||12 });
+  };
+
+  const generateNarrative = async () => {
+    if (!result || aiLoading) return;
+    setAiLoading(true);
+    const s = currentScenario;
+    try {
+      const text = await callAI(settings, {
+        max_tokens: 500,
+        messages:[{ role:'user', content:`Write a vivid, personal 3-paragraph narrative about this alternate timeline simulation for a personal finance app. Make it feel real and motivating — as if this is the user's actual life story. Be specific with the numbers.\n\nScenario: "${s?.label}" — ${result.val} ${s?.unit} for ${result.months} months\nReal outcome: ${cur}${fmtN(result.realFinal)} (current state)\nParallel outcome: ${cur}${fmtN(result.parallelFinal)}\nDifference: ${cur}${fmtN(Math.abs(result.totalDelta))} ${result.totalDelta>0?'more':'less'}\n\nMake it feel like you're narrating their alternate life — bittersweet, insightful, and ultimately empowering. End with one concrete action they can take today.` }]
+      });
+      setAiNarrative(text || '');
+    } catch { setAiNarrative('Could not generate narrative — check AI settings.'); }
+    setAiLoading(false);
+  };
+
+  const COLORS = { real: T.textSub, parallel: T.accent };
+
+  if (!open) return null;
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9960, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }} />
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9961, width:'min(760px,96vw)', maxHeight:'92vh', overflowY:'auto', background:'#06060f', border:`1px solid rgba(56,189,248,0.3)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+        {/* Header */}
+        <div style={{ padding:'20px 24px 16px', borderBottom:`1px solid rgba(255,255,255,0.06)`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:12, background:'rgba(56,189,248,0.12)', border:'1px solid rgba(56,189,248,0.35)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🔀</div>
+            <div>
+              <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:T.text }}>Parallel You</div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Simulate alternate timelines on your real data</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+        </div>
+
+        <div style={{ padding:'22px 24px', display:'flex', flexDirection:'column', gap:20 }}>
+          {/* Scenario picker */}
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Choose a scenario</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {SCENARIOS.map(s => (
+                <button key={s.id} onClick={()=>{ setScenario(s.id); setResult(null); setAiNarrative(''); }} style={{ padding:'12px 14px', borderRadius:12, background:scenario===s.id?'rgba(56,189,248,0.12)':T.surface, border:`1px solid ${scenario===s.id?'rgba(56,189,248,0.4)':T.border}`, color:scenario===s.id?T.sky:T.textSub, fontFamily:T.fM, fontSize:11, textAlign:'left', transition:'all 0.15s', cursor:'pointer' }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Parameters */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 120px 120px', gap:10, alignItems:'end' }}>
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{currentScenario?.unit}</div>
+              <input value={param} onChange={e=>setParam(e.target.value)} placeholder={currentScenario?.placeholder} type="number" min="0" style={{ width:'100%', padding:'10px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:14, color:T.text, fontWeight:700 }} />
+            </div>
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Timeframe</div>
+              <select value={months} onChange={e=>setMonths(e.target.value)} style={{ width:'100%', padding:'10px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }}>
+                {[3,6,12,24,36,60].map(m=><option key={m} value={m}>{m} months</option>)}
+              </select>
+            </div>
+            <button onClick={simulate} style={{ padding:'10px 18px', borderRadius:T.r, background:'rgba(56,189,248,0.15)', border:'1px solid rgba(56,189,248,0.4)', color:T.sky, fontFamily:T.fM, fontSize:12, fontWeight:700, cursor:'pointer', height:42 }}>Run →</button>
+          </div>
+
+          {/* Results */}
+          {result && (
+            <>
+              {/* KPI row */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                {[
+                  { label:'Real Path', val:`${cur}${fmtN(result.realFinal)}`, color:T.textSub, sub:'Current trajectory' },
+                  { label:'Parallel Path', val:`${cur}${fmtN(result.parallelFinal)}`, color:T.sky, sub:'With your change' },
+                  { label:'Difference', val:`${result.totalDelta>=0?'+':''}${cur}${fmtN(Math.abs(result.totalDelta))}`, color:result.totalDelta>=0?T.emerald:T.rose, sub:`Over ${result.months} months` },
+                ].map((k,i)=>(
+                  <div key={i} style={{ padding:'16px', borderRadius:14, background:T.surface, border:`1px solid ${k.color}33`, textAlign:'center' }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>{k.label}</div>
+                    <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:k.color, marginBottom:4 }}>{k.val}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{k.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chart */}
+              <div style={{ background:'rgba(255,255,255,0.02)', borderRadius:14, border:`1px solid ${T.border}`, padding:'16px 8px 8px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginLeft:12, marginBottom:6, display:'flex', gap:16 }}>
+                  <span style={{ color:T.textSub }}>── Real</span>
+                  <span style={{ color:T.sky }}>── Parallel</span>
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={result.merged} margin={{ top:5, right:16, left:0, bottom:0 }}>
+                    <defs>
+                      <linearGradient id="gradReal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={T.textSub} stopOpacity={0.2} />
+                        <stop offset="100%" stopColor={T.textSub} stopOpacity={0.01} />
+                      </linearGradient>
+                      <linearGradient id="gradParallel" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={T.sky} stopOpacity={0.3} />
+                        <stop offset="100%" stopColor={T.sky} stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="month" tick={{ fontSize:8, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize:8, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} tickFormatter={v=>`${cur}${fmtN(v)}`} width={60} />
+                    <Tooltip contentStyle={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:8, fontFamily:T.fM, fontSize:11 }} formatter={(v,n)=>[`${cur}${fmtN(v)}`, n==='real'?'Real path':'Parallel path']} />
+                    <Area type="monotone" dataKey="real"     stroke={T.textSub} strokeWidth={2} fill="url(#gradReal)"     dot={false} />
+                    <Area type="monotone" dataKey="parallel" stroke={T.sky}     strokeWidth={2.5} fill="url(#gradParallel)" dot={false} strokeDasharray="6 3" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* AI Narrative */}
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <button onClick={generateNarrative} disabled={aiLoading} style={{ padding:'10px', borderRadius:T.r, background:aiLoading?T.surface:'rgba(56,189,248,0.1)', border:`1px solid rgba(56,189,248,${aiLoading?'0.15':'0.4'})`, color:aiLoading?T.textSub:T.sky, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  {aiLoading ? <><div style={{ width:12,height:12,borderRadius:'50%',border:'2px solid rgba(56,189,248,0.3)',borderTopColor:T.sky,animation:'spin 0.8s linear infinite' }}/>Generating narrative…</> : '✨ Generate AI Life Narrative'}
+                </button>
+                {aiNarrative && (
+                  <div style={{ padding:'18px 20px', borderRadius:14, background:'rgba(56,189,248,0.05)', border:`1px solid rgba(56,189,248,0.2)` }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.sky, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:12 }}>Your Alternate Story</div>
+                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.8, whiteSpace:'pre-wrap' }}>{aiNarrative}</div>
+                  </div>
+                )}
+                {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, textAlign:'center' }}>⚠️ Add API key in Settings for AI narrative</div>}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function clamp(min, val, max) { return Math.max(min, Math.min(max, val)); }
 
 export default function LifeOS() {
@@ -12294,6 +13150,11 @@ export default function LifeOS() {
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const [showWeeklyReview,  setShowWeeklyReview ] = useState(false);
   const [showSyncModal,     setShowSyncModal    ] = useState(false);
+  // ── NEW FEATURES ─────────────────────────────────────────────────────────────
+  const [showPatternEngine, setShowPatternEngine] = useState(false);
+  const [showLifeGraph,     setShowLifeGraph    ] = useState(false);
+  const [showAmbient,       setShowAmbient      ] = useState(false);
+  const [showParallelYou,   setShowParallelYou  ] = useState(false);
 
   // ── STATE — same localStorage keys as original app ──────────────────────────
   const [settings,      setSettings      ] = useLocalStorage('los_settings',    { name:'', currency:'$', language:'en', incomeTarget:0, savingsTarget:30 });
@@ -12469,7 +13330,11 @@ export default function LifeOS() {
         if (e.key === 'a') setShowAIPanel(v => !v);
         if (e.key === 'm') setShowMonthlyReview(v => !v);
         if (e.key === 'w') setShowWeeklyReview(v => !v);
-        if (e.key === 'Escape') { setShowAIPanel(false); setShowMonthlyReview(false); setShowWeeklyReview(false); }
+        if (e.key === 'g') setShowLifeGraph(v => !v);        // G = Life Graph
+        if (e.key === 'p') setShowPatternEngine(v => !v);    // P = Pattern Engine
+        if (e.key === 'z') setShowParallelYou(v => !v);      // Z = Parallel You
+        if (e.key === '`') setShowAmbient(v => !v);           // ` = Ambient Mode
+        if (e.key === 'Escape') { setShowAIPanel(false); setShowMonthlyReview(false); setShowWeeklyReview(false); setShowPatternEngine(false); setShowLifeGraph(false); setShowParallelYou(false); setShowAmbient(false); }
       }
     };
     window.addEventListener('keydown', handler);
@@ -13037,7 +13902,7 @@ export default function LifeOS() {
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
     career:    eb(<CareerPage    data={data} actions={actions} />),
     calendar:  eb(<CalendarPage  data={data} />),
-    intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} />),
+    intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} />),
     archive:   eb(<ArchivePage   data={data} />),
     settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} />),
   };
@@ -13072,6 +13937,11 @@ export default function LifeOS() {
       isPartial={gistSync.isPartial}
     />
     <BadgeUnlockModal badge={showBadge} onClose={()=>setShowBadge(null)} />
+    {/* ── NEW FEATURES ── */}
+    <PatternEngine data={data} open={showPatternEngine} onClose={()=>setShowPatternEngine(false)} />
+    <LifeGraph     data={data} open={showLifeGraph}     onClose={()=>setShowLifeGraph(false)} />
+    <AmbientMode   data={data} open={showAmbient}       onClose={()=>setShowAmbient(false)} />
+    <ParallelYou   data={data} open={showParallelYou}   onClose={()=>setShowParallelYou(false)} />
     <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
@@ -13179,6 +14049,32 @@ export default function LifeOS() {
               );
             })()}
             {/* Global AI Panel trigger */}
+            {/* ── New feature buttons ── */}
+            {!isMobile && (
+              <>
+                <button onClick={()=>setShowPatternEngine(true)} title="Pattern Engine — AI correlations (P)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(139,92,246,0.12)';e.currentTarget.style.borderColor='rgba(139,92,246,0.3)';e.currentTarget.style.color='#c084fc';}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+                  📡 <span>Patterns</span>
+                </button>
+                <button onClick={()=>setShowLifeGraph(true)} title="Life Graph — node map (G)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.accentLo;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+                  🕸️ <span>Graph</span>
+                </button>
+                <button onClick={()=>setShowParallelYou(true)} title="Parallel You — simulate timelines (Z)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(56,189,248,0.1)';e.currentTarget.style.borderColor='rgba(56,189,248,0.3)';e.currentTarget.style.color=T.sky;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+                  🔀 <span>Parallel</span>
+                </button>
+                <button onClick={()=>setShowAmbient(true)} title="Ambient Mode — living screensaver (`)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.amberDim;e.currentTarget.style.borderColor=T.amber+'44';e.currentTarget.style.color=T.amber;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+                  🌊 <span>Ambient</span>
+                </button>
+                <div style={{ width:1, height:16, background:T.border, margin:'0 2px' }} />
+              </>
+            )}
             <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Life Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s infinite' }}
               onMouseEnter={e=>{if(!showAIPanel){e.currentTarget.style.background=T.accentDim;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}}
               onMouseLeave={e=>{if(!showAIPanel){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}}>
@@ -13210,6 +14106,20 @@ export default function LifeOS() {
                 <span style={{ color:item.color, fontWeight:600 }}>{item.val}</span>
                 {i<5&&<span style={{ color:T.textMuted, marginLeft:6 }}>·</span>}
               </div>
+            ))}
+            <div style={{ flex:1 }} />
+            {/* Feature quick-launch in status bar */}
+            {[
+              { label:'📡 Patterns', action:()=>setShowPatternEngine(true), color:'#c084fc' },
+              { label:'🕸️ Graph',    action:()=>setShowLifeGraph(true),     color:T.accent  },
+              { label:'🔀 Parallel', action:()=>setShowParallelYou(true),   color:T.sky     },
+              { label:'🌊 Ambient',  action:()=>setShowAmbient(true),        color:T.amber   },
+            ].map((btn,i)=>(
+              <button key={i} onClick={btn.action} style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, padding:'1px 7px', borderRadius:4, background:'transparent', border:'none', cursor:'pointer', transition:'color 0.15s' }}
+                onMouseEnter={e=>e.currentTarget.style.color=btn.color}
+                onMouseLeave={e=>e.currentTarget.style.color=T.textMuted}>
+                {btn.label}
+              </button>
             ))}
           </div>
         )}
