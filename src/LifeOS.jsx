@@ -5108,7 +5108,18 @@ function MoneyPage({ data, actions }) {
               <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
                 <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, whiteSpace:'nowrap' }}>Extra monthly payment:</span>
                 <input type="number" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value)||0)} placeholder="0" style={{ width:120, padding:'6px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>→ Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0)*Number(d.rate||0)/100,0)*payoffInfo.months/12)}</span> in interest</div>
+                {(() => {
+                  const baseline = calcDebtPayoff(debts, 0, payoffMethod);
+                  const interestSaved = Math.max(0, baseline.totalInterest - payoffInfo.totalInterest);
+                  const monthsSaved = Math.max(0, baseline.months - payoffInfo.months);
+                  return (
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                      → Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>
+                      {monthsSaved > 0 && <span style={{ color:T.violet }}> ({monthsSaved} mo faster)</span>}
+                      {interestSaved > 0 && <span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN(interestSaved)}</span> in interest</span>}
+                    </div>
+                  );
+                })()}
               </div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'8px 12px', background:T.surface, borderRadius:T.r }}>
                 <strong style={{ color:T.accent }}>Avalanche</strong> pays highest interest rate first — minimizes total interest paid.<br/>
@@ -10518,6 +10529,9 @@ function WatchlistTab() {
     'All': { cgDays: 'max', yfRange: 'max', label: 'All-time' },
   };
 
+  // CORS proxy — wraps Yahoo Finance URLs so browser can fetch them
+  const YF_PROXY = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+
   const searchDebounceRef = React.useRef(null);
   const handleSearchChange = (q) => {
     setSearchQ(q);
@@ -10531,9 +10545,8 @@ function WatchlistTab() {
           const d = await res.json();
           setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
         } else {
-          // Yahoo Finance search — CORS may block in browser
           try {
-            const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
+            const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`));
             const d = await res.json();
             setCorsBlocked(false);
             setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
@@ -10564,11 +10577,13 @@ function WatchlistTab() {
   const fetchCryptoChart = async (coinId, sym, tf) => {
     const { cgDays } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     try {
-      const interval = cgDays === 'max' || cgDays >= 365 ? 'daily' : 'daily';
+      // CoinGecko auto-selects granularity (hourly <90d, daily >=90d)
+      // Passing interval= on large ranges causes 400 errors on free tier
       const url = cgDays === 'max'
         ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=max`
-        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}&interval=${interval}`;
+        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error('cg_error');
       const d = await res.json();
       if (d.prices && d.prices.length > 0) {
         const all = d.prices.map(([ts, price]) => ({ t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: price }));
@@ -10580,13 +10595,13 @@ function WatchlistTab() {
     } catch {}
   };
 
-  // Fetch stock chart with dynamic timeframe
+  // Fetch stock chart with dynamic timeframe (via CORS proxy)
   const fetchStockChart = async (sym, tf) => {
     const { yfRange } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     const interval = tf === '1M' ? '1d' : tf === '1Y' ? '1wk' : '1mo';
     try {
-      const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`);
-      if (!r2.ok) throw new Error('cors');
+      const r2 = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`));
+      if (!r2.ok) throw new Error('blocked');
       const d2 = await r2.json();
       const ts = d2?.chart?.result?.[0]?.timestamp||[];
       const closes = d2?.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
@@ -10594,7 +10609,7 @@ function WatchlistTab() {
         const pts = ts.map((t,idx)=>({ t: new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: closes[idx]||null })).filter(pt=>pt.p!==null);
         setCharts(prev=>({...prev,[`${sym}_${tf}`]:pts}));
       }
-    } catch { /* CORS blocked — charts unavailable but price may still show */ }
+    } catch { /* proxy failed — charts unavailable */ }
   };
 
   const refresh = async (tf) => {
@@ -10622,8 +10637,8 @@ function WatchlistTab() {
       if (stockItems.length > 0) {
         const syms = stockItems.map(w=>w.sym).join(',');
         try {
-          const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
-          if (!res.ok) throw new Error('cors');
+          const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`));
+          if (!res.ok) throw new Error('blocked');
           const d = await res.json();
           setCorsBlocked(false);
           (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
@@ -10679,11 +10694,11 @@ function WatchlistTab() {
         </div>
       )}
 
-      {/* CORS notice for stocks */}
+      {/* CORS notice for stocks — only shown if proxy also fails */}
       {corsBlocked && (
-        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.violet}10`,border:`1px solid ${T.violet}33`,fontSize:11,fontFamily:T.fM,color:T.violet,lineHeight:1.6}}>
-          <div style={{fontWeight:700,marginBottom:4}}>📡 Yahoo Finance is blocked by your browser (CORS)</div>
-          <div style={{color:T.textSub,fontSize:10}}>Stock prices & charts can't be fetched directly from the browser. <b style={{color:T.violet}}>Tip:</b> Type the ticker symbol directly (e.g. <span style={{fontFamily:T.fM,color:T.text,background:T.surface,padding:'1px 5px',borderRadius:4}}>AAPL</span>) and add it manually — the symbol will be tracked and prices shown when available via proxy. Crypto via CoinGecko works fine.</div>
+        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.amber}10`,border:`1px solid ${T.amber}33`,fontSize:11,fontFamily:T.fM,color:T.amber,lineHeight:1.6}}>
+          <div style={{fontWeight:700,marginBottom:4}}>⚠️ Stock data temporarily unavailable</div>
+          <div style={{color:T.textSub,fontSize:10}}>The proxy couldn't reach Yahoo Finance right now. You can still add tickers manually (type the symbol + Enter) — they'll load once the proxy recovers. Crypto via CoinGecko always works.</div>
         </div>
       )}
 
