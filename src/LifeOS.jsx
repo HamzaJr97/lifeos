@@ -3785,662 +3785,543 @@ class ErrorBoundary extends React.Component {
 }
 
 function HomePage({ data, actions, onNav }) {
+  // eslint-disable-next-line no-unused-vars
   const lang = useLang();
-  const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
+  const {
+    expenses = [], incomes = [], assets = [], investments = [], debts = [],
+    habits = [], habitLogs = {}, goals = [], vitals = [], totalXP = 0,
+    settings = {}, notes = [], budgets = {}, bills = [],
+  } = data;
+
   const [modal, setModal] = useState(null);
   const [showDecision, setShowDecision] = useState(false);
-  const [focusMode, setFocusMode] = useLocalStorage('los_focus_mode', false);
   const [simulateOpen, setSimulateOpen] = useState(false);
-  const [showMoodBanner, setShowMoodBanner] = useState(() => !(vitals||[]).some(v=>v.date===today()));
-  const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
-  const [weeklyFocusEdit, setWeeklyFocusEdit] = useState(false);
-  // Stored Weekly AI Brief
-  const [storedBrief, setStoredBrief] = useLocalStorage('los_weekly_brief', { week:'', content:'', loading:false });
-  const currentWeek = (() => { const d=new Date(); const jan1=new Date(d.getFullYear(),0,1); return `${d.getFullYear()}-W${Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7)}`; })();
-  const briefOutdated = storedBrief.week !== currentWeek;
-  const weeklyFocus = settings.weeklyFocus || ['','',''];
-  const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
-  const hour = new Date().getHours();
-  const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
-  // Use pre-computed values from App root (no duplicate reduce loops)
-  const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
-  const fhsDetail = useMemo(()=>{
-    const mdp = (debts||[]).reduce((a,d)=>a+Number(d.minPayment||0),0);
-    const dti = monthInc>0?(mdp/monthInc)*100:50;
-    const cash = (assets||[]).filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
-    const ef = monthExp>0?cash/monthExp:0;
-    const savScore = Math.round(Math.min(30, savRate*1.5));
-    const dtiScore = Math.round(Math.max(0, 25-dti*0.5));
-    const efScore  = Math.round(Math.min(25, ef*4.2));
-    const nwScore  = netWorth>0?Math.round(Math.min(20,10+(netWorth/10000)*5)):0;
-    const total = Math.max(0,Math.min(100, savScore+dtiScore+efScore+nwScore));
-    return { total, savScore, savMax:30, dtiScore, dtiMax:25, efScore, efMax:25, nwScore, nwMax:20, dti:dti.toFixed(1), ef:ef.toFixed(1) };
-  },[savRate,debts,assets,monthInc,monthExp,netWorth]);
-  const fhs = fhsDetail.total;
-  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
-  const xpForNext = Math.pow(level,2)*100; const xpForCurrent = Math.pow(level-1,2)*100;
-  const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
-  const todayDone = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
-  const bestStreak = (habits||[]).reduce((max,h)=>{ const s=getStreak(h.id,habitLogs); return s>max?s:max; },0);
-  const lastVitals = (vitals||[]).length ? [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0] : null;
-  const recentEvents = useMemo(()=>{
-    const evs = [];
-    [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({ id:'exp-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose }));
-    [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({ id:'inc-'+e.id, ts:e.date, title:e.note||'Income', sub:'Income logged', value:`+${cur}${fmtN(e.amount)}`, cat:'income', color:T.emerald }));
-    (habits||[]).forEach(h=>{ const logs=(habitLogs[h.id]||[]); const d=logs.includes(today())?today():logs[logs.length-1]; if(d) evs.push({ id:'hab-'+h.id, ts:d, title:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)} day streak`, value:'+XP', cat:'habit', color:T.accent }); });
-    if(lastVitals) evs.push({ id:'vit-0', ts:lastVitals.date, title:'Vitals Logged', sub:`Sleep ${lastVitals.sleep}h · Mood ${lastVitals.mood}/10`, value:'❤️', cat:'health', color:T.sky });
-    return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,6);
-  },[expenses,incomes,habits,habitLogs,lastVitals,cur]);
-
   const [dismissed, setDismissed] = useLocalStorage('los_alerts_dismissed', {});
-  // Clean up dismissed keys older than today on mount
+
   useEffect(() => {
     const today_ = today();
     setDismissed(prev => {
       const clean = {};
-      Object.entries(prev||{}).forEach(([k,v]) => { if (v === today_) clean[k] = v; });
+      Object.entries(prev || {}).forEach(([k, v]) => { if (v === today_) clean[k] = v; });
       return clean;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const dismissAlert  = (key) => setDismissed(prev => ({ ...prev, [key]: today() }));
-  const dismissAllAlerts = (alerts) => setDismissed(prev => {
-    const next = { ...prev };
-    alerts.forEach(a => { next[a.dismissKey] = today(); });
-    return next;
+
+  const dismissAlert = key => setDismissed(prev => ({ ...prev, [key]: today() }));
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'MORNING' : hour < 17 ? 'AFTERNOON' : 'EVENING';
+  const cur = settings.currency || '$';
+
+  const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
+
+  const level     = Math.floor(Math.sqrt(Number(totalXP) / 100)) + 1;
+  const xpForNext = Math.pow(level, 2) * 100;
+  const xpForCur  = Math.pow(level - 1, 2) * 100;
+  const xpPct     = ((Number(totalXP) - xpForCur) / (xpForNext - xpForCur)) * 100;
+
+  const pulse = useMemo(() => computeLifePulse({
+    expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings,
+  }), [expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts]);
+
+  const scoreColor = pulse.total >= 75 ? T.emerald
+    : pulse.total >= 50 ? T.accent
+    : pulse.total >= 30 ? T.amber
+    : T.rose;
+  const scoreLabel = pulse.total >= 75 ? 'STRONG'
+    : pulse.total >= 50 ? 'NOMINAL'
+    : pulse.total >= 30 ? 'CAUTION'
+    : 'CRITICAL';
+
+  const todayHabits   = (habits || []).filter(h => (habitLogs[h.id] || []).includes(today()));
+  const pendingHabits = (habits || []).filter(h => !(habitLogs[h.id] || []).includes(today()));
+  const bestStreak    = (habits || []).reduce((max, h) => {
+    const s = getStreak(h.id, habitLogs); return s > max ? s : max;
+  }, 0);
+  const lastVitals   = (vitals || []).length
+    ? [...vitals].sort((a, b) => (a.date < b.date ? 1 : -1))[0]
+    : null;
+  const vitalsToday  = (vitals || []).some(v => v.date === today());
+  const urgentBills  = (bills || []).filter(b => {
+    if (b.paid) return false;
+    const days = Math.round((new Date(b.nextDate) - new Date()) / 86400000);
+    return days >= 0 && days <= 5;
+  });
+  const isOverBudget = monthExp > monthInc * 0.9 && monthInc > 0;
+  const stalledGoals = (goals || []).filter(g => {
+    if (!g.target || !g.deadline) return false;
+    const pct      = Number(g.current || 0) / Number(g.target);
+    const daysLeft = Math.round((new Date(g.deadline) - new Date()) / 86400000);
+    return pct < 0.5 && daysLeft < 30;
   });
 
-  const QUICK_ACTIONS = [
-    { label:'Log Expense', emoji:'💳', modal:'expense' }, { label:'Log Income', emoji:'💰', modal:'income' },
-    { label:'Log Habit',   emoji:'🔥', modal:'habit'   }, { label:'Log Vitals', emoji:'❤️', modal:'vitals' },
-    { label:'Add Note',    emoji:'📝', modal:'note'    }, { label:'Add Goal',   emoji:'🎯', modal:'goal'   },
+  const directive = useMemo(() => {
+    if (urgentBills.length > 0) {
+      const daysLeft = Math.round((new Date(urgentBills[0].nextDate) - new Date()) / 86400000);
+      return {
+        urgency: 'CRITICAL', color: T.rose, icon: '⚠️',
+        title: `Pay ${urgentBills[0].name}`,
+        subtitle: `Due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${cur}${fmtN(urgentBills[0].amount)}`,
+        why: 'Late payments damage your credit score and cost you in penalties. Act before midnight.',
+        action: 'View Bills →', onAction: () => onNav('money'),
+      };
+    }
+    if (isOverBudget) {
+      const over = monthExp - monthInc * 0.9;
+      return {
+        urgency: 'HIGH', color: T.amber, icon: '📉',
+        title: 'Cut spending today',
+        subtitle: `${cur}${fmtN(over)} over safe limit this month`,
+        why: 'At this rate your savings rate turns negative. Every unreviewed expense compounds the damage.',
+        action: 'Review Expenses →', onAction: () => onNav('money'),
+      };
+    }
+    if (pendingHabits.length > 0) {
+      const isHigh = pendingHabits.length >= (habits || []).length;
+      return {
+        urgency: isHigh ? 'HIGH' : 'ROUTINE',
+        color: isHigh ? T.amber : T.accent,
+        icon: '🔥',
+        title: `Complete ${pendingHabits[0].name}`,
+        subtitle: `${pendingHabits.length} of ${(habits || []).length} habits remaining today`,
+        why: bestStreak > 0
+          ? `Don't break your ${bestStreak}-day streak. Identity is built in moments exactly like this.`
+          : 'Habits done today compound into who you are tomorrow. One action breaks inertia.',
+        action: 'Log Habit →', onAction: () => setModal('habit'),
+      };
+    }
+    if (!vitalsToday) {
+      return {
+        urgency: 'ROUTINE', color: T.sky, icon: '❤️',
+        title: 'Log your vitals',
+        subtitle: `Last logged: ${lastVitals ? lastVitals.date : 'never'}`,
+        why: "You can't improve what you don't measure. 30 seconds of data unlocks months of insight.",
+        action: 'Log Vitals →', onAction: () => setModal('vitals'),
+      };
+    }
+    if (stalledGoals.length > 0) {
+      const g = stalledGoals[0];
+      const pct  = Math.round((Number(g.current || 0) / Number(g.target)) * 100);
+      const days = Math.round((new Date(g.deadline) - new Date()) / 86400000);
+      return {
+        urgency: 'HIGH', color: T.amber, icon: '🎯',
+        title: `Advance: ${g.title}`,
+        subtitle: `${pct}% done · ${days} days remaining`,
+        why: 'At current pace this deadline will be missed. Every day of inaction makes the catch-up harder.',
+        action: 'Update Goal →', onAction: () => onNav('growth'),
+      };
+    }
+    return {
+      urgency: 'CLEAR', color: T.emerald, icon: '✅',
+      title: "You're on track today",
+      subtitle: `All ${(habits || []).length} habits · Vitals logged · No critical alerts`,
+      why: 'Consistency is your edge. Most people slip here — you didn't. Keep the streak.',
+      action: 'Add Note →', onAction: () => setModal('note'),
+    };
+  }, [urgentBills, isOverBudget, pendingHabits, vitalsToday, stalledGoals, habits, bestStreak]);
+
+  const riskAlerts = useMemo(() => {
+    const raw = [];
+    if (savRate < 0 && monthInc > 0)
+      raw.push({
+        id: 'neg_savrate', color: T.rose,
+        title: 'Spending exceeds income',
+        body: `You spent ${cur}${fmtN(Math.abs(monthExp - monthInc))} more than you earned this month.`,
+        fix: 'Review', onFix: () => onNav('money'),
+      });
+    if (debtVal > (netWorth + debtVal) * 0.5 && netWorth + debtVal > 0)
+      raw.push({
+        id: 'high_dtr', color: T.amber,
+        title: 'High debt ratio',
+        body: `Debt is ${Math.round((debtVal / (netWorth + debtVal)) * 100)}% of total assets. Target: below 30%.`,
+        fix: 'Debt Plan', onFix: () => onNav('money'),
+      });
+    if (urgentBills.length > 0)
+      raw.push({
+        id: 'urgent_bills',
+        color: urgentBills.some(b => Math.round((new Date(b.nextDate) - new Date()) / 86400000) <= 1) ? T.rose : T.amber,
+        title: `${urgentBills.length} bill${urgentBills.length > 1 ? 's' : ''} due soon`,
+        body: urgentBills.slice(0, 2).map(b => `${b.name} (${cur}${fmtN(b.amount)})`).join(' · '),
+        fix: 'Pay Now', onFix: () => onNav('money'),
+      });
+    const v7 = (vitals || []).slice(-7);
+    const avgSleep = v7.length ? v7.reduce((s, v) => s + Number(v.sleep || 0), 0) / v7.length : 0;
+    if (v7.length >= 3 && avgSleep < 6)
+      raw.push({
+        id: 'low_sleep', color: T.amber,
+        title: 'Sleep deficit detected',
+        body: `Avg ${avgSleep.toFixed(1)}h/night this week. Target: 7–9h. Cognitive impact compounds fast.`,
+        fix: 'Log Vitals', onFix: () => setModal('vitals'),
+      });
+    const broken = (habits || []).filter(h =>
+      getStreak(h.id, habitLogs) === 0 && (habitLogs[h.id] || []).length > 0
+    );
+    if (broken.length >= 2)
+      raw.push({
+        id: 'broken_streaks', color: T.amber,
+        title: `${broken.length} habits lost their streak`,
+        body: `${broken.slice(0, 2).map(h => h.name).join(', ')} — restart today to contain the damage.`,
+        fix: 'Log Habits', onFix: () => setModal('habit'),
+      });
+    if (stalledGoals.length > 0)
+      raw.push({
+        id: 'stalled_goals', color: T.amber,
+        title: `${stalledGoals.length} goal${stalledGoals.length > 1 ? 's' : ''} at risk`,
+        body: `${stalledGoals[0].title} — ${Math.round((Number(stalledGoals[0].current || 0) / Number(stalledGoals[0].target)) * 100)}% done with ${Math.round((new Date(stalledGoals[0].deadline) - new Date()) / 86400000)}d left.`,
+        fix: 'Goals', onFix: () => onNav('growth'),
+      });
+    return raw.filter(a => !dismissed[a.id]).slice(0, 4);
+  }, [savRate, monthExp, monthInc, debtVal, netWorth, urgentBills, vitals, habits, habitLogs, stalledGoals, dismissed, cur]);
+
+  const insights = useMemo(() => {
+    const ins = [];
+    if (netWorth !== 0 || monthInc > 0)
+      ins.push({
+        icon: '🏔️', color: savRate >= 20 ? T.emerald : savRate >= 0 ? T.accent : T.rose,
+        text: savRate >= 20
+          ? `Saving ${savRate.toFixed(0)}% of income. Net worth ${cur}${fmtN(netWorth)} — strong growth trajectory.`
+          : savRate > 0
+          ? `Saving ${savRate.toFixed(0)}% of income. Push above 20% to accelerate net worth growth.`
+          : `Negative savings rate this month. Net worth ${cur}${fmtN(netWorth)} — rebalance income vs. expenses now.`,
+      });
+    if ((habits || []).length > 0) {
+      const last14 = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        return d.toISOString().slice(0, 10);
+      });
+      const rate = last14.filter(d =>
+        (habits || []).some(h => (habitLogs[h.id] || []).includes(d))
+      ).length / 14;
+      ins.push({
+        icon: rate > 0.8 ? '⚡' : rate > 0.5 ? '🔄' : '⚠️',
+        color: rate > 0.8 ? T.emerald : rate > 0.5 ? T.accent : T.amber,
+        text: rate > 0.8
+          ? `${Math.round(rate * 100)}% habit consistency last 2 weeks — elite tier. Identity is forming.`
+          : rate > 0.5
+          ? `${Math.round(rate * 100)}% habit completion. You need 80%+ for lasting behavioral change.`
+          : `Only ${Math.round(rate * 100)}% habit days in 2 weeks. Skipping is becoming the default pattern.`,
+      });
+    }
+    const v7 = (vitals || []).slice(-7);
+    if (v7.length >= 4) {
+      const avgMood  = v7.reduce((s, v) => s + Number(v.mood  || 0), 0) / v7.length;
+      const avgSleep = v7.reduce((s, v) => s + Number(v.sleep || 0), 0) / v7.length;
+      ins.push({
+        icon: '🧠',
+        color: avgSleep >= 7 && avgMood >= 7 ? T.emerald : avgSleep >= 6 ? T.accent : T.amber,
+        text: avgSleep >= 7 && avgMood >= 7
+          ? `${avgSleep.toFixed(1)}h avg sleep, mood ${avgMood.toFixed(1)}/10 this week — peak operating state.`
+          : avgSleep < 6
+          ? `${avgSleep.toFixed(1)}h avg sleep this week — below threshold. Sleep debt degrades every other metric.`
+          : `${avgSleep.toFixed(1)}h sleep, mood ${avgMood.toFixed(1)}/10. Find what moves mood from ${avgMood.toFixed(0)} to 8.`,
+      });
+    } else if ((vitals || []).length === 0) {
+      ins.push({
+        icon: '📊', color: T.textSub,
+        text: 'No health data yet. Log vitals for 4+ days to unlock trend intelligence on sleep and mood.',
+      });
+    }
+    return ins.slice(0, 3);
+  }, [monthExp, netWorth, savRate, habits, habitLogs, vitals, cur]);
+
+  const QUICK = [
+    { label: 'EXPENSE', emoji: '💳', modal: 'expense', color: T.rose    },
+    { label: 'INCOME',  emoji: '💰', modal: 'income',  color: T.emerald },
+    { label: 'HABIT',   emoji: '🔥', modal: 'habit',   color: T.accent  },
+    { label: 'VITALS',  emoji: '❤️', modal: 'vitals',  color: T.sky     },
+    { label: 'NOTE',    emoji: '📝', modal: 'note',    color: T.violet  },
+    { label: 'GOAL',    emoji: '🎯', modal: 'goal',    color: T.amber   },
   ];
 
+  const DOMAIN_ICONS = { Finance: '💰', Health: '❤️', Habits: '🔥', Goals: '🎯', Consistency: '📊' };
+
   return (
-    <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} />
-      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
-      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
-      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
-      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
-      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
-      {showMoodBanner && (
-        <div style={{ marginBottom:14, borderRadius:T.rL, background:`linear-gradient(135deg,${T.sky}0e,${T.violet}0a)`, border:`1px solid ${T.sky}33`, overflow:'hidden', animation:'fadeUp 0.3s ease' }}>
-          {quickMood === null ? (
-            <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:20 }}>☀️</span>
-                <div>
-                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>Daily Check-in</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>How are you feeling right now?</div>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                {[['😩','1',T.rose],['😕','2',T.amber],['😐','3',T.textSub],['🙂','4',T.sky],['😄','5',T.emerald]].map(([emoji, val, color]) => (
-                  <button key={val} onClick={()=>setQuickMood(Number(val))} style={{ width:38, height:38, borderRadius:10, background:T.surface, border:`1px solid ${T.border}`, fontSize:20, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.15s' }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=color+'22';e.currentTarget.style.borderColor=color+'66';e.currentTarget.style.transform='scale(1.15)';}}
-                    onMouseLeave={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform='scale(1)';}}>
-                    {emoji}
-                  </button>
-                ))}
-                <button onClick={()=>setShowMoodBanner(false)} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'4px 10px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, marginLeft:4, cursor:'pointer' }}>Later</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:22 }}>{['😩','😕','😐','🙂','😄'][quickMood-1]}</span>
-                <div>
-                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>Mood: {quickMood}/5 — {['Rough day','Below average','Neutral','Pretty good','Excellent!'][quickMood-1]}</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Log full vitals for sleep & energy too.</div>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <Btn onClick={()=>{ actions.addVitals({ id:Date.now(), date:today(), mood:quickMood*2, sleep:0, energy:quickMood*2, weight:'', steps:'', note:'Quick check-in' }); setShowMoodBanner(false); }} color={T.sky} style={{ padding:'5px 14px' }}>Save Quick</Btn>
-                <Btn onClick={()=>{ setModal('vitals'); setShowMoodBanner(false); }} color={T.violet} style={{ padding:'5px 14px' }}>Full Log</Btn>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      <LogDecisionModal open={showDecision} onClose={()=>setShowDecision(false)} onSave={d=>{actions.addDecision(d);setShowDecision(false);}} />
-      <SimulateDecisionModal open={simulateOpen} onClose={()=>setSimulateOpen(false)} data={data} />
-      <div style={{ marginBottom:26 }}>
-        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', marginBottom:5, textTransform:'uppercase' }}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:8 }}>
-          <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
-          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-            <button onClick={()=>setFocusMode(v=>!v)}
-              style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, cursor:'pointer', transition:'all 0.15s', background:focusMode?T.accentDim:T.surface, border:`1px solid ${focusMode?T.accent+'55':T.border}`, color:focusMode?T.accent:T.textSub }}
-              title="Focus Mode — see only what matters today">
-              {focusMode ? '⊙ Focus' : '○ Focus'}
-            </button>
-            <button onClick={()=>setSimulateOpen(true)}
-              style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, cursor:'pointer', background:T.violetDim, border:`1px solid ${T.violet}33`, color:T.violet }}>
-              ⚡ Simulate
-            </button>
+    <div style={{ animation: 'fadeUp 0.4s ease', maxWidth: 900 }}>
+
+      <LogExpenseModal open={modal === 'expense'} onClose={() => setModal(null)}
+        onSave={e => { actions.addExpense(e); setModal(null); }} goals={goals} onGoalProgress={actions.updateGoalProgress} />
+      <LogIncomeModal open={modal === 'income'} onClose={() => setModal(null)}
+        onSave={e => { actions.addIncome(e); setModal(null); }} />
+      <LogHabitModal open={modal === 'habit'} onClose={() => setModal(null)}
+        habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
+      <LogVitalsModal open={modal === 'vitals'} onClose={() => setModal(null)}
+        onSave={e => { actions.addVitals(e); setModal(null); }} />
+      <AddNoteModal open={modal === 'note'} onClose={() => setModal(null)}
+        onSave={e => { actions.addNote(e); setModal(null); }} />
+      <AddGoalModal open={modal === 'goal'} onClose={() => setModal(null)}
+        onSave={e => { actions.addGoal(e); setModal(null); }} />
+      <LogDecisionModal open={showDecision} onClose={() => setShowDecision(false)}
+        onSave={d => { actions.addDecision(d); setShowDecision(false); }} />
+      <SimulateDecisionModal open={simulateOpen} onClose={() => setSimulateOpen(false)} data={data} />
+
+      {/* ── SECTION 1: MISSION HEADER ─────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        flexWrap: 'wrap', gap: 12, marginBottom: 18,
+      }}>
+        <div>
+          <div style={{
+            fontSize: 9, fontFamily: T.fM, color: T.textMuted,
+            letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 4,
+          }}>
+            {greeting} BRIEFING · {new Date().toLocaleDateString('en-US', {
+              weekday: 'long', month: 'long', day: 'numeric',
+            }).toUpperCase()}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{
+              fontSize: 22, fontFamily: T.fD, fontWeight: 800,
+              color: T.text, letterSpacing: '-0.02em',
+            }}>
+              {settings.name ? `${settings.name}'s ` : ''}Command Center
+            </h1>
+            <div style={{
+              padding: '2px 9px', borderRadius: 4,
+              background: scoreColor + '18', border: `1px solid ${scoreColor}44`,
+              fontSize: 8, fontFamily: T.fM, fontWeight: 700,
+              color: scoreColor, letterSpacing: '0.12em',
+            }}>{scoreLabel}</div>
           </div>
         </div>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:6, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-          {settings.name?<span>Welcome back, {settings.name}</span>:null}
-          <LifePulseChip pulse={computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings })} />
-          <span style={{ color:T.emerald }}>●</span><span>{(habits||[]).length} habits</span>
-          <span style={{ color:T.accent }}>●</span><span>NW {cur}{fmtN(netWorth)}</span>
-          <span style={{ color:T.textMuted, cursor:'pointer' }} onClick={()=>{}}>⌘K search</span>
-          <button onClick={()=>setShowDecision(true)} style={{ fontSize:9, fontFamily:T.fM, color:T.violet, background:T.violetDim, border:'1px solid '+T.violet+'33', borderRadius:99, padding:'2px 10px', cursor:'pointer' }}>+ Log decision</button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 3 }}>OPERATOR LEVEL</div>
+            <div style={{ fontSize: 22, fontFamily: T.fD, fontWeight: 800, color: T.accent, lineHeight: 1 }}>{level}</div>
+            <div style={{ width: 80, height: 2, background: T.border, borderRadius: 1, marginTop: 4, overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min(100, xpPct)}%`, height: '100%',
+                background: `linear-gradient(90deg, ${T.accent}, ${T.violet})`,
+                borderRadius: 1, transition: 'width 1s ease',
+              }} />
+            </div>
+            <div style={{ fontSize: 7, fontFamily: T.fM, color: T.textMuted, marginTop: 2 }}>
+              {fmtN(totalXP)} / {fmtN(xpForNext)} XP
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
+            <svg viewBox="0 0 64 64" style={{ width: 64, height: 64, transform: 'rotate(-90deg)' }}>
+              <circle cx="32" cy="32" r="26" fill="none" stroke={T.border} strokeWidth="4" />
+              <circle cx="32" cy="32" r="26" fill="none" stroke={scoreColor} strokeWidth="4"
+                strokeDasharray={`${2 * Math.PI * 26}`}
+                strokeDashoffset={`${2 * Math.PI * 26 * (1 - pulse.total / 100)}`}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dashoffset 1.2s ease', filter: `drop-shadow(0 0 6px ${scoreColor}88)` }}
+              />
+            </svg>
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <div style={{ fontSize: 16, fontFamily: T.fD, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{pulse.total}</div>
+              <div style={{ fontSize: 6, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.06em' }}>PULSE</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <button onClick={() => setSimulateOpen(true)} style={{
+              padding: '4px 12px', borderRadius: 6,
+              background: T.violetDim, border: `1px solid ${T.violet}33`,
+              fontSize: 8, fontFamily: T.fM, color: T.violet, fontWeight: 700,
+              cursor: 'pointer', letterSpacing: '0.06em',
+            }}>⚡ SIMULATE</button>
+            <button onClick={() => setShowDecision(true)} style={{
+              padding: '4px 12px', borderRadius: 6,
+              background: T.surface, border: `1px solid ${T.border}`,
+              fontSize: 8, fontFamily: T.fM, color: T.textSub, cursor: 'pointer', letterSpacing: '0.06em',
+            }}>+ DECISION</button>
+          </div>
         </div>
       </div>
 
-      {/* ── Focus Mode — collapsed view showing only what matters today ─── */}
-      {focusMode && (() => {
-        const todayDoneHabits = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today()));
-        const pendingHabits   = (habits||[]).filter(h=>!(habitLogs[h.id]||[]).includes(today()));
-        const todayVitals     = (vitals||[]).some(v=>v.date===today());
-        const urgentBills     = (bills||[]).filter(b=>!b.paid&&b.nextDate&&Math.round((new Date(b.nextDate)-new Date())/86400000)<=3);
-        const pulse           = computeLifePulse({ expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings });
-        return (
-          <div style={{ marginBottom:18, animation:'fadeUp 0.3s ease' }}>
-            <GlassCard style={{ padding:'20px 24px', border:`1px solid ${T.accent}33`, background:`linear-gradient(135deg,${T.accent}06,transparent)` }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.14em', textTransform:'uppercase', fontWeight:700 }}>⊙ Focus Mode</div>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Life Pulse</span>
-                  <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color: pulse.total>=70?T.emerald:pulse.total>=50?T.accent:T.amber }}>{pulse.total}</span>
-                </div>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:10, marginBottom:16 }}>
-                {/* Habits left */}
-                <div style={{ padding:'12px 14px', borderRadius:T.r, background: pendingHabits.length===0?T.emeraldDim:T.surface, border:`1px solid ${pendingHabits.length===0?T.emerald+'44':T.border}` }}>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Habits today</div>
-                  <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:pendingHabits.length===0?T.emerald:T.accent }}>
-                    {todayDoneHabits.length}/{(habits||[]).length}
-                  </div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
-                    {pendingHabits.length===0?'All done 🎉':pendingHabits.slice(0,2).map(h=>h.emoji||'🔥'+' '+h.name).join(' · ')}
-                  </div>
-                </div>
-                {/* Vitals logged */}
-                <div style={{ padding:'12px 14px', borderRadius:T.r, background:todayVitals?T.emeraldDim:T.surface, border:`1px solid ${todayVitals?T.emerald+'44':T.border}` }}>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Vitals</div>
-                  <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:todayVitals?T.emerald:T.textSub }}>{todayVitals?'✓ Logged':'Not yet'}</div>
-                  {!todayVitals && <button onClick={()=>setModal('vitals')} style={{ fontSize:9, fontFamily:T.fM, color:T.sky, background:'none', border:'none', cursor:'pointer', marginTop:4 }}>Log now →</button>}
-                </div>
-                {/* Net worth */}
-                <div style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Net Worth</div>
-                  <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(netWorth)}</div>
-                </div>
-                {/* Savings rate */}
-                <div style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5 }}>Savings rate</div>
-                  <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:savRate>=20?T.emerald:T.amber }}>{savRate.toFixed(1)}%</div>
-                </div>
-              </div>
-              {/* Pending habits quick-log */}
-              {pendingHabits.length > 0 && (
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                  {pendingHabits.slice(0,5).map(h=>(
-                    <button key={h.id} onClick={()=>actions.logHabit(h.id)}
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}33`, fontSize:10, fontFamily:T.fM, color:T.accent, cursor:'pointer', transition:'all 0.15s' }}
-                      onMouseEnter={e=>{e.currentTarget.style.background=T.accent+'30';}}
-                      onMouseLeave={e=>{e.currentTarget.style.background=T.accentDim;}}>
-                      {h.emoji||'🔥'} {h.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {urgentBills.length > 0 && (
-                <div style={{ marginTop:10, padding:'8px 12px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, fontSize:10, fontFamily:T.fM, color:T.amber }}>
-                  ⏰ {urgentBills.length} bill{urgentBills.length>1?'s':''} due soon: {urgentBills.map(b=>b.name).join(', ')}
-                </div>
-              )}
-            </GlassCard>
-          </div>
-        );
-      })()}
-
-      {/* When in Focus Mode, skip everything else */}
-      {!focusMode && (<>
-      {/* ── Step 1: Daily Brief — the front door of the "what's about to happen" shift */}
-      <DailyBriefCard data={data} onNav={onNav} onModal={setModal} />
-      {/* UX Fix 4: Empty-state guidance strip — shown only when the user has no data
-          at all. Each pill disappears once its domain has at least one entry.
-          Avoids the "six zeroes and silence" problem on a fresh install. */}
-      {(() => {
-        const steps = [
-          { done: (expenses||[]).length > 0 || (incomes||[]).length > 0, emoji:'💳', label:'Log your first expense or income', modal:'expense', color:T.rose },
-          { done: (habits||[]).length > 0,                          emoji:'🔥', label:'Create a habit to track',          modal:'habit',   color:T.accent },
-          { done: (vitals||[]).some(v=>v.date===today()),           emoji:'❤️', label:'Log today\'s vitals',              modal:'vitals',  color:T.sky },
-          { done: (assets||[]).length > 0 || (investments||[]).length > 0,emoji:'💎', label:'Add an asset to track net worth', modal:null,      color:T.violet, nav:'money' },
-        ];
-        const remaining = steps.filter(s => !s.done);
-        if (!remaining.length) return null;
-        return (
-          <div style={{ marginBottom:18, padding:'14px 18px', borderRadius:T.rL, background:`linear-gradient(135deg,${T.accent}06,${T.violet}04)`, border:`1px solid ${T.accent}22`, animation:'fadeUp 0.35s ease' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>Get started — {remaining.length} step{remaining.length>1?'s':''} remaining</div>
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-              {remaining.map((s,i) => (
-                <button key={i} onClick={()=> s.modal ? setModal(s.modal) : onNav(s.nav||'money')}
-                  style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 14px', borderRadius:99, background:`${s.color}10`, border:`1px solid ${s.color}33`, fontSize:11, fontFamily:T.fM, color:s.color, cursor:'pointer', transition:'all 0.15s', whiteSpace:'nowrap' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background=`${s.color}22`;e.currentTarget.style.transform='translateY(-1px)';}}
-                  onMouseLeave={e=>{e.currentTarget.style.background=`${s.color}10`;e.currentTarget.style.transform='none';}}>
-                  <span>{s.emoji}</span> {s.label} <span style={{ opacity:0.5 }}>→</span>
-                </button>
-              ))}
+      {/* ── SECTION 2: TODAY'S DIRECTIVE ────────────────────────────────────── */}
+      <GlassCard style={{
+        padding: '20px 24px', marginBottom: 14,
+        background: `linear-gradient(135deg, ${directive.color}08, transparent)`,
+        border: `1px solid ${directive.color}33`,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', right: -30, top: -30, width: 140, height: 140,
+          borderRadius: '50%', background: directive.color + '08', filter: 'blur(50px)',
+          pointerEvents: 'none', animation: 'glowPulse 4s ease-in-out infinite',
+        }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '2px 9px', borderRadius: 4,
+              background: directive.color + '22', border: `1px solid ${directive.color}55`,
+              fontSize: 8, fontFamily: T.fM, fontWeight: 700,
+              color: directive.color, letterSpacing: '0.12em', marginBottom: 10,
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: '50%', background: directive.color,
+                animation: directive.urgency === 'CRITICAL' ? 'dotPulse 1.5s infinite' : 'none',
+                display: 'inline-block',
+              }} />
+              TODAY'S DIRECTIVE · {directive.urgency}
             </div>
-          </div>
-        );
-      })()}
-      {/* ── Step 2: Trajectory-aware stat cards ─────────────────────────────── */}
-      {(()=>{
-        // ── Compute trajectories from historical data ─────────────────────────
-        // Net worth: monthly delta from NW history snapshots
-        const nwHist = data.netWorthHistory || [];
-        const nwMonthlyDelta = nwHist.length >= 2
-          ? (nwHist[nwHist.length-1].value - nwHist[nwHist.length-2].value)
-          : null;
-        const nwProj90 = nwMonthlyDelta != null ? Math.round(netWorth + nwMonthlyDelta * 3) : null;
-
-        // Savings rate: compare this month vs 3-month trailing average
-        const trailSavRates = [1,2,3].map(i => {
-          const d = new Date(); d.setMonth(d.getMonth()-i);
-          const m = d.toISOString().slice(0,7);
-          const inc = (incomes||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-          const exp = (expenses||[]).filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+Number(x.amount||0),0);
-          return inc > 0 ? ((inc-exp)/inc)*100 : null;
-        }).filter(r => r !== null);
-        const avgSavRate   = trailSavRates.length ? trailSavRates.reduce((s,r)=>s+r,0)/trailSavRates.length : null;
-        const savRateDelta = avgSavRate != null ? savRate - avgSavRate : null;
-
-        // XP: compare last 30 days vs prior 30 days
-        const now30 = new Date(); now30.setDate(now30.getDate()-30);
-        const now60 = new Date(); now60.setDate(now60.getDate()-60);
-        const xpLogs30 = Object.values(habitLogs).flat().filter(d => d >= now30.toISOString().slice(0,10)).length;
-        const xpLogs60 = Object.values(habitLogs).flat().filter(d => d >= now60.toISOString().slice(0,10) && d < now30.toISOString().slice(0,10)).length;
-        const xpTrend  = xpLogs60 > 0 ? ((xpLogs30 - xpLogs60) / xpLogs60) * 100 : null;
-
-        // Financial Health: month-over-month
-        const prevM = (() => { const d = new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); })();
-        const prevInc = (incomes||[]).filter(i=>i.date?.startsWith(prevM)).reduce((s,i)=>s+Number(i.amount||0),0);
-        const prevExp = (expenses||[]).filter(e=>e.date?.startsWith(prevM)).reduce((s,e)=>s+Number(e.amount||0),0);
-        const prevSavRate = prevInc > 0 ? ((prevInc-prevExp)/prevInc)*100 : 0;
-        const fhsTrend = fhs - (prevSavRate > 0 ? Math.min(100, Math.round(prevSavRate*1.5)) : fhs);
-
-        // ── Arrow helper ──────────────────────────────────────────────────────
-        const Arrow = ({ delta, fmt, suffix='', invert=false }) => {
-          if (delta == null || Math.abs(delta) < 0.5) return (
-            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'inline-flex', alignItems:'center', gap:2 }}>
-              → stable
-            </span>
-          );
-          const up      = invert ? delta < 0 : delta > 0;
-          const color   = up ? T.emerald : T.rose;
-          const arrow   = delta > 0 ? '↑' : '↓';
-          const display = fmt ? fmt(Math.abs(delta)) : `${Math.abs(delta).toFixed(1)}${suffix}`;
-          return (
-            <span style={{ fontSize:9, fontFamily:T.fM, color, display:'inline-flex', alignItems:'center', gap:2, fontWeight:600 }}>
-              {arrow} {display}
-              <span style={{ fontSize:8, color, opacity:0.7 }}>vs avg</span>
-            </span>
-          );
-        };
-
-        // ── Projection chip ───────────────────────────────────────────────────
-        const ProjChip = ({ label, color }) => (
-          <span style={{ fontSize:8, fontFamily:T.fM, color, background:color+'14', border:`1px solid ${color}30`, borderRadius:99, padding:'1px 7px', whiteSpace:'nowrap' }}>
-            {label}
-          </span>
-        );
-
-        const cards = [
-          {
-            label:'Net Worth', icon:'💎', color:T.accent,
-            value:`${cur}${fmtN(netWorth)}`,
-            sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`,
-            arrow: <Arrow delta={nwMonthlyDelta} fmt={d=>`${cur}${fmtN(Math.round(d))}/mo`} />,
-            proj:  nwProj90 != null ? <ProjChip label={`90d → ${cur}${fmtN(nwProj90)}`} color={nwProj90 >= netWorth ? T.emerald : T.rose} /> : null,
-            pct:   null,
-            sparkline: nwHist.slice(-6),
-          },
-          {
-            label:'Financial Health', icon:'📊', color:T.emerald,
-            value:`${fhs}/100`,
-            sub:fhs>=70?'Strong finances':fhs>=40?'Room to improve':'Needs attention',
-            arrow: <Arrow delta={fhsTrend} suffix=' pts' />,
-            proj:  <ProjChip label={fhs>=70?'On track':'Improve savings rate'} color={fhs>=70?T.emerald:T.amber} />,
-            pct:   fhs, detail: fhsDetail,
-          },
-          {
-            label:`Life XP — Lv ${level}`, icon:'⚡', color:T.violet,
-            value:`${Number(totalXP).toLocaleString()} XP`,
-            sub:`${Math.round(xpForNext-Number(totalXP))} XP to Lv ${level+1}`,
-            arrow: xpTrend != null ? <Arrow delta={xpTrend} suffix='%' fmt={d=>`${d.toFixed(0)}% more active`} /> : null,
-            proj:  <ProjChip label={xpLogs30 > xpLogs60 ? '↑ More active than last month' : xpLogs30 < xpLogs60 ? '↓ Less active than last month' : '→ Same pace'} color={xpLogs30 >= xpLogs60 ? T.violet : T.textSub} />,
-            pct:   xpPct,
-          },
-          {
-            label:'Savings Rate', icon:'🎯', color:T.sky,
-            value:`${savRate.toFixed(1)}%`,
-            sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved this month`,
-            arrow: <Arrow delta={savRateDelta} suffix=' pts' />,
-            proj:  avgSavRate != null ? <ProjChip label={`3-mo avg ${avgSavRate.toFixed(1)}%`} color={savRate >= avgSavRate ? T.emerald : T.amber} /> : null,
-            pct:   savRate,
-          },
-        ];
-
-        return (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
-            {cards.map((m,i)=>(
-              <GlassCard key={i} style={{ padding:'18px 20px', animation:`fadeUp 0.4s ease ${i*0.08}s both` }}>
-                {/* Label + icon row */}
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
-                  <span style={{ fontSize:16, opacity:0.7 }}>{m.icon}</span>
-                </div>
-                {/* Big value */}
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1, marginBottom:5 }}>{m.value}</div>
-                {/* Sub-label */}
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>{m.sub}</div>
-                {/* Trajectory arrow + projection chip */}
-                <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', marginBottom:m.pct!=null?8:0 }}>
-                  {m.arrow}
-                  {m.proj}
-                </div>
-                {m.pct!=null && <ProgressBar pct={m.pct} color={m.color} height={4} />}
-                {/* C5: NW mini sparkline — last 6 months */}
-                {m.sparkline && m.sparkline.length >= 2 && (() => {
-                  const pts = m.sparkline;
-                  const vals = pts.map(p=>p.value);
-                  const min = Math.min(...vals); const max = Math.max(...vals);
-                  const range = max - min || 1;
-                  const W=120, H=32, pad=2;
-                  const xs = pts.map((_,i) => pad + (i/(pts.length-1))*(W-pad*2));
-                  const ys = pts.map(p => (H-pad) - ((p.value-min)/range)*(H-pad*2));
-                  const d = xs.map((x,i)=>`${i===0?'M':'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
-                  const rising = vals[vals.length-1] >= vals[0];
-                  return (
-                    <svg width={W} height={H} style={{ display:'block', marginTop:8, opacity:0.85 }}>
-                      <path d={d} fill="none" stroke={rising?T.emerald:T.rose} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/>
-                      <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r={2.5} fill={rising?T.emerald:T.rose}/>
-                    </svg>
-                  );
-                })()}
-                {/* Financial Health breakdown */}
-                {m.detail && (
-                  <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:4, borderTop:`1px solid ${T.border}`, paddingTop:8 }}>
-                    {[
-                      { label:'Savings Rate',   score:m.detail.savScore, max:m.detail.savMax, hint:`${savRate.toFixed(0)}%` },
-                      { label:'Debt-to-Income', score:m.detail.dtiScore, max:m.detail.dtiMax, hint:`${m.detail.dti}% DTI` },
-                      { label:'Emergency Fund', score:m.detail.efScore,  max:m.detail.efMax,  hint:`${m.detail.ef}mo` },
-                      { label:'Net Worth',      score:m.detail.nwScore,  max:m.detail.nwMax,  hint:netWorth>0?'Positive':'—' },
-                    ].map(sub => (
-                      <div key={sub.label}>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>
-                          <span>{sub.label}</span>
-                          <span style={{ color:m.color }}>{sub.score}/{sub.max} · {sub.hint}</span>
-                        </div>
-                        <ProgressBar pct={(sub.score/sub.max)*100} color={m.color} height={3} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </GlassCard>
-            ))}
-          </div>
-        );
-      })()}
-      {/* Recent Achievements Strip */}
-      {(() => {
-        const unlocked = ACHIEVEMENTS.filter(a => a.check(data)).slice(-3).reverse();
-        if (!unlocked.length) return null;
-        return (
-          <div style={{ marginBottom:16, display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-            <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', flexShrink:0 }}>Recent badges</span>
-            {unlocked.map((a,i) => (
-              <div key={a.id} title={`${a.name} — ${a.desc}`} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:99, background:`${a.color}12`, border:`1px solid ${a.color}33`, animation:`badgeIn 0.3s ease ${i*0.08}s both`, cursor:'default' }}>
-                <span style={{ fontSize:15, filter:`drop-shadow(0 0 4px ${a.color}66)` }}>{a.emoji}</span>
-                <span style={{ fontSize:10, fontFamily:T.fM, fontWeight:600, color:a.color }}>{a.name}</span>
-              </div>
-            ))}
-            <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer', marginLeft:'auto' }}>All badges →</button>
-          </div>
-        );
-      })()}
-
-      {/* Weekly Focus Intentions */}
-      <GlassCard style={{ padding:'18px 22px', marginBottom:16 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-          <SectionLabel>This Week's Focus</SectionLabel>
-          <button onClick={()=>setWeeklyFocusEdit(e=>!e)} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, padding:'3px 10px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}33` }}>{weeklyFocusEdit?'✓ Done':'Edit'}</button>
-        </div>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-          {weeklyFocus.map((f,i)=>(
-            <div key={i} style={{ flex:1, minWidth:160, position:'relative' }}>
-              {weeklyFocusEdit ? (
-                <input value={f} onChange={e=>{ const nf=[...weeklyFocus]; nf[i]=e.target.value; actions.updateSettings({...settings, weeklyFocus:nf}); }} placeholder={`Focus ${i+1}…`} style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-              ) : (
-                <div style={{ padding:'8px 12px', borderRadius:T.r, background:T.accentLo, border:`1px solid ${T.accent}22`, fontSize:12, fontFamily:T.fM, color:f?T.text:T.textMuted, minHeight:36 }}>{f||`Focus ${i+1} — click Edit`}</div>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+              <span style={{ fontSize: 20 }}>{directive.icon}</span>
+              <div style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: T.text }}>{directive.title}</div>
             </div>
-          ))}
+            <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, marginBottom: 10 }}>{directive.subtitle}</div>
+            <div style={{
+              fontSize: 10, fontFamily: T.fM, color: T.textMuted, fontStyle: 'italic',
+              borderLeft: `2px solid ${directive.color}44`, paddingLeft: 10, lineHeight: 1.5,
+            }}>{directive.why}</div>
+          </div>
+          <button
+            onClick={directive.onAction}
+            style={{
+              padding: '11px 22px', borderRadius: 8,
+              background: directive.color, color: '#000',
+              fontSize: 11, fontFamily: T.fD, fontWeight: 700,
+              cursor: 'pointer', whiteSpace: 'nowrap', letterSpacing: '0.04em',
+              boxShadow: `0 0 20px ${directive.color}44`, transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 24px ${directive.color}66`; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 0 20px ${directive.color}44`; }}
+          >{directive.action}</button>
         </div>
       </GlassCard>
 
-      {/* Budget Overview Widget */}
-      {Object.keys(budgets).length>0 && (() => {
-        const thisM = today().slice(0,7);
-        const budgetStatus = {};
-        (expenses||[]).filter(e=>e.date?.startsWith(thisM)).forEach(e=>{ const c=e.category; budgetStatus[c]=(budgetStatus[c]||0)+Number(e.amount||0); });
-        const entries = Object.entries(budgets).filter(([,b])=>Number(b)>0).slice(0,4).map(([cat,bud])=>({ cat, bud:Number(bud), spent:budgetStatus[cat]||0 }));
-        if (!entries.length) return null;
-        return (
-          <GlassCard style={{ padding:'18px 22px', marginBottom:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <SectionLabel>Budget Remaining</SectionLabel>
-              <button onClick={()=>onNav('money')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent }}>Full report →</button>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {entries.map(({cat,bud,spent})=>{ const pct=Math.min(100,(spent/bud)*100); const c=pct>90?T.rose:pct>70?T.amber:T.emerald; return (
-                <div key={cat}>
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:4 }}>
-                    <span style={{ color:T.text }}>{cat}</span>
-                    <span style={{ color:c }}>{cur}{fmtN(bud-spent)} left of {cur}{fmtN(bud)}</span>
-                  </div>
-                  <ProgressBar pct={pct} color={c} height={5} />
-                </div>
-              ); })}
-            </div>
-          </GlassCard>
-        );
-      })()}
+      {/* ── SECTION 3: RISK ALERTS + DOMAIN MATRIX ──────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 14 }}>
 
-      {/* ── Step 3: Proactive Alerts Panel — action buttons, dismissable, positive included */}
-      {(()=>{
-        const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets, investments, notes, subscriptions:data.subscriptions||[] });
-        const active = allAlerts.filter(a => !dismissed[a.dismissKey]);
-        if (!active.length) return null;
-        const SEV_COLOR = { urgent:T.rose, warn:T.amber, positive:T.emerald, info:T.sky };
-        const urgent   = active.filter(a=>a.severity==='urgent'||a.severity==='warn');
-        const positive = active.filter(a=>a.severity==='positive');
-        const borderC  = urgent.length ? T.amber : positive.length ? T.emerald : T.sky;
-        return (
-          <GlassCard style={{ padding:'18px 22px', marginBottom:16, borderLeft:`3px solid ${borderC}55` }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <SectionLabel style={{ marginBottom:0 }}>{urgent.length ? `⚠️ ${urgent.length} action${urgent.length>1?'s':''} needed` : positive.length ? '🌟 Momentum' : '💡 Insights'}</SectionLabel>
-                {active.length > 1 && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{active.length} total</span>}
-              </div>
-              <button onClick={()=>dismissAllAlerts(active)} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>Dismiss all</button>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {active.slice(0,4).map((a,i)=>(
-                <div key={a.id} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 14px', borderRadius:T.r, background:`${SEV_COLOR[a.severity]||T.amber}08`, border:`1px solid ${SEV_COLOR[a.severity]||T.amber}22`, animation:`fadeUp 0.25s ease ${i*0.06}s both` }}>
-                  <div style={{ width:3, borderRadius:2, alignSelf:'stretch', flexShrink:0, background:SEV_COLOR[a.severity]||T.amber, minHeight:32 }} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:2 }}>{a.title}</div>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{a.body}</div>
-                  </div>
-                  <div style={{ display:'flex', gap:6, flexShrink:0, alignSelf:'center' }}>
-                    {a.action && (
-                      <button onClick={()=>{ if(a.actionModal) setModal(a.actionModal); else if(a.actionNav) onNav(a.actionNav); }}
-                        style={{ padding:'5px 12px', borderRadius:99, background:`${SEV_COLOR[a.severity]||T.accent}18`, border:`1px solid ${SEV_COLOR[a.severity]||T.accent}33`, fontSize:9, fontFamily:T.fM, color:SEV_COLOR[a.severity]||T.accent, cursor:'pointer', fontWeight:600, whiteSpace:'nowrap', transition:'all 0.12s' }}
-                        onMouseEnter={e=>{e.currentTarget.style.filter='brightness(1.2)';}}
-                        onMouseLeave={e=>{e.currentTarget.style.filter='none';}}>
-                        {a.action} →
-                      </button>
-                    )}
-                    <button onClick={()=>dismissAlert(a.dismissKey)}
-                      style={{ padding:'5px 7px', borderRadius:99, background:'transparent', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted, cursor:'pointer', lineHeight:1 }}>×</button>
-                  </div>
-                </div>
-              ))}
-              {active.length > 4 && (
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'4px 0' }}>
-                  +{active.length-4} more in the topbar bell →
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        );
-      })()}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:16 }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Smart Alerts — now rendered in TopBar bell icon (S3) */}
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                <div style={{ width:5, height:5, borderRadius:'50%', background:'#c084fc', animation:'dotPulse 2s infinite' }} />
-                <span style={{ fontSize:9, fontFamily:T.fM, letterSpacing:'0.1em', color:'#c084fc', textTransform:'uppercase' }}>AI Weekly Brief</span>
-              </div>
-              {settings.aiApiKey && briefOutdated && (() => {
-                const generateBrief = async () => {
-                  setStoredBrief(b=>({...b, loading:true}));
-                  try {
-                    const ctx = `Monthly income: ${cur}${fmtN(monthInc)}, expenses: ${cur}${fmtN(monthExp)}, savings rate: ${savRate.toFixed(1)}%, NW: ${cur}${fmtN(netWorth)}, habits done today: ${todayDone}/${(habits||[]).length}, best streak: ${bestStreak}d.`;
-                    const text = await callAI(settings, {
-                      max_tokens: 250,
-                      messages:[{ role:'user', content:`Generate a 3-sentence motivational weekly financial+habits brief for this user. Be specific, warm, and actionable. Data: ${ctx}` }]
-                    });
-                    setStoredBrief({ week:currentWeek, content:text||'Keep pushing!', loading:false });
-                  } catch { setStoredBrief(b=>({...b, loading:false})); }
-                };
-                return <button onClick={generateBrief} style={{ fontSize:9, fontFamily:T.fM, color:'#c084fc', padding:'2px 8px', borderRadius:6, background:'#c084fc22', border:'1px solid #c084fc33' }}>Refresh</button>;
-              })()}
-            </div>
-            {storedBrief.loading ? (
-              <div style={{ fontSize:12, fontFamily:T.fM, color:T.textSub, fontStyle:'italic', padding:'8px 0' }}>Generating your weekly brief…</div>
-            ) : storedBrief.content && !briefOutdated ? (
-              <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, borderLeft:`3px solid #c084fc55`, paddingLeft:12 }}>{storedBrief.content}</div>
-            ) : (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
-                {[
-                  { icon:'💰', label:'Finance', msg:savRate>35?`Savings rate ${savRate.toFixed(0)}% — excellent!`:`Monthly spend ${cur}${fmtN(monthExp)} vs income ${cur}${fmtN(monthInc)}. Rate: ${savRate.toFixed(1)}%.` },
-                  { icon:'❤️', label:'Health', msg:lastVitals?`Last logged: sleep ${lastVitals.sleep}h, mood ${lastVitals.mood}/10. ${lastVitals.sleep>=7?'Great rest!':'Aim for 7–8h.'}`:'Log your vitals today to track health trends.' },
-                  { icon:'🔥', label:'Habits', msg:`${todayDone}/${(habits||[]).length} habits done today. ${bestStreak>0?`Best streak: ${bestStreak} days 🔥`:'Start building streaks.'}` },
-                ].map((item,i)=>(
-                  <div key={i} style={{ background:T.accentLo, borderRadius:T.r, padding:'12px 14px', border:`1px solid ${T.border}`, animation:`fadeUp 0.4s ease ${i*0.1+0.2}s both` }}>
-                    <div style={{ fontSize:16, marginBottom:5 }}>{item.icon}</div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:3 }}>{item.label.toUpperCase()}</div>
-                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{item.msg}</div>
-                  </div>
-                ))}
+        <GlassCard style={{ padding: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700 }}>⚠ RISK ALERTS</div>
+            {riskAlerts.length > 0 && (
+              <div style={{ padding: '1px 7px', borderRadius: 10, background: T.rose + '22', color: T.rose, fontSize: 8, fontFamily: T.fM, fontWeight: 700 }}>
+                {riskAlerts.length} active
               </div>
             )}
-          </GlassCard>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Quick Actions</SectionLabel>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))', gap:8 }}>
-              {QUICK_ACTIONS.map((a,i)=>(
-                <button key={i} className="los-qa" onClick={()=>setModal(a.modal)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'10px 6px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, transition:'all 0.18s', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
-                  <span style={{ fontSize:18 }}>{a.emoji}</span>
-                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'center', lineHeight:1.3 }}>{a.label}</span>
-                </button>
-              ))}
+          </div>
+          {riskAlerts.length === 0 ? (
+            <div style={{ padding: '14px 0', textAlign: 'center' }}>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>✅</div>
+              <div style={{ fontSize: 10, fontFamily: T.fD, fontWeight: 700, color: T.emerald }}>All systems nominal</div>
+              <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, marginTop: 3 }}>No active risks detected across all domains</div>
             </div>
-          </GlassCard>
-        </div>
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
+          ) : riskAlerts.map((alert, i) => (
+            <div key={alert.id} style={{
+              padding: '10px 12px', borderRadius: 8,
+              background: alert.color + '0a', border: `1px solid ${alert.color}22`,
+              marginBottom: i < riskAlerts.length - 1 ? 6 : 0,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8,
+              animation: 'fadeUp 0.3s ease', animationDelay: `${i * 0.06}s`, animationFillMode: 'both',
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontFamily: T.fD, fontWeight: 700, color: alert.color, marginBottom: 2 }}>{alert.title}</div>
+                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, lineHeight: 1.4 }}>{alert.body}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                <button onClick={alert.onFix} style={{
+                  padding: '3px 8px', borderRadius: 5,
+                  background: alert.color + '22', border: `1px solid ${alert.color}44`,
+                  color: alert.color, fontSize: 8, fontFamily: T.fM, fontWeight: 700, cursor: 'pointer',
+                }}>{alert.fix}</button>
+                <button onClick={() => dismissAlert(alert.id)} style={{
+                  padding: '3px 7px', borderRadius: 5,
+                  background: T.surface, border: `1px solid ${T.border}`,
+                  color: T.textMuted, fontSize: 9, fontFamily: T.fM, cursor: 'pointer',
+                }}>✕</button>
+              </div>
+            </div>
+          ))}
+        </GlassCard>
+
+        <GlassCard style={{ padding: 16 }}>
+          <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 12 }}>◈ DOMAIN MATRIX</div>
+          {Object.values(pulse.domains).map((domain, i) => {
+            const pct = (domain.score / domain.max) * 100;
+            const col = domain.score >= domain.max * 0.8 ? T.emerald : domain.score >= domain.max * 0.5 ? T.accent : T.amber;
+            return (
+              <div key={domain.label} style={{ marginBottom: i < 4 ? 10 : 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10 }}>{DOMAIN_ICONS[domain.label]}</span>
+                    <span style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, fontWeight: 600 }}>{domain.label}</span>
+                  </div>
+                  <span style={{ fontSize: 9, fontFamily: T.fM, color: col, fontWeight: 700 }}>
+                    {domain.score}<span style={{ color: T.textMuted, fontWeight: 400 }}>/{domain.max}</span>
+                  </span>
+                </div>
+                <div style={{ height: 3, background: T.border, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${pct}%`, height: '100%',
+                    background: `linear-gradient(90deg, ${col}88, ${col})`,
+                    borderRadius: 2, transition: `width 0.8s ease ${i * 0.08}s`,
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {[
-              { label:'This Month', sub:'Income', val:`${cur}${fmtN(monthInc)}`, color:T.emerald },
-              { label:'This Month', sub:'Spent', val:`${cur}${fmtN(monthExp)}`, color:T.rose },
-              { label:'Habits', sub:`${todayDone}/${(habits||[]).length} today`, val:bestStreak?`🔥 ${bestStreak}d`:(habits||[]).length===0?'None yet':'0d', color:T.accent },
-              { label:'Goals', sub:`${(goals||[]).length} active`, val:(goals||[]).length>0?`${Math.round((goals||[]).reduce((s,g)=>s+(g.current||0)/Math.max(1,g.target)*100,0)/Math.max(1,(goals||[]).length))}% avg`:'Set goals', color:T.violet },
-            ].map((s,i)=>(
-              <GlassCard key={i} style={{ padding:'14px 16px' }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.label} · {s.sub}</div>
-                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
-              </GlassCard>
+              { label: 'Net Worth', value: `${cur}${fmtN(netWorth)}`, color: netWorth >= 0 ? T.emerald : T.rose },
+              { label: 'Savings Rate', value: `${savRate.toFixed(0)}%`, color: savRate >= 20 ? T.emerald : savRate >= 0 ? T.amber : T.rose },
+            ].map(item => (
+              <div key={item.label} style={{ padding: '7px 10px', borderRadius: 7, background: T.surface, border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, marginBottom: 2 }}>{item.label}</div>
+                <div style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 700, color: item.color }}>{item.value}</div>
+              </div>
             ))}
           </div>
-          <GlassCard style={{ padding:'18px', flex:1 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <SectionLabel>Today's Habits</SectionLabel>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                <span style={{ fontSize:10, fontFamily:T.fM, color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.textSub }}>{todayDone}/{(habits||[]).length}</span>
-                <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
-              </div>
-            </div>
-            {(habits||[]).length === 0 ? (
-              <div style={{ textAlign:'center', padding:'16px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.<br/><button onClick={()=>setModal('habit')} style={{ color:T.accent, fontSize:11, fontFamily:T.fM, marginTop:6, cursor:'pointer' }}>+ Add habit</button></div>
-            ) : (
-              (habits||[]).slice(0, 7).map((h,i) => {
-                const done = (habitLogs[h.id]||[]).includes(today());
-                const streak = getStreak(h.id, habitLogs);
-                const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                const hc = HCOLORS[i%HCOLORS.length];
-                return (
-                  <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 4px', borderRadius:8, transition:'background 0.15s', marginBottom:1 }}>
-                    <button onClick={()=>{ if(!done) actions.logHabit(h.id); }} style={{ width:24, height:24, borderRadius:7, flexShrink:0, background:done?hc+'22':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.2s cubic-bezier(0.34,1.56,0.64,1)', transform:done?'scale(1)':'scale(0.95)' }}
-                      onMouseEnter={e=>{ if(!done) e.currentTarget.style.borderColor=hc; }}
-                      onMouseLeave={e=>{ if(!done) e.currentTarget.style.borderColor=T.border; }}>
-                      {done && <span style={{ fontSize:12, color:hc }}>✓</span>}
-                    </button>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:done?T.textSub:T.text, textDecoration:done?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.emoji||'🔥'} {h.name}</div>
-                    </div>
-                    {streak > 0 && <span style={{ fontSize:9, fontFamily:T.fM, color:streak>=7?T.amber:hc, flexShrink:0, fontWeight:streak>=7?700:400 }}>🔥{streak}d</span>}
-                  </div>
-                );
-              })
-            )}
-            {(habits||[]).length > 7 && (
-              <div style={{ marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', cursor:'pointer' }} onClick={()=>onNav('growth')}>+{(habits||[]).length-7} more → view all</div>
-            )}
-            <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>{todayDone}/{(habits||[]).length} done today</span>
-              <div style={{ flex:1 }}><ProgressBar pct={(habits||[]).length>0?(todayDone/(habits||[]).length)*100:0} color={todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent} height={4} /></div>
-              {todayDone===(habits||[]).length&&(habits||[]).length>0 && <span style={{ fontSize:10, color:T.emerald, flexShrink:0 }}>🎉 All done!</span>}
-            </div>
-          </GlassCard>
-          <GlassCard style={{ padding:'18px', flex:1 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <SectionLabel>Today's Feed</SectionLabel>
-              <button onClick={()=>onNav('timeline')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>All <IcoChevR size={9} stroke={T.accent} /></button>
-            </div>
-            {recentEvents.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'20px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Start logging expenses, habits, or vitals<br/>to see your activity feed here.</div>
-            ) : (
-              recentEvents.map((ev,i)=>(
-                <div key={ev.id} className="los-ev" style={{ display:'flex', alignItems:'flex-start', gap:9, padding:'9px 7px', borderRadius:7, cursor:'pointer', transition:'background 0.15s', borderBottom:i<recentEvents.length-1?`1px solid ${T.border}`:'none' }}>
-                  <div style={{ width:6, height:6, borderRadius:'50%', marginTop:5, flexShrink:0, background:ev.color, boxShadow:`0 0 5px ${ev.color}` }} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:160 }}>{ev.title}</div>
-                      <div style={{ fontSize:10, fontFamily:T.fM, color:ev.color, whiteSpace:'nowrap', marginLeft:6 }}>{ev.value}</div>
-                    </div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>{ev.sub} · {ev.ts}</div>
-                  </div>
-                </div>
-              ))
-            )}
-          </GlassCard>
-        </div>
+        </GlassCard>
       </div>
-    </>)}
+
+      {/* ── SECTION 4: PATTERN INTELLIGENCE ─────────────────────────────────── */}
+      {insights.length > 0 && (
+        <GlassCard style={{ padding: '14px 16px', marginBottom: 14 }}>
+          <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 10 }}>◎ PATTERN INTELLIGENCE</div>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${insights.length}, 1fr)`, gap: 10 }}>
+            {insights.map((ins, i) => (
+              <div key={i} style={{
+                padding: '11px 13px', borderRadius: 9,
+                background: ins.color + '08', border: `1px solid ${ins.color}20`,
+                animation: `fadeUp 0.35s ease ${i * 0.09}s both`,
+              }}>
+                <span style={{ fontSize: 16, display: 'block', marginBottom: 6 }}>{ins.icon}</span>
+                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, lineHeight: 1.55 }}>{ins.text}</div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+
+      {/* ── SECTION 5: QUICK LOG ─────────────────────────────────────────────── */}
+      <GlassCard style={{ padding: '12px 14px' }}>
+        <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 10 }}>⚡ QUICK LOG</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))', gap: 6 }}>
+          {QUICK.map(a => (
+            <button
+              key={a.label}
+              onClick={() => setModal(a.modal)}
+              style={{
+                padding: '10px 6px', borderRadius: 8,
+                background: T.surface, border: `1px solid ${T.border}`,
+                cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                transition: 'all 0.14s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = a.color + '12'; e.currentTarget.style.borderColor = a.color + '44'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = T.surface; e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <span style={{ fontSize: 16 }}>{a.emoji}</span>
+              <span style={{ fontSize: 7, fontFamily: T.fM, color: T.textSub, fontWeight: 600, letterSpacing: '0.07em' }}>{a.label}</span>
+            </button>
+          ))}
+        </div>
+      </GlassCard>
     </div>
   );
 }
+
 
 // ── TIMELINE PAGE ─────────────────────────────────────────────────────────────
 function TimelinePage({ data }) {
@@ -5108,18 +4989,7 @@ function MoneyPage({ data, actions }) {
               <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
                 <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, whiteSpace:'nowrap' }}>Extra monthly payment:</span>
                 <input type="number" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value)||0)} placeholder="0" style={{ width:120, padding:'6px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-                {(() => {
-                  const baseline = calcDebtPayoff(debts, 0, payoffMethod);
-                  const interestSaved = Math.max(0, baseline.totalInterest - payoffInfo.totalInterest);
-                  const monthsSaved = Math.max(0, baseline.months - payoffInfo.months);
-                  return (
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
-                      → Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>
-                      {monthsSaved > 0 && <span style={{ color:T.violet }}> ({monthsSaved} mo faster)</span>}
-                      {interestSaved > 0 && <span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN(interestSaved)}</span> in interest</span>}
-                    </div>
-                  );
-                })()}
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>→ Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0)*Number(d.rate||0)/100,0)*payoffInfo.months/12)}</span> in interest</div>
               </div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'8px 12px', background:T.surface, borderRadius:T.r }}>
                 <strong style={{ color:T.accent }}>Avalanche</strong> pays highest interest rate first — minimizes total interest paid.<br/>
@@ -10529,9 +10399,6 @@ function WatchlistTab() {
     'All': { cgDays: 'max', yfRange: 'max', label: 'All-time' },
   };
 
-  // CORS proxy — wraps Yahoo Finance URLs so browser can fetch them
-  const YF_PROXY = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
-
   const searchDebounceRef = React.useRef(null);
   const handleSearchChange = (q) => {
     setSearchQ(q);
@@ -10545,8 +10412,9 @@ function WatchlistTab() {
           const d = await res.json();
           setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
         } else {
+          // Yahoo Finance search — CORS may block in browser
           try {
-            const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`));
+            const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
             const d = await res.json();
             setCorsBlocked(false);
             setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
@@ -10577,13 +10445,11 @@ function WatchlistTab() {
   const fetchCryptoChart = async (coinId, sym, tf) => {
     const { cgDays } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     try {
-      // CoinGecko auto-selects granularity (hourly <90d, daily >=90d)
-      // Passing interval= on large ranges causes 400 errors on free tier
+      const interval = cgDays === 'max' || cgDays >= 365 ? 'daily' : 'daily';
       const url = cgDays === 'max'
         ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=max`
-        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}`;
+        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}&interval=${interval}`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error('cg_error');
       const d = await res.json();
       if (d.prices && d.prices.length > 0) {
         const all = d.prices.map(([ts, price]) => ({ t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: price }));
@@ -10595,13 +10461,13 @@ function WatchlistTab() {
     } catch {}
   };
 
-  // Fetch stock chart with dynamic timeframe (via CORS proxy)
+  // Fetch stock chart with dynamic timeframe
   const fetchStockChart = async (sym, tf) => {
     const { yfRange } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     const interval = tf === '1M' ? '1d' : tf === '1Y' ? '1wk' : '1mo';
     try {
-      const r2 = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`));
-      if (!r2.ok) throw new Error('blocked');
+      const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`);
+      if (!r2.ok) throw new Error('cors');
       const d2 = await r2.json();
       const ts = d2?.chart?.result?.[0]?.timestamp||[];
       const closes = d2?.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
@@ -10609,7 +10475,7 @@ function WatchlistTab() {
         const pts = ts.map((t,idx)=>({ t: new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: closes[idx]||null })).filter(pt=>pt.p!==null);
         setCharts(prev=>({...prev,[`${sym}_${tf}`]:pts}));
       }
-    } catch { /* proxy failed — charts unavailable */ }
+    } catch { /* CORS blocked — charts unavailable but price may still show */ }
   };
 
   const refresh = async (tf) => {
@@ -10637,8 +10503,8 @@ function WatchlistTab() {
       if (stockItems.length > 0) {
         const syms = stockItems.map(w=>w.sym).join(',');
         try {
-          const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`));
-          if (!res.ok) throw new Error('blocked');
+          const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
+          if (!res.ok) throw new Error('cors');
           const d = await res.json();
           setCorsBlocked(false);
           (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
@@ -10694,11 +10560,11 @@ function WatchlistTab() {
         </div>
       )}
 
-      {/* CORS notice for stocks — only shown if proxy also fails */}
+      {/* CORS notice for stocks */}
       {corsBlocked && (
-        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.amber}10`,border:`1px solid ${T.amber}33`,fontSize:11,fontFamily:T.fM,color:T.amber,lineHeight:1.6}}>
-          <div style={{fontWeight:700,marginBottom:4}}>⚠️ Stock data temporarily unavailable</div>
-          <div style={{color:T.textSub,fontSize:10}}>The proxy couldn't reach Yahoo Finance right now. You can still add tickers manually (type the symbol + Enter) — they'll load once the proxy recovers. Crypto via CoinGecko always works.</div>
+        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.violet}10`,border:`1px solid ${T.violet}33`,fontSize:11,fontFamily:T.fM,color:T.violet,lineHeight:1.6}}>
+          <div style={{fontWeight:700,marginBottom:4}}>📡 Yahoo Finance is blocked by your browser (CORS)</div>
+          <div style={{color:T.textSub,fontSize:10}}>Stock prices & charts can't be fetched directly from the browser. <b style={{color:T.violet}}>Tip:</b> Type the ticker symbol directly (e.g. <span style={{fontFamily:T.fM,color:T.text,background:T.surface,padding:'1px 5px',borderRadius:4}}>AAPL</span>) and add it manually — the symbol will be tracked and prices shown when available via proxy. Crypto via CoinGecko works fine.</div>
         </div>
       )}
 
