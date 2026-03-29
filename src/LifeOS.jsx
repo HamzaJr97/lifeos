@@ -28,6 +28,11 @@ import {
 
 // ── GLOBAL STYLES ─────────────────────────────────────────────────────────────
 (() => {
+  // ── viewport-fit=cover: unlocks env(safe-area-inset-*) for iPhone notch / Dynamic Island
+  let vp = document.querySelector('meta[name="viewport"]');
+  if (!vp) { vp = document.createElement('meta'); vp.name = 'viewport'; document.head.appendChild(vp); }
+  if (!vp.content.includes('viewport-fit')) vp.content = (vp.content || 'width=device-width, initial-scale=1') + ', viewport-fit=cover';
+
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
@@ -35,6 +40,12 @@ import {
   const style = document.createElement('style');
   style.textContent = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+    }
     ::-webkit-scrollbar { width: 2px; height: 2px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(0,245,212,0.18); border-radius: 2px; }
@@ -1010,7 +1021,7 @@ function QuickCaptureFAB({ onAction, isMobile }) {
     { label: lang === 'fr' ? 'Note'     : 'Note',    emoji:'📝', modal:'note',    color:T.amber },
     { label: lang === 'fr' ? 'Objectif' : 'Goal',    emoji:'🎯', modal:'goal',    color:T.violet },
   ];
-  const bottomOffset = isMobile ? 74 : 46;
+  const bottomOffset = isMobile ? `calc(74px + var(--sab))` : '46px';
   return (
     <div style={{ position:'fixed', bottom:bottomOffset, right:20, zIndex:9990 }}>
       {open && (
@@ -1069,18 +1080,18 @@ function BottomNav({ active, onNav, onAI, showAI }) {
   const lang = useLang();
   const BOTTOM_NAV = BOTTOM_NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   return (
-    <div className="los-mobile-only" style={{ position:'fixed', bottom:0, left:0, right:0, height:60, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none' }}>
+    <div className="los-mobile-only" style={{ position:'fixed', bottom:0, left:0, right:0, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none', paddingBottom:'var(--sab)' }}>
       {BOTTOM_NAV.map(({ id, Icon, label }) => {
         const isA = active === id;
         return (
-          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', padding:'6px 0' }}>
+          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', padding:'10px 0', minHeight:56 }}>
             <Icon size={17} stroke={isA?T.accent:T.textSub} />
             <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em' }}>{label.toUpperCase()}</span>
           </button>
         );
       })}
       {/* AI button */}
-      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', padding:'6px 0', position:'relative' }}>
+      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', padding:'10px 0', minHeight:56, position:'relative' }}>
         <IcoBrain size={17} stroke={showAI?T.accent:T.textSub} />
         {!showAI && <span style={{ position:'absolute', top:8, left:'50%', marginLeft:3, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
         <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em' }}>AI</span>
@@ -1093,7 +1104,7 @@ function BottomNav({ active, onNav, onAI, showAI }) {
 function ToastContainer({ toasts, onUndo, onDismiss, isMobile }) {
   if (!toasts.length) return null;
   return (
-    <div style={{ position:'fixed', bottom:isMobile?72:38, left:'50%', transform:'translateX(-50%)', zIndex:9998, display:'flex', flexDirection:'column', gap:8, alignItems:'center', pointerEvents:'none' }}>
+    <div style={{ position:'fixed', bottom:isMobile?`calc(72px + var(--sab))`:'38px', left:'50%', transform:'translateX(-50%)', zIndex:9998, display:'flex', flexDirection:'column', gap:8, alignItems:'center', pointerEvents:'none' }}>
       {toasts.map(t => (
         <div key={t.id} style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'10px 16px', background:`${T.bg2}f8`, border:`1px solid ${t.onUndo?T.amber+'55':T.border}`, borderRadius:12, boxShadow:`0 8px 32px rgba(0,0,0,0.55), ${t.onUndo?`0 0 20px ${T.amber}18`:''}`, animation:'slideDown 0.25s cubic-bezier(0.34,1.56,0.64,1)', fontFamily:T.fM, fontSize:12, color:T.text, pointerEvents:'all', minWidth:260, maxWidth:380, backdropFilter:'blur(16px)', overflow:'hidden' }}>
           {t.onUndo && <span style={{ fontSize:16, flexShrink:0 }}>🗑️</span>}
@@ -3785,543 +3796,471 @@ class ErrorBoundary extends React.Component {
 }
 
 function HomePage({ data, actions, onNav }) {
-  // eslint-disable-next-line no-unused-vars
   const lang = useLang();
-  const {
-    expenses = [], incomes = [], assets = [], investments = [], debts = [],
-    habits = [], habitLogs = {}, goals = [], vitals = [], totalXP = 0,
-    settings = {}, notes = [], budgets = {}, bills = [],
-  } = data;
-
+  const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
   const [modal, setModal] = useState(null);
   const [showDecision, setShowDecision] = useState(false);
+  const [focusMode, setFocusMode] = useLocalStorage('los_focus_mode', false);
   const [simulateOpen, setSimulateOpen] = useState(false);
-  const [dismissed, setDismissed] = useLocalStorage('los_alerts_dismissed', {});
+  const [showMoodBanner, setShowMoodBanner] = useState(() => !(vitals||[]).some(v=>v.date===today()));
+  const [quickMood, setQuickMood] = useState(null); // 1-5 quick mood tap
+  const [weeklyFocusEdit, setWeeklyFocusEdit] = useState(false);
+  // Stored Weekly AI Brief
+  const [storedBrief, setStoredBrief] = useLocalStorage('los_weekly_brief', { week:'', content:'', loading:false });
+  const currentWeek = (() => { const d=new Date(); const jan1=new Date(d.getFullYear(),0,1); return `${d.getFullYear()}-W${Math.ceil(((d-jan1)/86400000+jan1.getDay()+1)/7)}`; })();
+  const briefOutdated = storedBrief.week !== currentWeek;
+  const weeklyFocus = settings.weeklyFocus || ['','',''];
+  const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
+  const hour = new Date().getHours();
+  const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  // Use pre-computed values from App root (no duplicate reduce loops)
+  const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
+  const fhsDetail = useMemo(()=>{
+    const mdp = (debts||[]).reduce((a,d)=>a+Number(d.minPayment||0),0);
+    const dti = monthInc>0?(mdp/monthInc)*100:50;
+    const cash = (assets||[]).filter(a=>a.type==='Cash').reduce((a,x)=>a+Number(x.value||0),0);
+    const ef = monthExp>0?cash/monthExp:0;
+    const savScore = Math.round(Math.min(30, savRate*1.5));
+    const dtiScore = Math.round(Math.max(0, 25-dti*0.5));
+    const efScore  = Math.round(Math.min(25, ef*4.2));
+    const nwScore  = netWorth>0?Math.round(Math.min(20,10+(netWorth/10000)*5)):0;
+    const total = Math.max(0,Math.min(100, savScore+dtiScore+efScore+nwScore));
+    return { total, savScore, savMax:30, dtiScore, dtiMax:25, efScore, efMax:25, nwScore, nwMax:20, dti:dti.toFixed(1), ef:ef.toFixed(1) };
+  },[savRate,debts,assets,monthInc,monthExp,netWorth]);
+  const fhs = fhsDetail.total;
+  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  const xpForNext = Math.pow(level,2)*100; const xpForCurrent = Math.pow(level-1,2)*100;
+  const xpPct = ((Number(totalXP)-xpForCurrent)/(xpForNext-xpForCurrent))*100;
+  const todayDone = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
+  const bestStreak = (habits||[]).reduce((max,h)=>{ const s=getStreak(h.id,habitLogs); return s>max?s:max; },0);
+  const lastVitals = (vitals||[]).length ? [...vitals].sort((a,b)=>a.date<b.date?1:-1)[0] : null;
+  const recentEvents = useMemo(()=>{
+    const evs = [];
+    [...expenses].sort((a,b)=>a.date<b.date?1:-1).slice(0,3).forEach(e=>evs.push({ id:'exp-'+e.id, ts:e.date, title:e.note||e.category, sub:e.category, value:`-${cur}${fmtN(e.amount)}`, cat:'expense', color:T.rose }));
+    [...incomes].sort((a,b)=>a.date<b.date?1:-1).slice(0,2).forEach(e=>evs.push({ id:'inc-'+e.id, ts:e.date, title:e.note||'Income', sub:'Income logged', value:`+${cur}${fmtN(e.amount)}`, cat:'income', color:T.emerald }));
+    (habits||[]).forEach(h=>{ const logs=(habitLogs[h.id]||[]); const d=logs.includes(today())?today():logs[logs.length-1]; if(d) evs.push({ id:'hab-'+h.id, ts:d, title:h.name, sub:`🔥 ${getStreak(h.id,habitLogs)} day streak`, value:'+XP', cat:'habit', color:T.accent }); });
+    if(lastVitals) evs.push({ id:'vit-0', ts:lastVitals.date, title:'Vitals Logged', sub:`Sleep ${lastVitals.sleep}h · Mood ${lastVitals.mood}/10`, value:'❤️', cat:'health', color:T.sky });
+    return evs.sort((a,b)=>a.ts<b.ts?1:-1).slice(0,6);
+  },[expenses,incomes,habits,habitLogs,lastVitals,cur]);
 
+  const [dismissed, setDismissed] = useLocalStorage('los_alerts_dismissed', {});
+  // Clean up dismissed keys older than today on mount
   useEffect(() => {
     const today_ = today();
     setDismissed(prev => {
       const clean = {};
-      Object.entries(prev || {}).forEach(([k, v]) => { if (v === today_) clean[k] = v; });
+      Object.entries(prev||{}).forEach(([k,v]) => { if (v === today_) clean[k] = v; });
       return clean;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const dismissAlert = key => setDismissed(prev => ({ ...prev, [key]: today() }));
-
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'MORNING' : hour < 17 ? 'AFTERNOON' : 'EVENING';
-  const cur = settings.currency || '$';
-
-  const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
-
-  const level     = Math.floor(Math.sqrt(Number(totalXP) / 100)) + 1;
-  const xpForNext = Math.pow(level, 2) * 100;
-  const xpForCur  = Math.pow(level - 1, 2) * 100;
-  const xpPct     = ((Number(totalXP) - xpForCur) / (xpForNext - xpForCur)) * 100;
-
-  const pulse = useMemo(() => computeLifePulse({
-    expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts, settings,
-  }), [expenses, incomes, habits, habitLogs, vitals, goals, assets, investments, debts]);
-
-  const scoreColor = pulse.total >= 75 ? T.emerald
-    : pulse.total >= 50 ? T.accent
-    : pulse.total >= 30 ? T.amber
-    : T.rose;
-  const scoreLabel = pulse.total >= 75 ? 'STRONG'
-    : pulse.total >= 50 ? 'NOMINAL'
-    : pulse.total >= 30 ? 'CAUTION'
-    : 'CRITICAL';
-
-  const todayHabits   = (habits || []).filter(h => (habitLogs[h.id] || []).includes(today()));
-  const pendingHabits = (habits || []).filter(h => !(habitLogs[h.id] || []).includes(today()));
-  const bestStreak    = (habits || []).reduce((max, h) => {
-    const s = getStreak(h.id, habitLogs); return s > max ? s : max;
-  }, 0);
-  const lastVitals   = (vitals || []).length
-    ? [...vitals].sort((a, b) => (a.date < b.date ? 1 : -1))[0]
-    : null;
-  const vitalsToday  = (vitals || []).some(v => v.date === today());
-  const urgentBills  = (bills || []).filter(b => {
-    if (b.paid) return false;
-    const days = Math.round((new Date(b.nextDate) - new Date()) / 86400000);
-    return days >= 0 && days <= 5;
-  });
-  const isOverBudget = monthExp > monthInc * 0.9 && monthInc > 0;
-  const stalledGoals = (goals || []).filter(g => {
-    if (!g.target || !g.deadline) return false;
-    const pct      = Number(g.current || 0) / Number(g.target);
-    const daysLeft = Math.round((new Date(g.deadline) - new Date()) / 86400000);
-    return pct < 0.5 && daysLeft < 30;
+  const dismissAlert  = (key) => setDismissed(prev => ({ ...prev, [key]: today() }));
+  const dismissAllAlerts = (alerts) => setDismissed(prev => {
+    const next = { ...prev };
+    alerts.forEach(a => { next[a.dismissKey] = today(); });
+    return next;
   });
 
-  const directive = useMemo(() => {
-    if (urgentBills.length > 0) {
-      const daysLeft = Math.round((new Date(urgentBills[0].nextDate) - new Date()) / 86400000);
-      return {
-        urgency: 'CRITICAL', color: T.rose, icon: '⚠️',
-        title: `Pay ${urgentBills[0].name}`,
-        subtitle: `Due in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${cur}${fmtN(urgentBills[0].amount)}`,
-        why: 'Late payments damage your credit score and cost you in penalties. Act before midnight.',
-        action: 'View Bills →', onAction: () => onNav('money'),
-      };
-    }
-    if (isOverBudget) {
-      const over = monthExp - monthInc * 0.9;
-      return {
-        urgency: 'HIGH', color: T.amber, icon: '📉',
-        title: 'Cut spending today',
-        subtitle: `${cur}${fmtN(over)} over safe limit this month`,
-        why: 'At this rate your savings rate turns negative. Every unreviewed expense compounds the damage.',
-        action: 'Review Expenses →', onAction: () => onNav('money'),
-      };
-    }
-    if (pendingHabits.length > 0) {
-      const isHigh = pendingHabits.length >= (habits || []).length;
-      return {
-        urgency: isHigh ? 'HIGH' : 'ROUTINE',
-        color: isHigh ? T.amber : T.accent,
-        icon: '🔥',
-        title: `Complete ${pendingHabits[0].name}`,
-        subtitle: `${pendingHabits.length} of ${(habits || []).length} habits remaining today`,
-        why: bestStreak > 0
-          ? `Don't break your ${bestStreak}-day streak. Identity is built in moments exactly like this.`
-          : 'Habits done today compound into who you are tomorrow. One action breaks inertia.',
-        action: 'Log Habit →', onAction: () => setModal('habit'),
-      };
-    }
-    if (!vitalsToday) {
-      return {
-        urgency: 'ROUTINE', color: T.sky, icon: '❤️',
-        title: 'Log your vitals',
-        subtitle: `Last logged: ${lastVitals ? lastVitals.date : 'never'}`,
-        why: "You can't improve what you don't measure. 30 seconds of data unlocks months of insight.",
-        action: 'Log Vitals →', onAction: () => setModal('vitals'),
-      };
-    }
-    if (stalledGoals.length > 0) {
-      const g = stalledGoals[0];
-      const pct  = Math.round((Number(g.current || 0) / Number(g.target)) * 100);
-      const days = Math.round((new Date(g.deadline) - new Date()) / 86400000);
-      return {
-        urgency: 'HIGH', color: T.amber, icon: '🎯',
-        title: `Advance: ${g.title}`,
-        subtitle: `${pct}% done · ${days} days remaining`,
-        why: 'At current pace this deadline will be missed. Every day of inaction makes the catch-up harder.',
-        action: 'Update Goal →', onAction: () => onNav('growth'),
-      };
-    }
-    return {
-      urgency: 'CLEAR', color: T.emerald, icon: '✅',
-      title: "You're on track today",
-      subtitle: `All ${(habits || []).length} habits · Vitals logged · No critical alerts`,
-      why: 'Consistency is your edge. Most people slip here — you didn't. Keep the streak.',
-      action: 'Add Note →', onAction: () => setModal('note'),
-    };
-  }, [urgentBills, isOverBudget, pendingHabits, vitalsToday, stalledGoals, habits, bestStreak]);
-
-  const riskAlerts = useMemo(() => {
-    const raw = [];
-    if (savRate < 0 && monthInc > 0)
-      raw.push({
-        id: 'neg_savrate', color: T.rose,
-        title: 'Spending exceeds income',
-        body: `You spent ${cur}${fmtN(Math.abs(monthExp - monthInc))} more than you earned this month.`,
-        fix: 'Review', onFix: () => onNav('money'),
-      });
-    if (debtVal > (netWorth + debtVal) * 0.5 && netWorth + debtVal > 0)
-      raw.push({
-        id: 'high_dtr', color: T.amber,
-        title: 'High debt ratio',
-        body: `Debt is ${Math.round((debtVal / (netWorth + debtVal)) * 100)}% of total assets. Target: below 30%.`,
-        fix: 'Debt Plan', onFix: () => onNav('money'),
-      });
-    if (urgentBills.length > 0)
-      raw.push({
-        id: 'urgent_bills',
-        color: urgentBills.some(b => Math.round((new Date(b.nextDate) - new Date()) / 86400000) <= 1) ? T.rose : T.amber,
-        title: `${urgentBills.length} bill${urgentBills.length > 1 ? 's' : ''} due soon`,
-        body: urgentBills.slice(0, 2).map(b => `${b.name} (${cur}${fmtN(b.amount)})`).join(' · '),
-        fix: 'Pay Now', onFix: () => onNav('money'),
-      });
-    const v7 = (vitals || []).slice(-7);
-    const avgSleep = v7.length ? v7.reduce((s, v) => s + Number(v.sleep || 0), 0) / v7.length : 0;
-    if (v7.length >= 3 && avgSleep < 6)
-      raw.push({
-        id: 'low_sleep', color: T.amber,
-        title: 'Sleep deficit detected',
-        body: `Avg ${avgSleep.toFixed(1)}h/night this week. Target: 7–9h. Cognitive impact compounds fast.`,
-        fix: 'Log Vitals', onFix: () => setModal('vitals'),
-      });
-    const broken = (habits || []).filter(h =>
-      getStreak(h.id, habitLogs) === 0 && (habitLogs[h.id] || []).length > 0
-    );
-    if (broken.length >= 2)
-      raw.push({
-        id: 'broken_streaks', color: T.amber,
-        title: `${broken.length} habits lost their streak`,
-        body: `${broken.slice(0, 2).map(h => h.name).join(', ')} — restart today to contain the damage.`,
-        fix: 'Log Habits', onFix: () => setModal('habit'),
-      });
-    if (stalledGoals.length > 0)
-      raw.push({
-        id: 'stalled_goals', color: T.amber,
-        title: `${stalledGoals.length} goal${stalledGoals.length > 1 ? 's' : ''} at risk`,
-        body: `${stalledGoals[0].title} — ${Math.round((Number(stalledGoals[0].current || 0) / Number(stalledGoals[0].target)) * 100)}% done with ${Math.round((new Date(stalledGoals[0].deadline) - new Date()) / 86400000)}d left.`,
-        fix: 'Goals', onFix: () => onNav('growth'),
-      });
-    return raw.filter(a => !dismissed[a.id]).slice(0, 4);
-  }, [savRate, monthExp, monthInc, debtVal, netWorth, urgentBills, vitals, habits, habitLogs, stalledGoals, dismissed, cur]);
-
-  const insights = useMemo(() => {
-    const ins = [];
-    if (netWorth !== 0 || monthInc > 0)
-      ins.push({
-        icon: '🏔️', color: savRate >= 20 ? T.emerald : savRate >= 0 ? T.accent : T.rose,
-        text: savRate >= 20
-          ? `Saving ${savRate.toFixed(0)}% of income. Net worth ${cur}${fmtN(netWorth)} — strong growth trajectory.`
-          : savRate > 0
-          ? `Saving ${savRate.toFixed(0)}% of income. Push above 20% to accelerate net worth growth.`
-          : `Negative savings rate this month. Net worth ${cur}${fmtN(netWorth)} — rebalance income vs. expenses now.`,
-      });
-    if ((habits || []).length > 0) {
-      const last14 = Array.from({ length: 14 }, (_, i) => {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        return d.toISOString().slice(0, 10);
-      });
-      const rate = last14.filter(d =>
-        (habits || []).some(h => (habitLogs[h.id] || []).includes(d))
-      ).length / 14;
-      ins.push({
-        icon: rate > 0.8 ? '⚡' : rate > 0.5 ? '🔄' : '⚠️',
-        color: rate > 0.8 ? T.emerald : rate > 0.5 ? T.accent : T.amber,
-        text: rate > 0.8
-          ? `${Math.round(rate * 100)}% habit consistency last 2 weeks — elite tier. Identity is forming.`
-          : rate > 0.5
-          ? `${Math.round(rate * 100)}% habit completion. You need 80%+ for lasting behavioral change.`
-          : `Only ${Math.round(rate * 100)}% habit days in 2 weeks. Skipping is becoming the default pattern.`,
-      });
-    }
-    const v7 = (vitals || []).slice(-7);
-    if (v7.length >= 4) {
-      const avgMood  = v7.reduce((s, v) => s + Number(v.mood  || 0), 0) / v7.length;
-      const avgSleep = v7.reduce((s, v) => s + Number(v.sleep || 0), 0) / v7.length;
-      ins.push({
-        icon: '🧠',
-        color: avgSleep >= 7 && avgMood >= 7 ? T.emerald : avgSleep >= 6 ? T.accent : T.amber,
-        text: avgSleep >= 7 && avgMood >= 7
-          ? `${avgSleep.toFixed(1)}h avg sleep, mood ${avgMood.toFixed(1)}/10 this week — peak operating state.`
-          : avgSleep < 6
-          ? `${avgSleep.toFixed(1)}h avg sleep this week — below threshold. Sleep debt degrades every other metric.`
-          : `${avgSleep.toFixed(1)}h sleep, mood ${avgMood.toFixed(1)}/10. Find what moves mood from ${avgMood.toFixed(0)} to 8.`,
-      });
-    } else if ((vitals || []).length === 0) {
-      ins.push({
-        icon: '📊', color: T.textSub,
-        text: 'No health data yet. Log vitals for 4+ days to unlock trend intelligence on sleep and mood.',
-      });
-    }
-    return ins.slice(0, 3);
-  }, [monthExp, netWorth, savRate, habits, habitLogs, vitals, cur]);
-
-  const QUICK = [
-    { label: 'EXPENSE', emoji: '💳', modal: 'expense', color: T.rose    },
-    { label: 'INCOME',  emoji: '💰', modal: 'income',  color: T.emerald },
-    { label: 'HABIT',   emoji: '🔥', modal: 'habit',   color: T.accent  },
-    { label: 'VITALS',  emoji: '❤️', modal: 'vitals',  color: T.sky     },
-    { label: 'NOTE',    emoji: '📝', modal: 'note',    color: T.violet  },
-    { label: 'GOAL',    emoji: '🎯', modal: 'goal',    color: T.amber   },
+  const QUICK_ACTIONS = [
+    { label:'Log Expense', emoji:'💳', modal:'expense' }, { label:'Log Income', emoji:'💰', modal:'income' },
+    { label:'Log Habit',   emoji:'🔥', modal:'habit'   }, { label:'Log Vitals', emoji:'❤️', modal:'vitals' },
+    { label:'Add Note',    emoji:'📝', modal:'note'    }, { label:'Add Goal',   emoji:'🎯', modal:'goal'   },
   ];
 
-  const DOMAIN_ICONS = { Finance: '💰', Health: '❤️', Habits: '🔥', Goals: '🎯', Consistency: '📊' };
+  // ── Command Center computed values ────────────────────────────────────────
+  const healthScore = useMemo(() => {
+    let score = 50;
+    if (lastVitals) {
+      const sleepScore = Math.min(30, (Number(lastVitals.sleep || 0) / 8) * 30);
+      const moodScore  = Math.min(20, (Number(lastVitals.mood  || 0) / 10) * 20);
+      score = Math.round(sleepScore + moodScore);
+    }
+    const habitRate = (habits||[]).length > 0 ? (todayDone / (habits||[]).length) * 50 : 0;
+    return Math.min(100, Math.round(score + habitRate));
+  }, [lastVitals, habits, todayDone]);
+
+  const growthScore = useMemo(() => {
+    const xpScore   = Math.min(40, Math.round(xpPct * 0.4));
+    const goalsDone = (goals||[]).filter(g => g.current >= g.target).length;
+    const goalScore = Math.min(30, goalsDone * 10);
+    const habitScore= Math.min(30, Math.round(((habits||[]).length > 0 ? todayDone / (habits||[]).length : 0) * 30));
+    return Math.min(100, xpScore + goalScore + habitScore);
+  }, [xpPct, goals, habits, todayDone]);
+
+  const lifeScore = Math.round(fhs * 0.4 + healthScore * 0.3 + growthScore * 0.3);
+
+  // Persona label from score
+  const personaLabel = lifeScore >= 80 ? 'Peak Performer' : lifeScore >= 65 ? 'Growth Architect' : lifeScore >= 50 ? 'Builder' : 'Getting Started';
+
+  // Daily priority — pick highest impact action
+  const dailyPriority = useMemo(() => {
+    const urgentDebt = (debts||[]).sort((a,b) => Number(b.rate||0) - Number(a.rate||0))[0];
+    const unpaidBills = (bills||[]).filter(b => !b.paid && b.nextDate).sort((a,b) => a.nextDate < b.nextDate ? -1 : 1);
+    const overdueGoal = (goals||[]).find(g => g.current < g.target && g.deadline && g.deadline < today());
+    const pendingHabits = (habits||[]).filter(h => !(habitLogs[h.id]||[]).includes(today()));
+    if (urgentDebt && Number(urgentDebt.rate||0) > 10) {
+      const interest = (Number(urgentDebt.balance||0) * Number(urgentDebt.rate||0)) / 100 / 12;
+      return { title:`Pay down ${urgentDebt.name}`, body:`At ${urgentDebt.rate}% APR, this debt costs you ${cur}${fmtN(Math.round(interest))}/month in interest. Reducing it today improves your Financial Health score.`, action:'Open debt tracker', nav:'money', color:T.rose, icon:'💳' };
+    }
+    if (unpaidBills.length > 0) {
+      const bill = unpaidBills[0];
+      const daysUntil = Math.round((new Date(bill.nextDate) - new Date()) / 86400000);
+      return { title:`${bill.name} due in ${daysUntil} day${daysUntil===1?'':'s'}`, body:`${cur}${fmtN(bill.amount)} due on ${bill.nextDate}. Mark it paid once done to keep your bills tracker accurate.`, action:'View bills', nav:'money', color:T.amber, icon:'📋' };
+    }
+    if (overdueGoal) {
+      return { title:`Goal overdue: ${overdueGoal.name}`, body:`This goal passed its deadline at ${Math.round((overdueGoal.current/Math.max(1,overdueGoal.target))*100)}% complete. Update the deadline or push to finish it this week.`, action:'View goals', nav:'money', color:T.violet, icon:'🎯' };
+    }
+    if (pendingHabits.length > 0) {
+      return { title:`Complete today's habits (${pendingHabits.length} left)`, body:`You've done ${todayDone} of ${(habits||[]).length} habits today. Finishing them keeps your streak alive and adds XP toward Level ${level+1}.`, action:'Log habits', modal:'habit', color:T.accent, icon:'🔥' };
+    }
+    if (monthInc === 0) {
+      return { title:'Log your income for this month', body:`No income recorded yet this month. Without it, your cashflow forecast and savings rate can't be calculated accurately.`, action:'Log income', modal:'income', color:T.sky, icon:'💰' };
+    }
+    return { title:'Review your financial health score', body:`Your Financial Health is ${fhs}/100. ${fhs >= 70 ? 'Strong — keep your savings rate above 20%.' : 'There\'s room to improve. Check your budget and debt tab for quick wins.'}`, action:'Go to Money', nav:'money', color:T.emerald, icon:'📊' };
+  }, [debts, bills, goals, habits, habitLogs, monthInc, todayDone, fhs, cur, level]);
+
+  // Risk alerts from smart alerts engine — top 3 by severity
+  const riskAlerts = useMemo(() => {
+    const allAlerts = computeSmartAlerts({ bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, thisMonth, monthInc: monthInc||0, savRate: savRate||0, netWorth, assets, investments, notes, subscriptions: data.subscriptions||[] });
+    const sevOrder = { urgent:0, warn:1, positive:3, info:2 };
+    return allAlerts.filter(a => a.severity !== 'positive').sort((a,b) => (sevOrder[a.severity]||2) - (sevOrder[b.severity]||2)).slice(0, 3);
+  }, [bills, budgets, expenses, habits, habitLogs, vitals, incomes, goals, monthInc, savRate, netWorth, assets, investments, notes, data.subscriptions]);
+
+  // Net worth trajectory
+  const nwHist = data.netWorthHistory || [];
+  const nwDelta = nwHist.length >= 2 ? nwHist[nwHist.length-1].value - nwHist[nwHist.length-2].value : null;
+
+  // FI estimate
+  const annualExp  = (expenses||[]).filter(e => e.date?.startsWith(thisMonth)).reduce((s,e) => s+Number(e.amount||0), 0) * 12 || 24000;
+  const fiTarget   = annualExp * 25;
+  const portValue  = invVal + (assets||[]).filter(a => a.type==='Cash').reduce((s,a) => s+Number(a.value||0), 0);
+  const annualSav  = Math.max(0, (monthInc - monthExp) * 12);
+  const fiYearsEst = portValue >= fiTarget ? 0 : annualSav > 0 ? Math.ceil(Math.log((fiTarget * 0.07 + annualSav) / (portValue * 0.07 + annualSav)) / Math.log(1.07)) : 99;
+  const fiYear     = new Date().getFullYear() + fiYearsEst;
+
+  // Pattern insights — computed from real data
+  const patternInsights = useMemo(() => {
+    const insights = [];
+    // Weekend spending pattern
+    const weekendExp = (expenses||[]).filter(e => { const d=new Date(e.date+'T12:00:00'); return d.getDay()===0||d.getDay()===6; }).reduce((s,e)=>s+Number(e.amount||0),0);
+    const weekdayExp = (expenses||[]).filter(e => { const d=new Date(e.date+'T12:00:00'); return d.getDay()>0&&d.getDay()<6; }).reduce((s,e)=>s+Number(e.amount||0),0);
+    const weekendDays = (expenses||[]).filter(e => { const d=new Date(e.date+'T12:00:00'); return d.getDay()===0||d.getDay()===6; }).length || 1;
+    const weekdayDays = Math.max(1,(expenses||[]).filter(e => { const d=new Date(e.date+'T12:00:00'); return d.getDay()>0&&d.getDay()<6; }).length);
+    if (weekendExp > 0 && weekdayExp > 0 && (weekendExp/weekendDays) > (weekdayExp/weekdayDays)*1.25) {
+      const pct = Math.round(((weekendExp/weekendDays)/(weekdayExp/weekdayDays)-1)*100);
+      insights.push({ icon:'📉', bg:'#FAEEDA', title:`You spend ${pct}% more on weekends`, body:`${cur}${fmtN(Math.round(weekendExp/weekendDays))}/day on weekends vs ${cur}${fmtN(Math.round(weekdayExp/weekdayDays))}/day on weekdays. Mostly discretionary spend.`, color:T.amber });
+    }
+    // Sleep → habits correlation
+    if (lastVitals && (habits||[]).length > 0) {
+      const sleepHours = Number(lastVitals.sleep || 0);
+      if (sleepHours < 6) {
+        insights.push({ icon:'🔗', bg:'#EEEDFE', title:`Low sleep is dragging your habit score`, body:`Last logged sleep: ${sleepHours}h. On low-sleep days, habit completion typically drops 40–60%. Sleep is your keystone lever.`, color:T.violet });
+      }
+    }
+    // Best streak habit
+    const topHabit = (habits||[]).reduce((best,h) => { const s=getStreak(h.id,habitLogs); return s>(best?.streak||0)?{...h,streak:s}:best; }, null);
+    if (topHabit && topHabit.streak >= 3) {
+      insights.push({ icon:'🚀', bg:'#E1F5EE', title:`${topHabit.name} — ${topHabit.streak}-day streak`, body:`This is your strongest habit right now. Consistent habits like this one compound into measurable score improvements within 30 days.`, color:T.emerald });
+    }
+    // Savings rate trend
+    if (savRate > 0) {
+      const msg = savRate >= 30 ? `${savRate.toFixed(0)}% savings rate — you're in the top tier. Every extra % directly moves your FI date closer.` : savRate >= 15 ? `${savRate.toFixed(0)}% savings rate. Pushing to 20%+ would accelerate your FI timeline by ~2 years.` : `${savRate.toFixed(0)}% savings rate is below 15%. Identify one recurring expense to cut this month.`;
+      insights.push({ icon:'💡', bg:'#E6F1FB', title:`Savings rate signal`, body:msg, color:T.sky });
+    }
+    return insights.slice(0, 3);
+  }, [expenses, lastVitals, habits, habitLogs, savRate, cur]);
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const SEV_COLOR  = { urgent: T.rose, warn: T.amber, info: T.sky, positive: T.emerald };
+  const SEV_BG_MAP = { urgent:'#FCEBEB', warn:'#FAEEDA', info:'#E6F1FB', positive:'#E1F5EE' };
+  const SEV_TXT    = { urgent:'#791F1F', warn:'#633806', info:'#042C53',  positive:'#04342C' };
 
   return (
-    <div style={{ animation: 'fadeUp 0.4s ease', maxWidth: 900 }}>
+    <div style={{ animation:'fadeUp 0.4s ease' }}>
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} />
+      <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
+      <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
+      <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} />
+      <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
+      <LogDecisionModal open={showDecision} onClose={()=>setShowDecision(false)} onSave={d=>{actions.addDecision(d);setShowDecision(false);}} />
+      <SimulateDecisionModal open={simulateOpen} onClose={()=>setSimulateOpen(false)} data={data} />
+      {/* ── COMMAND CENTER LAYOUT ─────────────────────────────────────── */}
+      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-      <LogExpenseModal open={modal === 'expense'} onClose={() => setModal(null)}
-        onSave={e => { actions.addExpense(e); setModal(null); }} goals={goals} onGoalProgress={actions.updateGoalProgress} />
-      <LogIncomeModal open={modal === 'income'} onClose={() => setModal(null)}
-        onSave={e => { actions.addIncome(e); setModal(null); }} />
-      <LogHabitModal open={modal === 'habit'} onClose={() => setModal(null)}
-        habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
-      <LogVitalsModal open={modal === 'vitals'} onClose={() => setModal(null)}
-        onSave={e => { actions.addVitals(e); setModal(null); }} />
-      <AddNoteModal open={modal === 'note'} onClose={() => setModal(null)}
-        onSave={e => { actions.addNote(e); setModal(null); }} />
-      <AddGoalModal open={modal === 'goal'} onClose={() => setModal(null)}
-        onSave={e => { actions.addGoal(e); setModal(null); }} />
-      <LogDecisionModal open={showDecision} onClose={() => setShowDecision(false)}
-        onSave={d => { actions.addDecision(d); setShowDecision(false); }} />
-      <SimulateDecisionModal open={simulateOpen} onClose={() => setSimulateOpen(false)} data={data} />
-
-      {/* ── SECTION 1: MISSION HEADER ─────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        flexWrap: 'wrap', gap: 12, marginBottom: 18,
-      }}>
-        <div>
-          <div style={{
-            fontSize: 9, fontFamily: T.fM, color: T.textMuted,
-            letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: 4,
-          }}>
-            {greeting} BRIEFING · {new Date().toLocaleDateString('en-US', {
-              weekday: 'long', month: 'long', day: 'numeric',
-            }).toUpperCase()}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{
-              fontSize: 22, fontFamily: T.fD, fontWeight: 800,
-              color: T.text, letterSpacing: '-0.02em',
-            }}>
-              {settings.name ? `${settings.name}'s ` : ''}Command Center
-            </h1>
-            <div style={{
-              padding: '2px 9px', borderRadius: 4,
-              background: scoreColor + '18', border: `1px solid ${scoreColor}44`,
-              fontSize: 8, fontFamily: T.fM, fontWeight: 700,
-              color: scoreColor, letterSpacing: '0.12em',
-            }}>{scoreLabel}</div>
+        {/* Header */}
+        <div style={{ marginBottom:4 }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:4 }}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
+            <h1 style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
+            <div style={{ display:'flex', gap:6 }}>
+              <button onClick={()=>setSimulateOpen(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.violetDim, border:`1px solid ${T.violet}33`, color:T.violet, cursor:'pointer' }}>⚡ Simulate</button>
+              <button onClick={()=>setShowDecision(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, cursor:'pointer' }}>+ Decision</button>
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 3 }}>OPERATOR LEVEL</div>
-            <div style={{ fontSize: 22, fontFamily: T.fD, fontWeight: 800, color: T.accent, lineHeight: 1 }}>{level}</div>
-            <div style={{ width: 80, height: 2, background: T.border, borderRadius: 1, marginTop: 4, overflow: 'hidden' }}>
-              <div style={{
-                width: `${Math.min(100, xpPct)}%`, height: '100%',
-                background: `linear-gradient(90deg, ${T.accent}, ${T.violet})`,
-                borderRadius: 1, transition: 'width 1s ease',
-              }} />
+        {/* ── IDENTITY BAND ─────────────────────────────────────────────── */}
+        <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.rL, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, animation:'fadeUp 0.35s ease' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+            <div style={{ width:40, height:40, borderRadius:'50%', background:T.violetDim, border:`1.5px solid ${T.violet}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, color:T.violet, flexShrink:0, fontFamily:T.fD }}>
+              {(settings.name||'U').slice(0,2).toUpperCase()}
             </div>
-            <div style={{ fontSize: 7, fontFamily: T.fM, color: T.textMuted, marginTop: 2 }}>
-              {fmtN(totalXP)} / {fmtN(xpForNext)} XP
+            <div>
+              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text }}>{settings.name||'You'} <span style={{ color:T.violet, fontSize:13 }}>· Level {level}</span></div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{personaLabel} &nbsp;·&nbsp; {bestStreak > 0 ? `🔥 ${bestStreak}-day streak` : 'Start your streak today'}</div>
             </div>
           </div>
-
-          <div style={{ position: 'relative', width: 64, height: 64, flexShrink: 0 }}>
-            <svg viewBox="0 0 64 64" style={{ width: 64, height: 64, transform: 'rotate(-90deg)' }}>
-              <circle cx="32" cy="32" r="26" fill="none" stroke={T.border} strokeWidth="4" />
-              <circle cx="32" cy="32" r="26" fill="none" stroke={scoreColor} strokeWidth="4"
-                strokeDasharray={`${2 * Math.PI * 26}`}
-                strokeDashoffset={`${2 * Math.PI * 26 * (1 - pulse.total / 100)}`}
-                strokeLinecap="round"
-                style={{ transition: 'stroke-dashoffset 1.2s ease', filter: `drop-shadow(0 0 6px ${scoreColor}88)` }}
-              />
-            </svg>
-            <div style={{
-              position: 'absolute', inset: 0,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <div style={{ fontSize: 16, fontFamily: T.fD, fontWeight: 800, color: scoreColor, lineHeight: 1 }}>{pulse.total}</div>
-              <div style={{ fontSize: 6, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.06em' }}>PULSE</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <button onClick={() => setSimulateOpen(true)} style={{
-              padding: '4px 12px', borderRadius: 6,
-              background: T.violetDim, border: `1px solid ${T.violet}33`,
-              fontSize: 8, fontFamily: T.fM, color: T.violet, fontWeight: 700,
-              cursor: 'pointer', letterSpacing: '0.06em',
-            }}>⚡ SIMULATE</button>
-            <button onClick={() => setShowDecision(true)} style={{
-              padding: '4px 12px', borderRadius: 6,
-              background: T.surface, border: `1px solid ${T.border}`,
-              fontSize: 8, fontFamily: T.fM, color: T.textSub, cursor: 'pointer', letterSpacing: '0.06em',
-            }}>+ DECISION</button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── SECTION 2: TODAY'S DIRECTIVE ────────────────────────────────────── */}
-      <GlassCard style={{
-        padding: '20px 24px', marginBottom: 14,
-        background: `linear-gradient(135deg, ${directive.color}08, transparent)`,
-        border: `1px solid ${directive.color}33`,
-        position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{
-          position: 'absolute', right: -30, top: -30, width: 140, height: 140,
-          borderRadius: '50%', background: directive.color + '08', filter: 'blur(50px)',
-          pointerEvents: 'none', animation: 'glowPulse 4s ease-in-out infinite',
-        }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '2px 9px', borderRadius: 4,
-              background: directive.color + '22', border: `1px solid ${directive.color}55`,
-              fontSize: 8, fontFamily: T.fM, fontWeight: 700,
-              color: directive.color, letterSpacing: '0.12em', marginBottom: 10,
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%', background: directive.color,
-                animation: directive.urgency === 'CRITICAL' ? 'dotPulse 1.5s infinite' : 'none',
-                display: 'inline-block',
-              }} />
-              TODAY'S DIRECTIVE · {directive.urgency}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 5 }}>
-              <span style={{ fontSize: 20 }}>{directive.icon}</span>
-              <div style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: T.text }}>{directive.title}</div>
-            </div>
-            <div style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, marginBottom: 10 }}>{directive.subtitle}</div>
-            <div style={{
-              fontSize: 10, fontFamily: T.fM, color: T.textMuted, fontStyle: 'italic',
-              borderLeft: `2px solid ${directive.color}44`, paddingLeft: 10, lineHeight: 1.5,
-            }}>{directive.why}</div>
-          </div>
-          <button
-            onClick={directive.onAction}
-            style={{
-              padding: '11px 22px', borderRadius: 8,
-              background: directive.color, color: '#000',
-              fontSize: 11, fontFamily: T.fD, fontWeight: 700,
-              cursor: 'pointer', whiteSpace: 'nowrap', letterSpacing: '0.04em',
-              boxShadow: `0 0 20px ${directive.color}44`, transition: 'all 0.15s',
-              flexShrink: 0,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 24px ${directive.color}66`; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 0 20px ${directive.color}44`; }}
-          >{directive.action}</button>
-        </div>
-      </GlassCard>
-
-      {/* ── SECTION 3: RISK ALERTS + DOMAIN MATRIX ──────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12, marginBottom: 14 }}>
-
-        <GlassCard style={{ padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700 }}>⚠ RISK ALERTS</div>
-            {riskAlerts.length > 0 && (
-              <div style={{ padding: '1px 7px', borderRadius: 10, background: T.rose + '22', color: T.rose, fontSize: 8, fontFamily: T.fM, fontWeight: 700 }}>
-                {riskAlerts.length} active
-              </div>
-            )}
-          </div>
-          {riskAlerts.length === 0 ? (
-            <div style={{ padding: '14px 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 24, marginBottom: 6 }}>✅</div>
-              <div style={{ fontSize: 10, fontFamily: T.fD, fontWeight: 700, color: T.emerald }}>All systems nominal</div>
-              <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, marginTop: 3 }}>No active risks detected across all domains</div>
-            </div>
-          ) : riskAlerts.map((alert, i) => (
-            <div key={alert.id} style={{
-              padding: '10px 12px', borderRadius: 8,
-              background: alert.color + '0a', border: `1px solid ${alert.color}22`,
-              marginBottom: i < riskAlerts.length - 1 ? 6 : 0,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8,
-              animation: 'fadeUp 0.3s ease', animationDelay: `${i * 0.06}s`, animationFillMode: 'both',
-            }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, fontFamily: T.fD, fontWeight: 700, color: alert.color, marginBottom: 2 }}>{alert.title}</div>
-                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, lineHeight: 1.4 }}>{alert.body}</div>
-              </div>
-              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                <button onClick={alert.onFix} style={{
-                  padding: '3px 8px', borderRadius: 5,
-                  background: alert.color + '22', border: `1px solid ${alert.color}44`,
-                  color: alert.color, fontSize: 8, fontFamily: T.fM, fontWeight: 700, cursor: 'pointer',
-                }}>{alert.fix}</button>
-                <button onClick={() => dismissAlert(alert.id)} style={{
-                  padding: '3px 7px', borderRadius: 5,
-                  background: T.surface, border: `1px solid ${T.border}`,
-                  color: T.textMuted, fontSize: 9, fontFamily: T.fM, cursor: 'pointer',
-                }}>✕</button>
-              </div>
-            </div>
-          ))}
-        </GlassCard>
-
-        <GlassCard style={{ padding: 16 }}>
-          <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 12 }}>◈ DOMAIN MATRIX</div>
-          {Object.values(pulse.domains).map((domain, i) => {
-            const pct = (domain.score / domain.max) * 100;
-            const col = domain.score >= domain.max * 0.8 ? T.emerald : domain.score >= domain.max * 0.5 ? T.accent : T.amber;
-            return (
-              <div key={domain.label} style={{ marginBottom: i < 4 ? 10 : 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 10 }}>{DOMAIN_ICONS[domain.label]}</span>
-                    <span style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, fontWeight: 600 }}>{domain.label}</span>
-                  </div>
-                  <span style={{ fontSize: 9, fontFamily: T.fM, color: col, fontWeight: 700 }}>
-                    {domain.score}<span style={{ color: T.textMuted, fontWeight: 400 }}>/{domain.max}</span>
-                  </span>
-                </div>
-                <div style={{ height: 3, background: T.border, borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`, height: '100%',
-                    background: `linear-gradient(90deg, ${col}88, ${col})`,
-                    borderRadius: 2, transition: `width 0.8s ease ${i * 0.08}s`,
-                  }} />
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+            {[{label:'Money', score:fhs, color:fhs>=70?T.emerald:fhs>=40?T.amber:T.rose},{label:'Health', score:healthScore, color:healthScore>=70?T.emerald:healthScore>=40?T.amber:T.rose},{label:'Growth', score:growthScore, color:growthScore>=70?T.emerald:growthScore>=40?T.amber:T.rose}].map((d,i)=>(
+              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, minWidth:52 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>{d.label}</div>
+                <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:d.color, lineHeight:1 }}>{d.score}</div>
+                <div style={{ width:44, height:3, borderRadius:99, background:T.surfaceHi, overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:`${d.score}%`, background:d.color, borderRadius:99, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
                 </div>
               </div>
-            );
-          })}
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {[
-              { label: 'Net Worth', value: `${cur}${fmtN(netWorth)}`, color: netWorth >= 0 ? T.emerald : T.rose },
-              { label: 'Savings Rate', value: `${savRate.toFixed(0)}%`, color: savRate >= 20 ? T.emerald : savRate >= 0 ? T.amber : T.rose },
-            ].map(item => (
-              <div key={item.label} style={{ padding: '7px 10px', borderRadius: 7, background: T.surface, border: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, marginBottom: 2 }}>{item.label}</div>
-                <div style={{ fontSize: 13, fontFamily: T.fD, fontWeight: 700, color: item.color }}>{item.value}</div>
-              </div>
             ))}
-          </div>
-        </GlassCard>
-      </div>
-
-      {/* ── SECTION 4: PATTERN INTELLIGENCE ─────────────────────────────────── */}
-      {insights.length > 0 && (
-        <GlassCard style={{ padding: '14px 16px', marginBottom: 14 }}>
-          <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 10 }}>◎ PATTERN INTELLIGENCE</div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${insights.length}, 1fr)`, gap: 10 }}>
-            {insights.map((ins, i) => (
-              <div key={i} style={{
-                padding: '11px 13px', borderRadius: 9,
-                background: ins.color + '08', border: `1px solid ${ins.color}20`,
-                animation: `fadeUp 0.35s ease ${i * 0.09}s both`,
-              }}>
-                <span style={{ fontSize: 16, display: 'block', marginBottom: 6 }}>{ins.icon}</span>
-                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, lineHeight: 1.55 }}>{ins.text}</div>
+            <div style={{ width:1, height:40, background:T.border, flexShrink:0 }} />
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>Life Score</div>
+              <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:T.violet, lineHeight:1 }}>{lifeScore}</div>
+              <div style={{ width:54, height:3, borderRadius:99, background:T.surfaceHi, overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${lifeScore}%`, background:`linear-gradient(90deg,${T.violet},${T.accent})`, borderRadius:99 }} />
               </div>
-            ))}
+            </div>
           </div>
-        </GlassCard>
-      )}
+        </div>
 
-      {/* ── SECTION 5: QUICK LOG ─────────────────────────────────────────────── */}
-      <GlassCard style={{ padding: '12px 14px' }}>
-        <div style={{ fontSize: 8, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.14em', fontWeight: 700, marginBottom: 10 }}>⚡ QUICK LOG</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))', gap: 6 }}>
-          {QUICK.map(a => (
-            <button
-              key={a.label}
-              onClick={() => setModal(a.modal)}
-              style={{
-                padding: '10px 6px', borderRadius: 8,
-                background: T.surface, border: `1px solid ${T.border}`,
-                cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                transition: 'all 0.14s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = a.color + '12'; e.currentTarget.style.borderColor = a.color + '44'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = T.surface; e.currentTarget.style.borderColor = T.border; e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              <span style={{ fontSize: 16 }}>{a.emoji}</span>
-              <span style={{ fontSize: 7, fontFamily: T.fM, color: T.textSub, fontWeight: 600, letterSpacing: '0.07em' }}>{a.label}</span>
+        {/* ── DAILY PRIORITY ────────────────────────────────────────────── */}
+        <GlassCard style={{ padding:'18px 22px', border:`1px solid ${dailyPriority.color}44`, background:`${dailyPriority.color}06`, animation:'fadeUp 0.35s ease 0.05s both' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:7, height:7, borderRadius:'50%', background:dailyPriority.color, animation:'dotPulse 2.5s infinite', flexShrink:0 }} />
+              <div style={{ fontSize:9, fontFamily:T.fM, color:dailyPriority.color, letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700 }}>Today's Priority</div>
+            </div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'2px 8px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}` }}>1 focus</div>
+          </div>
+          <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:12 }}>
+            <span style={{ fontSize:22, flexShrink:0 }}>{dailyPriority.icon}</span>
+            <div>
+              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{dailyPriority.title}</div>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{dailyPriority.body}</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button onClick={()=>{ if(dailyPriority.modal) setModal(dailyPriority.modal); else if(dailyPriority.nav) onNav(dailyPriority.nav); }}
+              style={{ padding:'7px 16px', borderRadius:T.r, background:dailyPriority.color, color:'#fff', border:'none', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:'pointer', transition:'all 0.15s' }}
+              onMouseEnter={e=>e.currentTarget.style.filter='brightness(1.1)'}
+              onMouseLeave={e=>e.currentTarget.style.filter='none'}>
+              {dailyPriority.action} →
             </button>
-          ))}
+            <button onClick={()=>setModal('vitals')} style={{ padding:'7px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Log vitals</button>
+            <button onClick={()=>setModal('expense')} style={{ padding:'7px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Log expense</button>
+          </div>
+        </GlassCard>
+
+        {/* ── RISK ALERTS ───────────────────────────────────────────────── */}
+        {riskAlerts.length > 0 && (
+          <div style={{ animation:'fadeUp 0.35s ease 0.1s both' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Risk Alerts — what needs your attention</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {riskAlerts.map((a, i) => {
+                const sev=a.severity||'warn';
+                const bc=SEV_COLOR[sev]||T.amber;
+                const bg=sev==='urgent'?`${T.rose}10`:sev==='positive'?`${T.emerald}08`:`${T.amber}08`;
+                const tc=sev==='urgent'?T.rose:sev==='positive'?T.emerald:T.amber;
+                return (
+                  <div key={a.id} style={{ padding:'12px 16px', borderRadius:T.rL, background:bg, borderLeft:`3px solid ${bc}55`, display:'flex', alignItems:'flex-start', gap:12, animation:`fadeUp 0.25s ease ${i*0.06}s both`, border:`1px solid ${bc}22`, borderLeft:`3px solid ${bc}` }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{a.title}</div>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{a.body}</div>
+                    </div>
+                    <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
+                      {a.action && (
+                        <button onClick={()=>{ if(a.actionModal) setModal(a.actionModal); else if(a.actionNav) onNav(a.actionNav); }}
+                          style={{ padding:'5px 12px', borderRadius:99, background:`${bc}18`, border:`1px solid ${bc}33`, fontSize:9, fontFamily:T.fM, color:tc, cursor:'pointer', fontWeight:700, whiteSpace:'nowrap' }}>
+                          {a.action}
+                        </button>
+                      )}
+                      <button onClick={()=>setDismissed(p=>({...p,[a.dismissKey]:today()}))}
+                        style={{ padding:'4px 7px', borderRadius:99, background:'transparent', border:`1px solid ${T.border}`, fontSize:11, color:T.textMuted, cursor:'pointer', fontFamily:T.fM, lineHeight:1 }}>×</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── ONBOARDING STRIP (empty state) ────────────────────────────── */}
+        {(()=>{
+          const steps=[
+            { done:(expenses||[]).length>0||(incomes||[]).length>0, label:'Log first expense or income', modal:'expense', color:T.rose },
+            { done:(habits||[]).length>0, label:'Create a habit to track', modal:'habit', color:T.accent },
+            { done:(vitals||[]).some(v=>v.date===today()), label:"Log today's vitals", modal:'vitals', color:T.sky },
+            { done:(assets||[]).length>0||(investments||[]).length>0, label:'Add an asset or investment', nav:'money', color:T.violet },
+          ];
+          const remaining=steps.filter(s=>!s.done);
+          if(!remaining.length) return null;
+          return (
+            <div style={{ padding:'12px 16px', borderRadius:T.rL, background:`${T.accent}06`, border:`1px solid ${T.accent}22`, animation:'fadeUp 0.35s ease' }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Get started · {remaining.length} step{remaining.length>1?'s':''} remaining</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {remaining.map((s,i)=>(
+                  <button key={i} onClick={()=>s.modal?setModal(s.modal):onNav(s.nav||'money')}
+                    style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:99, background:`${s.color}10`, border:`1px solid ${s.color}33`, fontSize:11, fontFamily:T.fM, color:s.color, cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s' }}
+                    onMouseEnter={e=>{e.currentTarget.style.background=`${s.color}20`;e.currentTarget.style.transform='translateY(-1px)';}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=`${s.color}10`;e.currentTarget.style.transform='none';}}>
+                    {s.label} →
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── LIFE TRAJECTORY ───────────────────────────────────────────── */}
+        <GlassCard style={{ padding:'18px 22px', animation:'fadeUp 0.35s ease 0.15s both' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>Life Trajectory</div>
+              <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text }}>Where are you heading?</div>
+            </div>
+            <div style={{ padding:'3px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:fiYearsEst<=15?T.emeraldDim:fiYearsEst<=25?T.amberDim:T.roseDim, color:fiYearsEst<=15?T.emerald:fiYearsEst<=25?T.amber:T.rose, border:`1px solid ${fiYearsEst<=15?T.emerald:fiYearsEst<=25?T.amber:T.rose}33` }}>
+              {fiYearsEst<=15?'On track':fiYearsEst<=25?'Steady pace':'Needs acceleration'}
+            </div>
+          </div>
+          {nwHist.length >= 3 ? (() => {
+            const pts=nwHist.slice(-8); const vals=pts.map(p=>p.value);
+            const min=Math.min(...vals); const max=Math.max(...vals); const range=max-min||1;
+            const W=500; const H=56; const pad=4;
+            const xs=pts.map((_,i)=>pad+(i/(pts.length-1))*(W-pad*2));
+            const ys=pts.map(p=>(H-pad)-((p.value-min)/range)*(H-pad*2));
+            const d=xs.map((x,i)=>`${i===0?'M':'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+            const rising=vals[vals.length-1]>=vals[0];
+            const areaD=d+` L${xs[xs.length-1].toFixed(1)},${H} L${pad},${H} Z`;
+            return (
+              <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display:'block', marginBottom:14 }}>
+                <defs><linearGradient id="trajGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={rising?T.emerald:T.rose} stopOpacity="0.2"/><stop offset="100%" stopColor={rising?T.emerald:T.rose} stopOpacity="0"/></linearGradient></defs>
+                <path d={areaD} fill="url(#trajGrad)"/>
+                <path d={d} fill="none" stroke={rising?T.emerald:T.rose} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r={4} fill={rising?T.emerald:T.rose}/>
+                <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r={8} fill="none" stroke={rising?T.emerald:T.rose} strokeWidth={1} opacity={0.4}/>
+              </svg>
+            );
+          })() : (
+            <div style={{ height:40, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:T.r, background:T.surface, marginBottom:14 }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>Log net worth snapshots over time to see your trajectory</span>
+            </div>
+          )}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10 }}>
+            {[
+              { label:'Net Worth',       val:`${cur}${fmtN(netWorth)}`,         sub:nwDelta!=null?`${nwDelta>=0?'↑':'↓'} ${cur}${fmtN(Math.abs(Math.round(nwDelta)))}/mo`:'Track over time', color:T.accent },
+              { label:'FI Date',         val:fiYearsEst>=99?'Add data':String(fiYear), sub:`in ${fiYearsEst>=99?'?':fiYearsEst} years at current pace`, color:T.violet },
+              { label:'Savings Rate',    val:`${savRate.toFixed(1)}%`,           sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved this month`, color:savRate>=20?T.emerald:T.amber },
+              { label:'Financial Health',val:`${fhs}/100`,                       sub:fhs>=70?'Strong':fhs>=40?'Room to improve':'Needs attention', color:fhs>=70?T.emerald:fhs>=40?T.amber:T.rose },
+            ].map((m,i)=>(
+              <div key={i} style={{ padding:'10px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>{m.label}</div>
+                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:3 }}>{m.val}</div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.4 }}>{m.sub}</div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+
+        {/* ── PATTERN INSIGHTS ──────────────────────────────────────────── */}
+        {patternInsights.length > 0 && (
+          <GlassCard style={{ padding:'18px 22px', animation:'fadeUp 0.35s ease 0.2s both' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Pattern Insights — the why behind your numbers</div>
+              <button onClick={()=>onNav('intelligence')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>Full analysis →</button>
+            </div>
+            {patternInsights.map((ins, i) => (
+              <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'10px 0', borderBottom:i<patternInsights.length-1?`1px solid ${T.border}`:'none' }}>
+                <div style={{ width:32, height:32, borderRadius:8, background:ins.bg||T.surface, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}>{ins.icon}</div>
+                <div>
+                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{ins.title}</div>
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{ins.body}</div>
+                </div>
+              </div>
+            ))}
+          </GlassCard>
+        )}
+
+        {/* ── QUICK ACTIONS + HABITS ────────────────────────────────────── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:14 }}>
+
+          {/* Quick actions */}
+          <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.25s both' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Quick Actions</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+              {[
+                { label:'Log Expense', emoji:'💳', action:()=>setModal('expense'), color:T.rose },
+                { label:'Log Income',  emoji:'💰', action:()=>setModal('income'),  color:T.emerald },
+                { label:'Log Vitals',  emoji:'❤️', action:()=>setModal('vitals'),  color:T.sky },
+                { label:'Log Habit',   emoji:'🔥', action:()=>setModal('habit'),   color:T.accent },
+                { label:'Add Note',    emoji:'📝', action:()=>setModal('note'),    color:T.amber },
+                { label:'Money Tab',   emoji:'📊', action:()=>onNav('money'),      color:T.violet },
+              ].map((a,i)=>(
+                <button key={i} className="los-qa" onClick={a.action}
+                  style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'12px 6px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', transition:'all 0.18s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=a.color+'55';e.currentTarget.style.background=a.color+'0a';}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surface;}}>
+                  <span style={{ fontSize:18 }}>{a.emoji}</span>
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'center', lineHeight:1.3 }}>{a.label}</span>
+                </button>
+              ))}
+            </div>
+          </GlassCard>
+
+          {/* Habits strip */}
+          {(habits||[]).length > 0 ? (
+            <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.3s both' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Today's Habits &nbsp;<span style={{ color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent }}>({todayDone}/{(habits||[]).length})</span></div>
+                <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>All →</button>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                {(habits||[]).slice(0,6).map((h,i)=>{
+                  const done=((habitLogs[h.id]||[]).includes(today()));
+                  const streak=getStreak(h.id,habitLogs);
+                  const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                  const hc=HCOLORS[i%HCOLORS.length];
+                  return (
+                    <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 4px', borderRadius:7, transition:'background 0.15s' }}>
+                      <button onClick={()=>{ if(!done) actions.logHabit(h.id); }} style={{ width:22, height:22, borderRadius:6, flexShrink:0, background:done?hc+'22':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.2s' }}
+                        onMouseEnter={e=>{ if(!done) e.currentTarget.style.borderColor=hc; }}
+                        onMouseLeave={e=>{ if(!done) e.currentTarget.style.borderColor=T.border; }}>
+                        {done && <span style={{ fontSize:11, color:hc }}>✓</span>}
+                      </button>
+                      <div style={{ flex:1, fontSize:11, fontFamily:T.fD, fontWeight:600, color:done?T.textSub:T.text, textDecoration:done?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.emoji||'🔥'} {h.name}</div>
+                      {streak>0 && <span style={{ fontSize:9, fontFamily:T.fM, color:streak>=7?T.amber:hc, flexShrink:0 }}>🔥{streak}d</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop:10 }}>
+                <ProgressBar pct={(habits||[]).length>0?(todayDone/(habits||[]).length)*100:0} color={todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent} height={4} />
+              </div>
+              {todayDone===(habits||[]).length&&(habits||[]).length>0&&<div style={{ textAlign:'center', fontSize:10, fontFamily:T.fM, color:T.emerald, marginTop:6 }}>🎉 All done today!</div>}
+            </GlassCard>
+          ) : (
+            <GlassCard style={{ padding:'16px 20px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, animation:'fadeUp 0.35s ease 0.3s both' }}>
+              <div style={{ fontSize:24 }}>🔥</div>
+              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>No habits tracked yet</div>
+              <button onClick={()=>setModal('habit')} style={{ padding:'6px 16px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}33`, color:T.accent, fontSize:11, fontFamily:T.fM, cursor:'pointer' }}>+ Add your first habit</button>
+            </GlassCard>
+          )}
         </div>
-      </GlassCard>
+
+      </div>
     </div>
   );
 }
-
 
 // ── TIMELINE PAGE ─────────────────────────────────────────────────────────────
 function TimelinePage({ data }) {
@@ -4989,7 +4928,18 @@ function MoneyPage({ data, actions }) {
               <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:14 }}>
                 <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, whiteSpace:'nowrap' }}>Extra monthly payment:</span>
                 <input type="number" value={extraPayment} onChange={e=>setExtraPayment(Number(e.target.value)||0)} placeholder="0" style={{ width:120, padding:'6px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>→ Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0)*Number(d.rate||0)/100,0)*payoffInfo.months/12)}</span> in interest</div>
+                {(() => {
+                  const baseline = calcDebtPayoff(debts, 0, payoffMethod);
+                  const interestSaved = Math.max(0, baseline.totalInterest - payoffInfo.totalInterest);
+                  const monthsSaved = Math.max(0, baseline.months - payoffInfo.months);
+                  return (
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                      → Payoff in <span style={{ color:T.accent, fontWeight:600 }}>{payoffInfo.months} months</span>
+                      {monthsSaved > 0 && <span style={{ color:T.violet }}> ({monthsSaved} mo faster)</span>}
+                      {interestSaved > 0 && <span>, saving <span style={{ color:T.emerald }}>{cur}{fmtN(interestSaved)}</span> in interest</span>}
+                    </div>
+                  );
+                })()}
               </div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'8px 12px', background:T.surface, borderRadius:T.r }}>
                 <strong style={{ color:T.accent }}>Avalanche</strong> pays highest interest rate first — minimizes total interest paid.<br/>
@@ -10399,6 +10349,9 @@ function WatchlistTab() {
     'All': { cgDays: 'max', yfRange: 'max', label: 'All-time' },
   };
 
+  // CORS proxy — wraps Yahoo Finance URLs so browser can fetch them
+  const YF_PROXY = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+
   const searchDebounceRef = React.useRef(null);
   const handleSearchChange = (q) => {
     setSearchQ(q);
@@ -10412,9 +10365,8 @@ function WatchlistTab() {
           const d = await res.json();
           setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
         } else {
-          // Yahoo Finance search — CORS may block in browser
           try {
-            const res = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
+            const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`));
             const d = await res.json();
             setCorsBlocked(false);
             setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
@@ -10445,11 +10397,13 @@ function WatchlistTab() {
   const fetchCryptoChart = async (coinId, sym, tf) => {
     const { cgDays } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     try {
-      const interval = cgDays === 'max' || cgDays >= 365 ? 'daily' : 'daily';
+      // CoinGecko auto-selects granularity (hourly <90d, daily >=90d)
+      // Passing interval= on large ranges causes 400 errors on free tier
       const url = cgDays === 'max'
         ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=max`
-        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}&interval=${interval}`;
+        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}`;
       const res = await fetch(url);
+      if (!res.ok) throw new Error('cg_error');
       const d = await res.json();
       if (d.prices && d.prices.length > 0) {
         const all = d.prices.map(([ts, price]) => ({ t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: price }));
@@ -10461,13 +10415,13 @@ function WatchlistTab() {
     } catch {}
   };
 
-  // Fetch stock chart with dynamic timeframe
+  // Fetch stock chart with dynamic timeframe (via CORS proxy)
   const fetchStockChart = async (sym, tf) => {
     const { yfRange } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     const interval = tf === '1M' ? '1d' : tf === '1Y' ? '1wk' : '1mo';
     try {
-      const r2 = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`);
-      if (!r2.ok) throw new Error('cors');
+      const r2 = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`));
+      if (!r2.ok) throw new Error('blocked');
       const d2 = await r2.json();
       const ts = d2?.chart?.result?.[0]?.timestamp||[];
       const closes = d2?.chart?.result?.[0]?.indicators?.quote?.[0]?.close||[];
@@ -10475,7 +10429,7 @@ function WatchlistTab() {
         const pts = ts.map((t,idx)=>({ t: new Date(t*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: closes[idx]||null })).filter(pt=>pt.p!==null);
         setCharts(prev=>({...prev,[`${sym}_${tf}`]:pts}));
       }
-    } catch { /* CORS blocked — charts unavailable but price may still show */ }
+    } catch { /* proxy failed — charts unavailable */ }
   };
 
   const refresh = async (tf) => {
@@ -10503,8 +10457,8 @@ function WatchlistTab() {
       if (stockItems.length > 0) {
         const syms = stockItems.map(w=>w.sym).join(',');
         try {
-          const res = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
-          if (!res.ok) throw new Error('cors');
+          const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`));
+          if (!res.ok) throw new Error('blocked');
           const d = await res.json();
           setCorsBlocked(false);
           (d?.quoteResponse?.result||[]).forEach(r=>{ update[r.symbol]={price:r.regularMarketPrice,change:r.regularMarketChangePercent?.toFixed(2)||'0'}; });
@@ -10560,11 +10514,11 @@ function WatchlistTab() {
         </div>
       )}
 
-      {/* CORS notice for stocks */}
+      {/* CORS notice for stocks — only shown if proxy also fails */}
       {corsBlocked && (
-        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.violet}10`,border:`1px solid ${T.violet}33`,fontSize:11,fontFamily:T.fM,color:T.violet,lineHeight:1.6}}>
-          <div style={{fontWeight:700,marginBottom:4}}>📡 Yahoo Finance is blocked by your browser (CORS)</div>
-          <div style={{color:T.textSub,fontSize:10}}>Stock prices & charts can't be fetched directly from the browser. <b style={{color:T.violet}}>Tip:</b> Type the ticker symbol directly (e.g. <span style={{fontFamily:T.fM,color:T.text,background:T.surface,padding:'1px 5px',borderRadius:4}}>AAPL</span>) and add it manually — the symbol will be tracked and prices shown when available via proxy. Crypto via CoinGecko works fine.</div>
+        <div style={{padding:'12px 16px',borderRadius:T.r,background:`${T.amber}10`,border:`1px solid ${T.amber}33`,fontSize:11,fontFamily:T.fM,color:T.amber,lineHeight:1.6}}>
+          <div style={{fontWeight:700,marginBottom:4}}>⚠️ Stock data temporarily unavailable</div>
+          <div style={{color:T.textSub,fontSize:10}}>The proxy couldn't reach Yahoo Finance right now. You can still add tickers manually (type the symbol + Enter) — they'll load once the proxy recovers. Crypto via CoinGecko always works.</div>
         </div>
       )}
 
@@ -13860,7 +13814,7 @@ export default function LifeOS() {
 
       <div style={{ flex:1, marginLeft:isMobile?0:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
         {/* Topbar */}
-        <div style={{ height:50, borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50 }}>
+        <div style={{ borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, paddingTop:`calc(${isMobile?'var(--sat)':'0px'} + 12px)`, paddingBottom:12, minHeight:isMobile?'calc(50px + var(--sat))':'50px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:7 }}>
             {isMobile && (
               <button onClick={()=>setCmdOpen(true)} style={{ padding:'4px 6px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, marginRight:4 }}>
@@ -13967,7 +13921,7 @@ export default function LifeOS() {
         </div>
 
         {/* Page */}
-        <div key={page} style={{ flex:1, padding:isMobile?'18px 14px 80px':'26px 30px', overflowY:'auto', maxWidth:1180 }}>
+        <div key={page} style={{ flex:1, padding:isMobile?`18px 14px calc(80px + var(--sab))`:'26px 30px', overflowY:'auto', maxWidth:1180 }}>
           {VIEW[page]}
         </div>
 
