@@ -12271,9 +12271,9 @@ function PatternEngine({ data, open, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9980, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', animation:'fadeIn 0.2s ease' }} />
-      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9981, width:'min(700px,96vw)', maxHeight:'88vh', overflowY:'auto', background:'#07071a', border:`1px solid rgba(139,92,246,0.4)`, borderRadius:20, boxShadow:'0 32px 80px rgba(0,0,0,0.8)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9981, width:'min(700px,96vw)', maxHeight:'88vh', overflowY:'auto', background:T.bg2, border:`1px solid rgba(139,92,246,0.4)`, borderRadius:20, boxShadow:'0 32px 80px rgba(0,0,0,0.8)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
         {/* Header */}
-        <div style={{ position:'sticky', top:0, zIndex:10, padding:'20px 24px 16px', background:'#07071aee', backdropFilter:'blur(16px)', borderBottom:`1px solid rgba(139,92,246,0.2)` }}>
+        <div style={{ position:'sticky', top:0, zIndex:10, padding:'20px 24px 16px', background:T.bg2, backdropFilter:'blur(16px)', borderBottom:`1px solid ${T.border}` }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <div style={{ width:38, height:38, borderRadius:12, background:'rgba(139,92,246,0.15)', border:'1px solid rgba(139,92,246,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📡</div>
@@ -12498,9 +12498,9 @@ function LifeGraph({ data, open, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9970, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }} />
-      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9971, width:'min(900px,97vw)', background:'#040408', border:`1px solid rgba(0,245,212,0.25)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)', overflow:'hidden' }}>
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9971, width:'min(900px,97vw)', background:T.bg2, border:`1px solid rgba(0,245,212,0.25)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)', overflow:'hidden' }}>
         {/* Header */}
-        <div style={{ padding:'18px 22px 14px', borderBottom:`1px solid rgba(255,255,255,0.07)`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ padding:'18px 22px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <div style={{ width:36, height:36, borderRadius:10, background:'rgba(0,245,212,0.1)', border:'1px solid rgba(0,245,212,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🕸️</div>
             <div>
@@ -12517,7 +12517,7 @@ function LifeGraph({ data, open, onClose }) {
         </div>
 
         {/* Legend */}
-        <div style={{ padding:'8px 22px', borderBottom:`1px solid rgba(255,255,255,0.05)`, display:'flex', gap:14, flexWrap:'wrap' }}>
+        <div style={{ padding:'8px 22px', borderBottom:`1px solid ${T.border}`, display:'flex', gap:14, flexWrap:'wrap' }}>
           {Object.entries(GROUP_COLORS).map(([g,c])=>(
             <div key={g} style={{ display:'flex', alignItems:'center', gap:5 }}>
               <div style={{ width:8, height:8, borderRadius:'50%', background:c }} />
@@ -12545,8 +12545,8 @@ function LifeGraph({ data, open, onClose }) {
             onMouseLeave={() => setDrag(null)}>
             <defs>
               <radialGradient id="bgGrad" cx="50%" cy="50%" r="60%">
-                <stop offset="0%"   stopColor="#070718" />
-                <stop offset="100%" stopColor="#040408" />
+                <stop offset="0%"   stopColor={T.bg1} />
+                <stop offset="100%" stopColor={T.bg} />
               </radialGradient>
             </defs>
             <rect width={W} height={H} fill="url(#bgGrad)" />
@@ -12860,9 +12860,9 @@ function ParallelYou({ data, open, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9960, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }} />
-      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9961, width:'min(760px,96vw)', maxHeight:'92vh', overflowY:'auto', background:'#06060f', border:`1px solid rgba(56,189,248,0.3)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9961, width:'min(760px,96vw)', maxHeight:'92vh', overflowY:'auto', background:T.bg2, border:`1px solid rgba(56,189,248,0.3)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
         {/* Header */}
-        <div style={{ padding:'20px 24px 16px', borderBottom:`1px solid rgba(255,255,255,0.06)`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ padding:'20px 24px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <div style={{ width:38, height:38, borderRadius:12, background:'rgba(56,189,248,0.12)', border:'1px solid rgba(56,189,248,0.35)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🔀</div>
             <div>
@@ -12890,11 +12890,11 @@ function ParallelYou({ data, open, onClose }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 120px 120px', gap:10, alignItems:'end' }}>
             <div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{currentScenario?.unit}</div>
-              <input value={param} onChange={e=>setParam(e.target.value)} placeholder={currentScenario?.placeholder} type="number" min="0" style={{ width:'100%', padding:'10px 14px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:14, color:T.text, fontWeight:700 }} />
+              <input value={param} onChange={e=>setParam(e.target.value)} placeholder={currentScenario?.placeholder} type="number" min="0" style={{ width:'100%', padding:'10px 14px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:14, color:T.text, fontWeight:700 }} />
             </div>
             <div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Timeframe</div>
-              <select value={months} onChange={e=>setMonths(e.target.value)} style={{ width:'100%', padding:'10px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }}>
+              <select value={months} onChange={e=>setMonths(e.target.value)} style={{ width:'100%', padding:'10px 12px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }}>
                 {[3,6,12,24,36,60].map(m=><option key={m} value={m}>{m} months</option>)}
               </select>
             </div>
@@ -12920,7 +12920,7 @@ function ParallelYou({ data, open, onClose }) {
               </div>
 
               {/* Chart */}
-              <div style={{ background:'rgba(255,255,255,0.02)', borderRadius:14, border:`1px solid ${T.border}`, padding:'16px 8px 8px' }}>
+              <div style={{ background:T.surface, borderRadius:14, border:`1px solid ${T.border}`, padding:'16px 8px 8px' }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginLeft:12, marginBottom:6, display:'flex', gap:16 }}>
                   <span style={{ color:T.textSub }}>── Real</span>
                   <span style={{ color:T.sky }}>── Parallel</span>
