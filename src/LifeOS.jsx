@@ -3970,9 +3970,6 @@ function HomePage({ data, actions, onNav }) {
     return insights.slice(0, 3);
   }, [expenses, lastVitals, habits, habitLogs, savRate, cur]);
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
   const SEV_COLOR  = { urgent: T.rose, warn: T.amber, info: T.sky, positive: T.emerald };
   const SEV_BG_MAP = { urgent:'#FCEBEB', warn:'#FAEEDA', info:'#E6F1FB', positive:'#E1F5EE' };
   const SEV_TXT    = { urgent:'#791F1F', warn:'#633806', info:'#042C53',  positive:'#04342C' };
