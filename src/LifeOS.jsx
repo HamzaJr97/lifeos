@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v72
+// LifeOS — Personal Life Operating System  |  v75
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -974,6 +974,68 @@ const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, st
   <button className="los-btn" onClick={onClick} disabled={disabled} style={{ padding:'10px 20px', borderRadius:T.r, background:disabled?T.surface:(color+'18'), color:disabled?T.textMuted:color, border:`1px solid ${disabled?T.border:(color+'44')}`, fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em', width:full?'100%':'auto', transition:'all 0.18s', ...style }}>{children}</button>
 );
 
+// ── SHARED DESIGN SYSTEM COMPONENTS ──────────────────────────────────────────
+// TierLabel — horizontal rule with centered category label
+const TierLabel = ({ children, color=T.textMuted }) => (
+  <div style={{ display:'flex', alignItems:'center', gap:10, margin:'18px 0 10px' }}>
+    <div style={{ flex:1, height:1, background:T.border }} />
+    <span style={{ fontSize:8, fontFamily:T.fM, color, letterSpacing:'0.14em', textTransform:'uppercase', fontWeight:700, padding:'2px 8px', borderRadius:99, background:`${color}12`, border:`1px solid ${color}22` }}>{children}</span>
+    <div style={{ flex:1, height:1, background:T.border }} />
+  </div>
+);
+
+// StatCard — uniform KPI card with optional trend indicator
+const StatCard = ({ label, val, sub, color=T.accent, trend=null, onClick=null }) => (
+  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.surface, border:`1px solid ${T.border}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3 }}
+    onMouseEnter={e=>{ if(onClick) e.currentTarget.style.borderColor=color+'44'; }}
+    onMouseLeave={e=>{ if(onClick) e.currentTarget.style.borderColor=T.border; }}>
+    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase' }}>{label}</div>
+    <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
+      <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color, lineHeight:1.1 }}>{val}</div>
+      {trend !== null && (
+        <span style={{ fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.emerald : trend < 0 ? T.rose : T.textMuted, fontWeight:600 }}>
+          {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'}{Math.abs(trend)}%
+        </span>
+      )}
+    </div>
+    {sub && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.4, marginTop:1 }}>{sub}</div>}
+  </div>
+);
+
+// PageHeader — standardised domain page title block
+const PageHeader = ({ domain, title, subtitle, action=null, infoIcon=null }) => (
+  <div style={{ marginBottom:20, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+    <div>
+      {domain && (
+        <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:5, display:'flex', alignItems:'center', gap:6 }}>
+          <div style={{ width:3, height:10, borderRadius:2, background:T.accent, opacity:0.6 }} />
+          {domain}
+        </div>
+      )}
+      <h1 style={{ fontSize:24, fontFamily:T.fD, fontWeight:800, color:T.text, lineHeight:1.1 }}>{title}</h1>
+      {subtitle && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4, lineHeight:1.5 }}>{subtitle}</div>}
+    </div>
+    <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, marginTop:2 }}>
+      {action}
+      {infoIcon}
+    </div>
+  </div>
+);
+
+// TabNav — shared tab navigation bar; accentColor is the active highlight
+const TabNav = ({ tabs, active, onChange, accentColor=T.accent }) => (
+  <div style={{ display:'flex', gap:2, marginBottom:20, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap', maxWidth:'100%' }}>
+    {tabs.map(({ id, label, badge }) => {
+      const isA = active === id;
+      return (
+        <button key={id} className="los-tab" onClick={() => onChange(id)} style={{ position:'relative', padding:'5px 13px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:isA?`${accentColor}1a`:'transparent', color:isA?accentColor:T.textSub, border:`1px solid ${isA?accentColor+'33':'transparent'}`, transition:'all 0.15s', fontWeight:isA?700:400 }}>
+          {label}
+          {badge != null && <span style={{ marginLeft:4, fontSize:8, background:isA?accentColor:T.textMuted, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{badge}</span>}
+        </button>
+      );
+    })}
+  </div>
+);
 
 // ── MILESTONE PROGRESS BAR ─────────────────────────────────────────────────────
 const MilestoneProgressBar = ({ pct, color=T.accent, height=4, milestones=[] }) => (
@@ -3988,16 +4050,16 @@ function HomePage({ data, actions, onNav }) {
       <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
         {/* Header */}
-        <div style={{ marginBottom:4 }}>
-          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:4 }}>{greeting.toUpperCase()} · {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
-            <h1 style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:T.text }}>Command Center</h1>
+        <PageHeader
+          title="Command Center"
+          subtitle={`${greeting} · ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}`}
+          action={
             <div style={{ display:'flex', gap:6 }}>
               <button onClick={()=>setSimulateOpen(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.violetDim, border:`1px solid ${T.violet}33`, color:T.violet, cursor:'pointer' }}>⚡ Simulate</button>
               <button onClick={()=>setShowDecision(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, cursor:'pointer' }}>+ Decision</button>
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* ── IDENTITY BAND ─────────────────────────────────────────────── */}
         <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.rL, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, animation:'fadeUp 0.35s ease' }}>
@@ -4032,6 +4094,7 @@ function HomePage({ data, actions, onNav }) {
         </div>
 
         {/* ── DAILY PRIORITY ────────────────────────────────────────────── */}
+        <TierLabel color={dailyPriority.color}>Priority</TierLabel>
         <GlassCard style={{ padding:'18px 22px', border:`1px solid ${dailyPriority.color}44`, background:`${dailyPriority.color}06`, animation:'fadeUp 0.35s ease 0.05s both' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -4062,7 +4125,7 @@ function HomePage({ data, actions, onNav }) {
         {/* ── RISK ALERTS ───────────────────────────────────────────────── */}
         {riskAlerts.length > 0 && (
           <div style={{ animation:'fadeUp 0.35s ease 0.1s both' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Risk Alerts — what needs your attention</div>
+            <TierLabel color={T.rose}>Alerts</TierLabel>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
               {riskAlerts.map((a, i) => {
                 const sev=a.severity||'warn';
@@ -4120,6 +4183,7 @@ function HomePage({ data, actions, onNav }) {
         })()}
 
         {/* ── LIFE TRAJECTORY ───────────────────────────────────────────── */}
+        <TierLabel color={T.violet}>Trajectory</TierLabel>
         <GlassCard style={{ padding:'18px 22px', animation:'fadeUp 0.35s ease 0.15s both' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
             <div>
@@ -4160,63 +4224,20 @@ function HomePage({ data, actions, onNav }) {
               { label:'Savings Rate',    val:`${savRate.toFixed(1)}%`,           sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved this month`, color:savRate>=20?T.emerald:T.amber },
               { label:'Financial Health',val:`${fhs}/100`,                       sub:fhs>=70?'Strong':fhs>=40?'Room to improve':'Needs attention', color:fhs>=70?T.emerald:fhs>=40?T.amber:T.rose },
             ].map((m,i)=>(
-              <div key={i} style={{ padding:'10px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>{m.label}</div>
-                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:3 }}>{m.val}</div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.4 }}>{m.sub}</div>
-              </div>
+              <StatCard key={i} label={m.label} val={m.val} sub={m.sub} color={m.color} />
             ))}
           </div>
         </GlassCard>
 
-        {/* ── PATTERN INSIGHTS ──────────────────────────────────────────── */}
-        {patternInsights.length > 0 && (
-          <GlassCard style={{ padding:'18px 22px', animation:'fadeUp 0.35s ease 0.2s both' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Pattern Insights — the why behind your numbers</div>
-              <button onClick={()=>onNav('intelligence')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>Full analysis →</button>
-            </div>
-            {patternInsights.map((ins, i) => (
-              <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'10px 0', borderBottom:i<patternInsights.length-1?`1px solid ${T.border}`:'none' }}>
-                <div style={{ width:32, height:32, borderRadius:8, background:ins.bg||T.surface, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}>{ins.icon}</div>
-                <div>
-                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{ins.title}</div>
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{ins.body}</div>
-                </div>
-              </div>
-            ))}
-          </GlassCard>
-        )}
+        {/* ── PATTERN INSIGHTS removed — see Intelligence page for full analysis ── */}
 
-        {/* ── QUICK ACTIONS + HABITS ────────────────────────────────────── */}
+        {/* ── DAILY ACTIONS + HABITS ───────────────────────────────────────── */}
+        <TierLabel color={T.accent}>Today</TierLabel>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:14 }}>
 
-          {/* Quick actions */}
-          <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.25s both' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Quick Actions</div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
-              {[
-                { label:'Log Expense', emoji:'💳', action:()=>setModal('expense'), color:T.rose },
-                { label:'Log Income',  emoji:'💰', action:()=>setModal('income'),  color:T.emerald },
-                { label:'Log Vitals',  emoji:'❤️', action:()=>setModal('vitals'),  color:T.sky },
-                { label:'Log Habit',   emoji:'🔥', action:()=>setModal('habit'),   color:T.accent },
-                { label:'Add Note',    emoji:'📝', action:()=>setModal('note'),    color:T.amber },
-                { label:'Money Tab',   emoji:'📊', action:()=>onNav('money'),      color:T.violet },
-              ].map((a,i)=>(
-                <button key={i} className="los-qa" onClick={a.action}
-                  style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'12px 6px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', transition:'all 0.18s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor=a.color+'55';e.currentTarget.style.background=a.color+'0a';}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.surface;}}>
-                  <span style={{ fontSize:18 }}>{a.emoji}</span>
-                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, textAlign:'center', lineHeight:1.3 }}>{a.label}</span>
-                </button>
-              ))}
-            </div>
-          </GlassCard>
-
-          {/* Habits strip */}
+          {/* Habits strip — primary action widget */}
           {(habits||[]).length > 0 ? (
-            <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.3s both' }}>
+            <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.25s both' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Today's Habits &nbsp;<span style={{ color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent }}>({todayDone}/{(habits||[]).length})</span></div>
                 <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>All →</button>
@@ -4244,9 +4265,19 @@ function HomePage({ data, actions, onNav }) {
                 <ProgressBar pct={(habits||[]).length>0?(todayDone/(habits||[]).length)*100:0} color={todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent} height={4} />
               </div>
               {todayDone===(habits||[]).length&&(habits||[]).length>0&&<div style={{ textAlign:'center', fontSize:10, fontFamily:T.fM, color:T.emerald, marginTop:6 }}>🎉 All done today!</div>}
+              {/* Quick log actions inline */}
+              <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, display:'flex', gap:6, flexWrap:'wrap' }}>
+                {[{ label:'Expense', emoji:'💳', action:()=>setModal('expense'), color:T.rose },{ label:'Income', emoji:'💰', action:()=>setModal('income'), color:T.emerald },{ label:'Vitals', emoji:'❤️', action:()=>setModal('vitals'), color:T.sky },{ label:'Note', emoji:'📝', action:()=>setModal('note'), color:T.amber }].map((a,i)=>(
+                  <button key={i} onClick={a.action} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', transition:'all 0.15s', fontSize:9, fontFamily:T.fM, color:T.textSub }}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor=a.color+'55';e.currentTarget.style.color=a.color;}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textSub;}}>
+                    <span>{a.emoji}</span><span>{a.label}</span>
+                  </button>
+                ))}
+              </div>
             </GlassCard>
           ) : (
-            <GlassCard style={{ padding:'16px 20px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, animation:'fadeUp 0.35s ease 0.3s both' }}>
+            <GlassCard style={{ padding:'16px 20px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, animation:'fadeUp 0.35s ease 0.25s both' }}>
               <div style={{ fontSize:24 }}>🔥</div>
               <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>No habits tracked yet</div>
               <button onClick={()=>setModal('habit')} style={{ padding:'6px 16px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}33`, color:T.accent, fontSize:11, fontFamily:T.fM, cursor:'pointer' }}>+ Add your first habit</button>
@@ -4580,37 +4611,32 @@ function MoneyPage({ data, actions }) {
       <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
       <SplitExpenseModal open={!!splitExpense} onClose={()=>setSplitExpense(null)} expense={splitExpense} cur={cur} onSave={parts=>{ actions.removeExpense(splitExpense.id); parts.forEach(p=>actions.addExpense(p)); setSplitExpense(null); }} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
-      <div style={{ marginBottom:22, display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
-        <div>
-          <SectionLabel>{lang==='fr'?'Domaine Financier':'Financial Domain'}</SectionLabel>
-          <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Finance':'Money Hub'}</h1>
-        </div>
-        <PageInfoIcon content={
+      <PageHeader
+        domain={lang==='fr'?'Domaine Financier':'Financial Domain'}
+        title={lang==='fr'?'Finance':'Money Hub'}
+        infoIcon={<PageInfoIcon content={
           <div>
             <p><b>📊 Overview</b> — Net worth, income, spending, and savings rate for this month.</p>
-            <p style={{marginTop:8}}><b>💳 Spending</b> — See all expenses by category. Filter by category, set monthly budgets, and compare vs budget. <b>Saved this month</b> = income minus expenses. <b>Budget Left</b> = how much remains in your manually-set category budgets.</p>
+            <p style={{marginTop:8}}><b>💳 Spending</b> — See all expenses by category. Filter by category, set monthly budgets, and compare vs budget.</p>
             <p style={{marginTop:8}}><b>🏦 Debts</b> — Track loans and credit cards. When you log a payment, it auto-appears in Spending.</p>
             <p style={{marginTop:8}}><b>📈 Investments</b> — Track positions. Use Watchlist to monitor live crypto/stock prices and set alerts.</p>
             <p style={{marginTop:8}}><b>🔮 Forecast</b> — Projects your net worth and FI date based on your real trailing data.</p>
             <p style={{marginTop:8}}><b>🛠️ Tools</b> — DTI ratio, emergency fund tracker, compound growth simulator.</p>
           </div>
-        } />
-      </div>
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {TABS.map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.accentDim:'transparent', color:tab===t?T.accent:T.textSub, border:`1px solid ${tab===t?T.accent+'33':'transparent'}`, transition:'all 0.15s' }}>{TAB_LABELS[t]||t}</button>
-        ))}
-      </div>
+        } />}
+      />
+      <TabNav
+        tabs={TABS.map(t=>({ id:t, label:TAB_LABELS[t]||t }))}
+        active={tab}
+        onChange={setTab}
+        accentColor={T.accent}
+      />
 
       {tab==='overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
             {[{ label:'Net Worth', val:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} - Debts ${cur}${fmtN(debtVal)}`, color:T.accent }, { label:'Monthly Income', val:`${cur}${fmtN(monthInc)}`, sub:'This month total', color:T.emerald }, { label:'Monthly Spend', val:`${cur}${fmtN(monthExp)}`, sub:`${monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'Track income to compare'}`, color:T.rose }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, sub:`${cur}${fmtN(monthInc-monthExp)} saved`, color:T.sky }].map((m,i)=>(
-              <GlassCard key={i} style={{ padding:'16px 18px' }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
-              </GlassCard>
+              <StatCard key={i} label={m.label} val={m.val} sub={m.sub} color={m.color} />
             ))}
           </div>
           <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
@@ -5469,9 +5495,13 @@ function HealthPage({ data, actions }) {
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={(vitals||[]).map(v=>v.date)} weightUnit={wu} />
       <EditVitalsModal open={!!editingVitals} onClose={()=>setEditingVitals(null)} vitals={editingVitals} onSave={(id,patch)=>{actions.updateVitals(id,patch);setEditingVitals(null);}} weightUnit={wu} />
-      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Health Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Santé & Vitaux':'Health & Vitals'}</h1></div><PageInfoIcon content={<div><p><b>📊 Overview</b> — See your latest vitals (sleep, mood, weight, energy) at a glance.</p><p style={{marginTop:8}}><b>❤️ Log Vitals</b> — Tap "Log Vitals" to record today's sleep hours, mood (1–10), and energy level.</p><p style={{marginTop:8}}><b>📅 Focus Timer</b> — Use the Pomodoro timer to track focused work sessions linked to habits.</p><p style={{marginTop:8}}><b>🍽️ Tabs</b> — Switch between Overview, Habits, Vitals chart, Nutrition, Subscriptions, and Sleep Coach.</p></div>} /></div>
-      <div style={{ display:'flex', gap:10, marginBottom:18 }}><Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn></div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
+      <PageHeader
+        domain="Health Domain"
+        title={lang==='fr'?'Santé & Vitaux':'Health & Vitals'}
+        action={<Btn onClick={()=>setModal('vitals')} color={T.sky}>+ Log Vitals</Btn>}
+        infoIcon={<PageInfoIcon content={<div><p><b>📊 Overview</b> — See your latest vitals (sleep, mood, weight, energy) at a glance.</p><p style={{marginTop:8}}><b>❤️ Log Vitals</b> — Tap "Log Vitals" to record today's sleep hours, mood (1–10), and energy level.</p><p style={{marginTop:8}}><b>📅 Focus Timer</b> — Use the Pomodoro timer to track focused work sessions linked to habits.</p><p style={{marginTop:8}}><b>🍽️ Tabs</b> — Switch between Overview, Habits, Vitals chart, Nutrition, Subscriptions, and Sleep Coach.</p></div>} />}
+      />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:18 }}>
         {[
           { label:'Avg Sleep (7d)', val:`${avgSleep}h`, sub:avgSleepQ?`Quality: ${avgSleepQ}/5 ⭐`:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h', color:T.sky },
           { label:'Avg Mood (7d)',  val:`${avgMood}/10`, sub:'Emotional wellbeing', color:T.violet },
@@ -5479,18 +5509,15 @@ function HealthPage({ data, actions }) {
           { label:'Current Weight', val:latestWeight?`${latestWeight.weight} ${wu}`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
           { label:'Avg Steps (7d)', val:(() => { const s=recent7.filter(v=>v.steps>0); return s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length).toLocaleString():'—'; })(), sub:'Daily step count', color:T.amber },
         ].map((m,i)=>(
-          <GlassCard key={i} style={{ padding:'16px 18px' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, marginBottom:4 }}>{m.val}</div>
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
-          </GlassCard>
+          <StatCard key={i} label={m.label} val={m.val} sub={m.sub} color={m.color} />
         ))}
       </div>
-      <div style={{ display:'flex', gap:2, marginBottom:18, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {[{id:'overview',l:lang==='fr'?'Vue d\'ensemble':'Overview'},{id:'focus',l:'⏱ Focus'},{id:'mealplan',l:lang==='fr'?'🍽 Repas':'🍽 Meals'},{id:'sleepcoach',l:lang==='fr'?'😴 Coach Sommeil':'😴 Sleep Coach'},{id:'custommetrics',l:lang==='fr'?'📊 Métriques':'📊 Custom Metrics'}].map(({id,l})=>(
-          <button key={id} className="los-tab" onClick={()=>setHealthTab(id)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:healthTab===id?T.skyDim:'transparent', color:healthTab===id?T.sky:T.textSub, border:`1px solid ${healthTab===id?T.sky+'33':'transparent'}`, transition:'all 0.18s' }}>{l}</button>
-        ))}
-      </div>
+      <TabNav
+        tabs={[{id:'overview',label:lang==='fr'?'Vue d\'ensemble':'Overview'},{id:'focus',label:'⏱ Focus'},{id:'mealplan',label:lang==='fr'?'🍽 Repas':'🍽 Meals'},{id:'sleepcoach',label:lang==='fr'?'😴 Coach Sommeil':'😴 Sleep Coach'},{id:'custommetrics',label:lang==='fr'?'📊 Métriques':'📊 Custom Metrics'}]}
+        active={healthTab}
+        onChange={setHealthTab}
+        accentColor={T.sky}
+      />
 
       {healthTab==='focus' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16, animation:'fadeUp 0.4s ease' }}>
@@ -5783,15 +5810,21 @@ function GrowthPage({ data, actions }) {
       <EditHabitModal open={!!editHabit} onClose={()=>setEditHabit(null)} habit={editHabit} onSave={(id,patch)=>{actions.updateHabit(id,patch);setEditHabit(null);}} />
       <EditGoalModal open={!!editGoal} onClose={()=>setEditGoal(null)} goal={editGoal} onSave={(id,patch)=>{actions.updateGoal(id,patch);setEditGoal(null);}} />
       <AddChronicleModal open={chronicleModal} onClose={()=>setChronicleModal(false)} onSave={c=>{actions.addChronicle(c);setChronicleModal(false);}} />
-      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Growth Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Caractère · Habitudes · Objectifs':'Character · Habits · Goals'}</h1></div><PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP. Use the heatmap to see consistency over 18 weeks.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} /></div>
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {['character','habits','goals','achievements','chronicles','challenges','social','vision','lifemap'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.violetDim:'transparent', color:tab===t?T.violet:T.textSub, border:`1px solid ${tab===t?T.violet+'33':'transparent'}`, transition:'all 0.15s', position:'relative' }}>
-            {GROWTH_TAB_LABELS[t]||t}{t==='achievements'&&<span style={{ marginLeft:4, fontSize:8, background:T.violet, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{unlockedAchievements.length}</span>}
-            {t==='chronicles'&&(chronicles||[]).length>0&&<span style={{ marginLeft:4, fontSize:8, background:T.amber, color:T.bg, borderRadius:99, padding:'0px 5px', fontWeight:700 }}>{(chronicles||[]).length}</span>}
-          </button>
-        ))}
-      </div>
+      <PageHeader
+        domain="Growth Domain"
+        title={lang==='fr'?'Caractère · Habitudes · Objectifs':'Character · Habits · Goals'}
+        infoIcon={<PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP. Use the heatmap to see consistency over 18 weeks.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} />}
+      />
+      <TabNav
+        tabs={['character','habits','goals','achievements','chronicles','challenges','social','vision','lifemap'].map(t=>({
+          id:t,
+          label:GROWTH_TAB_LABELS[t]||t,
+          badge:t==='achievements'?unlockedAchievements.length:t==='chronicles'&&(chronicles||[]).length>0?(chronicles||[]).length:null
+        }))}
+        active={tab}
+        onChange={setTab}
+        accentColor={T.violet}
+      />
 
       {tab==='character' && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
@@ -6341,13 +6374,17 @@ function KnowledgePage({ data, actions }) {
       <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} defaultType={tab==='tasks'?'task':'note'} />
       <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
       <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
-      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Knowledge Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Base de Connaissances':'Knowledge Base'}</h1></div><PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} /></div>
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {/* notes + quick notes merged into one "Notes" tab. AI assistant removed — use Global AI Panel (A key). */}
-        {['notes','tasks','courses','capsule','note analysis','gmail'].map(t=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?T.amberDim:'transparent', color:tab===t?T.amber:T.textSub, border:`1px solid ${tab===t?T.amber+'33':'transparent'}`, transition:'all 0.15s' }}>{t}</button>
-        ))}
-      </div>
+      <PageHeader
+        domain="Knowledge Domain"
+        title={lang==='fr'?'Base de Connaissances':'Knowledge Base'}
+        infoIcon={<PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} />}
+      />
+      <TabNav
+        tabs={['notes','tasks','courses','capsule','note analysis','gmail'].map(t=>({ id:t, label:t }))}
+        active={tab}
+        onChange={setTab}
+        accentColor={T.amber}
+      />
       {tab==='notes' && (
         <div>
           <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center' }}>
@@ -7825,29 +7862,23 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
   const CAT_COLORS = [T.accent,T.rose,T.violet,T.sky,T.amber,T.emerald];
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>{lang==='fr'?'Couche Intelligence':'Intelligence Layer'}</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Intelligence</h1>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>AI-powered insights · <span style={{ color:'#c084fc' }}>●</span> {insights.length} active insights</div>
-      </div>
-      {/* Tab nav — focused tabs; AI coach is the Global AI Panel (A key / brain icon) */}
-      <div style={{ display:'flex', gap:2, marginBottom:22, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
-        {[
-          {id:'overview',   l:'🧠 Overview'},
-          {id:'spending',   l:'📊 Spending'},
-          {id:'net worth',  l:'💎 Net Worth'},
-          {id:'habits',     l:'🔥 Habits'},
-          {id:'recurring',  l:'🔄 Recurring'},
-        ].map(({id:t,l})=>(
-          <button key={t} className="los-tab" onClick={()=>setTab(t)} style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:tab===t?'#c084fc22':'transparent', color:tab===t?'#c084fc':T.textSub, border:`1px solid ${tab===t?'#c084fc33':'transparent'}`, transition:'all 0.15s' }}>{l}</button>
-        ))}
-        {/* AI Coach is the Global AI Panel — press A or click the brain icon in the topbar */}
-        <div style={{ display:'flex', alignItems:'center', padding:'5px 12px', fontSize:9, fontFamily:T.fM, color:T.textMuted, borderRadius:8, background:'transparent', gap:5 }}>
-          <IcoBrain size={10} stroke={T.textMuted} />
-          <span>AI Coach → press</span>
-          <kbd style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:3, padding:'1px 4px', fontSize:8, color:T.accent }}>A</kbd>
-        </div>
-      </div>
+      <PageHeader
+        domain={lang==='fr'?'Couche Intelligence':'Intelligence Layer'}
+        title="Life Intelligence"
+        subtitle={`AI-powered insights · ${insights.length} active insights`}
+      />
+      <TabNav
+        tabs={[
+          {id:'overview',   label:'🧠 Overview'},
+          {id:'spending',   label:'📊 Spending'},
+          {id:'net worth',  label:'💎 Net Worth'},
+          {id:'habits',     label:'🔥 Habits'},
+          {id:'recurring',  label:'🔄 Recurring'},
+        ]}
+        active={tab}
+        onChange={setTab}
+        accentColor='#c084fc'
+      />
 
       {/* ── New Feature launch cards — always visible at top of overview ── */}
       {tab==='overview' && (
@@ -8796,22 +8827,23 @@ function CareerPage({ data, actions }) {
         </div>
       </Modal>
 
-      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Career Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Hub Carrière':'Career Hub'}</h1></div><PageInfoIcon content={<div><p><b>💼 Career</b> — Log your current role, track job applications, skills, and salary history.</p><p style={{marginTop:8}}><b>📈 Focus Billing</b> — Set an hourly rate and track how much you've earned per focus session.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlock badges for reaching milestones across all life domains.</p></div>} /></div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
+      <PageHeader
+        domain="Career Domain"
+        title={lang==='fr'?'Hub Carrière':'Career Hub'}
+        infoIcon={<PageInfoIcon content={<div><p><b>💼 Career</b> — Log your current role, track job applications, skills, and salary history.</p><p style={{marginTop:8}}><b>📈 Focus Billing</b> — Set an hourly rate and track how much you've earned per focus session.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlock badges for reaching milestones across all life domains.</p></div>} />}
+      />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:18 }}>
         {statCards.map((m,i)=>(
-          <GlassCard key={i} style={{ padding:'16px 18px' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-            <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:m.color }}>{m.val}</div>
-          </GlassCard>
+          <StatCard key={i} label={m.label} val={m.val} color={m.color} />
         ))}
       </div>
-
-      {/* Tabs */}
-      <div style={{ display:'flex', gap:6, marginBottom:18 }}>
-        {[{id:'kanban',label:'🗂 Kanban'},{id:'skills',label:'🧠 Skills'},{id:'rex',label:'📖 REX Journal'},{id:'cv',label:'📄 CV'}].map(tb=>(
-          <button key={tb.id} onClick={()=>setTab(tb.id)} className="los-tab" style={{ padding:'7px 16px', borderRadius:8, fontSize:11, fontFamily:T.fM, fontWeight:600, background:tab===tb.id?T.accentDim:T.surface, color:tab===tb.id?T.accent:T.textSub, border:`1px solid ${tab===tb.id?T.accent+'44':T.border}`, transition:'all 0.18s' }}>{tb.label}</button>
-        ))}
-        <div style={{ flex:1 }} />
+      <TabNav
+        tabs={[{id:'kanban',label:'🗂 Kanban'},{id:'skills',label:'🧠 Skills'},{id:'rex',label:'📖 REX Journal'},{id:'cv',label:'📄 CV'}]}
+        active={tab}
+        onChange={setTab}
+        accentColor={T.accent}
+      />
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14, marginTop:-10 }}>
         {tab==='kanban' && <Btn onClick={()=>{setEditJobId(null);setJTitle('');setJCompany('');setJStage('Applied');setJDate(today());setJLink('');setJNotes('');setModal('job');}} color={T.accent}>+ Add Application</Btn>}
         {tab==='rex'    && <Btn onClick={()=>setModal('rex')} color={T.amber}>+ Add Entry</Btn>}
       </div>
@@ -8999,14 +9031,18 @@ function CalendarPage({ data }) {
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      {/* Tab switcher */}
-      <div style={{ display:'flex', gap:2, marginBottom:18, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}` }}>
-        {[{id:'local',l:'📅 Local'},{id:'gcal',l:'🗓 Google Calendar'}].map(({id,l})=>(
-          <button key={id} onClick={()=>setGcalTab(id)} className="los-tab" style={{ padding:'5px 14px', borderRadius:8, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:gcalTab===id?T.accentDim:'transparent', color:gcalTab===id?T.accent:T.textSub, border:`1px solid ${gcalTab===id?T.accent+'33':'transparent'}`, transition:'all 0.18s' }}>{l}</button>
-        ))}
-      </div>
+      <PageHeader
+        domain="Calendar Domain"
+        title={lang==='fr'?'Vue Mensuelle':'Monthly Overview'}
+      />
+      <TabNav
+        tabs={[{id:'local',label:'📅 Local'},{id:'gcal',label:'🗓 Google Calendar'}]}
+        active={gcalTab}
+        onChange={setGcalTab}
+        accentColor={T.accent}
+      />
       {gcalTab==='gcal' && <GoogleCalendarTab data={data} />}
-      {gcalTab==='local' && <div><div style={{ marginBottom:22 }}><SectionLabel>Calendar Domain</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>{lang==='fr'?'Vue Mensuelle':'Monthly Overview'}</h1></div>
+      {gcalTab==='local' && <div>
 
       {/* Stats row */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
