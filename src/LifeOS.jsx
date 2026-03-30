@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v75
+// LifeOS — Personal Life Operating System  |  v76
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -2052,7 +2052,7 @@ function AddInvestmentModal({ open, onClose, onSave }) {
           } else setFetchMsg('Symbol not found on CoinGecko');
         } else setFetchMsg('Unknown crypto — enter price manually');
       } else {
-        const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`);
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`)}`);
         const d = await res.json();
         const meta = d?.chart?.result?.[0]?.meta;
         if (meta?.regularMarketPrice) {
@@ -4727,6 +4727,86 @@ function MoneyPage({ data, actions }) {
             ))}
           </div>
 
+          {/* ── Weekly Pace Widget ─────────────────────────────────────── */}
+          {(() => {
+            const isCurrentMonth = selectedMonth === today().slice(0,7);
+            if (!isCurrentMonth || selMonthInc <= 0) return null;
+            const now = new Date();
+            const dayOfMonth = now.getDate();
+            const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+            const daysLeft = daysInMonth - dayOfMonth;
+            const weeksLeft = daysLeft / 7;
+            const cashLeft = selMonthInc - selMonthExp;            // what's unspent
+            // If already negative don't show "safe-to-spend" — show deficit warning instead
+            const safeWeekly = weeksLeft > 0 ? cashLeft / weeksLeft : 0;
+            const safeDaily  = daysLeft  > 0 ? cashLeft / daysLeft  : 0;
+            const monthPace  = daysLeft > 0 ? (selMonthExp / dayOfMonth) * daysInMonth : selMonthExp; // projected end-of-month spend
+            const projectedSaving = selMonthInc - monthPace;
+            const isOnTrack = cashLeft >= 0;
+            const accentC = !isOnTrack ? T.rose : safeWeekly > 0 ? T.emerald : T.amber;
+            const pctThrough = Math.round((dayOfMonth / daysInMonth) * 100);
+            const pctSpent   = selMonthInc > 0 ? Math.round((selMonthExp / selMonthInc) * 100) : 0;
+            return (
+              <GlassCard style={{ padding:'18px 22px', border:`1px solid ${accentC}33`, background:`${accentC}05` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:accentC, letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:3 }}>
+                      {isOnTrack ? '📅 Weekly Spending Pace' : '⚠️ Over Budget'}
+                    </div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>
+                      {daysLeft} days left in {new Date(selectedMonth+'-15').toLocaleString('default',{month:'long'})}
+                    </div>
+                  </div>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Day {dayOfMonth} of {daysInMonth}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{pctThrough}% through month · {pctSpent}% of income spent</div>
+                  </div>
+                </div>
+                {/* Month progress bar — two-tone: time vs spend */}
+                <div style={{ position:'relative', marginBottom:16 }}>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginBottom:4, display:'flex', justifyContent:'space-between' }}>
+                    <span>Time elapsed</span><span>Spend rate</span>
+                  </div>
+                  <div style={{ width:'100%', height:6, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden', marginBottom:4 }}>
+                    <div style={{ height:'100%', width:`${pctThrough}%`, borderRadius:99, background:`${T.textMuted}66` }} />
+                  </div>
+                  <div style={{ width:'100%', height:6, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${Math.min(pctSpent,100)}%`, borderRadius:99, background:`linear-gradient(90deg,${accentC}aa,${accentC})`, boxShadow:`0 0 6px ${accentC}44`, transition:'width 0.6s ease' }} />
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:3 }}>
+                    <span>{cur}{fmtN(selMonthExp)} spent</span>
+                    <span>{cur}{fmtN(selMonthInc)} income</span>
+                  </div>
+                </div>
+                {/* Key numbers */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10, marginBottom:isOnTrack?12:0 }}>
+                  {[
+                    { label:'Cash remaining', val:`${cur}${fmtN(Math.abs(cashLeft))}`, sub: isOnTrack ? 'still unspent' : 'over income', color: isOnTrack ? T.accent : T.rose },
+                    { label:'Safe per week',  val: isOnTrack && weeksLeft>0 ? `${cur}${fmtN(Math.round(safeWeekly))}` : '—', sub:`over ${weeksLeft.toFixed(1)} weeks left`, color: isOnTrack ? T.emerald : T.textMuted },
+                    { label:'Safe per day',   val: isOnTrack && daysLeft>0  ? `${cur}${fmtN(Math.round(safeDaily))}`  : '—', sub:`${daysLeft} days remaining`, color: isOnTrack ? T.sky : T.textMuted },
+                    { label:'Projected save', val:`${projectedSaving >= 0 ? '+' : ''}${cur}${fmtN(Math.round(projectedSaving))}`, sub:'at current spend rate', color: projectedSaving >= 0 ? T.emerald : T.rose },
+                  ].map((m,i)=>(
+                    <div key={i} style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                      <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{m.label}</div>
+                      <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1 }}>{m.val}</div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>{m.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                {isOnTrack && safeWeekly > 0 && (
+                  <div style={{ padding:'8px 12px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>
+                    💡 Spend at most <strong style={{ color:T.emerald }}>{cur}{fmtN(Math.round(safeWeekly))}/week</strong> or <strong style={{ color:T.sky }}>{cur}{fmtN(Math.round(safeDaily))}/day</strong> for the rest of the month to stay savings-positive. At current pace you'll save <strong style={{ color:projectedSaving>=0?T.emerald:T.rose }}>{cur}{fmtN(Math.abs(Math.round(projectedSaving)))}</strong> {projectedSaving>=0?'this month':'short this month'}.
+                  </div>
+                )}
+                {!isOnTrack && (
+                  <div style={{ padding:'8px 12px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33`, fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>
+                    ⚠️ Spending exceeds income by <strong style={{ color:T.rose }}>{cur}{fmtN(Math.abs(cashLeft))}</strong> this month. Cut <strong style={{ color:T.rose }}>{cur}{fmtN(Math.round(Math.abs(cashLeft)/Math.max(daysLeft,1)))}/day</strong> to break even by month end.
+                  </div>
+                )}
+              </GlassCard>
+            );
+          })()}
+
           {spendByCat.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No expenses for {selectedMonth}.</div></GlassCard>
           ) : (
@@ -5046,28 +5126,105 @@ function MoneyPage({ data, actions }) {
                 </GlassCard>
               );
             })()}
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Debt Accounts</SectionLabel>
-              {(debts||[]).map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
-                <div key={d.id||i} style={{ padding:'14px 0', borderBottom:i<(debts||[]).length-1?`1px solid ${T.border}`:'none' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                    <div>
-                      <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{d.name}</div>
-                      <div style={{ display:'flex', gap:8, marginTop:3 }}><Badge color={T.rose}>{d.type||'Debt'}</Badge><span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{d.rate||0}% APR · Min {cur}{fmtN(d.minPayment||0)}/mo</span></div>
-                    </div>
-                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ fontSize:14, fontFamily:T.fM, fontWeight:600, color:T.rose }}>{cur}{fmtN(curBal)}</div>
-                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{paidPct.toFixed(0)}% paid</div>
+            {/* ── Active Debts ─────────────────────────────────────────────── */}
+            {(() => {
+              const activeDebts = (debts||[]).filter(d => Number(d.balance||0) > 0);
+              const paidDebts   = (debts||[]).filter(d => Number(d.balance||0) <= 0);
+              // per-debt payment history sourced from auto-logged expenses
+              const debtPayments = (id) => (expenses||[])
+                .filter(e => e.debtId === id)
+                .sort((a,b) => a.date < b.date ? 1 : -1);
+
+              const DebtCard = ({ d, isPaid }) => {
+                const origBal = Number(d.originalBalance || d.balance || 0);
+                const curBal  = Number(d.balance || 0);
+                const totalPaid = origBal - curBal;
+                const paidPct = origBal > 0 ? Math.min(100, (totalPaid / origBal) * 100) : (isPaid ? 100 : 0);
+                const pmts = debtPayments(d.id);
+                const [expanded, setExpanded] = useState(false);
+                const cardColor = isPaid ? T.emerald : (paidPct >= 75 ? T.accent : paidPct >= 40 ? T.amber : T.rose);
+                return (
+                  <div style={{ padding:'16px 0', borderBottom:`1px solid ${T.border}` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                          <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:isPaid ? T.emerald : T.text }}>{d.name}</div>
+                          {isPaid && <Badge color={T.emerald}>✅ Paid Off</Badge>}
+                        </div>
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                          <Badge color={isPaid ? T.emerald : T.rose}>{d.type||'Debt'}</Badge>
+                          {!isPaid && <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{d.rate||0}% APR · Min {cur}{fmtN(d.minPayment||0)}/mo</span>}
+                          {pmts.length > 0 && (
+                            <button onClick={() => setExpanded(e => !e)} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:`1px solid ${T.accent}33`, borderRadius:99, padding:'1px 8px', cursor:'pointer' }}>
+                              {pmts.length} payment{pmts.length !== 1 ? 's' : ''} {expanded ? '▲' : '▼'}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <button onClick={()=>setEditDebt(d)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={12} stroke={T.sky} /></button>
-                      <button onClick={()=>actions.removeDebt(d.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={12} stroke={T.rose} /></button>
+                      <div style={{ display:'flex', gap:8, alignItems:'flex-start', flexShrink:0 }}>
+                        <div style={{ textAlign:'right' }}>
+                          {!isPaid && <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{cur}{fmtN(curBal)} left</div>}
+                          <div style={{ fontSize:10, fontFamily:T.fM, color:isPaid ? T.emerald : T.textSub }}>
+                            {cur}{fmtN(totalPaid)} paid {origBal > 0 ? `· ${paidPct.toFixed(0)}%` : ''}
+                          </div>
+                          {origBal > 0 && !isPaid && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>of {cur}{fmtN(origBal)} original</div>}
+                        </div>
+                        {!isPaid && <>
+                          <button onClick={()=>setEditDebt(d)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.6 }}><IcoPencil size={12} stroke={T.sky} /></button>
+                          <button onClick={()=>actions.removeDebt(d.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.6 }}><IcoTrash size={12} stroke={T.rose} /></button>
+                        </>}
+                        {isPaid && <button onClick={()=>actions.removeDebt(d.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={12} stroke={T.rose} /></button>}
+                      </div>
                     </div>
+                    <ProgressBar pct={paidPct} color={cardColor} height={isPaid ? 3 : 5} />
+                    {/* Payment history expandable */}
+                    {expanded && pmts.length > 0 && (
+                      <div style={{ marginTop:10, borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, overflow:'hidden' }}>
+                        <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', padding:'6px 12px', borderBottom:`1px solid ${T.border}` }}>Payment History</div>
+                        {pmts.map((p, pi) => (
+                          <div key={p.id||pi} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 12px', borderBottom: pi < pmts.length-1 ? `1px solid ${T.border}` : 'none', animation:`fadeUp 0.2s ease ${pi*0.04}s both` }}>
+                            <div>
+                              <div style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{p.note || 'Payment'}</div>
+                              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{p.date}</div>
+                            </div>
+                            <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>−{cur}{fmtN(p.amount)}</div>
+                          </div>
+                        ))}
+                        <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 12px', background:`${T.emerald}08`, borderTop:`1px solid ${T.emerald}22` }}>
+                          <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Total logged payments</span>
+                          <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>{cur}{fmtN(pmts.reduce((s,p)=>s+Number(p.amount||0),0))}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <ProgressBar pct={paidPct} color={T.emerald} height={5} />
-                </div>
-              ); })}
-            </GlassCard>
+                );
+              };
+
+              return (
+                <>
+                  {/* Active debts */}
+                  {activeDebts.length > 0 && (
+                    <GlassCard style={{ padding:'20px 22px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                        <SectionLabel>Active Debts ({activeDebts.length})</SectionLabel>
+                        <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{cur}{fmtN(activeDebts.reduce((s,d)=>s+Number(d.balance||0),0))} remaining</span>
+                      </div>
+                      {activeDebts.map((d,i) => <DebtCard key={d.id||i} d={d} isPaid={false} />)}
+                    </GlassCard>
+                  )}
+                  {/* Paid off debts */}
+                  {paidDebts.length > 0 && (
+                    <GlassCard style={{ padding:'20px 22px', border:`1px solid ${T.emerald}22`, background:`${T.emerald}04` }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                        <SectionLabel>✅ Paid Off ({paidDebts.length})</SectionLabel>
+                        <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>{cur}{fmtN(paidDebts.reduce((s,d)=>s+Number(d.originalBalance||0),0))} cleared</span>
+                      </div>
+                      {paidDebts.map((d,i) => <DebtCard key={d.id||i} d={d} isPaid={true} />)}
+                    </GlassCard>
+                  )}
+                </>
+              );
+            })()}
           </>)}
         </div>
       )}
@@ -9450,7 +9607,7 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
 
   // Yahoo Finance v8 — no API key needed, browser fetch (CORS varies by env)
   const fetchStock = async (symbol) => {
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`);
+    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`)}`);
     if (!res.ok) throw new Error(`${symbol} fetch failed`);
     const j = await res.json();
     const meta = j?.chart?.result?.[0]?.meta;
@@ -10382,8 +10539,23 @@ function WatchlistTab() {
     'All': { cgDays: 'max', yfRange: 'max', label: 'All-time' },
   };
 
-  // CORS proxy — wraps Yahoo Finance URLs so browser can fetch them
-  const YF_PROXY = (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
+  // CORS proxy — tries multiple public proxies in sequence until one works
+  const YF_PROXY_LIST = [
+    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    (url) => `https://thingproxy.freeboard.io/fetch/${url}`,
+  ];
+  const fetchViaProxy = async (url) => {
+    for (const makeProxy of YF_PROXY_LIST) {
+      try {
+        const r = await fetch(makeProxy(url), { signal: AbortSignal.timeout(6000) });
+        if (r.ok) return r;
+      } catch {}
+    }
+    throw new Error('all_proxies_failed');
+  };
+  // YF_PROXY kept for single-call sites that don't need the full retry chain
+  const YF_PROXY = (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
 
   const searchDebounceRef = React.useRef(null);
   const handleSearchChange = (q) => {
@@ -10399,7 +10571,7 @@ function WatchlistTab() {
           setSearchResults((d.coins||[]).slice(0,8).map(c => ({ sym:c.symbol.toUpperCase(), name:c.name, id:c.id, type:'crypto' })));
         } else {
           try {
-            const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`));
+            const res = await fetchViaProxy(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`);
             const d = await res.json();
             setCorsBlocked(false);
             setSearchResults((d.quotes||[]).filter(r=>['EQUITY','ETF','MUTUALFUND'].includes(r.quoteType)).slice(0,8).map(r=>({ sym:r.symbol, name:r.longname||r.shortname||r.symbol, type:'stock', exchange:r.exchange })));
@@ -10453,7 +10625,7 @@ function WatchlistTab() {
     const { yfRange } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
     const interval = tf === '1M' ? '1d' : tf === '1Y' ? '1wk' : '1mo';
     try {
-      const r2 = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`));
+      const r2 = await fetchViaProxy(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${yfRange}`);
       if (!r2.ok) throw new Error('blocked');
       const d2 = await r2.json();
       const ts = d2?.chart?.result?.[0]?.timestamp||[];
@@ -10490,7 +10662,7 @@ function WatchlistTab() {
       if (stockItems.length > 0) {
         const syms = stockItems.map(w=>w.sym).join(',');
         try {
-          const res = await fetch(YF_PROXY(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`));
+          const res = await fetchViaProxy(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent`);
           if (!res.ok) throw new Error('blocked');
           const d = await res.json();
           setCorsBlocked(false);
