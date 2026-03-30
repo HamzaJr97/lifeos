@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v76
+// LifeOS — Personal Life Operating System  |  v77
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -3875,6 +3875,25 @@ function HomePage({ data, actions, onNav }) {
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   const hour = new Date().getHours();
   const greeting = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+
+  // ── Gregorian + Hijri date ─────────────────────────────────────────────────
+  const todayGregorian = new Date().toLocaleDateString('en-US',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const getHijriDate = () => {
+    // Accurate Hijri conversion (Kuwaiti algorithm)
+    const now = new Date();
+    const jd = Math.floor((now.getTime() / 86400000) + 2440587.5); // Julian Day
+    let l = jd - 1948440 + 10632;
+    const n = Math.floor((l - 1) / 10631);
+    l = l - 10631 * n + 354;
+    const j = Math.floor((10985 - l) / 5316) * Math.floor((50 * l) / 17719) + Math.floor(l / 5670) * Math.floor((43 * l) / 15238);
+    l = l - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+    const hMonth = Math.floor((24 * l) / 709);
+    const hDay   = l - Math.floor((709 * hMonth) / 24);
+    const hYear  = 30 * n + j - 30;
+    const HIJRI_MONTHS = ['Muharram','Safar','Rabi al-Awwal','Rabi al-Thani','Jumada al-Awwal','Jumada al-Thani','Rajab','Sha\'ban','Ramadan','Shawwal','Dhu al-Qi\'dah','Dhu al-Hijjah'];
+    return `${hDay} ${HIJRI_MONTHS[hMonth-1] || ''} ${hYear} AH`;
+  };
+  const hijriDate = useMemo(getHijriDate, []);
   // Use pre-computed values from App root (no duplicate reduce loops)
   const { monthExp, monthInc, invVal, assetVal, debtVal, nw: netWorth, savRate } = data.computed;
   const fhsDetail = useMemo(()=>{
@@ -4052,7 +4071,12 @@ function HomePage({ data, actions, onNav }) {
         {/* Header */}
         <PageHeader
           title="Command Center"
-          subtitle={`${greeting} · ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}`}
+          subtitle={
+            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+              <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{greeting} · {todayGregorian}</span>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.03em' }}>☪ {hijriDate}</span>
+            </div>
+          }
           action={
             <div style={{ display:'flex', gap:6 }}>
               <button onClick={()=>setSimulateOpen(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.violetDim, border:`1px solid ${T.violet}33`, color:T.violet, cursor:'pointer' }}>⚡ Simulate</button>
@@ -4517,6 +4541,7 @@ function MoneyPage({ data, actions }) {
   const [modal, setModal] = useState(null);
   const [receiptScannerOpen, setReceiptScannerOpen] = useState(false);
   const [goalAmt, setGoalAmt] = useState(''); const [goalIdx, setGoalIdx] = useState(null);
+  const [editGoalMoney, setEditGoalMoney] = useState(null);
   const [payoffMethod, setPayoffMethod] = useState('avalanche');
   const [extraPayment, setExtraPayment] = useState(0);
   const debouncedExtraPayment = useDebounce(extraPayment, 300);
@@ -4611,6 +4636,7 @@ function MoneyPage({ data, actions }) {
       <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
       <SplitExpenseModal open={!!splitExpense} onClose={()=>setSplitExpense(null)} expense={splitExpense} cur={cur} onSave={parts=>{ actions.removeExpense(splitExpense.id); parts.forEach(p=>actions.addExpense(p)); setSplitExpense(null); }} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
+      <EditGoalModal open={!!editGoalMoney} onClose={()=>setEditGoalMoney(null)} goal={editGoalMoney} onSave={(id,patch)=>{actions.updateGoal(id,patch);setEditGoalMoney(null);}} />
       <PageHeader
         domain={lang==='fr'?'Domaine Financier':'Financial Domain'}
         title={lang==='fr'?'Finance':'Money Hub'}
@@ -4913,85 +4939,40 @@ function MoneyPage({ data, actions }) {
             </GlassCard>
           ); })()}
 
-          {/* ── Potential Spending from Tasks ──────────────────────────────── */}
+          {/* ── Task Spending — shown compactly here, full planner is in Tasks tab ── */}
           {(() => {
             const spendTasks = (data.notes||[]).filter(n => n.type === 'task' && n.estimatedCost > 0);
             if (spendTasks.length === 0) return null;
+            // Deduplicated slots — each 4× installment appears exactly once per month
             const allSlots = spendTasks.flatMap(getTaskPaymentSlots);
             const slotsThisMonth = allSlots.filter(s => s.month === selectedMonth);
-            const totalPotential = slotsThisMonth.reduce((sum,s) => sum + s.amount, 0);
-            const totalAll = allSlots.reduce((sum,s) => sum + s.amount, 0);
-            // Group all future slots by month for timeline
-            const byMonthAll = {};
-            allSlots.forEach(s => { byMonthAll[s.month] = (byMonthAll[s.month]||0) + s.amount; });
-            const months6 = Array.from({length:6},(_,i)=>{ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+i); return d.toISOString().slice(0,7); });
-            if (totalPotential === 0 && slotsThisMonth.length === 0 && Object.keys(byMonthAll).length === 0) return null;
+            if (slotsThisMonth.length === 0) return null;
+            const totalThisMonth = slotsThisMonth.reduce((sum,s) => sum + s.amount, 0);
             return (
-              <GlassCard style={{ padding:'20px 22px', border:`1px solid ${T.amber}22`, background:`${T.amber}04` }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
-                  <div>
-                    <SectionLabel>🛒 Potential Spending from Tasks</SectionLabel>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{spendTasks.length} task{spendTasks.length!==1?'s':''} with spending plans · {cur}{fmtN(totalAll)} total pipeline</div>
-                  </div>
-                  {totalPotential > 0 && (
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Due this month</div>
-                      <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{cur}{fmtN(totalPotential)}</div>
-                    </div>
-                  )}
+              <GlassCard style={{ padding:'16px 20px', border:`1px solid ${T.amber}22`, background:`${T.amber}04` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700 }}>🛒 Task Payments Due — {selectedMonth}</div>
+                  <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{cur}{fmtN(totalThisMonth)}</div>
                 </div>
-
-                {/* This month's task payments */}
-                {slotsThisMonth.length > 0 && (
-                  <div style={{ marginBottom:16 }}>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>Due in {selectedMonth}</div>
-                    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                      {slotsThisMonth.map((slot,i) => (
-                        <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:T.r, background:slot.done?`${T.emerald}06`:`${T.amber}08`, border:`1px solid ${slot.done?T.emerald+'22':(slot.installment?T.violet+'33':T.amber+'22')}`, opacity:slot.done?0.6:1 }}>
-                          <div style={{ width:6, height:6, borderRadius:'50%', background:slot.installment?T.violet:T.amber, flexShrink:0 }} />
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, textDecoration:slot.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{slot.taskTitle}</div>
-                            <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginTop:1 }}>
-                              {slot.category}{slot.installment ? ` · Installment ${slot.installment}/4` : ''}
-                            </div>
-                          </div>
-                          {slot.installment && <span style={{ fontSize:8, fontFamily:T.fM, color:T.violet, background:`${T.violet}18`, padding:'1px 5px', borderRadius:4, border:`1px solid ${T.violet}22`, flexShrink:0 }}>4× plan</span>}
-                          <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:slot.done?T.emerald:(slot.installment?T.violet:T.amber), flexShrink:0 }}>{cur}{fmtN(slot.amount)}</span>
-                          {slot.done && <span style={{ fontSize:9, color:T.emerald }}>✓</span>}
-                        </div>
-                      ))}
-                    </div>
-                    {selMonthInc > 0 && (
-                      <div style={{ marginTop:8, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
-                        <span style={{ color:T.textSub }}>After task spending: {cur}{fmtN(Math.max(0, selMonthInc - selMonthExp - totalPotential))} remaining</span>
-                        <span style={{ color:(selMonthInc-selMonthExp-totalPotential)>0?T.emerald:T.rose, fontWeight:700 }}>
-                          {cur}{fmtN(selMonthExp + totalPotential)} projected total spend
-                        </span>
+                <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
+                  {slotsThisMonth.map((slot,i) => (
+                    <div key={`${slot.taskId}-${slot.installment||0}`} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:T.r, background:slot.done?`${T.emerald}06`:`${T.amber}07`, border:`1px solid ${slot.done?T.emerald+'22':(slot.installment?T.violet+'22':T.amber+'18')}`, opacity:slot.done?0.6:1 }}>
+                      <div style={{ width:5, height:5, borderRadius:'50%', background:slot.installment?T.violet:T.amber, flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <span style={{ fontSize:11, fontFamily:T.fM, color:slot.done?T.textSub:T.text, textDecoration:slot.done?'line-through':'none', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'block' }}>{slot.taskTitle}</span>
+                        <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{slot.category}{slot.installment ? ` · Pmt ${slot.installment}/4` : ''}</span>
                       </div>
-                    )}
+                      {slot.installment && <span style={{ fontSize:8, fontFamily:T.fM, color:T.violet, background:`${T.violet}15`, padding:'1px 5px', borderRadius:4, flexShrink:0 }}>4×</span>}
+                      <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:slot.done?T.emerald:(slot.installment?T.violet:T.amber), flexShrink:0 }}>{cur}{fmtN(slot.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+                {selMonthInc > 0 && (
+                  <div style={{ padding:'7px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                    <span style={{ color:T.textSub }}>Projected total with tasks</span>
+                    <span style={{ color:(selMonthInc-selMonthExp-totalThisMonth)>=0?T.emerald:T.rose, fontWeight:700 }}>{cur}{fmtN(selMonthExp + totalThisMonth)}</span>
                   </div>
                 )}
-
-                {/* 6-month timeline */}
-                <div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>6-Month Spending Pipeline</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:5 }}>
-                    {months6.map(m => {
-                      const amt = byMonthAll[m] || 0;
-                      const isNow = m === today().slice(0,7);
-                      const isSel = m === selectedMonth;
-                      const d = new Date(m+'-01');
-                      const label = d.toLocaleString('default',{month:'short'});
-                      return (
-                        <div key={m} style={{ textAlign:'center', padding:'8px 4px', borderRadius:T.r, background: isSel ? `${T.accent}10` : (amt>0?`${T.amber}08`:T.surface), border:`1px solid ${isSel?T.accent+'44':(amt>0?T.amber+'22':T.border)}`, transition:'all 0.15s' }}>
-                          <div style={{ fontSize:8, fontFamily:T.fM, color: isNow?T.accent:T.textSub, fontWeight:isNow?700:400, letterSpacing:'0.06em', marginBottom:4 }}>{label}{isNow?' ◆':''}</div>
-                          <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:amt>0?T.amber:T.textMuted }}>{amt>0?`${cur}${fmtN(amt)}`:'—'}</div>
-                          {amt>0 && <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>{(allSlots.filter(s=>s.month===m).length)} item{allSlots.filter(s=>s.month===m).length!==1?'s':''}</div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               </GlassCard>
             );
           })()}
@@ -5362,8 +5343,9 @@ function MoneyPage({ data, actions }) {
                       <Btn onClick={()=>{ actions.updateGoalProgress(goal.id,Number(goalAmt)); setGoalAmt(''); setGoalIdx(null); }} color={c} style={{ padding:'6px 12px' }}>+</Btn>
                     </div>
                   ) : (
-                    <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                    <div style={{ display:'flex', gap:8, marginTop:10, alignItems:'center' }}>
                       <button onClick={()=>setGoalIdx(i)} style={{ fontSize:10, fontFamily:T.fM, color:c }}>+ Add Progress</button>
+                      <button onClick={()=>setEditGoalMoney(goal)} style={{ fontSize:10, fontFamily:T.fM, color:T.sky, display:'flex', alignItems:'center', gap:4 }}><IcoPencil size={10} stroke={T.sky} /> Edit</button>
                       <button onClick={()=>actions.removeGoal(goal.id)} style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Remove</button>
                     </div>
                   )}
@@ -6822,19 +6804,25 @@ function KnowledgePage({ data, actions }) {
 
 
 // ── SPENDING PLANNER SECTION ──────────────────────────────────────────────────
-// Helper: get all monthly payment slots for a task
+// Helper: get all monthly payment slots for a task — guaranteed unique per (taskId, month)
 function getTaskPaymentSlots(task) {
   if (!task.estimatedCost || task.estimatedCost <= 0) return [];
   if (task.paymentPlan === '4x' && task.paymentStartDate) {
     const monthly = task.estimatedCost / 4;
+    const seen = new Set();
     return Array.from({length:4}, (_,i) => {
       const d = new Date(task.paymentStartDate + '-01');
       d.setMonth(d.getMonth() + i);
-      return { month: d.toISOString().slice(0,7), amount: monthly, installment: i+1, of: 4, taskId: task.id, taskTitle: task.title, category: task.spendCategory||'Other', done: task.done };
-    });
+      const month = d.toISOString().slice(0,7);
+      // Guard: skip duplicate months (DST / month-overflow edge case)
+      if (seen.has(month)) return null;
+      seen.add(month);
+      return { month, amount: monthly, installment: i+1, of: 4, taskId: task.id, taskTitle: task.title, category: task.spendCategory||'Other', done: task.done };
+    }).filter(Boolean);
   }
-  // Single payment: use dueDate month or current month
-  const month = task.dueDate?.slice(0,7) || new Date().toISOString().slice(0,7);
+  // Single payment: use dueDate month if set, else paymentStartDate, else skip (no month = no slot)
+  const month = task.dueDate?.slice(0,7) || task.paymentStartDate || null;
+  if (!month) return [];
   return [{ month, amount: task.estimatedCost, installment: null, of: null, taskId: task.id, taskTitle: task.title, category: task.spendCategory||'Other', done: task.done }];
 }
 
