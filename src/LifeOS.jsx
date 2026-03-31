@@ -33,6 +33,46 @@ import {
   if (!vp) { vp = document.createElement('meta'); vp.name = 'viewport'; document.head.appendChild(vp); }
   if (!vp.content.includes('viewport-fit')) vp.content = (vp.content || 'width=device-width, initial-scale=1') + ', viewport-fit=cover';
 
+  // ── PWA meta tags — enables "Add to Home Screen" as a native-feeling app on iOS/Android
+  const pwaMeta = [
+    { name:'apple-mobile-web-app-capable',           content:'yes' },
+    { name:'apple-mobile-web-app-status-bar-style',  content:'black-translucent' },
+    { name:'apple-mobile-web-app-title',             content:'LifeOS' },
+    { name:'mobile-web-app-capable',                 content:'yes' },
+    { name:'application-name',                       content:'LifeOS' },
+  ];
+  pwaMeta.forEach(({ name, content }) => {
+    if (!document.querySelector(`meta[name="${name}"]`)) {
+      const m = document.createElement('meta'); m.name = name; m.content = content;
+      document.head.appendChild(m);
+    }
+  });
+  // theme-color — colors browser chrome / status bar on Android Chrome
+  if (!document.querySelector('meta[name="theme-color"]')) {
+    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#040408';
+    document.head.appendChild(tc);
+  }
+  // apple touch icon — used when pinned to home screen on iOS
+  if (!document.querySelector('link[rel="apple-touch-icon"]')) {
+    const icon = document.createElement('link'); icon.rel = 'apple-touch-icon';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="%23040408"/><rect x="30" y="50" width="4" height="80" rx="2" fill="%2300f5d4" opacity=".6"/><text x="44" y="115" font-family="system-ui,sans-serif" font-weight="800" font-size="64" fill="%2300f5d4">OS</text></svg>`;
+    icon.href = `data:image/svg+xml,${svg}`;
+    document.head.appendChild(icon);
+  }
+  // manifest.json — links the installed PWA manifest (file already in /lifeos/ repo)
+  if (!document.querySelector('link[rel="manifest"]')) {
+    const mf = document.createElement('link'); mf.rel = 'manifest'; mf.href = '/lifeos/manifest.json';
+    document.head.appendChild(mf);
+  }
+  // Service Worker — register sw.js already in /lifeos/ repo
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/lifeos/sw.js', { scope: '/lifeos/' })
+        .then(reg => console.log('[LifeOS SW] registered, scope:', reg.scope))
+        .catch(err => console.warn('[LifeOS SW] registration failed:', err));
+    });
+  }
+
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
@@ -75,6 +115,49 @@ import {
     @media (min-width:768px) {
       .los-mobile-only { display:none !important; }
     }
+    @keyframes slideUp { from { transform:translateY(100%); opacity:0.6; } to { transform:translateY(0); opacity:1; } }
+    /* iOS tap highlight — removes grey flash on every tap */
+    * { -webkit-tap-highlight-color: transparent; }
+    /* Disable hover effects on touch devices — prevents sticky hover after tap */
+    @media (hover:none) {
+      .los-btn:hover { filter:none !important; transform:none !important; }
+      .los-card:hover { border-color:rgba(255,255,255,0.07) !important; }
+      .los-nav:hover { background:transparent !important; }
+      .los-qa:hover  { background:transparent !important; transform:none !important; }
+      .los-tab:hover { background:transparent !important; }
+      .los-row:hover { background:transparent !important; }
+    }
+    /* Shared textarea style — avoids 50+ repeated inline blocks + ensures 16px on mobile */
+    .los-textarea {
+      width:100%; padding:9px 12px;
+      background:rgba(255,255,255,0.04);
+      border-radius:10px; font-family:inherit;
+      font-size:13px; color:#dde0f2; resize:vertical;
+      transition:border-color 0.2s; line-height:1.5;
+    }
+    .los-textarea:focus { border-color:rgba(0,245,212,0.5); }
+    /* Touch-friendly × close buttons */
+    .los-close-btn { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; transition:background 0.15s; }
+    .los-close-btn:hover { background:rgba(255,255,255,0.06); }
+    /* Modal scroll lock */
+    body.los-modal-open { overflow:hidden; touch-action:none; }
+    /* slideUp animation */
+    @keyframes slideUp { from { transform:translateY(100%); opacity:0.6; } to { transform:translateY(0); opacity:1; } }
+    /* TabNav: horizontal scroll on mobile, no wrapping */
+    .los-tabnav { overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }
+    .los-tabnav::-webkit-scrollbar { display:none; }
+    /* PageHeader: responsive title size */
+    @media (max-width:767px) {
+      .los-page-title { font-size:20px !important; }
+      .los-page-domain { font-size:7px !important; }
+      /* iOS input zoom fix — Safari zooms in on inputs with font-size < 16px */
+      input, textarea, select, .los-textarea { font-size: 16px !important; }
+      /* Touch targets — minimum 44px (Apple HIG) for tappable elements */
+      .los-btn { min-height: 44px !important; }
+      .los-tab { min-height: 44px !important; padding: 8px 13px !important; }
+    }
+    /* Bottom nav tap feedback */
+    .los-bottom-nav button:active { transform: scale(0.88); opacity: 0.75; transition: transform 0.08s, opacity 0.08s; }
     .los-btn:hover { filter:brightness(1.2); transform:translateY(-1px); }
     .los-card:hover { border-color:rgba(0,245,212,0.18) !important; }
     .los-nav:hover { background:rgba(0,245,212,0.08) !important; }
@@ -903,8 +986,8 @@ const ProgressBar = ({ pct, color=T.accent, height=4 }) => (
     <div style={{ height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99, background:`linear-gradient(90deg, ${color}aa, ${color})`, boxShadow:`0 0 6px ${color}44`, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
   </div>
 );
-const Input = ({ value, onChange, placeholder, type='text', style={} }) => (
-  <input type={type} value={value} onChange={onChange} placeholder={placeholder} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, transition:'border-color 0.2s', ...style }} />
+const Input = ({ value, onChange, placeholder, type='text', style={}, onKeyDown }) => (
+  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, transition:'border-color 0.2s', ...style }} />
 );
 const Select = ({ value, onChange, children, style={} }) => (
   <select value={value} onChange={onChange} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, transition:'border-color 0.2s', ...style }}>{children}</select>
@@ -956,8 +1039,30 @@ const ChartTooltip = ({ active, payload, label, prefix='', suffix='' }) => {
     </div>
   );
 };
-const Modal = ({ open, onClose, title, children, wide=false }) => {
+function Modal({ open, onClose, title, children, wide=false }) {
+  const isMobile = useMobile();
+  useEffect(() => {
+    if (open) {
+      document.body.classList.add('los-modal-open');
+      return () => document.body.classList.remove('los-modal-open');
+    }
+  }, [open]);
   if (!open) return null;
+  if (isMobile) {
+    return (
+      <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:999, display:'flex', alignItems:'flex-end', backdropFilter:'blur(4px)' }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:'22px 22px 0 0', padding:`20px 20px calc(16px + var(--sab))`, width:'100%', animation:'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)', maxHeight:'92vh', overflowY:'auto' }}>
+          {/* Drag handle */}
+          <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:'0 auto 18px', flexShrink:0 }} />
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+            <h2 style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
+            <button onClick={onClose} style={{ padding:8, borderRadius:8, background:T.surface }}><IcoX size={16} stroke={T.textSub} /></button>
+          </div>
+          {children}
+        </div>
+      </div>
+    );
+  }
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:999, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)', padding:16 }}>
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:20, padding:24, width:'100%', maxWidth:wide?640:420, animation:'modalIn 0.25s ease', maxHeight:'90vh', overflowY:'auto' }}>
@@ -969,9 +1074,9 @@ const Modal = ({ open, onClose, title, children, wide=false }) => {
       </div>
     </div>
   );
-};
+}
 const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, style={} }) => (
-  <button className="los-btn" onClick={onClick} disabled={disabled} style={{ padding:'10px 20px', borderRadius:T.r, background:disabled?T.surface:(color+'18'), color:disabled?T.textMuted:color, border:`1px solid ${disabled?T.border:(color+'44')}`, fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em', width:full?'100%':'auto', transition:'all 0.18s', ...style }}>{children}</button>
+  <button className="los-btn" onClick={onClick} disabled={disabled} style={{ padding:'10px 20px', borderRadius:T.r, background:disabled?T.surface:(color+'18'), color:disabled?T.textMuted:color, border:`1px solid ${disabled?T.border:(color+'44')}`, fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em', width:full?'100%':'auto', minHeight:44, transition:'all 0.18s', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6, ...style }}>{children}</button>
 );
 
 // ── SHARED DESIGN SYSTEM COMPONENTS ──────────────────────────────────────────
@@ -1007,12 +1112,12 @@ const PageHeader = ({ domain, title, subtitle, action=null, infoIcon=null }) => 
   <div style={{ marginBottom:20, display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
     <div>
       {domain && (
-        <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:5, display:'flex', alignItems:'center', gap:6 }}>
+        <div className="los-page-domain" style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.16em', textTransform:'uppercase', marginBottom:5, display:'flex', alignItems:'center', gap:6 }}>
           <div style={{ width:3, height:10, borderRadius:2, background:T.accent, opacity:0.6 }} />
           {domain}
         </div>
       )}
-      <h1 style={{ fontSize:24, fontFamily:T.fD, fontWeight:800, color:T.text, lineHeight:1.1 }}>{title}</h1>
+      <h1 className="los-page-title" style={{ fontSize:24, fontFamily:T.fD, fontWeight:800, color:T.text, lineHeight:1.1 }}>{title}</h1>
       {subtitle && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4, lineHeight:1.5 }}>{subtitle}</div>}
     </div>
     <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, marginTop:2 }}>
@@ -1024,7 +1129,7 @@ const PageHeader = ({ domain, title, subtitle, action=null, infoIcon=null }) => 
 
 // TabNav — shared tab navigation bar; accentColor is the active highlight
 const TabNav = ({ tabs, active, onChange, accentColor=T.accent }) => (
-  <div style={{ display:'flex', gap:2, marginBottom:20, background:T.surface, borderRadius:T.r, padding:3, width:'fit-content', border:`1px solid ${T.border}`, flexWrap:'wrap', maxWidth:'100%' }}>
+  <div className="los-tabnav" style={{ display:'flex', gap:2, marginBottom:20, background:T.surface, borderRadius:T.r, padding:3, width:'100%', maxWidth:'fit-content', border:`1px solid ${T.border}`, flexWrap:'nowrap' }}>
     {tabs.map(({ id, label, badge }) => {
       const isA = active === id;
       return (
@@ -1111,7 +1216,7 @@ function QuickCaptureFAB({ onAction, isMobile }) {
                 padding:'9px 12px', borderRadius:T.r,
                 background:'transparent', border:'none',
                 cursor:'pointer', textAlign:'left', width:'100%',
-                transition:'background 0.13s',
+                transition:'background 0.13s', minHeight:44,
               }}
               onMouseEnter={e => e.currentTarget.style.background = item.color + '15'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -1142,21 +1247,21 @@ function BottomNav({ active, onNav, onAI, showAI }) {
   const lang = useLang();
   const BOTTOM_NAV = BOTTOM_NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   return (
-    <div className="los-mobile-only" style={{ position:'fixed', bottom:0, left:0, right:0, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none', paddingBottom:'var(--sab)' }}>
+    <div className="los-mobile-only los-bottom-nav" style={{ position:'fixed', bottom:0, left:0, right:0, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none', paddingBottom:'var(--sab)' }}>
       {BOTTOM_NAV.map(({ id, Icon, label }) => {
         const isA = active === id;
         return (
-          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', padding:'10px 0', minHeight:56 }}>
-            <Icon size={17} stroke={isA?T.accent:T.textSub} />
-            <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em' }}>{label.toUpperCase()}</span>
+          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'10px 0', minHeight:56 }}>
+            <Icon size={20} stroke={isA?T.accent:T.textSub} />
+            <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em', fontWeight:isA?700:400 }}>{label.toUpperCase()}</span>
           </button>
         );
       })}
       {/* AI button */}
-      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', padding:'10px 0', minHeight:56, position:'relative' }}>
-        <IcoBrain size={17} stroke={showAI?T.accent:T.textSub} />
+      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'10px 0', minHeight:56, position:'relative' }}>
+        <IcoBrain size={20} stroke={showAI?T.accent:T.textSub} />
         {!showAI && <span style={{ position:'absolute', top:8, left:'50%', marginLeft:3, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
-        <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em' }}>AI</span>
+        <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em', fontWeight:showAI?700:400 }}>AI</span>
       </button>
     </div>
   );
@@ -1859,7 +1964,7 @@ function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
           <Select value={tag} onChange={e=>setTag(e.target.value)}>{['General','Finance','Health','Career','Growth','Ideas'].map(t=><option key={t}>{t}</option>)}</Select>
         </div>
         <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" />
-        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." rows={3} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." rows={3} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
           <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>Priority:</div>
           {[1,2,3].map(p=><button key={p} onClick={()=>setPriority(p)} style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, background:priority===p?[T.rose,T.amber,T.sky][p-1]+'33':'transparent', color:priority===p?[T.rose,T.amber,T.sky][p-1]:T.textSub, border:`1px solid ${priority===p?[T.rose,T.amber,T.sky][p-1]+'55':T.border}` }}>{['🔴 High','🟡 Med','🔵 Low'][p-1]}</button>)}
@@ -2117,7 +2222,7 @@ function AddInvestmentModal({ open, onClose, onSave }) {
         )}
 
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Investment thesis / notes (optional)" rows={2} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Investment thesis / notes (optional)" rows={2} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
         <Btn full onClick={save} color={T.violet} disabled={!qty||!buyPrice}>{lang==='fr'?'Ajouter position':'Add Position'}</Btn>
       </div>
     </Modal>
@@ -2317,7 +2422,7 @@ function AddQuickNoteModal({ open, onClose, onSave }) {
   return (
     <Modal open={open} onClose={onClose} title="📌 Quick Note">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Capture a thought, idea, or reminder..." rows={4} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Capture a thought, idea, or reminder..." rows={4} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Color:</span>
           {COLORS.map(c=>(
@@ -2350,7 +2455,7 @@ function AddChronicleModal({ open, onClose, onSave }) {
           {EMOJIS.map(e=><button key={e} onClick={()=>setEmoji(e)} style={{ fontSize:20, padding:6, borderRadius:8, background:emoji===e?T.accentDim:T.surface, border:`1px solid ${emoji===e?T.accent+'55':T.border}` }}>{e}</button>)}
         </div>
         <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title — what happened?" />
-        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Details (optional)..." rows={3} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Details (optional)..." rows={3} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <Btn full onClick={save} color={T.amber}>Save Chronicle</Btn>
       </div>
@@ -4338,11 +4443,11 @@ function TimelinePage({ data }) {
   const groups = useMemo(()=>{ const g={}; filtered.forEach(ev=>{ const d=ev.ts?.slice(0,10)||'Unknown'; if(!g[d])g[d]=[]; g[d].push(ev); }); return Object.entries(g).sort((a,b)=>a[0]<b[0]?1:-1); },[filtered]);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}>
-        <SectionLabel>Core System</SectionLabel>
-        <h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Timeline</h1>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>{allEvents.length} events recorded across all domains</div>
-      </div>
+      <PageHeader
+        domain="Core System"
+        title="Life Timeline"
+        subtitle={`${allEvents.length} events recorded across all domains`}
+      />
       <div style={{ display:'flex', gap:6, marginBottom:22, flexWrap:'wrap' }}>
         {cats.map(cat=>{ const colorMap={expense:T.rose,income:T.emerald,investment:T.violet,habit:T.accent,health:T.sky,goal:T.amber,debt:T.rose}; const c=colorMap[cat]||T.textSub; return (
           <button key={cat} onClick={()=>setFilter(cat)} style={{ padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:filter===cat?(c+'18'):'transparent', color:filter===cat?c:T.textSub, border:`1px solid ${filter===cat?c+'44':T.border}`, transition:'all 0.15s' }}>{cat==='all'?'⬡ All':cat}</button>
@@ -6364,7 +6469,7 @@ function EditNoteModal({ open, onClose, note, onSave }) {
           <Select value={tag} onChange={e=>setTag(e.target.value)}>{['General','Finance','Health','Career','Growth','Ideas'].map(t=><option key={t}>{t}</option>)}</Select>
         </div>
         <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" />
-        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." rows={4} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+        <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Content..." rows={4} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
           <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, flexShrink:0 }}>Priority:</div>
           {[1,2,3].map(p=><button key={p} onClick={()=>setPriority(p)} style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, background:priority===p?[T.rose,T.amber,T.sky][p-1]+'33':'transparent', color:priority===p?[T.rose,T.amber,T.sky][p-1]:T.textSub, border:`1px solid ${priority===p?[T.rose,T.amber,T.sky][p-1]+'55':T.border}` }}>{['🔴 High','🟡 Med','🔵 Low'][p-1]}</button>)}
@@ -8390,7 +8495,11 @@ function ArchivePage({ data }) {
   const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22, display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}><div><SectionLabel>Archive</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life History</h1></div><PageInfoIcon content="Browse your complete history of expenses, incomes, habits, goals, and vitals. Use the search bar to find anything. Export your data as JSON for backup." /></div>
+      <PageHeader
+        domain="Archive"
+        title="Life History"
+        infoIcon={<PageInfoIcon content="Browse your complete history of expenses, incomes, habits, goals, and vitals. Use the search bar to find anything. Export your data as JSON for backup." />}
+      />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'20px 22px' }}>
           <SectionLabel>Net Worth History</SectionLabel>
@@ -8547,7 +8656,11 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <div style={{ marginBottom:22 }}><SectionLabel>System</SectionLabel><h1 style={{ fontSize:26, fontFamily:T.fD, fontWeight:800, color:T.text }}>Settings</h1></div>
+      <PageHeader
+        domain="System"
+        title="Settings"
+        subtitle="Profile · Preferences · AI · Data"
+      />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>Profile</SectionLabel>
@@ -8576,7 +8689,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
               {(settings.customCats||[...CATS]).map((cat,i)=>(
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.text }}>
                   <span>{cat}</span>
-                  <button onClick={()=>{ const cats=(settings.customCats||[...CATS]).filter((_,j)=>j!==i); actions.updateSettings({...settings, customCats:cats}); }} style={{ color:T.rose, marginLeft:2, fontSize:12, lineHeight:1 }}>×</button>
+                  <button onClick={()=>{ const cats=(settings.customCats||[...CATS]).filter((_,j)=>j!==i); actions.updateSettings({...settings, customCats:cats}); }} className="los-close-btn" style={{ color:T.rose, marginLeft:2, fontSize:12, lineHeight:1, background:'none', border:'none' }}>×</button>
                 </div>
               ))}
             </div>
@@ -8958,7 +9071,7 @@ function CareerPage({ data, actions }) {
           <Select value={jStage}  onChange={e=>setJStage(e.target.value)}>{JOB_STAGES.map(s=><option key={s}>{s}</option>)}</Select>
           <Input type="date" value={jDate} onChange={e=>setJDate(e.target.value)} />
           <Input value={jLink}  onChange={e=>setJLink(e.target.value)}  placeholder="Job URL (optional)" />
-          <textarea value={jNotes} onChange={e=>setJNotes(e.target.value)} placeholder="Notes..." rows={3} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+          <textarea value={jNotes} onChange={e=>setJNotes(e.target.value)} placeholder="Notes..." rows={3} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
           <Btn full onClick={saveJob} color={T.accent}>{editJobId?'Update':'Add Application'}</Btn>
         </div>
       </Modal>
@@ -8967,7 +9080,7 @@ function CareerPage({ data, actions }) {
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <Input value={rexTitle} onChange={e=>setRexTitle(e.target.value)} placeholder="Title (e.g. Nailed system design round)" />
           <Select value={rexTag} onChange={e=>setRexTag(e.target.value)}>{REX_TAGS.map(t=><option key={t}>{t}</option>)}</Select>
-          <textarea value={rexBody} onChange={e=>setRexBody(e.target.value)} placeholder="What happened? What did you learn?" rows={5} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+          <textarea value={rexBody} onChange={e=>setRexBody(e.target.value)} placeholder="What happened? What did you learn?" rows={5} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
           <Btn full onClick={addRex} color={T.amber}>Save Entry</Btn>
         </div>
       </Modal>
@@ -9047,7 +9160,7 @@ function CareerPage({ data, actions }) {
                     {lvSkills.map(s=>(
                       <div key={s.id} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, background:`${SKILL_COLORS[level]}18`, border:`1px solid ${SKILL_COLORS[level]}33`, fontSize:11, fontFamily:T.fM, color:SKILL_COLORS[level] }}>
                         {s.name}
-                        <button onClick={()=>removeSkill(s.id)} style={{ color:T.textMuted, fontSize:10, marginLeft:2 }}>×</button>
+                        <button onClick={()=>removeSkill(s.id)} className="los-close-btn" style={{ color:T.textMuted, fontSize:10, marginLeft:2, background:'none', border:'none' }}>×</button>
                       </div>
                     ))}
                   </div>
@@ -9068,7 +9181,7 @@ function CareerPage({ data, actions }) {
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}><Badge color={REX_TAG_COLORS[r.tag]||T.accent}>{r.tag}</Badge><span style={{ fontFamily:T.fD, fontWeight:700, fontSize:13, color:T.text }}>{r.title}</span></div>
                 <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                   <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{r.date}</span>
-                  <button onClick={()=>removeRex(r.id)} style={{ color:T.textMuted, fontSize:12, cursor:'pointer' }}>×</button>
+                  <button onClick={()=>removeRex(r.id)} className="los-close-btn" style={{ color:T.textMuted, fontSize:12, background:'none', border:'none' }}>×</button>
                 </div>
               </div>
               {r.body && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.7 }}>{r.body}</div>}
@@ -9084,7 +9197,7 @@ function CareerPage({ data, actions }) {
           <SectionLabel>Digital CV</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <Input value={cvRole}   onChange={e=>setCvRole(e.target.value)}   placeholder="Current role / target role" />
-            <textarea value={cvBio} onChange={e=>setCvBio(e.target.value)} placeholder="Professional summary (2–3 sentences)" rows={4} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, resize:'vertical' }} />
+            <textarea value={cvBio} onChange={e=>setCvBio(e.target.value)} placeholder="Professional summary (2–3 sentences)" rows={4} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:10 }}>
               <Input value={cvEmail}  onChange={e=>setCvEmail(e.target.value)}  placeholder="Email" />
               <Input value={cvLinked} onChange={e=>setCvLinked(e.target.value)} placeholder="LinkedIn URL" />
@@ -10253,7 +10366,7 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
           {[['🏆 Wins & highlights',wins,setWins,'What went well?'],['💭 Reflection',reflection,setReflection,'What to improve?'],].map(([label,val,set,ph])=>(
             <div key={label}><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>{label}</div>
-              <textarea value={val} onChange={e=>set(e.target.value)} placeholder={ph} rows={2} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} /></div>
+              <textarea value={val} onChange={e=>set(e.target.value)} placeholder={ph} rows={2} className="los-textarea" style={{ border:`1px solid ${T.border}` }} /></div>
           ))}
           <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>🎯 Main focus next month</div>
             <Input value={nextFocus} onChange={e=>setNextFocus(e.target.value)} placeholder="One key priority…" /></div>
@@ -10378,7 +10491,7 @@ function TimeCapsuleTab({ data, actions }) {
               <Input value={emoji} onChange={e=>setEmoji(e.target.value)} style={{width:54,textAlign:'center',fontSize:20}} />
               <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Capsule title…" style={{flex:1}} />
             </div>
-            <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Write a message to your future self…" rows={3} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} />
+            <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Write a message to your future self…" rows={3} className="los-textarea" style={{ border:`1px solid ${T.border}` }} />
             <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Open on</div><Input type="date" value={openDate} onChange={e=>setOpenDate(e.target.value)} min={today()} /></div>
             <div style={{display:'flex',gap:8}}>
               <Btn onClick={add} color={T.violet} style={{flex:1}}>Seal Capsule 🔒</Btn>
@@ -11156,7 +11269,7 @@ Notes: ${profile.notes||'none'}`}]
               <Input type="number" value={profile.target_return} onChange={e=>upd('target_return',Number(e.target.value))} /></div>
           </div>
           <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Investment Policy Statement</div>
-            <textarea value={profile.notes} onChange={e=>upd('notes',e.target.value)} placeholder="Your rules, thesis, constraints…" rows={4} style={{width:'100%',padding:'9px 12px',background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:T.fM,fontSize:12,color:T.text,resize:'vertical'}} /></div>
+            <textarea value={profile.notes} onChange={e=>upd('notes',e.target.value)} placeholder="Your rules, thesis, constraints…" rows={4} className="los-textarea" style={{ border:`1px solid ${T.border}` }} /></div>
           <GlassCard style={{padding:'16px 18px'}}>
             <SectionLabel>Recommended Allocation for "{profile.risk}"</SectionLabel>
             <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:10}}>
@@ -14114,7 +14227,7 @@ export default function LifeOS() {
         </div>
 
         {/* Page */}
-        <div key={page} style={{ flex:1, padding:isMobile?`18px 14px calc(80px + var(--sab))`:'26px 30px', overflowY:'auto', maxWidth:1180 }}>
+        <div key={page} style={{ flex:1, padding:isMobile?`18px 14px calc(80px + var(--sab))`:'26px 30px', overflowY:'auto', maxWidth:1180, width:'100%', margin:'0 auto' }}>
           {VIEW[page]}
         </div>
 
