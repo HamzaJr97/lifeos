@@ -14206,7 +14206,7 @@ export default function LifeOS() {
                   🕸️ <span>Graph</span>
                 </button>
                 <button onClick={()=>setShowParallelYou(true)} title="Parallel You (Z)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background:'rgba(56,189,248,0.1)';e.currentTarget.style.borderColor='rgba(56,189,248,0.3)';e.currentTarget.style.color=T.sky;}}
+                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(56,189,248,0.1)';e.currentTarget.style.borderColor='rgba(56,189,248,0.3)';e.currentTarget.style.color=T.sky;}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
                   🔀 <span>Parallel</span>
                 </button>
