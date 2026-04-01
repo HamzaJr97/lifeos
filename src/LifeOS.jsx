@@ -80,6 +80,7 @@ import {
   const style = document.createElement('style');
   style.textContent = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
     :root {
       --sat: env(safe-area-inset-top, 0px);
       --sab: env(safe-area-inset-bottom, 0px);
@@ -141,8 +142,8 @@ import {
     .los-close-btn:hover { background:rgba(255,255,255,0.06); }
     /* Modal scroll lock */
     body.los-modal-open { overflow:hidden; touch-action:none; }
-    /* slideUp animation */
-    @keyframes slideUp { from { transform:translateY(100%); opacity:0.6; } to { transform:translateY(0); opacity:1; } }
+    /* Bottom sheet inner scroll */
+    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; max-height: calc(85vh - 120px); }
     /* TabNav: horizontal scroll on mobile, no wrapping */
     .los-tabnav { overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }
     .los-tabnav::-webkit-scrollbar { display:none; }
@@ -155,6 +156,12 @@ import {
       /* Touch targets — minimum 44px (Apple HIG) for tappable elements */
       .los-btn { min-height: 44px !important; }
       .los-tab { min-height: 44px !important; padding: 8px 13px !important; }
+      /* Responsive grids — prevent overflow on 390px screens */
+      [style*="minmax(280px"] { grid-template-columns: 1fr !important; }
+      [style*="minmax(200px"] { grid-template-columns: repeat(2,1fr) !important; }
+      [style*="minmax(170px"] { grid-template-columns: repeat(2,1fr) !important; }
+      [style*="minmax(160px"] { grid-template-columns: repeat(2,1fr) !important; }
+      [style*="minmax(150px"] { grid-template-columns: repeat(2,1fr) !important; }
     }
     /* Bottom nav tap feedback */
     .los-bottom-nav button:active { transform: scale(0.88); opacity: 0.75; transition: transform 0.08s, opacity 0.08s; }
@@ -326,7 +333,7 @@ const LOCALES = {
     // Navigation
     home:'Home', timeline:'Timeline', money:'Money', health:'Health',
     growth:'Growth', knowledge:'Knowledge', intel:'Intelligence',
-    archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar',
+    archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar', research:'Research',
     // Finance
     netWorth:'Net Worth', savingsRate:'Savings Rate', expenses:'Expenses', income:'Income',
     spent:'Spent', remaining:'Remaining', budgetLeft:'Budget Left',
@@ -364,7 +371,7 @@ const LOCALES = {
     // Navigation
     home:'Accueil', timeline:'Journal', money:'Finance', health:'Santé',
     growth:'Croissance', knowledge:'Savoir', intel:'Intelligence',
-    archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier',
+    archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier', research:'Recherche',
     // Finance
     netWorth:'Patrimoine Net', savingsRate:'Taux d\'épargne', expenses:'Dépenses', income:'Revenus',
     spent:'Dépensé', remaining:'Restant', budgetLeft:'Budget restant',
@@ -1051,14 +1058,16 @@ function Modal({ open, onClose, title, children, wide=false }) {
   if (isMobile) {
     return (
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:999, display:'flex', alignItems:'flex-end', backdropFilter:'blur(4px)' }}>
-        <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:'22px 22px 0 0', padding:`20px 20px calc(16px + var(--sab))`, width:'100%', animation:'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)', maxHeight:'92vh', overflowY:'auto' }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:'22px 22px 0 0', padding:`20px 20px 0`, width:'100%', animation:'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)', maxHeight:'92vh', display:'flex', flexDirection:'column' }}>
           {/* Drag handle */}
           <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:'0 auto 18px', flexShrink:0 }} />
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexShrink:0 }}>
             <h2 style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
             <button onClick={onClose} style={{ padding:8, borderRadius:8, background:T.surface }}><IcoX size={16} stroke={T.textSub} /></button>
           </div>
-          {children}
+          <div className="los-sheet-body" style={{ paddingBottom:`calc(20px + var(--sab))` }}>
+            {children}
+          </div>
         </div>
       </div>
     );
@@ -1242,26 +1251,30 @@ const BOTTOM_NAV_DEFS = [
   { id:'health',    Icon:IcoHealth,   tKey:'health'    },
   { id:'growth',    Icon:IcoGrowth,   tKey:'growth'    },
   { id:'knowledge', Icon:IcoBook,     tKey:'knowledge' },
+  { id:'intel',     Icon:IcoBrain,    tKey:'intel'     },
+  { id:'settings',  Icon:IcoSettings, tKey:'settings'  },
 ];
 function BottomNav({ active, onNav, onAI, showAI }) {
   const lang = useLang();
   const BOTTOM_NAV = BOTTOM_NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   return (
-    <div className="los-mobile-only los-bottom-nav" style={{ position:'fixed', bottom:0, left:0, right:0, background:`${T.bg1}f0`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(20px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none', paddingBottom:'var(--sab)' }}>
+    <div className="los-mobile-only los-bottom-nav" style={{ position:'fixed', bottom:0, left:0, right:0, background:`${T.bg1}f8`, borderTop:`1px solid ${T.border}`, backdropFilter:'blur(24px)', zIndex:200, alignItems:'stretch', justifyContent:'space-around', display:'none', paddingBottom:'var(--sab)' }}>
       {BOTTOM_NAV.map(({ id, Icon, label }) => {
         const isA = active === id;
         return (
-          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'10px 0', minHeight:56 }}>
-            <Icon size={20} stroke={isA?T.accent:T.textSub} />
-            <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em', fontWeight:isA?700:400 }}>{label.toUpperCase()}</span>
+          <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'8px 2px', minHeight:52 }}>
+            <Icon size={18} stroke={isA?T.accent:T.textSub} />
+            <span style={{ fontSize:7, fontFamily:T.fM, letterSpacing:'0.03em', fontWeight:isA?700:400 }}>{label.toUpperCase()}</span>
           </button>
         );
       })}
-      {/* AI button */}
-      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'10px 0', minHeight:56, position:'relative' }}>
-        <IcoBrain size={20} stroke={showAI?T.accent:T.textSub} />
-        {!showAI && <span style={{ position:'absolute', top:8, left:'50%', marginLeft:3, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
-        <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.06em', fontWeight:showAI?700:400 }}>AI</span>
+      {/* AI quick-access dot */}
+      <button onClick={onAI} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:showAI?T.accent:T.textSub, borderTop:`2px solid ${showAI?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'8px 2px', minHeight:52, position:'relative' }}>
+        <div style={{ width:22, height:22, borderRadius:'50%', background:showAI?T.accentDim:`${T.accent}18`, border:`1.5px solid ${showAI?T.accent:T.accent+'44'}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <IcoBrain size={12} stroke={T.accent} />
+        </div>
+        {!showAI && <span style={{ position:'absolute', top:6, left:'50%', marginLeft:6, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+        <span style={{ fontSize:7, fontFamily:T.fM, letterSpacing:'0.03em', fontWeight:showAI?700:400, color:T.accent }}>AI</span>
       </button>
     </div>
   );
@@ -14083,7 +14096,7 @@ export default function LifeOS() {
     <LifeGraph     data={data} open={showLifeGraph}     onClose={()=>setShowLifeGraph(false)} />
     <AmbientMode   data={data} open={showAmbient}       onClose={()=>setShowAmbient(false)} />
     <ParallelYou   data={data} open={showParallelYou}   onClose={()=>setShowParallelYou(false)} />
-    <div style={{ minHeight:'100vh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex' }}>
+    <div style={{ height:'100dvh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex', overflow:'hidden' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
         <div style={{ position:'absolute', top:-200, left:T.sw, width:600, height:600, borderRadius:'50%', background:`radial-gradient(circle,${T.accent}05 0%,transparent 70%)` }} />
@@ -14118,33 +14131,34 @@ export default function LifeOS() {
 
       <Sidebar active={page} onNav={setPage} userName={settings.name} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
 
-      <div style={{ flex:1, marginLeft:isMobile?0:T.sw, minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative', zIndex:1 }}>
+      <div style={{ flex:1, marginLeft:isMobile?0:T.sw, height:'100%', display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden' }}>
         {/* Topbar */}
-        <div style={{ borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, paddingTop:`calc(${isMobile?'var(--sat)':'0px'} + 12px)`, paddingBottom:12, minHeight:isMobile?'calc(50px + var(--sat))':'50px' }}>
+        <div style={{ borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, paddingTop:`calc(${isMobile?'var(--sat)':'0px'} + 10px)`, paddingBottom:10, minHeight:isMobile?'calc(44px + var(--sat))':'50px', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7 }}>
             {isMobile && (
-              <button onClick={()=>setCmdOpen(true)} style={{ padding:'4px 6px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, marginRight:4 }}>
-                <IcoMenu size={14} stroke={T.textSub} />
+              <button onClick={()=>setCmdOpen(true)} style={{ padding:'6px 8px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, marginRight:2, minWidth:36, minHeight:36, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <IcoMenu size={15} stroke={T.textSub} />
               </button>
             )}
             <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.15em' }}>LIFE OS</span>
             <span style={{ color:T.textMuted, fontSize:11 }}>›</span>
             <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>{page}</span>
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:isMobile?8:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:isMobile?6:16 }}>
             {!isMobile && (
               <button onClick={()=>setCmdOpen(true)} className="los-btn" style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px', borderRadius:7, background:T.surface, border:`1px solid ${T.border}`, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
                 <IcoSearch size={10} stroke={T.textSub} />
                 Search <span style={{ color:T.textMuted }}>⌘K</span>
               </button>
             )}
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'flex', alignItems:'center', gap:5 }}>
-              <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
-              {!isMobile && 'All Systems Online'}
-            </div>
+            {!isMobile && (
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'flex', alignItems:'center', gap:5 }}>
+                <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
+                All Systems Online
+              </div>
+            )}
             <SmartAlertsButton alerts={smartAlerts} onNav={setPage} onModal={setGlobalModal} />
-            {/* Weekly Review trigger — Step 4 */}
-            {(() => {
+            {!isMobile && (() => {
               const WEEKLY_KEY = 'los_weekly_review_last';
               const now = new Date();
               const thisWeekId = (() => { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); })();
@@ -14158,8 +14172,7 @@ export default function LifeOS() {
                 </button>
               );
             })()}
-            {/* ── Sync button ── */}
-            {(() => {
+            {!isMobile && (() => {
               const { syncStatus, isConfigured, isPartial } = gistSync;
               const syncColor = syncStatus==='ok' ? T.emerald : syncStatus==='error' ? T.rose : syncStatus==='pushing'||syncStatus==='pulling' ? T.amber : isConfigured ? T.sky : T.textMuted;
               const syncIcon = syncStatus==='pushing'||syncStatus==='pulling'
@@ -14167,48 +14180,37 @@ export default function LifeOS() {
                 : isConfigured
                   ? <IcoCloud size={14} stroke={syncColor} />
                   : <IcoCloudOff size={14} stroke={syncColor} />;
-              const tip = syncStatus==='pushing' ? 'Syncing…'
-                : syncStatus==='pulling' ? 'Pulling…'
-                : syncStatus==='ok' ? 'Synced ✓'
-                : syncStatus==='error' ? 'Sync error — click to check'
-                : isConfigured ? 'Auto-sync on · click for details'
-                : isPartial ? 'Sync: push first to create Gist'
-                : 'Click to set up cross-device sync';
               return (
-                <button onClick={()=>setShowSyncModal(true)} title={tip}
+                <button onClick={()=>setShowSyncModal(true)} title="Sync"
                   style={{ position:'relative', padding:'5px 7px', borderRadius:7, background: isConfigured ? (syncStatus==='ok'?`${T.emerald}15`:`${T.sky}0a`) : 'transparent', border:`1px solid ${isConfigured ? syncColor+'33' : 'transparent'}`, color:syncColor, display:'flex', alignItems:'center', justifyContent:'center', gap:4, transition:'all 0.2s' }}
                   onMouseEnter={e=>{e.currentTarget.style.background=`${syncColor}18`;e.currentTarget.style.borderColor=syncColor+'44';}}
                   onMouseLeave={e=>{e.currentTarget.style.background=isConfigured?`${syncColor}0a`:'transparent';e.currentTarget.style.borderColor=isConfigured?syncColor+'33':'transparent';}}>
                   {syncIcon}
-                  {!isMobile && isConfigured && <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600 }}>
-                    {syncStatus==='pushing'?'Sync…':syncStatus==='pulling'?'Pull…':syncStatus==='ok'?'Synced':'Sync'}
-                  </span>}
-                  {!isConfigured && !isMobile && <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>Sync</span>}
+                  {isConfigured && <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600 }}>{syncStatus==='pushing'?'Sync…':syncStatus==='pulling'?'Pull…':syncStatus==='ok'?'Synced':'Sync'}</span>}
+                  {!isConfigured && <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>Sync</span>}
                   {syncStatus==='error' && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.rose, animation:'dotPulse 2s infinite' }} />}
                   {!isConfigured && <span style={{ position:'absolute', top:-2, right:-2, width:5, height:5, borderRadius:'50%', background:T.amber, opacity:0.8 }} />}
                 </button>
               );
             })()}
-            {/* Global AI Panel trigger */}
-            {/* ── New feature buttons ── */}
             {!isMobile && (
               <>
-                <button onClick={()=>setShowPatternEngine(true)} title="Pattern Engine — AI correlations (P)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                <button onClick={()=>setShowPatternEngine(true)} title="Pattern Engine (P)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
                   onMouseEnter={e=>{e.currentTarget.style.background='rgba(139,92,246,0.12)';e.currentTarget.style.borderColor='rgba(139,92,246,0.3)';e.currentTarget.style.color='#c084fc';}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
                   📡 <span>Patterns</span>
                 </button>
-                <button onClick={()=>setShowLifeGraph(true)} title="Life Graph — node map (G)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                <button onClick={()=>setShowLifeGraph(true)} title="Life Graph (G)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
                   onMouseEnter={e=>{e.currentTarget.style.background=T.accentLo;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
                   🕸️ <span>Graph</span>
                 </button>
-                <button onClick={()=>setShowParallelYou(true)} title="Parallel You — simulate timelines (Z)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(56,189,248,0.1)';e.currentTarget.style.borderColor='rgba(56,189,248,0.3)';e.currentTarget.style.color=T.sky;}}
+                <button onClick={()=>setShowParallelYou(true)} title="Parallel You (Z)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                  onMouseEnter={e=>{e.currentTarget.style.background:'rgba(56,189,248,0.1)';e.currentTarget.style.borderColor='rgba(56,189,248,0.3)';e.currentTarget.style.color=T.sky;}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
                   🔀 <span>Parallel</span>
                 </button>
-                <button onClick={()=>setShowAmbient(true)} title="Ambient Mode — living screensaver (`)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
+                <button onClick={()=>setShowAmbient(true)} title="Ambient Mode (`)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
                   onMouseEnter={e=>{e.currentTarget.style.background=T.amberDim;e.currentTarget.style.borderColor=T.amber+'44';e.currentTarget.style.color=T.amber;}}
                   onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
                   🌊 <span>Ambient</span>
@@ -14216,18 +14218,27 @@ export default function LifeOS() {
                 <div style={{ width:1, height:16, background:T.border, margin:'0 2px' }} />
               </>
             )}
-            <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Life Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s infinite' }}
+            <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s infinite', minWidth:36, minHeight:36 }}
               onMouseEnter={e=>{if(!showAIPanel){e.currentTarget.style.background=T.accentDim;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}}
               onMouseLeave={e=>{if(!showAIPanel){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}}>
               <IcoBrain size={15} stroke="currentColor" />
               {!showAIPanel && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
             </button>
+            {isMobile && (
+              <button onClick={()=>setShowSyncModal(true)} style={{ padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, display:'flex', alignItems:'center', justifyContent:'center', minWidth:36, minHeight:36 }}>
+                {gistSync.syncStatus==='pushing'||gistSync.syncStatus==='pulling'
+                  ? <IcoRefresh size={14} stroke={T.amber} style={{animation:'spin 1s linear infinite'}} />
+                  : gistSync.isConfigured
+                    ? <IcoCloud size={14} stroke={gistSync.syncStatus==='ok'?T.emerald:T.sky} />
+                    : <IcoCloudOff size={14} stroke={T.textMuted} />}
+              </button>
+            )}
             {!isMobile && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{clockTime}</div>}
           </div>
         </div>
 
         {/* Page */}
-        <div key={page} style={{ flex:1, padding:isMobile?`18px 14px calc(80px + var(--sab))`:'26px 30px', overflowY:'auto', maxWidth:1180, width:'100%', margin:'0 auto' }}>
+        <div key={page} style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(72px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
           {VIEW[page]}
         </div>
 
