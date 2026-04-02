@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v82
+// LifeOS — Personal Life Operating System  |  v83
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -23,8 +23,7 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   PieChart, Pie, Cell, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
-} from "recharts";
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceArea, ComposedChart} from "recharts";
 
 // ── GLOBAL STYLES ─────────────────────────────────────────────────────────────
 (() => {
@@ -4868,13 +4867,13 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <Btn onClick={()=>onOpenMonthlyReview?.()} color={T.violet}>📅 Monthly Review</Btn>
             <div style={{ flex:1 }} />
             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Category:</span>
-              <select value={spendCatFilter} onChange={e=>setSpendCatFilter(e.target.value)} style={{ padding:'6px 10px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:'44px' }}>Category:</span>
+              <select value={spendCatFilter} onChange={e=>setSpendCatFilter(e.target.value)} style={{ padding:'6px 10px', minHeight:44, background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
                 <option value="__all__">All Categories</option>
                 {[...new Set((selMonthExpenses||[]).map(e=>e.category).filter(Boolean))].sort().map(c=><option key={c} value={c}>{c}</option>)}
               </select>
               <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Month:</span>
-              <select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)} style={{ padding:'6px 10px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
+              <select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)} style={{ padding:'6px 10px', minHeight:44, background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
                 {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
               </select>
             </div>
@@ -7486,6 +7485,23 @@ function LifeForecastTab({ data }) {
 
   const trailingAvgSav = Math.max(0, trailingAvgInc - trailingAvgExp);
 
+  // ── Volatility: std-dev of monthly net savings over last 6 months ──────────
+  // Used to draw a ±1σ confidence band on the projection chart.
+  const moneySigma = useMemo(() => {
+    const months = [];
+    for (let i = 1; i <= 6; i++) {
+      const d = new Date(); d.setMonth(d.getMonth() - i);
+      const m = d.toISOString().slice(0, 7);
+      const inc = (incomes||[]).filter(x => x.date?.startsWith(m)).reduce((s,x) => s+Number(x.amount||0), 0);
+      const exp = (expenses||[]).filter(x => x.date?.startsWith(m)).reduce((s,x) => s+Number(x.amount||0), 0);
+      months.push(inc - exp);
+    }
+    if (months.length < 2) return 0;
+    const mean = months.reduce((s, v) => s + v, 0) / months.length;
+    const variance = months.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / months.length;
+    return Math.sqrt(variance);
+  }, [incomes, expenses]);
+
   // ── Fix 2: Actual investment contributions vs cashflow ─────────────────────
   // Cashflow != investing. User overrides what actually gets contributed monthly.
   const monthlyContrib = ov.monthlyContrib != null
@@ -7530,13 +7546,17 @@ function LifeForecastTab({ data }) {
 
   const annualContrib = monthlyContrib * 12;
 
-  const nwForecast = useMemo(() => YEARS.map(yr => ({
-    year: `${yr}yr`,
-    conservative: project(portfolioValue, annualContrib, 0.04, yr) + illiquidVal - totalDebt,
-    base:         project(portfolioValue, annualContrib, r,    yr) + illiquidVal - totalDebt,
-    optimistic:   project(portfolioValue, annualContrib, 0.10, yr) + illiquidVal - totalDebt,
-    portfolio:    project(portfolioValue, annualContrib, r,    yr),
-  })), [portfolioValue, annualContrib, r, illiquidVal, totalDebt]);
+  const nwForecast = useMemo(() => YEARS.map(yr => {
+    const base         = project(portfolioValue, annualContrib, r,    yr) + illiquidVal - totalDebt;
+    const conservative = project(portfolioValue, annualContrib, 0.04, yr) + illiquidVal - totalDebt;
+    const optimistic   = project(portfolioValue, annualContrib, 0.10, yr) + illiquidVal - totalDebt;
+    // ±1σ band: propagate monthly savings volatility linearly over years
+    // σ grows with √time (random walk approximation): annualised = monthly_σ * √12 * √yr
+    const annualSigma  = moneySigma * Math.sqrt(12 * yr);
+    const bandLow      = Math.max(0, base - annualSigma);
+    const bandHigh     = base + annualSigma;
+    return { year: `${yr}yr`, conservative, base, optimistic, portfolio: project(portfolioValue, annualContrib, r, yr), bandLow, bandHigh };
+  }), [portfolioValue, annualContrib, r, illiquidVal, totalDebt, moneySigma]);
 
   // ── FI calc: based on trailing expenses, portfolio only ───────────────────
   const fiCalc = useMemo(() => {
@@ -7767,16 +7787,32 @@ function LifeForecastTab({ data }) {
 
         {portfolioValue > 0 || monthlyContrib > 0 ? (
           <>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={nwForecast} margin={{top:4,right:0,left:0,bottom:0}}>
+            {/* Disclaimer */}
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10, padding:'6px 10px', borderRadius:T.r, background:`${T.amber}10`, border:`1px solid ${T.amber}30` }}>
+              <span style={{ fontSize:13 }}>⚠️</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, lineHeight:1.5 }}>
+                <b>Projection based on recent trend</b> — assumes constant contributions &amp; returns. Shaded band = ±1 std dev of your last 6 months of savings volatility.
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={nwForecast} margin={{top:4,right:0,left:0,bottom:0}}>
+                <defs>
+                  <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={T.accent} stopOpacity={0.18} />
+                    <stop offset="95%" stopColor={T.accent} stopOpacity={0.04} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
                 <XAxis dataKey="year" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
                 <YAxis hide />
                 <Tooltip content={<ChartTooltip prefix={cur} />} />
+                {/* ±1σ confidence band */}
+                <Area type="monotone" dataKey="bandHigh" name="Upper bound (±1σ)" stroke="none" fill="url(#bandGrad)" legendType="none" tooltipType="none" dot={false} activeDot={false} />
+                <Area type="monotone" dataKey="bandLow"  name="Lower bound (±1σ)" stroke="none" fill={T.bg}           legendType="none" tooltipType="none" dot={false} activeDot={false} />
                 <Line type="monotone" dataKey="conservative" name="Conservative (4%)"              stroke={T.sky}     strokeWidth={2}   dot={{fill:T.sky,r:3}}     strokeDasharray="5 3" />
                 <Line type="monotone" dataKey="base"         name={`Base (${annualReturnRate}%)`}  stroke={T.accent}  strokeWidth={2.5} dot={{fill:T.accent,r:4}} />
                 <Line type="monotone" dataKey="optimistic"   name="Optimistic (10%)"               stroke={T.emerald} strokeWidth={2}   dot={{fill:T.emerald,r:3}} strokeDasharray="5 3" />
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
             {/* Number table below chart */}
             <div style={{ marginTop:14, overflowX:'auto' }}>
