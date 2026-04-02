@@ -6344,7 +6344,8 @@ function GrowthPage({ data, actions }) {
         </div>
       )}
 
-      {tab==='chronicles' && (<>
+      {tab==='chronicles' && (
+        <div>
         <BackToMore onBack={()=>setTab('more-growth')} />
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -6412,7 +6413,8 @@ function GrowthPage({ data, actions }) {
             </div>
           )}
         </div>
-      </>)}
+        </div>
+      )}
 
       {tab==='achievements' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -6458,9 +6460,10 @@ function GrowthPage({ data, actions }) {
             </GlassCard>
           )}
         </div>
-      </>)}
+      )}
 
-      {tab==='challenges' && (<>
+      {tab==='challenges' && (
+        <div>
         <BackToMore onBack={()=>setTab('more-growth')} />
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div><SectionLabel>30-Day Challenges</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Pick a challenge, track daily progress, earn bonus XP.</div></div>
@@ -6501,22 +6504,29 @@ function GrowthPage({ data, actions }) {
             })}
           </div>
         </div>
-      </>)}
+        </div>
+      )}
 
-      {tab==='social' && (<>
+      {tab==='social' && (
+        <div>
         <BackToMore onBack={()=>setTab('more-growth')} />
         <SocialChallengesTab data={data} actions={actions} />
-      </>)}
+        </div>
+      )}
 
-      {tab==='vision' && (<>
+      {tab==='vision' && (
+        <div>
         <BackToMore onBack={()=>setTab('more-growth')} />
         <VisionBoardTab />
-      </>)}
+        </div>
+      )}
 
-      {tab==='lifemap' && (<>
+      {tab==='lifemap' && (
+        <div>
         <BackToMore onBack={()=>setTab('more-growth')} />
         <LifeMapTab data={data} actions={actions} />
-      </>)}
+        </div>
+      )}
 
       {tab==='more-growth' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
