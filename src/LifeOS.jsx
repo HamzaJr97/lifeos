@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v77
+// LifeOS — Personal Life Operating System  |  v82
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -3939,7 +3939,7 @@ if (typeof PropTypes !== 'undefined') {
   const dataPropType     = PropTypes.shape({ expenses:PropTypes.array, incomes:PropTypes.array, habits:PropTypes.array, habitLogs:PropTypes.object, settings:PropTypes.object.isRequired, computed:PropTypes.object.isRequired });
   const actionsPropType  = PropTypes.shape({ addExpense:PropTypes.func, addIncome:PropTypes.func, addHabit:PropTypes.func });
   HomePage.propTypes     = { data: dataPropType.isRequired, actions: actionsPropType.isRequired, onNav: PropTypes.func.isRequired };
-  MoneyPage.propTypes    = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
+  MoneyPage.propTypes    = { data: dataPropType.isRequired, actions: actionsPropType.isRequired, onOpenMonthlyReview: PropTypes.func };
   HealthPage.propTypes   = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
   GrowthPage.propTypes   = { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
   KnowledgePage.propTypes= { data: dataPropType.isRequired, actions: actionsPropType.isRequired };
@@ -4653,6 +4653,19 @@ const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched'
   );
 }
 
+// "← More" back button shown at the top of advanced sub-tabs navigated from the More panel
+function BackToMore({ onBack, label='← More' }) {
+  return (
+    <button onClick={onBack}
+      style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px',
+        marginBottom:10, borderRadius:99, fontSize:11, fontFamily:T.fM,
+        background:'transparent', border:`1px solid ${T.border}`,
+        color:T.textSub, cursor:'pointer', WebkitTapHighlightColor:'transparent' }}>
+      {label}
+    </button>
+  );
+}
+
 // Collapsible sub-section used inside the Investments tab for Trade History / Watchlist
 // and inside Tools tab for Data Import. Persists open/closed state per key.
 function InvestmentsSubSection({ title, storageKey, children }) {
@@ -4753,8 +4766,6 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
     tools:       lang==='fr'?'Outils':'Tools',
     more:        '··· More',
     recurring:   lang==='fr'?'Récurrent':'Recurring',
-    investor:    lang==='fr'?'Profil Inv.':'Investor Profile',
-    depreciation:lang==='fr'?'Dépréciation':'Depreciation',
     assets:      lang==='fr'?'Actifs':'Assets',
     simulator:   lang==='fr'?'Simulateur':'Simulator',
     forecast:    lang==='fr'?'Prévisions':'Forecast',
@@ -4898,7 +4909,18 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           {/* ── Weekly Pace Widget ─────────────────────────────────────── */}
           {(() => {
             const isCurrentMonth = selectedMonth === today().slice(0,7);
-            if (!isCurrentMonth || selMonthInc <= 0) return null;
+            if (!isCurrentMonth) return (
+              <GlassCard style={{ padding:'14px 18px', border:`1px solid ${T.border}`, opacity:0.6 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:18 }}>📅</span>
+                  <div>
+                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.textSub }}>Weekly Spending Pace</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>Viewing historical data — pace widget available for the current month only.</div>
+                  </div>
+                </div>
+              </GlassCard>
+            );
+            if (selMonthInc <= 0) return null;
             const now = new Date();
             const dayOfMonth = now.getDate();
             const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
@@ -5400,14 +5422,6 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
         </div>
       )}
 
-      {tab==='investor' && (
-        <InvestorProfileTab data={data} actions={actions} />
-      )}
-
-      {tab==='depreciation' && (
-        <AssetDepreciationTab data={data} />
-      )}
-
 
       {tab==='goals' && (() => {
         const allCats = ['all', ...new Set((goals||[]).map(g=>g.cat||'other').filter(Boolean))];
@@ -5728,8 +5742,6 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             {[
               { id:'recurring',    emoji:'🔄', label:'Recurring',       sub:'Subscriptions & bills',  color:T.sky },
               { id:'assets',       emoji:'🏠', label:'Assets',          sub:'Property & valuables',   color:T.amber },
-              { id:'investor',     emoji:'🧠', label:'Investor Profile', sub:'Risk & strategy',        color:T.violet },
-              { id:'depreciation', emoji:'📉', label:'Depreciation',    sub:'Asset value over time',  color:T.rose },
               { id:'simulator',    emoji:'🔮', label:'Simulator',       sub:'What-if scenarios',      color:T.accent },
               { id:'forecast',     emoji:'📡', label:'Forecast',        sub:'Net worth projection',   color:T.emerald },
             ].map(item => (
@@ -6132,13 +6144,13 @@ function GrowthPage({ data, actions }) {
         infoIcon={<PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP. Use the heatmap to see consistency over 18 weeks.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} />}
       />
       <TabNav
-        tabs={['character','habits','goals','achievements','chronicles','challenges','social','vision','lifemap'].map(t=>({
+        tabs={['character','habits','goals','achievements','more-growth'].map(t=>({
           id:t,
-          label:GROWTH_TAB_LABELS[t]||t,
-          badge:t==='achievements'?unlockedAchievements.length:t==='chronicles'&&(chronicles||[]).length>0?(chronicles||[]).length:null
+          label:t==='character'?GROWTH_TAB_LABELS['character']:t==='habits'?GROWTH_TAB_LABELS['habits']:t==='goals'?GROWTH_TAB_LABELS['goals']:t==='achievements'?GROWTH_TAB_LABELS['achievements']:'··· More',
+          badge:t==='achievements'?unlockedAchievements.length:null
         }))}
-        active={tab}
-        onChange={setTab}
+        active={tab==='chronicles'||tab==='challenges'||tab==='social'||tab==='vision'||tab==='lifemap'?'more-growth':tab}
+        onChange={t=>setTab(t)}
         accentColor={T.violet}
       />
 
@@ -6332,7 +6344,8 @@ function GrowthPage({ data, actions }) {
         </div>
       )}
 
-      {tab==='chronicles' && (
+      {tab==='chronicles' && (<>
+        <BackToMore onBack={()=>setTab('more-growth')} />
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <div><SectionLabel>Life Wins Journal</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Chronicle your milestones, wins, and proud moments.</div></div>
@@ -6399,7 +6412,7 @@ function GrowthPage({ data, actions }) {
             </div>
           )}
         </div>
-      )}
+      </>)}
 
       {tab==='achievements' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -6445,9 +6458,10 @@ function GrowthPage({ data, actions }) {
             </GlassCard>
           )}
         </div>
-      )}
+      </>)}
 
-      {tab==='challenges' && (
+      {tab==='challenges' && (<>
+        <BackToMore onBack={()=>setTab('more-growth')} />
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           <div><SectionLabel>30-Day Challenges</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Pick a challenge, track daily progress, earn bonus XP.</div></div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
@@ -6487,18 +6501,48 @@ function GrowthPage({ data, actions }) {
             })}
           </div>
         </div>
-      )}
+      </>)}
 
-      {tab==='social' && (
+      {tab==='social' && (<>
+        <BackToMore onBack={()=>setTab('more-growth')} />
         <SocialChallengesTab data={data} actions={actions} />
-      )}
+      </>)}
 
-      {tab==='vision' && (
+      {tab==='vision' && (<>
+        <BackToMore onBack={()=>setTab('more-growth')} />
         <VisionBoardTab />
-      )}
+      </>)}
 
-      {tab==='lifemap' && (
+      {tab==='lifemap' && (<>
+        <BackToMore onBack={()=>setTab('more-growth')} />
         <LifeMapTab data={data} actions={actions} />
+      </>)}
+
+      {tab==='more-growth' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>MORE GROWTH TOOLS</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
+            {[
+              { id:'chronicles',  emoji:'📖', label:'Chronicles',  sub:'Life diary & entries',       color:T.amber },
+              { id:'challenges',  emoji:'⚔️',  label:'Challenges',  sub:'Active challenge tracker',  color:T.rose },
+              { id:'social',      emoji:'🤝', label:'Social',      sub:'Social challenges & bets',   color:T.sky },
+              { id:'vision',      emoji:'🌌', label:'Vision Board', sub:'Goals as a mood board',     color:T.violet },
+              { id:'lifemap',     emoji:'🗺️', label:'Life Map',    sub:'Visual goal graph',          color:T.accent },
+            ].map(item => (
+              <button key={item.id} onClick={()=>setTab(item.id)}
+                style={{ display:'flex', flexDirection:'column', gap:6, padding:'16px 14px', borderRadius:T.r,
+                  background:T.glass, border:`1px solid ${item.color}33`,
+                  backdropFilter:'blur(12px)', cursor:'pointer', textAlign:'left',
+                  WebkitTapHighlightColor:'transparent' }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=item.color+'88'}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=item.color+'33'}>
+                <span style={{ fontSize:22 }}>{item.emoji}</span>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{item.label}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{item.sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
