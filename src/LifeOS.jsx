@@ -4653,7 +4653,35 @@ const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched'
   );
 }
 
-function MoneyPage({ data, actions }) {
+// Collapsible sub-section used inside the Investments tab for Trade History / Watchlist
+// and inside Tools tab for Data Import. Persists open/closed state per key.
+function InvestmentsSubSection({ title, storageKey, children }) {
+  const [open, setOpen] = useLocalStorage(storageKey, false);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+      <button
+        onClick={()=>setOpen(v=>!v)}
+        style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+          padding:'14px 18px', borderRadius: open ? `${T.r} ${T.r} 0 0` : T.r,
+          background:T.glass, border:`1px solid ${T.border}`,
+          backdropFilter:'blur(12px)', cursor:'pointer',
+          WebkitTapHighlightColor:'transparent' }}>
+        <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</span>
+        <span style={{ fontSize:14, color:T.textSub, transform: open?'rotate(180deg)':'rotate(0deg)', transition:'transform 0.2s' }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ border:`1px solid ${T.border}`, borderTop:'none',
+          borderRadius:`0 0 ${T.r} ${T.r}`,
+          background:T.glass, backdropFilter:'blur(12px)',
+          padding:'14px 4px 4px' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const lang = useLang();
   const [tab, setTab] = useState('overview');
   const [modal, setModal] = useState(null);
@@ -4672,7 +4700,6 @@ function MoneyPage({ data, actions }) {
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [goalCatFilter, setGoalCatFilter] = useState('all');
   const [spendCatFilter, setSpendCatFilter] = useState('__all__');
-  const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], goals=[], settings={}, netWorthHistory=[], subscriptions=[], budgets={}, bills=[]} = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   // Use pre-computed values from App root
@@ -4716,23 +4743,21 @@ function MoneyPage({ data, actions }) {
   const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const TABS = ['overview','spending','debts','recurring','investments','trades','watchlist','investor','depreciation','goals','assets','tools','simulator','forecast','ingest'];
+  const TABS = ['overview','spending','debts','investments','goals','tools','more'];
   const TAB_LABELS = {
-    overview:    lang==='fr'?'Vue d\'ensemble':'Overview',
+    overview:    lang==='fr'?'Vue':'Overview',
     spending:    lang==='fr'?'Dépenses':'Spending',
     debts:       lang==='fr'?'Dettes':'Debts',
-    recurring:   lang==='fr'?'Récurrent':'Recurring',
-    investments: lang==='fr'?'Investissements':'Investments',
-    trades:      lang==='fr'?'Trades':'Trades',
-    watchlist:   lang==='fr'?'Surveillance':'Watchlist',
-    investor:    lang==='fr'?'Profil':'Investor',
-    depreciation:lang==='fr'?'Dépréciation':'Depreciation',
+    investments: lang==='fr'?'Invest':'Invest',
     goals:       lang==='fr'?'Objectifs':'Goals',
-    assets:      lang==='fr'?'Actifs':'Assets',
     tools:       lang==='fr'?'Outils':'Tools',
+    more:        '··· More',
+    recurring:   lang==='fr'?'Récurrent':'Recurring',
+    investor:    lang==='fr'?'Profil Inv.':'Investor Profile',
+    depreciation:lang==='fr'?'Dépréciation':'Depreciation',
+    assets:      lang==='fr'?'Actifs':'Assets',
     simulator:   lang==='fr'?'Simulateur':'Simulator',
     forecast:    lang==='fr'?'Prévisions':'Forecast',
-    ingest:      lang==='fr'?'Import':'Ingest',
   };
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
@@ -4750,7 +4775,6 @@ function MoneyPage({ data, actions }) {
       <EditSubscriptionModal open={!!editingSub} onClose={()=>setEditingSub(null)} sub={editingSub} onSave={(id,patch)=>{actions.updateSubscription(id,patch);setEditingSub(null);}} />
       <EditBillModal open={!!editingBill} onClose={()=>setEditingBill(null)} bill={editingBill} onSave={(id,patch)=>{actions.updateBill(id,patch);setEditingBill(null);}} />
       <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} />
-      <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
       <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
       <SplitExpenseModal open={!!splitExpense} onClose={()=>setSplitExpense(null)} expense={splitExpense} cur={cur} onSave={parts=>{ actions.removeExpense(splitExpense.id); parts.forEach(p=>actions.addExpense(p)); setSplitExpense(null); }} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
@@ -4789,7 +4813,7 @@ function MoneyPage({ data, actions }) {
             <Btn onClick={()=>setModal('income')} color={T.emerald}>{lang==='fr'?'+ Revenu':' + Log Income'}</Btn>
             <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
             <Btn onClick={()=>setModal('debt')} color={T.rose}>+ Add Debt</Btn>
-            <Btn onClick={()=>setShowMonthlyReview(true)} color={T.violet}>📅 Monthly Review</Btn>
+            <Btn onClick={()=>onOpenMonthlyReview?.()} color={T.violet}>📅 Monthly Review</Btn>
           </div>
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Cash Flow — Last 6 Months</SectionLabel>
@@ -4830,7 +4854,7 @@ function MoneyPage({ data, actions }) {
           <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
             <Btn onClick={()=>setModal('expense')} color={T.rose}>{lang==='fr'?'+ Dépense':' + Log Expense'}</Btn>
             <Btn onClick={()=>setModal('budget')} color={T.amber}>📊 Budgets</Btn>
-            <Btn onClick={()=>setShowMonthlyReview(true)} color={T.violet}>📅 Monthly Review</Btn>
+            <Btn onClick={()=>onOpenMonthlyReview?.()} color={T.violet}>📅 Monthly Review</Btn>
             <div style={{ flex:1 }} />
             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
               <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Category:</span>
@@ -5364,16 +5388,16 @@ function MoneyPage({ data, actions }) {
             </GlassCard>
             {/* S4: Live Prices Panel */}
             <LivePricesPanel investments={investments} onUpdatePrice={actions.updateInvestmentPrice} />
+            {/* Trade History — merged from Trades tab */}
+            <InvestmentsSubSection title="📋 Trade History" storageKey="los_inv_trades_open">
+              <TradeJournalTab />
+            </InvestmentsSubSection>
+            {/* Watchlist — merged from Watchlist tab */}
+            <InvestmentsSubSection title="👁 Watchlist" storageKey="los_inv_watchlist_open">
+              <WatchlistTab />
+            </InvestmentsSubSection>
           </>)}
         </div>
-      )}
-
-      {tab==='trades' && (
-        <TradeJournalTab />
-      )}
-
-      {tab==='watchlist' && (
-        <WatchlistTab />
       )}
 
       {tab==='investor' && (
@@ -5684,14 +5708,49 @@ function MoneyPage({ data, actions }) {
       {tab === 'simulator' && <WhatIfSimulator data={data} />}
 
       {tab==='tools' && (
-        <MoneyToolsTab data={data} cur={cur} />
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <MoneyToolsTab data={data} cur={cur} />
+          {/* Data Import — moved from standalone Ingest tab */}
+          <InvestmentsSubSection title="📥 Import Data (CSV)" storageKey="los_tools_ingest_open">
+            <DataIngestTab data={data} actions={actions} />
+          </InvestmentsSubSection>
+        </div>
       )}
 
       {/* Forecast moved from Intelligence — belongs here with financial data */}
       {tab==='forecast' && <LifeForecastTab data={data} />}
 
-      {/* Ingest moved from Intelligence — a Money tool for importing transactions */}
-      {tab==='ingest' && <DataIngestTab data={data} actions={actions} />}
+      {/* More panel — gateway to advanced tabs */}
+      {tab==='more' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>ADVANCED TOOLS</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
+            {[
+              { id:'recurring',    emoji:'🔄', label:'Recurring',       sub:'Subscriptions & bills',  color:T.sky },
+              { id:'assets',       emoji:'🏠', label:'Assets',          sub:'Property & valuables',   color:T.amber },
+              { id:'investor',     emoji:'🧠', label:'Investor Profile', sub:'Risk & strategy',        color:T.violet },
+              { id:'depreciation', emoji:'📉', label:'Depreciation',    sub:'Asset value over time',  color:T.rose },
+              { id:'simulator',    emoji:'🔮', label:'Simulator',       sub:'What-if scenarios',      color:T.accent },
+              { id:'forecast',     emoji:'📡', label:'Forecast',        sub:'Net worth projection',   color:T.emerald },
+            ].map(item => (
+              <button key={item.id} onClick={()=>setTab(item.id)}
+                style={{ display:'flex', flexDirection:'column', gap:6, padding:'16px 14px', borderRadius:T.r,
+                  background:T.glass, border:`1px solid ${item.color}33`,
+                  backdropFilter:'blur(12px)', cursor:'pointer', textAlign:'left',
+                  transition:'border-color 0.15s', WebkitTapHighlightColor:'transparent' }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=item.color+'88'}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=item.color+'33'}>
+                <span style={{ fontSize:22 }}>{item.emoji}</span>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{item.label}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{item.sub}</div>
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>
+            💡 These sections were moved here to keep the main tab bar usable on mobile.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -14050,7 +14109,7 @@ export default function LifeOS() {
   const VIEW = {
     home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onNav={setPage} />),
     timeline:  eb(<TimelinePage  data={data} />),
-    money:     eb(<MoneyPage     data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} />),
+    money:     eb(<MoneyPage     data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenMonthlyReview={()=>setShowMonthlyReview(true)} />),
     health:    eb(<HealthPage    data={data} actions={{...actions, addVitals:addVitalsWithPop}} />),
     growth:    eb(<GrowthPage    data={data} actions={{...actions, logHabit:logHabitWithPop, addGoal:addGoalWithPop}} />),
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
