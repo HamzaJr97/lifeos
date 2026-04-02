@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v83
+// LifeOS — Personal Life Operating System  |  v84
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -575,7 +575,7 @@ const ACHIEVEMENTS = [
 ];
 const EXPENSE_COLORS = {
   '🍽️ Food':T.emerald,'🍔 Fast Food':T.amber,'🚗 Transport':T.sky,
-  '❤️ Health':T.rose,'🏠 Housing':T.violet,'💳 Debts':T.rose,'💳 Debt Payment':T.rose,
+  '❤️ Health':T.rose,'🏠 Housing':T.violet,'🏦 Debt':T.rose,'💳 Debt Payment':T.rose,
   '💰 Savings':T.accent,'🎮 Leisure':T.amber,'👕 Shopping':T.violet,
   '🔧 Other':T.textSub,'✈️ Travel':T.sky,'🚬 Tabac':T.textMuted,
 };
@@ -1491,7 +1491,7 @@ function buildSearchIndex(data) {
 // ── MODALS ─────────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','💳 Debts','💳 Debt Payment','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel','🚬 Tabac'];
+const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','🏦 Debt','💳 Debt Payment','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel','🚬 Tabac'];
 // Resolve active categories — uses custom list if configured
 const getActiveCats = () => { try { const s=JSON.parse(localStorage.getItem('los_settings')||'{}'); return s.customCats?.length ? s.customCats : CATS; } catch { return CATS; } };
 
@@ -2335,19 +2335,91 @@ function AddSubscriptionModal({ open, onClose, onSave }) {
 // Phase 2 — Budget Setup Modal
 function BudgetModal({ open, onClose, budgets, onSave }) {
   const lang = useLang();
+  // local: { [cat]: number | null }
+  //   null  = no budget set (unchecked)
+  //   number = active budget (checked + value)
   const [local, setLocal] = useState({});
-  useEffect(() => { if (open) setLocal({...budgets}); }, [open, budgets]);
+  useEffect(() => {
+    if (open) {
+      // Seed from saved budgets — a saved value means the toggle is on
+      const seeded = {};
+      getActiveCats().forEach(cat => {
+        const saved = budgets[cat];
+        seeded[cat] = (saved != null && saved !== '' && Number(saved) > 0) ? Number(saved) : null;
+      });
+      setLocal(seeded);
+    }
+  }, [open, budgets]);
+
+  const isEnabled = (cat) => local[cat] != null;
+  const toggle = (cat) => setLocal(p => ({ ...p, [cat]: p[cat] != null ? null : 0 }));
+  const setValue = (cat, raw) => {
+    const n = raw === '' ? 0 : Number(raw);
+    setLocal(p => ({ ...p, [cat]: isNaN(n) ? 0 : n }));
+  };
+
+  const activeBudgets = Object.entries(local).filter(([, v]) => v != null && v > 0);
+  const totalBudgeted = activeBudgets.reduce((s, [, v]) => s + Number(v), 0);
+  const cur = (() => { try { return JSON.parse(localStorage.getItem('los_settings')||'{}').currency||'$'; } catch { return '$'; } })();
+
   return (
     <Modal open={open} onClose={onClose} title="📊 Monthly Budgets">
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Set spending limits per category</div>
-        {getActiveCats().map(cat => (
-          <div key={cat} style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:12, fontFamily:T.fM, color:T.text, minWidth:140 }}>{cat}</span>
-            <Input type="number" value={local[cat]||''} onChange={e=>setLocal(p=>({...p,[cat]:e.target.value}))} placeholder="No limit" style={{ flex:1 }} />
+      <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+        {/* Header hint */}
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10, lineHeight:1.5 }}>
+          Toggle a category on to set a budget for it. <span style={{ color:T.textMuted }}>Off = no limit tracked.</span>
+        </div>
+        {/* Category rows */}
+        <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:340, overflowY:'auto' }}>
+          {getActiveCats().map(cat => {
+            const on = isEnabled(cat);
+            return (
+              <div key={cat} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:T.r, background: on ? `${T.accent}08` : 'transparent', border:`1px solid ${on ? T.accent+'33' : T.border}`, transition:'all 0.15s' }}>
+                {/* Toggle */}
+                <button
+                  onClick={() => toggle(cat)}
+                  style={{ flexShrink:0, width:36, height:20, borderRadius:99, background: on ? T.accent : 'rgba(255,255,255,0.1)', border:'none', cursor:'pointer', position:'relative', transition:'background 0.2s' }}>
+                  <span style={{ position:'absolute', top:2, left: on ? 18 : 2, width:16, height:16, borderRadius:'50%', background:'#fff', transition:'left 0.2s', display:'block' }} />
+                </button>
+                {/* Label */}
+                <span style={{ fontSize:12, fontFamily:T.fM, color: on ? T.text : T.textMuted, flex:1, transition:'color 0.15s' }}>{cat}</span>
+                {/* Amount input — only shown when enabled */}
+                {on && (
+                  <div style={{ display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
+                    <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{cur}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={local[cat] === 0 ? '' : local[cat]}
+                      onChange={e => setValue(cat, e.target.value)}
+                      placeholder="Amount"
+                      style={{ width:80, padding:'5px 8px', background:'rgba(255,255,255,0.06)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, outline:'none' }}
+                    />
+                    <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>/mo</span>
+                  </div>
+                )}
+                {!on && (
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, flexShrink:0 }}>No limit</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Total */}
+        {totalBudgeted > 0 && (
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+            <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{activeBudgets.length} categor{activeBudgets.length===1?'y':'ies'} budgeted</span>
+            <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(totalBudgeted)}<span style={{ fontSize:9, color:T.textSub, fontWeight:400 }}>/mo</span></span>
           </div>
-        ))}
-        <Btn full onClick={()=>{ onSave(Object.fromEntries(Object.entries(local).filter(([,v])=>v))); onClose(); }} color={T.accent} style={{ marginTop:8 }}>{lang==='fr'?'Enregistrer budgets':'Save Budgets'}</Btn>
+        )}
+        <Btn full onClick={()=>{
+          // Save: only entries that are enabled AND have a value > 0
+          // null entries are explicitly excluded (= no budget for that category)
+          const out = {};
+          Object.entries(local).forEach(([cat, val]) => { if (val != null && val > 0) out[cat] = val; });
+          onSave(out);
+          onClose();
+        }} color={T.accent} style={{ marginTop:10 }}>{lang==='fr'?'Enregistrer budgets':'Save Budgets'}</Btn>
       </div>
     </Modal>
   );
@@ -4728,29 +4800,35 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const totalBudget = useMemo(()=>Object.values(budgets||{}).reduce((s,v)=>s+Number(v||0),0),[budgets]);
   const spendByCat = useMemo(()=>{ const m={}; selMonthExpenses.forEach(e=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); }); return Object.entries(m).map(([name,value])=>({ name, value, color:getCatColor(name) })).sort((a,b)=>b.value-a.value); },[selMonthExpenses]);
   const cashflowMonths = useMemo(()=>{ const months={}; (expenses||[]).forEach(e=>{ const m=e.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].exp+=Number(e.amount||0); }); (incomes||[]).forEach(i=>{ const m=i.date?.slice(0,7); if(!m)return; if(!months[m])months[m]={m,inc:0,exp:0}; months[m].inc+=Number(i.amount||0); }); return Object.values(months).sort((a,b)=>a.m<b.m?-1:1).slice(-6); },[expenses,incomes]);
-  // Use Web Worker for >10 debts; sync fallback for small lists
+  // Use Web Worker for >10 debts; sync fallback for small lists.
+  // Worker is created ONCE on mount and reused — avoids creation/termination thrash
+  // when debts/method change rapidly.
   const [payoffInfo, setPayoffInfo] = useState(() => calcDebtPayoff(debts, 0, payoffMethod));
   const workerRef = useRef(null);
+
+  // Mount: create worker once, attach persistent message handler
   useEffect(() => {
-    if ((debts||[]).length > 10) {
-      if (!workerRef.current) workerRef.current = createDebtWorker();
-      if (workerRef.current) {
-        const w = workerRef.current;
-        const handler = (e) => {
-          const r = e.data;
-          // Worker returns timestamp instead of Date object — convert back
-          setPayoffInfo({ ...r, payoffDate: r.payoffDate ? new Date(r.payoffDate) : null });
-        };
-        w.addEventListener('message', handler);
-        w.postMessage({ debts, extraPayment: debouncedExtraPayment, method: payoffMethod });
-        return () => w.removeEventListener('message', handler);
-      }
+    const w = createDebtWorker();
+    if (w) {
+      workerRef.current = w;
+      w.onmessage = (e) => {
+        const r = e.data;
+        setPayoffInfo({ ...r, payoffDate: r.payoffDate ? new Date(r.payoffDate) : null });
+      };
     }
-    // Sync path for ≤10 debts (fast enough, <2ms)
-    setPayoffInfo(calcDebtPayoff(debts, debouncedExtraPayment, payoffMethod));
-    return undefined;
+    // Unmount: terminate
+    return () => { workerRef.current?.terminate(); workerRef.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deps change: post to existing worker, or fall back to sync for ≤10 debts
+  useEffect(() => {
+    if ((debts||[]).length > 10 && workerRef.current) {
+      workerRef.current.postMessage({ debts, extraPayment: debouncedExtraPayment, method: payoffMethod });
+    } else {
+      // Sync path — fast enough for small lists (<2ms)
+      setPayoffInfo(calcDebtPayoff(debts, debouncedExtraPayment, payoffMethod));
+    }
   }, [debts, debouncedExtraPayment, payoffMethod]);
-  useEffect(() => () => { workerRef.current?.terminate(); workerRef.current = null; }, []);
   const budgetStatus = useMemo(()=>calcBudgetStatus(expenses, budgets||{}, selectedMonth),[expenses,budgets,selectedMonth]);
   const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
