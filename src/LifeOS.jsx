@@ -312,6 +312,40 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
   return data.content?.[0]?.text || '';
 }
 
+// ── VISION VARIANT — wraps callAI for image+text messages ────────────────────
+// Builds the provider-specific image block format so ReceiptScannerModal
+// (and any future vision feature) never touches raw fetch() directly.
+async function callAIVision(settings, { b64, mimeType, prompt, max_tokens = 400 }) {
+  const provider = settings?.aiProvider || 'claude';
+  if (provider === 'ollama') {
+    throw new Error('Receipt Scanner requires a vision model. Switch to Anthropic or OpenAI in Settings → AI Provider.');
+  }
+  if (provider === 'openai') {
+    // GPT-4o expects image_url with a data URI
+    return callAI(settings, {
+      max_tokens,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${b64}` } },
+          { type: 'text', text: prompt },
+        ],
+      }],
+    });
+  }
+  // Anthropic — image block with base64 source
+  return callAI(settings, {
+    max_tokens,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mimeType, data: b64 } },
+        { type: 'text', text: prompt },
+      ],
+    }],
+  });
+}
+
 // ── S5: THEME BOOT — apply saved theme before first render ───────────────────
 // Reads localStorage synchronously at module load so T is correct on the very
 // first paint — no flash of wrong theme (FOWT) on refresh or cold start.
@@ -1492,8 +1526,13 @@ function buildSearchIndex(data) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const CATS = ['🍽️ Food','🍔 Fast Food','🚗 Transport','❤️ Health','🏠 Housing','🏦 Debt','💳 Debt Payment','💰 Savings','🎮 Leisure','👕 Shopping','🔧 Other','✈️ Travel','🚬 Tabac'];
-// Resolve active categories — uses custom list if configured
-const getActiveCats = () => { try { const s=JSON.parse(localStorage.getItem('los_settings')||'{}'); return s.customCats?.length ? s.customCats : CATS; } catch { return CATS; } };
+// Resolve active categories.
+// Pass customCats directly from React state when available (preferred — no localStorage read).
+// Falls back to a one-time localStorage read only for legacy call sites that lack settings props.
+const getActiveCats = (customCats) => {
+  if (customCats?.length) return customCats;
+  try { const s=JSON.parse(localStorage.getItem('los_settings')||'{}'); return s.customCats?.length ? s.customCats : CATS; } catch { return CATS; }
+};
 
 
 // ── SPLIT EXPENSE MODAL ───────────────────────────────────────────────────────
@@ -1525,8 +1564,8 @@ function SplitExpenseModal({ open, onClose, expense, onSave, cur }) {
         <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Split between people or categories. Total must equal 100%.</div>
         {splits.map((sp,i)=>(
           <div key={i} style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <input value={sp.name} onChange={e=>updateSplit(i,'name',e.target.value)} placeholder={`Split ${i+1} label`} style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-            <input type="number" value={sp.pct} onChange={e=>updateSplit(i,'pct',e.target.value)} min="1" max="99" style={{ width:65, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, textAlign:'center' }} />
+            <input value={sp.name} onChange={e=>updateSplit(i,'name',e.target.value)} placeholder={`Split ${i+1} label`} style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:16, color:T.text }} />
+            <input type="number" value={sp.pct} onChange={e=>updateSplit(i,'pct',e.target.value)} min="1" max="99" style={{ width:65, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:16, color:T.text, textAlign:'center' }} />
             <span style={{ fontSize:10, color:T.textSub, flexShrink:0 }}>%</span>
             {splits.length>2&&<button onClick={()=>removeSplit(i)} style={{ padding:'4px 6px', borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.6 }}><IcoTrash size={10} stroke={T.rose} /></button>}
           </div>
@@ -1567,31 +1606,8 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, curre
       const b64 = e.target.result.split(',')[1];
       setImgPreview(e.target.result);
       try {
-        let text = '';
-        if (provider === 'openai') {
-          const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model:'gpt-4o', max_tokens:400, messages:[{ role:'user', content:[
-              { type:'image_url', image_url:{ url:`data:${file.type||'image/jpeg'};base64,${b64}` } },
-              { type:'text', text:'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.' }
-            ]}] })
-          });
-          const d = await res.json();
-          text = d.choices?.[0]?.message?.content || '';
-        } else {
-          // Anthropic (default)
-          const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-            body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:400, messages:[{ role:'user', content:[
-              { type:'image', source:{ type:'base64', media_type:file.type||'image/jpeg', data:b64 } },
-              { type:'text', text:'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.' }
-            ]}] })
-          });
-          const d = await res.json();
-          text = d.content?.find(b=>b.type==='text')?.text || '';
-        }
+        const RECEIPT_PROMPT = 'Extract this receipt. Respond ONLY with valid JSON (no markdown): {"merchant":"","amount":0,"date":"YYYY-MM-DD","category":"Food & Drink","items":"short summary of items"}. Use today if date unclear. Category must be one of: Food & Drink, Transport, Shopping, Health, Entertainment, Utilities, Housing, Other.';
+        const text = await callAIVision(settings, { b64, mimeType: file.type || 'image/jpeg', prompt: RECEIPT_PROMPT, max_tokens: 400 });
         const clean = text.replace(/```json?|```/g,'').trim();
         const parsed = JSON.parse(clean);
         setResult(parsed);
@@ -1672,13 +1688,14 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, curre
   );
 }
 
-function LogExpenseModal({ open, onClose, onSave, goals=[], onGoalProgress }) {
+function LogExpenseModal({ open, onClose, onSave, goals=[], onGoalProgress, settings }) {
   const [regret, setRegret] = useState(false);
   const [trigger, setTrigger] = useState('');   // friction log: what caused this
   const [subcategory, setSubcategory] = useState('');
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
   const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
+  const activeCats = useMemo(() => getActiveCats(settings?.customCats), [settings?.customCats]);
   const [goalId, setGoalId] = useState('');
 
   useEffect(() => { if (!open) { setRegret(false); setTrigger(''); setGoalId(''); } }, [open]);
@@ -1702,7 +1719,7 @@ function LogExpenseModal({ open, onClose, onSave, goals=[], onGoalProgress }) {
     <Modal open={open} onClose={onClose} title="💳 Log Expense">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
-        <Select value={cat} onChange={e=>setCat(e.target.value)}>{getActiveCats().map(c=><option key={c}>{c}</option>)}</Select>
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>{activeCats.map(c=><option key={c}>{c}</option>)}</Select>
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <Input value={subcategory} onChange={e=>setSubcategory(e.target.value)} placeholder="Subcategory (e.g. Groceries, Gym — optional)" />
@@ -2333,8 +2350,9 @@ function AddSubscriptionModal({ open, onClose, onSave }) {
 }
 
 // Phase 2 — Budget Setup Modal
-function BudgetModal({ open, onClose, budgets, onSave }) {
+function BudgetModal({ open, onClose, budgets, onSave, settings }) {
   const lang = useLang();
+  const activeCats = useMemo(() => getActiveCats(settings?.customCats), [settings?.customCats]);
   // local: { [cat]: number | null }
   //   null  = no budget set (unchecked)
   //   number = active budget (checked + value)
@@ -2343,13 +2361,13 @@ function BudgetModal({ open, onClose, budgets, onSave }) {
     if (open) {
       // Seed from saved budgets — a saved value means the toggle is on
       const seeded = {};
-      getActiveCats().forEach(cat => {
+      activeCats.forEach(cat => {
         const saved = budgets[cat];
         seeded[cat] = (saved != null && saved !== '' && Number(saved) > 0) ? Number(saved) : null;
       });
       setLocal(seeded);
     }
-  }, [open, budgets]);
+  }, [open, budgets, activeCats]);
 
   const isEnabled = (cat) => local[cat] != null;
   const toggle = (cat) => setLocal(p => ({ ...p, [cat]: p[cat] != null ? null : 0 }));
@@ -2371,7 +2389,7 @@ function BudgetModal({ open, onClose, budgets, onSave }) {
         </div>
         {/* Category rows */}
         <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:340, overflowY:'auto' }}>
-          {getActiveCats().map(cat => {
+          {activeCats.map(cat => {
             const on = isEnabled(cat);
             return (
               <div key={cat} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:T.r, background: on ? `${T.accent}08` : 'transparent', border:`1px solid ${on ? T.accent+'33' : T.border}`, transition:'all 0.15s' }}>
@@ -2426,16 +2444,17 @@ function BudgetModal({ open, onClose, budgets, onSave }) {
 }
 
 // S1 — Edit Expense Modal
-function EditExpenseModal({ open, onClose, expense, onSave }) {
+function EditExpenseModal({ open, onClose, expense, onSave, settings }) {
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
+  const activeCats = useMemo(() => getActiveCats(settings?.customCats), [settings?.customCats]);
   useEffect(() => { if (expense && open) { setAmt(String(expense.amount||'')); setCat(expense.category||'🍽️ Food'); setNote(expense.note||''); setDate(expense.date||today()); } }, [expense, open]);
   const save = () => { if (!amt) return; onSave(expense.id, { amount:Number(amt), category:cat, note, date }); onClose(); };
   return (
     <Modal open={open} onClose={onClose} title="✏️ Edit Expense">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <Input type="number" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="Amount" />
-        <Select value={cat} onChange={e=>setCat(e.target.value)}>{getActiveCats().map(c=><option key={c}>{c}</option>)}</Select>
+        <Select value={cat} onChange={e=>setCat(e.target.value)}>{activeCats.map(c=><option key={c}>{c}</option>)}</Select>
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
         <Btn full onClick={save} color={T.rose}>💾 Save Changes</Btn>
@@ -4246,7 +4265,7 @@ function HomePage({ data, actions, onNav }) {
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} />
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} settings={settings} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} />
@@ -4850,7 +4869,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <ReceiptScannerModal open={receiptScannerOpen} onClose={()=>setReceiptScannerOpen(false)} onExpenseDetected={e=>{actions.addExpense(e);setReceiptScannerOpen(false);}} settings={data.settings} currency={cur} />
-      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} />
+      <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} settings={settings} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <EditIncomeModal open={!!editIncome} onClose={()=>setEditIncome(null)} income={editIncome} onSave={(id,patch)=>{actions.updateIncome(id,patch);setEditIncome(null);}} />
       <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}} />
@@ -4862,8 +4881,8 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       <AddBillModal open={modal==='bill'} onClose={()=>setModal(null)} onSave={e=>{actions.addBill(e);setModal(null);}} />
       <EditSubscriptionModal open={!!editingSub} onClose={()=>setEditingSub(null)} sub={editingSub} onSave={(id,patch)=>{actions.updateSubscription(id,patch);setEditingSub(null);}} />
       <EditBillModal open={!!editingBill} onClose={()=>setEditingBill(null)} bill={editingBill} onSave={(id,patch)=>{actions.updateBill(id,patch);setEditingBill(null);}} />
-      <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} />
-      <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} />
+      <BudgetModal open={modal==='budget'} onClose={()=>setModal(null)} budgets={budgets||{}} onSave={actions.setBudgets} settings={settings} />
+      <EditExpenseModal open={!!editExpense} onClose={()=>setEditExpense(null)} expense={editExpense} onSave={(id,patch)=>{actions.updateExpense(id,patch);setEditExpense(null);}} settings={settings} />
       <SplitExpenseModal open={!!splitExpense} onClose={()=>setSplitExpense(null)} expense={splitExpense} cur={cur} onSave={parts=>{ actions.removeExpense(splitExpense.id); parts.forEach(p=>actions.addExpense(p)); setSplitExpense(null); }} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
       <EditGoalModal open={!!editGoalMoney} onClose={()=>setEditGoalMoney(null)} goal={editGoalMoney} onSave={(id,patch)=>{actions.updateGoal(id,patch);setEditGoalMoney(null);}} />
@@ -14346,7 +14365,7 @@ export default function LifeOS() {
       <BottomNav active={page} onNav={setPage} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
 
       {/* Global modals triggered from Command Palette / FAB */}
-      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpenseWithPop(e);setGlobalModal(null);}} goals={_goals} onGoalProgress={actions.updateGoalProgress} />
+      <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpenseWithPop(e);setGlobalModal(null);}} goals={_goals} onGoalProgress={actions.updateGoalProgress} settings={settings} />
       <LogIncomeModal open={globalModal==='income'} onClose={()=>setGlobalModal(null)} onSave={e=>{addIncomeWithPop(e);setGlobalModal(null);}} />
       <LogHabitModal open={globalModal==='habit'} onClose={()=>setGlobalModal(null)} habits={habits} habitLogs={habitLogs} onLog={logHabitWithPop} onAddHabit={actions.addHabit} />
       <LogVitalsModal open={globalModal==='vitals'} onClose={()=>setGlobalModal(null)} onSave={e=>{addVitalsWithPop(e);setGlobalModal(null);}} />
