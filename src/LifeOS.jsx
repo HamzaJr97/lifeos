@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v84
+// LifeOS — Personal Life Operating System  |  v86
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -6306,13 +6306,42 @@ function GrowthPage({ data, actions }) {
   const CLASSES = ['Apprentice','Seeker','Wanderer','Scholar','Artisan','Champion','Sage','Master','Grandmaster','Legend'];
   const heroClass = CLASSES[Math.min(level-1,CLASSES.length-1)];
   const d = today();
+  // ── LIFE_STATS SCORING METHODOLOGY ──────────────────────────────────────────
+  // Health (0-100): quality-weighted average of last 7 vitals entries.
+  //   Sleep component  (40 pts): avg(sleep / 8h target) × 40
+  //   Mood component   (30 pts): avg(mood  / 10)        × 30
+  //   Energy component (30 pts): avg(energy / 10)       × 30
+  //   → Requires actual quality data, not just entry count.
+  // Knowledge (0-100): three additive components, each capped:
+  //   Count   (≤40): notes.length × 4  (10+ notes → full 40 pts)
+  //   Recency (≤30): +30 if any note added in last 14 days, +10 if any note exists
+  //   Diversity (≤30): unique tag count × 6  (5 distinct tags → full 30 pts)
+  // Focus (0-100): total logged focus minutes ÷ 6  (600 min = 100 pts)
+  //   → Rewards accumulated deep-work time, not just session count.
+  // Financial: finance-goal progress ratio × 100 (existing approach, meaningful)
+  // Habits: entry-count × 12, Habits score (existing approach)
+  // Growth: XP-based (existing approach)
+  const _v7 = (data.vitals||[]).slice(-7);
+  const _healthVal = _v7.length === 0 ? 0 : Math.min(100, Math.round(
+    (_v7.reduce((s,v) => s + Math.min(1, Number(v.sleep||0) / 8), 0) / _v7.length) * 40 +
+    (_v7.reduce((s,v) => s + Number(v.mood||0), 0)   / _v7.length / 10) * 30 +
+    (_v7.reduce((s,v) => s + Number(v.energy||0), 0) / _v7.length / 10) * 30
+  ));
+  const _notes = data.notes || [];
+  const _noteCountScore    = Math.min(40, _notes.length * 4);
+  const _recentNotes       = _notes.filter(n => n.date && (Date.now() - new Date(n.date).getTime()) / 86400000 <= 14);
+  const _noteRecencyScore  = _recentNotes.length > 0 ? 30 : _notes.length > 0 ? 10 : 0;
+  const _noteTagScore      = Math.min(30, new Set(_notes.map(n => n.tag).filter(Boolean)).size * 6);
+  const _knowledgeVal      = Math.min(100, _noteCountScore + _noteRecencyScore + _noteTagScore);
+  const _totalFocusMins    = (data.focusSessions||[]).reduce((s,f) => s + (Number(f.duration)||0), 0);
+  const _focusVal          = Math.min(100, Math.round(_totalFocusMins / 6));
   const LIFE_STATS = [
     { label:'Financial', val:Math.min(100,Math.round((goals||[]).filter(g=>g.cat==='finance').length*25)), color:T.emerald },
-    { label:'Health',    val:Math.min(100,data.vitals.length*8), color:T.sky },
+    { label:'Health',    val:_healthVal,    color:T.sky },
     { label:'Habits',    val:Math.min(100,(habits||[]).length*12), color:T.accent },
     { label:'Growth',    val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet },
-    { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose },
-    { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber },
+    { label:'Focus',     val:_focusVal,     color:T.rose },
+    { label:'Knowledge', val:_knowledgeVal, color:T.amber },
   ];
   const unlockedAchievements = useMemo(() => ACHIEVEMENTS.filter(a => a.check(data)), [data]);
   const lockedAchievements = useMemo(() => ACHIEVEMENTS.filter(a => !a.check(data)), [data]);
@@ -8374,36 +8403,8 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
   }, [habits, habitLogs]);
 
   const bestStreak = useMemo(() => Object.values(streakCache).reduce((mx,s)=>s>mx?s:mx, 0), [streakCache]);
-  const detectedRecurring = useMemo(() => {
-    const byNote = {};
-    (expenses||[]).forEach(e => {
-      const key = (e.note||e.category||'').toLowerCase().trim().slice(0,30);
-      if (!key) return;
-      if (!byNote[key]) byNote[key] = [];
-      byNote[key].push(e);
-    });
-    return Object.entries(byNote)
-      .filter(([,list]) => {
-        if (list.length < 2) return false;
-        const months = [...new Set(list.map(e=>e.date?.slice(0,7)))];
-        if (months.length < 2) return false;
-        const amounts = list.map(e=>Number(e.amount||0));
-        const avg = amounts.reduce((s,a)=>s+a,0)/amounts.length;
-        const allClose = amounts.every(a => Math.abs(a-avg)/Math.max(avg,1) < 0.15);
-        return allClose;
-      })
-      .map(([key,list]) => ({
-        name: list[0].note||list[0].category||key,
-        category: list[0].category,
-        avgAmount: list.reduce((s,e)=>s+Number(e.amount||0),0)/list.length,
-        count: list.length,
-        months: [...new Set(list.map(e=>e.date?.slice(0,7)))].sort().slice(-3),
-      }))
-      .sort((a,b) => b.avgAmount - a.avgAmount)
-      .slice(0,8);
-  }, [expenses]);
-
-  // Detected recurring transactions (appear 2+ months at similar amount)
+  // detectedRecurring is computed once in data.computed — no local duplication needed.
+  const detectedRecurring = data.computed.detectedRecurring || [];
   const habitAnalytics = useMemo(() => {
     const weeks = Array.from({length:8},(_,i)=>{
       const start = new Date(); start.setDate(start.getDate() - start.getDay() - 7*(7-i));
@@ -8428,13 +8429,32 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
     (goals||[]).length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
     (goals||[]).length>0 && { title:'Goal Progress', body:`${(goals||[]).filter(g=>(g.current||0)>=g.target).length} of ${(goals||[]).length} goals completed. Average progress: ${Math.round((goals||[]).reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,(goals||[]).length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
   ].filter(Boolean).slice(0,6);
+  // ── LIFE_STATS SCORING METHODOLOGY ──────────────────────────────────────────
+  // Shared quality-based formulas — see GrowthPage for full documentation.
+  // Health:    last-7-vitals weighted avg (sleep/8h→40, mood/10→30, energy/10→30)
+  // Knowledge: count(≤40) + recency-14d(≤30) + tag-diversity(≤30)
+  // Focus:     total focus-minutes ÷ 6  (600 min = perfect score)
+  const _iq_v7 = (vitals||[]).slice(-7);
+  const _iq_healthVal = _iq_v7.length === 0 ? 0 : Math.min(100, Math.round(
+    (_iq_v7.reduce((s,v) => s + Math.min(1, Number(v.sleep||0) / 8), 0) / _iq_v7.length) * 40 +
+    (_iq_v7.reduce((s,v) => s + Number(v.mood||0), 0)   / _iq_v7.length / 10) * 30 +
+    (_iq_v7.reduce((s,v) => s + Number(v.energy||0), 0) / _iq_v7.length / 10) * 30
+  ));
+  const _iq_notes          = data.notes || [];
+  const _iq_countScore     = Math.min(40, _iq_notes.length * 4);
+  const _iq_recentNotes    = _iq_notes.filter(n => n.date && (Date.now() - new Date(n.date).getTime()) / 86400000 <= 14);
+  const _iq_recencyScore   = _iq_recentNotes.length > 0 ? 30 : _iq_notes.length > 0 ? 10 : 0;
+  const _iq_tagScore       = Math.min(30, new Set(_iq_notes.map(n => n.tag).filter(Boolean)).size * 6);
+  const _iq_knowledgeVal   = Math.min(100, _iq_countScore + _iq_recencyScore + _iq_tagScore);
+  const _iq_totalFocusMins = (data.focusSessions||[]).reduce((s,f) => s + (Number(f.duration)||0), 0);
+  const _iq_focusVal       = Math.min(100, Math.round(_iq_totalFocusMins / 6));
   const LIFE_STATS = [
     { label:'Financial', val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+((debts||[]).length===0?20:0))), color:T.emerald },
-    { label:'Health',    val:Math.min(100,(vitals||[]).length*8), color:T.sky },
+    { label:'Health',    val:_iq_healthVal,    color:T.sky },
     { label:'Habits',    val:Math.min(100,(habits||[]).length*15+bestStreak*2), color:T.accent },
     { label:'Growth',    val:Math.min(100,Math.round(Number(totalXP)/50)), color:T.violet },
-    { label:'Focus',     val:Math.min(100,data.focusSessions.length*5), color:T.rose },
-    { label:'Knowledge', val:Math.min(100,data.notes.length*10), color:T.amber },
+    { label:'Focus',     val:_iq_focusVal,     color:T.rose },
+    { label:'Knowledge', val:_iq_knowledgeVal, color:T.amber },
   ];
   const CAT_COLORS = [T.accent,T.rose,T.violet,T.sky,T.amber,T.emerald];
   return (
@@ -14184,8 +14204,38 @@ export default function LifeOS() {
       .reduce((m,e)=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); return m; }, {});
     const topCatEntry = Object.entries(spendByCatMap).sort((a,b)=>b[1]-a[1])[0] || null;
     const level     = Math.floor(Math.sqrt(Number(totalXP)||0)/100)+1;
+
+    // ── detectedRecurring — computed ONCE here, consumed by IntelligencePage + Money hub.
+    // Algorithm: group expenses by normalised name/note key; keep groups that span 2+
+    // distinct calendar months and whose amounts stay within ±15 % of the group average.
+    const _drByNote = {};
+    _expenses.forEach(e => {
+      const key = (e.note||e.category||'').toLowerCase().trim().slice(0,30);
+      if (!key) return;
+      if (!_drByNote[key]) _drByNote[key] = [];
+      _drByNote[key].push(e);
+    });
+    const detectedRecurring = Object.entries(_drByNote)
+      .filter(([,list]) => {
+        if (list.length < 2) return false;
+        const months = [...new Set(list.map(e => e.date?.slice(0,7)))];
+        if (months.length < 2) return false;
+        const amounts = list.map(e => Number(e.amount||0));
+        const avg = amounts.reduce((s,a) => s+a, 0) / amounts.length;
+        return amounts.every(a => Math.abs(a-avg) / Math.max(avg,1) < 0.15);
+      })
+      .map(([key,list]) => ({
+        name:      list[0].note || list[0].category || key,
+        category:  list[0].category,
+        avgAmount: list.reduce((s,e) => s+Number(e.amount||0), 0) / list.length,
+        count:     list.length,
+        months:    [...new Set(list.map(e => e.date?.slice(0,7)))].sort().slice(-3),
+      }))
+      .sort((a,b) => b.avgAmount - a.avgAmount)
+      .slice(0,8);
+
     return { monthInc, monthExp, invVal, assetVal, debtVal, nw, savRate, thisMonth:_thisMonth,
-             spendByCatMap, topCatEntry, level };
+             spendByCatMap, topCatEntry, level, detectedRecurring };
   }, [_incomes, _expenses, _investments, _assets, _debts, _thisMonth, totalXP]);
 
   const actions = {
