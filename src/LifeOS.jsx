@@ -346,6 +346,39 @@ async function callAIVision(settings, { b64, mimeType, prompt, max_tokens = 400 
   });
 }
 
+// ── LIFE CONTEXT BUILDER — single source of truth for all AI system prompts ──
+// Accepts the full `data` object (same shape as the root data prop) and returns
+// a formatted context string. All AI features (Intelligence coach, Knowledge
+// chat, FinCoach, Weekly Brief, etc.) call this instead of building their own.
+function buildLifeContext(data) {
+  const {
+    expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[],
+    assets=[], investments=[], debts=[], totalXP=0, settings={}, computed={},
+  } = data || {};
+  const cur = settings?.currency || '$';
+  const m = today().slice(0,7);
+  const mInc  = computed?.monthInc  ?? (incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const mExp  = computed?.monthExp  ?? (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const invVal = computed?.invVal   ?? (investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+  const nw    = computed?.nw        ?? ((assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal-(debts||[]).reduce((s,d)=>s+Number(d.balance||0),0));
+  const savRate = computed?.savRate ?? (mInc>0?((mInc-mExp)/mInc*100):0);
+  const habitSum = (habits||[]).map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ') || 'none';
+  const goalSum  = (goals||[]).map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ') || 'none';
+  const v7 = (vitals||[]).slice(-7);
+  const avgSlp = v7.length ? (v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1) : 'N/A';
+  const topExp = [...(expenses||[])].sort((a,b)=>Number(b.amount||0)-Number(a.amount||0)).slice(0,5).map(e=>`${e.category}: ${cur}${e.amount}`).join(', ') || 'none';
+  const level = Math.floor(Math.sqrt(Number(totalXP)/100))+1;
+  return `USER'S REAL LIFE DATA (LifeOS):
+Net Worth: ${cur}${fmtN(nw)} | Investments: ${cur}${fmtN(invVal)}
+This Month: Income ${cur}${fmtN(mInc)}, Expenses ${cur}${fmtN(mExp)}, Savings rate ${savRate.toFixed(1)}%
+Top expenses: ${topExp}
+Debts: ${(debts||[]).length} totaling ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}
+Habits: ${habitSum}
+Goals: ${goalSum}
+Avg Sleep (7d): ${avgSlp}h
+Level: ${level}, ${totalXP} XP`;
+}
+
 // ── S5: THEME BOOT — apply saved theme before first render ───────────────────
 // Reads localStorage synchronously at module load so T is correct on the very
 // first paint — no flash of wrong theme (FOWT) on refresh or cold start.
@@ -4784,6 +4817,47 @@ function InvestmentsSubSection({ title, storageKey, children }) {
   );
 }
 
+// ── NET WORTH PROJECTION CARD — collapsible, lives in Money > Overview ────────
+function NwProjectionCard({ chartData, hasProjection, cur }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }} onClick={()=>setOpen(v=>!v)}>
+        <div>
+          <SectionLabel>💎 Net Worth Projection</SectionLabel>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>History + 6-month linear forecast</div>
+        </div>
+        <button style={{ background:'none', border:'none', cursor:'pointer', color:T.textSub, fontSize:14, transition:'transform 0.2s', transform:open?'rotate(180deg)':'rotate(0deg)' }}>▾</button>
+      </div>
+      {open && (
+        <div style={{ marginTop:16 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={chartData} margin={{top:4,right:0,left:0,bottom:0}}>
+              <defs>
+                <linearGradient id="nwGradMoney" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.35}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient>
+                <linearGradient id="projGradMoney" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.violet} stopOpacity={0.2}/><stop offset="100%" stopColor={T.violet} stopOpacity={0}/></linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+              <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+              <YAxis hide />
+              <Tooltip content={<ChartTooltip prefix={cur} />} />
+              <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#nwGradMoney)" dot={false} />
+              {hasProjection && <Area type="monotone" dataKey="projected" name="Projected" stroke={T.violet} strokeWidth={1.5} strokeDasharray="4 3" fill="url(#projGradMoney)" dot={false} />}
+            </AreaChart>
+          </ResponsiveContainer>
+          {hasProjection && (
+            <div style={{ display:'flex', gap:16, marginTop:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.accent }} />Actual</div>
+              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.violet, opacity:0.7 }} />6-month projection</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Based on recent growth rate · not financial advice</div>
+            </div>
+          )}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const lang = useLang();
   const [tab, setTab] = useState('overview');
@@ -4937,6 +5011,21 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               </ResponsiveContainer>
             ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow trends.</div>}
           </GlassCard>
+          {/* ── Net Worth Projection (moved from Intelligence) ─────────────── */}
+          {(() => {
+            const nwHist = netWorthHistory.slice(-12);
+            if (nwHist.length < 2) return null;
+            const growth = (nwHist[nwHist.length-1].value - nwHist[0].value) / Math.max(1, nwHist.length-1);
+            const projected = Array.from({length:6},(_,i) => ({
+              month: (() => { const d=new Date(); d.setMonth(d.getMonth()+i+1); return d.toISOString().slice(0,7); })(),
+              projected: Math.round(nwHist[nwHist.length-1].value + growth*(i+1)),
+            }));
+            const chartData = [...nwHist, ...projected];
+            const hasProjection = projected.some(d=>d.projected);
+            return (
+              <NwProjectionCard chartData={chartData} hasProjection={hasProjection} cur={cur} />
+            );
+          })()}
           {(debts||[]).length>0 && (
             <GlassCard style={{ padding:'20px 22px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
@@ -6783,10 +6872,7 @@ function KnowledgePage({ data, actions }) {
   const {notes=[], expenses=[], incomes=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, assets=[], investments=[], debts=[], settings={}, quickNotes=[]} = data;
   const cur = settings.currency||'$';
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
-  const buildContext = () => {
-    const m=today().slice(0,7); const mInc=(incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0); const mExp=(expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0); const invVal=(investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0); const nw=(assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal-(debts||[]).reduce((s,d)=>s+Number(d.balance||0),0); const sr=mInc>0?((mInc-mExp)/mInc*100).toFixed(1):0; const habitSum=(habits||[]).map(h=>`${h.name} (streak:${getStreak(h.id,habitLogs)}d)`).join(', ')||'none'; const goalSum=(goals||[]).map(g=>`${g.name}: ${Math.round(((g.current||0)/Math.max(1,g.target))*100)}%`).join(', ')||'none'; const v7=(vitals||[]).slice(-7); const avgSlp=v7.length?(v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1):'N/A';
-    return `USER'S REAL LIFE DATA:\nNet Worth: ${cur}${fmtN(nw)}\nThis Month: income ${cur}${fmtN(mInc)}, expenses ${cur}${fmtN(mExp)}, savings rate ${sr}%\nInvestments: ${cur}${fmtN(invVal)}\nLevel: ${Math.floor(Math.sqrt(Number(totalXP)/100))+1}, ${totalXP} XP\nHabits: ${habitSum}\nGoals: ${goalSum}\nAvg Sleep (7d): ${avgSlp}h\nDebts: ${(debts||[]).length} totaling ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}`;
-  };
+  const buildContext = () => buildLifeContext(data);
   const apiKey = settings.aiApiKey || '';
   const send = async () => {
     if (!input.trim()||loading) return;
@@ -8264,13 +8350,13 @@ function DataIngestTab({ data, actions }) {
 }
 
 // ── INTELLIGENCE PAGE ─────────────────────────────────────────────────────────
-function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpenParallel, onOpenAmbient }) {
+function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpenParallel, onOpenAmbient, onNav }) {
   const lang = useLang();
   const [tab, setTab] = useState('overview');
   const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
   const [coachInput, setCoachInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
-  const {expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], assets=[], investments=[], debts=[], totalXP=0, settings={}, netWorthHistory=[]} = data;
+  const {expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], assets=[], debts=[], totalXP=0, settings={}} = data;
   const cur = settings.currency||'$';
   // Use pre-computed values from App root
   const { monthExp, monthInc, invVal, nw, savRate, thisMonth, topCatEntry, level: lvl } = data.computed;
@@ -8279,33 +8365,15 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
   const avgSleep7 = useMemo(()=>{ const v=(vitals||[]).slice(-7); return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?'; },[vitals]);
   const level = lvl; // from data.computed
   const todayDone = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today())).length;
-  const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
 
-  // Spending trends — last 6 months by category
-  const spendTrends = useMemo(() => {
-    const months = Array.from({length:6},(_,i)=>{ const d=new Date(); d.setMonth(d.getMonth()-5+i); return d.toISOString().slice(0,7); });
-    const cats = [...new Set((expenses||[]).map(e=>e.category))].slice(0,6);
-    return { months, cats, data: months.map(m => {
-      const row = { month: m.slice(5) };
-      cats.forEach(c => { row[c] = (expenses||[]).filter(e=>e.date?.startsWith(m)&&e.category===c).reduce((s,e)=>s+Number(e.amount||0),0); });
-      row._total = (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
-      return row;
-    })};
-  }, [expenses]);
+  // Streak cache — computed once per habitLogs change, O(N·days) paid once
+  const streakCache = useMemo(() => {
+    const cache = {};
+    (habits||[]).forEach(h => { cache[h.id] = getStreak(h.id, habitLogs); });
+    return cache;
+  }, [habits, habitLogs]);
 
-  // Net worth projections
-  const nwProjection = useMemo(() => {
-    const months = netWorthHistory.slice(-12);
-    if (months.length < 2) return [];
-    const growth = (months[months.length-1].value - months[0].value) / Math.max(1, months.length-1);
-    const projected = Array.from({length:6},(_,i) => ({
-      month: (() => { const d=new Date(); d.setMonth(d.getMonth()+i+1); return d.toISOString().slice(0,7); })(),
-      projected: Math.round(months[months.length-1].value + growth*(i+1)),
-    }));
-    return [...months, ...projected];
-  }, [netWorthHistory]);
-
-  // Detected recurring transactions (appear 2+ months at similar amount)
+  const bestStreak = useMemo(() => Object.values(streakCache).reduce((mx,s)=>s>mx?s:mx, 0), [streakCache]);
   const detectedRecurring = useMemo(() => {
     const byNote = {};
     (expenses||[]).forEach(e => {
@@ -8335,7 +8403,7 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
       .slice(0,8);
   }, [expenses]);
 
-  // Habit weekly analytics — last 8 weeks consistency %
+  // Detected recurring transactions (appear 2+ months at similar amount)
   const habitAnalytics = useMemo(() => {
     const weeks = Array.from({length:8},(_,i)=>{
       const start = new Date(); start.setDate(start.getDate() - start.getDay() - 7*(7-i));
@@ -8379,38 +8447,114 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
       <TabNav
         tabs={[
           {id:'overview',   label:'🧠 Overview'},
-          {id:'spending',   label:'📊 Spending'},
-          {id:'net worth',  label:'💎 Net Worth'},
           {id:'habits',     label:'🔥 Habits'},
-          {id:'recurring',  label:'🔄 Recurring'},
         ]}
         active={tab}
         onChange={setTab}
         accentColor='#c084fc'
       />
 
-      {/* ── New Feature launch cards — always visible at top of overview ── */}
-      {tab==='overview' && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10, marginBottom:22 }}>
-          {[
-            { icon:'📡', title:'Pattern Engine', sub:'Hidden correlations in your data', color:'#c084fc', bg:'rgba(192,132,252,0.08)', border:'rgba(192,132,252,0.25)', key:'G', action: onOpenPatterns },
-            { icon:'🕸️', title:'Life Graph',    sub:'Visual map of everything connected', color:T.accent,  bg:T.accentLo,              border:T.accent+'33',           key:'G', action: onOpenGraph    },
-            { icon:'🔀', title:'Parallel You',  sub:'Simulate alternate timelines',      color:T.sky,    bg:'rgba(56,189,248,0.08)',   border:'rgba(56,189,248,0.25)', key:'Z', action: onOpenParallel },
-            { icon:'🌊', title:'Ambient Mode',  sub:'Living dashboard screensaver',      color:T.amber,  bg:T.amberDim,               border:T.amber+'33',           key:'`', action: onOpenAmbient  },
-          ].map((feat,i)=>(
-            <button key={i} onClick={feat.action} style={{ padding:'16px', borderRadius:14, background:feat.bg, border:`1px solid ${feat.border}`, textAlign:'left', cursor:'pointer', transition:'all 0.18s', display:'flex', flexDirection:'column', gap:6 }}
-              onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.borderColor=feat.color+'66';}}
-              onMouseLeave={e=>{e.currentTarget.style.transform='translateY(0)';e.currentTarget.style.borderColor=feat.border;}}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <span style={{ fontSize:22 }}>{feat.icon}</span>
-                <kbd style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:3, padding:'1px 5px', fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{feat.key}</kbd>
+      {/* ── Feature section: embedded previews for Pattern & Graph, compact launchers for immersive tools ── */}
+      {tab==='overview' && (() => {
+        // Compute top local patterns inline (same logic as PatternEngine.localCorrelations)
+        const previewPatterns = (() => {
+          const results = [];
+          const weekendExp = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d===0||d===6;}).reduce((s,e)=>s+Number(e.amount||0),0);
+          const weekendDays = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d===0||d===6;}).length;
+          const weekdayExp = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d>=1&&d<=5;}).reduce((s,e)=>s+Number(e.amount||0),0);
+          const weekdayDays = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d>=1&&d<=5;}).length;
+          if (weekendDays>3&&weekdayDays>3){const wa=weekendExp/weekendDays,wd=weekdayExp/weekdayDays;if(wa>wd*1.3)results.push({icon:'📅',title:'Weekend Spending Surge',strength:Math.min(99,Math.round((wa/wd-1)*100)),color:'#fbbf24',desc:`${cur}${wa.toFixed(0)}/day weekends vs ${cur}${wd.toFixed(0)}/day weekdays`});}
+          const vWithBoth=(vitals||[]).filter(v=>v.sleep&&v.mood);
+          if(vWithBoth.length>=5){const hi=vWithBoth.filter(v=>Number(v.sleep)>=7),lo=vWithBoth.filter(v=>Number(v.sleep)<7);if(hi.length>=2&&lo.length>=2){const mh=hi.reduce((s,v)=>s+Number(v.mood),0)/hi.length,ml=lo.reduce((s,v)=>s+Number(v.mood),0)/lo.length;if(Math.abs(mh-ml)>=1)results.push({icon:'😴',title:'Sleep Drives Mood',strength:Math.min(99,Math.round(Math.abs(mh-ml)/10*100+40)),color:'#38bdf8',desc:`Mood ${mh.toFixed(1)}/10 with 7h+ sleep vs ${ml.toFixed(1)}/10 below`});}}
+          const totalLogs=Object.values(habitLogs).flat().length;
+          const avgStreak=(habits||[]).length?(habits||[]).map(h=>streakCache[h.id]||0).reduce((s,x)=>s+x,0)/(habits||[]).length:0;
+          if(totalLogs>20&&avgStreak>0)results.push({icon:'🔥',title:'Habit Compound Effect',strength:Math.min(99,Math.round(avgStreak*3+40)),color:'#00f5d4',desc:`${(habits||[]).length} habits · ${totalLogs} logs · ${avgStreak.toFixed(1)}d avg streak`});
+          return results.slice(0,2);
+        })();
+        // Graph preview stats
+        const catCount = [...new Set((expenses||[]).map(e=>e.category).filter(Boolean))].length;
+        const nodeCount = catCount + Math.min(8,(habits||[]).length) + Math.min(6,(goals||[]).length) + 4;
+        const edgeCount = catCount + Math.min(8,(habits||[]).length) + Math.min(6,(goals||[]).length);
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:20 }}>
+            {/* Pattern Engine preview card */}
+            <GlassCard style={{ padding:'18px 20px', border:`1px solid rgba(192,132,252,0.25)`, background:'rgba(192,132,252,0.05)' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:previewPatterns.length>0?12:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:20 }}>📡</span>
+                  <div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:'#c084fc' }}>Pattern Engine</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{previewPatterns.length > 0 ? `${previewPatterns.length} correlations detected in your data` : 'Finds hidden correlations across your life data'}</div>
+                  </div>
+                </div>
+                <button onClick={onOpenPatterns} style={{ padding:'5px 12px', borderRadius:99, background:'rgba(192,132,252,0.15)', border:'1px solid rgba(192,132,252,0.4)', color:'#c084fc', fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>Expand ↗</button>
               </div>
-              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:feat.color }}>{feat.title}</div>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.4 }}>{feat.sub}</div>
-            </button>
-          ))}
-        </div>
-      )}
+              {previewPatterns.length > 0 ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {previewPatterns.map((p,i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                      <span style={{ fontSize:18, flexShrink:0 }}>{p.icon}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                          <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{p.title}</span>
+                          <span style={{ fontSize:9, fontFamily:T.fM, color:p.color, fontWeight:700, flexShrink:0, marginLeft:8 }}>{p.strength}% signal</span>
+                        </div>
+                        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{p.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log more expenses, vitals, and habits to unlock pattern detection.</div>
+              )}
+            </GlassCard>
+            {/* Life Graph preview card */}
+            <GlassCard style={{ padding:'18px 20px', border:`1px solid ${T.accent}33`, background:T.accentLo }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:20 }}>🕸️</span>
+                  <div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.accent }}>Life Graph</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                      {nodeCount > 4
+                        ? `${nodeCount} nodes · ${edgeCount} connections across Finance, Health, Growth & Knowledge`
+                        : 'Visual map of everything connected — add data to populate'}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={onOpenGraph} style={{ padding:'5px 12px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}55`, color:T.accent, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>Expand ↗</button>
+              </div>
+              {nodeCount > 4 && (
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12 }}>
+                  {[{label:'Finance', count:catCount, color:T.emerald},{label:'Habits', count:Math.min(8,(habits||[]).length), color:T.accent},{label:'Goals', count:Math.min(6,(goals||[]).length), color:'#8b5cf6'},{label:'Domains', count:4, color:'#fbbf24'}].filter(d=>d.count>0).map((d,i)=>(
+                    <div key={i} style={{ padding:'4px 10px', borderRadius:99, background:d.color+'14', border:`1px solid ${d.color}33`, fontSize:9, fontFamily:T.fM, color:d.color, fontWeight:600 }}>
+                      {d.count} {d.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassCard>
+            {/* Compact immersive launchers */}
+            <div style={{ display:'flex', gap:10 }}>
+              {[
+                { icon:'🔀', title:'Parallel You', sub:'Simulate alternate timelines', color:T.sky, bg:'rgba(56,189,248,0.08)', border:'rgba(56,189,248,0.25)', action: onOpenParallel, kbd:'Z' },
+                { icon:'🌊', title:'Ambient Mode', sub:'Living dashboard screensaver',  color:T.amber, bg:T.amberDim, border:T.amber+'33', action: onOpenAmbient,  kbd:'`' },
+              ].map((feat,i)=>(
+                <button key={i} onClick={feat.action} style={{ flex:1, padding:'13px 14px', borderRadius:12, background:feat.bg, border:`1px solid ${feat.border}`, textAlign:'left', cursor:'pointer', transition:'all 0.18s', display:'flex', alignItems:'center', gap:10 }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=feat.color+'66';}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=feat.border;}}>
+                  <span style={{ fontSize:20 }}>{feat.icon}</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:feat.color }}>{feat.title}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{feat.sub}</div>
+                  </div>
+                  <kbd style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:3, padding:'1px 5px', fontSize:8, fontFamily:T.fM, color:T.textMuted, flexShrink:0 }}>{feat.kbd}</kbd>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {tab==='overview' && (
         <>
@@ -8430,7 +8574,10 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
             <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Life Domain Scores</SectionLabel>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <SectionLabel>Life Domain Scores</SectionLabel>
+                <button onClick={()=>onNav&&onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:T.accentLo, border:`1px solid ${T.accent}33`, borderRadius:99, padding:'3px 8px', cursor:'pointer' }}>🗺️ Life Map →</button>
+              </div>
               {LIFE_STATS.map((s,i)=>(
                 <div key={i} style={{ marginBottom:12 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}><span style={{ fontSize:11, fontFamily:T.fM, color:T.text }}>{s.label}</span><span style={{ fontSize:11, fontFamily:T.fM, color:s.color, fontWeight:600 }}>{s.val}/100</span></div>
@@ -8466,24 +8613,62 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
                 </GlassCard>
               );
             })()}
-            {(expenses||[]).length >= 4 && (() => {
-              const freq = {};
-              (expenses||[]).forEach(e => { const k = `${e.category}|${Math.round(Number(e.amount)/5)*5}`; if (!freq[k]) freq[k] = { cat:e.category, amount:Math.round(Number(e.amount)/5)*5, count:0 }; freq[k].count++; });
-              const recurring = Object.values(freq).filter(x=>x.count>=3).sort((a,b)=>b.count-a.count).slice(0,5);
-              if (!recurring.length) return null;
+            {(expenses||[]).length >= 4 && detectedRecurring.length > 0 && (() => {
               return (
-                <GlassCard style={{ padding:'20px 22px' }}>
-                  <SectionLabel>Detected Recurring</SectionLabel>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>Expenses appearing 3+ times</div>
-                  {recurring.map((r,i)=>(
-                    <div key={i} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:i<recurring.length-1?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM }}>
-                      <span style={{ color:T.text }}>{r.cat}</span>
-                      <span style={{ color:T.violet }}>{cur}{fmtN(r.amount)} × {r.count}</span>
+                <GlassCard style={{ padding:'20px 22px', borderLeft:`3px solid ${T.sky}44` }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                    <div>
+                      <SectionLabel>🔄 Recurring Patterns</SectionLabel>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
+                        {detectedRecurring.length} pattern{detectedRecurring.length>1?'s':''} auto-detected in your expense history
+                      </div>
                     </div>
-                  ))}
+                    <button onClick={()=>onNav&&onNav('money')} style={{ fontSize:10, fontFamily:T.fM, color:T.sky, background:T.skyDim, border:`1px solid ${T.sky}33`, borderRadius:99, padding:'4px 10px', cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                      View in Money →
+                    </button>
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {detectedRecurring.slice(0,3).map((r,i)=>(
+                      <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                          <span style={{ fontSize:14 }}>🔄</span>
+                          <div>
+                            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{r.name}</div>
+                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{r.count} occurrences · {r.category}</div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize:11, fontFamily:T.fM, fontWeight:600, color:T.rose }}>{cur}{fmtN(r.avgAmount)}/mo</div>
+                      </div>
+                    ))}
+                    {detectedRecurring.length > 3 && (
+                      <button onClick={()=>onNav&&onNav('money')} style={{ fontSize:10, fontFamily:T.fM, color:T.sky, background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:'4px 2px' }}>
+                        +{detectedRecurring.length-3} more patterns — view all in Money →
+                      </button>
+                    )}
+                  </div>
                 </GlassCard>
               );
             })()}
+            {/* Spending deep-link card */}
+            <GlassCard style={{ padding:'20px 22px', borderLeft:`3px solid ${T.rose}44` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <div>
+                  <SectionLabel>📊 Full Spending Breakdown</SectionLabel>
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>Charts, category breakdown & month-over-month trends</div>
+                </div>
+                <button onClick={()=>onNav&&onNav('money')} style={{ fontSize:10, fontFamily:T.fM, color:T.rose, background:T.roseDim, border:`1px solid ${T.rose}33`, borderRadius:99, padding:'4px 10px', cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+                  View in Money →
+                </button>
+              </div>
+              <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+                {[{ label:'This Month', val:`${cur}${fmtN(monthExp)}`, color:T.rose }, { label:'Top Category', val:topCat?topCat[0]:'—', color:T.violet }, { label:'Saved', val:`${cur}${fmtN(monthInc-monthExp)}`, color:T.emerald }].map((m,i)=>(
+                  <div key={i} style={{ flex:1, minWidth:80, padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{m.label}</div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:m.color, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.val}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
             <CompoundGrowthCard cur={cur} />
             <ScenarioCard cur={cur} monthInc={monthInc} savRate={savRate} />
 
@@ -8526,160 +8711,6 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
         </>
       )}
 
-      {tab==='spending' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Monthly Spend — Last 6 Months</SectionLabel>
-            {spendTrends.data.some(m=>m._total>0) ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={spendTrends.data} barSize={28} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  {spendTrends.cats.map((cat,i) => (
-                    <Bar key={cat} dataKey={cat} name={cat} stackId="a" fill={CAT_COLORS[i%CAT_COLORS.length]} opacity={0.85} radius={i===spendTrends.cats.length-1?[4,4,0,0]:[0,0,0,0]} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height:120, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log expenses to see spending trends.</div>
-            )}
-            {spendTrends.cats.length > 0 && (
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:10 }}>
-                {spendTrends.cats.map((cat,i) => (
-                  <div key={cat} style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
-                    <div style={{ width:8, height:8, borderRadius:2, background:CAT_COLORS[i%CAT_COLORS.length] }} />{cat}
-                  </div>
-                ))}
-              </div>
-            )}
-          </GlassCard>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Category Breakdown — This Month</SectionLabel>
-            {spendTrends.data.length > 0 && (() => {
-              const latest = spendTrends.data[spendTrends.data.length-1];
-              const total = latest._total || 1;
-              return (
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {spendTrends.cats.filter(c=>latest[c]>0).sort((a,b)=>latest[b]-latest[a]).map((cat,i) => {
-                    const pct = Math.round((latest[cat]/total)*100);
-                    return (
-                      <div key={cat}>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
-                          <span style={{ color:T.text }}>{cat}</span>
-                          <span style={{ color:CAT_COLORS[spendTrends.cats.indexOf(cat)%CAT_COLORS.length] }}>{cur}{fmtN(latest[cat])} · {pct}%</span>
-                        </div>
-                        <ProgressBar pct={pct} color={CAT_COLORS[spendTrends.cats.indexOf(cat)%CAT_COLORS.length]} height={4} />
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </GlassCard>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Month-over-Month Total Spend</SectionLabel>
-            {spendTrends.data.some(m=>m._total>0) ? (
-              <ResponsiveContainer width="100%" height={160}>
-                <LineChart data={spendTrends.data} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  <Line type="monotone" dataKey="_total" name="Total Spend" stroke={T.rose} strokeWidth={2} dot={{fill:T.rose,r:4}} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No data yet.</div>}
-          </GlassCard>
-        </div>
-      )}
-
-      {tab==='net worth' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
-            {[
-              { label:'Current Net Worth', val:`${cur}${fmtN(nw)}`, color:T.accent },
-              { label:'Assets', val:`${cur}${fmtN((assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal)}`, color:T.emerald },
-              { label:'Debts', val:`${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}`, color:T.rose },
-              { label:'Investments', val:`${cur}${fmtN(invVal)}`, color:T.violet },
-            ].map((m,i)=>(
-              <GlassCard key={i} style={{ padding:'16px 18px' }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
-              </GlassCard>
-            ))}
-          </div>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Net Worth History</SectionLabel>
-            {netWorthHistory.length > 1 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={nwProjection.length>1?nwProjection:netWorthHistory} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <defs>
-                    <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.35}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient>
-                    <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.violet} stopOpacity={0.2}/><stop offset="100%" stopColor={T.violet} stopOpacity={0}/></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#nwGrad)" dot={false} />
-                  {nwProjection.some(d=>d.projected) && <Area type="monotone" dataKey="projected" name="Projected" stroke={T.violet} strokeWidth={1.5} strokeDasharray="4 3" fill="url(#projGrad)" dot={false} />}
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ height:120, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Net worth history builds automatically each month. Log assets and income to start.</div>
-            )}
-            {nwProjection.some(d=>d.projected) && (
-              <div style={{ display:'flex', gap:16, marginTop:8 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.accent }} />Actual</div>
-                <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.violet, opacity:0.7 }} />6-month projection</div>
-              </div>
-            )}
-          </GlassCard>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Asset Breakdown</SectionLabel>
-              {(assets||[]).length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No assets logged yet.</div> : (
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {[...new Set((assets||[]).map(a=>a.type))].map((type,i) => {
-                    const val = (assets||[]).filter(a=>a.type===type).reduce((s,a)=>s+Number(a.value||0),0);
-                    const pct = Math.round((val/((assets||[]).reduce((s,a)=>s+Number(a.value||0),0)+invVal||1))*100);
-                    return (
-                      <div key={type}>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
-                          <span style={{ color:T.text }}>{type}</span>
-                          <span style={{ color:CAT_COLORS[i%CAT_COLORS.length] }}>{cur}{fmtN(val)} · {pct}%</span>
-                        </div>
-                        <ProgressBar pct={pct} color={CAT_COLORS[i%CAT_COLORS.length]} height={4} />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </GlassCard>
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Debt Overview</SectionLabel>
-              {(debts||[]).length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Debt free!</div> : (
-                (debts||[]).map((d,i) => {
-                  const bal = Number(d.balance||0);
-                  const maxBal = Math.max(...(debts||[]).map(x=>Number(x.balance||0)));
-                  return (
-                    <div key={d.id||i} style={{ marginBottom:i<(debts||[]).length-1?12:0 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM, marginBottom:3 }}>
-                        <span style={{ color:T.text }}>{d.name}</span>
-                        <span style={{ color:T.rose }}>{cur}{fmtN(bal)} · {d.rate||0}%</span>
-                      </div>
-                      <ProgressBar pct={maxBal>0?(bal/maxBal)*100:0} color={T.rose} height={4} />
-                    </div>
-                  );
-                })
-              )}
-            </GlassCard>
-          </div>
-        </div>
-      )}
-
       {tab==='habits' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
@@ -8713,7 +8744,7 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
             <SectionLabel>Per-Habit Performance</SectionLabel>
             {(habits||[]).length === 0 ? <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits tracked yet.</div> : (
               (habits||[]).map((h,i) => {
-                const streak = getStreak(h.id, habitLogs);
+                const streak = streakCache[h.id] ?? 0;
                 const total = (habitLogs[h.id]||[]).length;
                 const last30 = Array.from({length:30},(_,j)=>{ const d=new Date(); d.setDate(d.getDate()-29+j); return d.toISOString().slice(0,10); }).filter(d=>(habitLogs[h.id]||[]).includes(d)).length;
                 const cons30 = Math.round((last30/30)*100);
@@ -8738,9 +8769,6 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
         </div>
       )}
 
-      {tab==='recurring' && (
-        <RecurringDetectedCard detectedRecurring={detectedRecurring} cur={cur} actions={{}} />
-      )}
     </div>
   );
 }
@@ -11928,16 +11956,13 @@ function GlobalAIPanel({ open, onClose, data }) {
   }, [messages, loading]);
 
   const buildSystemPrompt = () => {
-    const {settings={}, computed={}, habits=[], habitLogs={}, goals=[], expenses=[], debts=[], vitals=[], investments=[], subscriptions=[], incomes=[], bills=[], budgets={}, assets=[]} = data;
+    const {settings={}, habits=[], habitLogs={}, expenses=[], debts=[], vitals=[], investments=[], subscriptions=[], bills=[], computed={}} = data;
     const cur = settings?.currency || '$';
     const briefText = buildAIBriefing(data).replace(/\*\*/g,'');
     const today_  = today();
     const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
     const todayDone  = (habits||[]).filter(h=>(habitLogs[h.id]||[]).includes(today_)).length;
-    const recentExp  = (expenses||[]).slice(0,8).map(e=>`${e.category} ${cur}${e.amount} (${e.date})`).join(', ');
-    const goalsList  = (goals||[]).map(g=>`${g.name}: ${Math.round((Number(g.current||0)/Number(g.target||1))*100)}%`).join(', ');
     const subsCost   = (subscriptions||[]).reduce((s,sub)=>s+Number(sub.amount||0),0);
-    const invVal     = (investments||[]).reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
     const lastVitals = (vitals||[]).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const overdueBills = (bills||[]).filter(b=>!b.paid&&b.nextDate&&b.nextDate<today_).map(b=>b.name).join(', ');
     return `You are LifeOS AI — a sharp, context-aware personal life coach. You have already delivered a briefing to the user. Continue with the same authority and specificity.
@@ -11945,14 +11970,9 @@ function GlobalAIPanel({ open, onClose, data }) {
 BRIEFING YOU SENT:
 ${briefText}
 
-DATA SNAPSHOT:
-• Net worth: ${cur}${fmtN(computed?.nw||0)} | Investable: ${cur}${fmtN(invVal)}
-• This month: Income ${cur}${fmtN(computed?.monthInc||0)} · Expenses ${cur}${fmtN(computed?.monthExp||0)} · Savings rate ${(computed?.savRate||0).toFixed(1)}%
-• Habits: ${(habits||[]).length} tracked · ${todayDone} done today · best streak ${bestStreak}d
-• Goals: ${goalsList||'none'}
-• Debt: ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))} across ${(debts||[]).length} accounts
+${buildLifeContext(data)}
+• Habits today: ${todayDone} done · best streak ${bestStreak}d
 • Subscriptions: ${cur}${fmtN(subsCost)}/mo · Last vitals: mood ${lastVitals?.mood||'—'}/10, sleep ${lastVitals?.sleep||'—'}h
-• Recent spending: ${recentExp||'none'}
 • Overdue bills: ${overdueBills||'none'}
 
 Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Never ask more than one clarifying question per response.`;
@@ -12115,10 +12135,7 @@ function FinCoachTab({ data, settings, coachMessages, setCoachMessages, coachInp
   const messagesEndRef = React.useRef(null);
   React.useEffect(()=>{ messagesEndRef.current?.scrollIntoView({behavior:'smooth'}); },[coachMessages]);
 
-  const buildContext = () => {
-    const topExp = [...(expenses||[])].sort((a,b)=>Number(b.amount||0)-Number(a.amount||0)).slice(0,5).map(e=>`${e.category}: ${cur}${e.amount}`).join(', ');
-    return `You are a personal financial coach AI embedded in LifeOS. Be concise, specific, and action-oriented. User financial snapshot: Monthly income ${cur}${fmtN(monthInc||0)}, Monthly expenses ${cur}${fmtN(monthExp||0)}, Savings rate ${(savRate||0).toFixed(1)}%, Net worth ${cur}${fmtN(nw||0)}, Active debts: ${(debts||[]).length}, Top expenses: ${topExp||'none'}, Goals: ${(goals||[]).map(g=>g.name).join(', ')||'none'}. Give practical, numbered advice when possible.`;
-  };
+  const buildContext = () => buildLifeContext(data);
 
   const sendMessage = async () => {
     if (!coachInput.trim() || coachLoading) return;
@@ -14302,7 +14319,7 @@ export default function LifeOS() {
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
     career:    eb(<CareerPage    data={data} actions={actions} />),
     calendar:  eb(<CalendarPage  data={data} />),
-    intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} />),
+    intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} onNav={setPage} />),
     archive:   eb(<ArchivePage   data={data} />),
     settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} />),
   };
