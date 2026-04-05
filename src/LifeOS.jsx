@@ -1072,51 +1072,58 @@ const SectionLabel = ({ children }) => (
 // ── PAGE INFO TOOLTIP ─────────────────────────────────────────────────────────
 function PageInfoIcon({ content }) {
   const [open, setOpen] = useState(false);
-  const btnRef = useRef(null);
-  const [pos, setPos] = useState({ top:0, right:0 });
-
-  const handleOpen = () => {
-    if (btnRef.current) {
-      const r = btnRef.current.getBoundingClientRect();
-      // Place popup below button, right-aligned; clamp so it doesn't go off-screen
-      const popupW = 300;
-      let left = r.right - popupW;
-      if (left < 8) left = 8;
-      setPos({ top: r.bottom + 6, left });
-    }
-    setOpen(v => !v);
-  };
 
   return (
-    <div style={{ position:'relative', display:'inline-flex' }}>
+    <>
       <button
-        ref={btnRef}
-        onClick={handleOpen}
+        onClick={() => setOpen(true)}
         title="How to use this page"
-        style={{ width:22, height:22, borderRadius:'50%', background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:T.textSub, cursor:'pointer', flexShrink:0, lineHeight:1 }}
+        style={{ width:26, height:26, borderRadius:8, background:`${T.sky}18`, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:T.sky, cursor:'pointer', flexShrink:0, lineHeight:1, fontWeight:700, transition:'all 0.15s' }}
+        onMouseEnter={e=>{ e.currentTarget.style.background=`${T.sky}30`; e.currentTarget.style.borderColor=`${T.sky}66`; }}
+        onMouseLeave={e=>{ e.currentTarget.style.background=`${T.sky}18`; e.currentTarget.style.borderColor=`${T.sky}33`; }}
       >ⓘ</button>
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:19997 }} />
+          {/* Backdrop */}
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:29990, background:'rgba(0,0,0,0.72)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)' }} />
+          {/* Modal */}
           <div style={{
-            position:'fixed', top: pos.top, left: pos.left, zIndex:19998,
-            background:T.bg2, border:`1px solid ${T.borderLit}`,
-            borderRadius:T.rL, padding:'16px 18px', width:300,
-            boxShadow:`0 16px 40px rgba(0,0,0,0.72)`,
-            animation:'modalIn 0.18s ease', fontSize:11, fontFamily:T.fM,
-            color:T.textSub, lineHeight:1.65,
+            position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+            zIndex:29991, width:'min(520px, 92vw)', maxHeight:'82vh',
+            background:T.bg2, border:`1px solid ${T.sky}44`,
+            borderRadius:16, boxShadow:`0 24px 80px rgba(0,0,0,0.85), 0 0 0 1px ${T.sky}22`,
+            animation:'modalIn 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+            display:'flex', flexDirection:'column', overflow:'hidden',
           }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>How to use</span>
-              <button onClick={() => setOpen(false)} style={{ background:'none', border:'none', color:T.textSub, cursor:'pointer', fontSize:14, lineHeight:1 }}>×</button>
+            {/* Header */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 20px 14px', borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:30, height:30, borderRadius:8, background:`${T.sky}20`, border:`1px solid ${T.sky}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, color:T.sky }}>ⓘ</div>
+                <div>
+                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>How to use this page</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:1 }}>Quick reference guide</div>
+                </div>
+              </div>
+              <button onClick={() => setOpen(false)} style={{ width:28, height:28, borderRadius:7, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1, transition:'all 0.15s' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background=T.roseDim; e.currentTarget.style.color=T.rose; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background=T.surface; e.currentTarget.style.color=T.textSub; }}>×</button>
             </div>
-            {typeof content === 'string'
-              ? <p style={{ margin:0 }}>{content}</p>
-              : content}
+            {/* Body */}
+            <div style={{ overflowY:'auto', padding:'18px 20px 22px', fontSize:12, fontFamily:T.fM, color:T.textSub, lineHeight:1.75, WebkitOverflowScrolling:'touch' }}>
+              {typeof content === 'string'
+                ? <p style={{ margin:0, color:T.text }}>{content}</p>
+                : content}
+            </div>
+            {/* Footer */}
+            <div style={{ padding:'12px 20px', borderTop:`1px solid ${T.border}`, flexShrink:0, display:'flex', justifyContent:'flex-end' }}>
+              <button onClick={() => setOpen(false)} style={{ padding:'8px 20px', borderRadius:8, background:`${T.sky}20`, border:`1px solid ${T.sky}44`, color:T.sky, fontFamily:T.fM, fontSize:11, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background=`${T.sky}35`; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background=`${T.sky}20`; }}>Got it ✓</button>
+            </div>
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
 const ChartTooltip = ({ active, payload, label, prefix='', suffix='' }) => {
@@ -4893,6 +4900,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [goalCatFilter, setGoalCatFilter] = useState('all');
   const [spendCatFilter, setSpendCatFilter] = useState('__all__');
+  const [show503020, setShow503020] = useState(false);
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], goals=[], settings={}, netWorthHistory=[], subscriptions=[], budgets={}, bills=[]} = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   // Use pre-computed values from App root
@@ -4981,12 +4989,26 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
         title={lang==='fr'?'Finance':'Money Hub'}
         infoIcon={<PageInfoIcon content={
           <div>
-            <p><b>📊 Overview</b> — Net worth, income, spending, and savings rate for this month.</p>
-            <p style={{marginTop:8}}><b>💳 Spending</b> — See all expenses by category. Filter by category, set monthly budgets, and compare vs budget.</p>
-            <p style={{marginTop:8}}><b>🏦 Debts</b> — Track loans and credit cards. When you log a payment, it auto-appears in Spending.</p>
-            <p style={{marginTop:8}}><b>📈 Investments</b> — Track positions. Use Watchlist to monitor live crypto/stock prices and set alerts.</p>
-            <p style={{marginTop:8}}><b>🔮 Forecast</b> — Projects your net worth and FI date based on your real trailing data.</p>
-            <p style={{marginTop:8}}><b>🛠️ Tools</b> — DTI ratio, emergency fund tracker, compound growth simulator.</p>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+              {[
+                { icon:'📊', title:'Overview', desc:'Net worth, income, spending & savings rate. Your monthly financial snapshot at a glance.' },
+                { icon:'💳', title:'Spending', desc:'All expenses by category. Set monthly budgets, filter by category, use the 50/30/20 rule panel.' },
+                { icon:'🏦', title:'Debts', desc:'Track loans & credit cards. Log payments — they auto-appear in Spending with a debt label.' },
+                { icon:'📈', title:'Investments', desc:'Track positions. Watchlist monitors live crypto/stock prices with custom price alerts.' },
+                { icon:'🎯', title:'Goals', desc:'Savings goals with progress. Link expenses directly to a goal when you log them.' },
+                { icon:'🔮', title:'Forecast / FI', desc:'Projects your net worth & FIRE date based on real trailing income and spending data.' },
+                { icon:'🛠️', title:'Tools', desc:'DTI ratio, emergency fund tracker, compound growth calculator, receipt scanner.' },
+                { icon:'📅', title:'Monthly Review', desc:'Guided end-of-month summary with insights, top categories, and a savings report.' },
+              ].map((item,i)=>(
+                <div key={i} style={{ padding:'10px 12px', borderRadius:8, background:'rgba(255,255,255,0.04)', border:`1px solid rgba(255,255,255,0.06)` }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'#e2e8f0', marginBottom:4 }}>{item.icon} {item.title}</div>
+                  <div style={{ fontSize:10, color:'#94a3b8', lineHeight:1.55 }}>{item.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(0,245,212,0.06)', border:'1px solid rgba(0,245,212,0.2)', fontSize:10, color:'#94a3b8', lineHeight:1.65 }}>
+              💡 <b style={{ color:'#e2e8f0' }}>Tip:</b> Use <b style={{ color:'#00f5d4' }}>Left in month</b> (Overview tab) to see your real-time budget surplus or deficit. The <b style={{ color:'#38bdf8' }}>50/30/20</b> button in Spending gives a breakdown against the classic budgeting rule.
+            </div>
           </div>
         } />}
       />
@@ -5067,6 +5089,10 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <Btn onClick={()=>setModal('expense')} color={T.rose}>{lang==='fr'?'+ Dépense':' + Log Expense'}</Btn>
             <Btn onClick={()=>setModal('budget')} color={T.amber}>📊 Budgets</Btn>
             <Btn onClick={()=>onOpenMonthlyReview?.()} color={T.violet}>📅 Monthly Review</Btn>
+            <button onClick={()=>setShow503020(v=>!v)} style={{ padding:'8px 14px', borderRadius:T.r, background: show503020 ? `${T.sky}18` : T.surface, border:`1px solid ${show503020 ? T.sky+'55' : T.border}`, color: show503020 ? T.sky : T.textSub, fontSize:11, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.2s', minHeight:36 }}>
+              <span>⚖️ 50/30/20</span>
+              <span style={{ fontSize:9, opacity:0.7, display:'inline-block', transform: show503020?'rotate(180deg)':'rotate(0deg)', transition:'transform 0.2s' }}>▼</span>
+            </button>
             <div style={{ flex:1 }} />
             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
               <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:'44px' }}>Category:</span>
@@ -5081,6 +5107,77 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             </div>
           </div>
 
+          {/* ── 50/30/20 Rule Panel ─────────────────────────────────────── */}
+          {show503020 && (() => {
+            const income = selMonthInc;
+            const needs50  = income * 0.50;
+            const wants30  = income * 0.30;
+            const savings20 = income * 0.20;
+            // Categorise spending heuristically
+            const NEEDS_CATS  = ['🏠 Housing','🏠 Rent','Housing','Rent','🔌 Utilities','Utilities','🛒 Groceries','Groceries','🚗 Transport','Transport','⚕️ Health','Health','Healthcare','💊 Medical','Medical','Insurance','📞 Phone','Phone','Internet'];
+            const SAVINGS_CATS2 = ['💰 Savings','Savings','📈 Investment','Investment','Retirement'];
+            const needsSpent    = selMonthExpenses.filter(e=>NEEDS_CATS.some(c=>e.category?.includes(c.replace(/^[^ ]+ /,''))||e.category===c)).reduce((s,e)=>s+Number(e.amount||0),0);
+            const savingsSpent  = selMonthExpenses.filter(e=>SAVINGS_CATS2.some(c=>e.category?.includes(c.replace(/^[^ ]+ /,''))||e.category===c)).reduce((s,e)=>s+Number(e.amount||0),0);
+            const wantsSpent    = Math.max(0, selMonthExp - needsSpent - savingsSpent);
+            const segments = [
+              { label:'Needs',   pct:50, target:needs50,   actual:needsSpent,   color:T.sky,     emoji:'🏠', desc:'Rent, food, transport, bills' },
+              { label:'Wants',   pct:30, target:wants30,   actual:wantsSpent,   color:T.violet,  emoji:'🎉', desc:'Dining out, entertainment, shopping' },
+              { label:'Savings', pct:20, target:savings20, actual:savingsSpent, color:T.emerald, emoji:'💰', desc:'Emergency fund, investments, goals' },
+            ];
+            return (
+              <GlassCard style={{ padding:'18px 20px', border:`1px solid ${T.sky}33`, background:`${T.sky}06`, animation:'slideDown 0.2s ease' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                  <div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.sky, letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:2 }}>⚖️ 50/30/20 Budget Rule</div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Based on {cur}{fmtN(income)} income this month</div>
+                  </div>
+                  {income === 0 && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber }}>⚠ Log income to see your breakdown</div>}
+                </div>
+                {income > 0 && (
+                  <>
+                    {/* Visual bar */}
+                    <div style={{ display:'flex', height:10, borderRadius:99, overflow:'hidden', marginBottom:16, gap:2 }}>
+                      {segments.map((s,i)=>(
+                        <div key={i} style={{ flex:s.pct, background:`${s.color}55`, position:'relative', overflow:'hidden' }}>
+                          <div style={{ position:'absolute', inset:0, background:s.color, width:`${Math.min(100,(s.actual/s.target)*100)}%`, transition:'width 0.6s ease' }} />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))', gap:10, marginBottom:14 }}>
+                      {segments.map((s,i)=>{
+                        const pct = s.target>0 ? Math.round((s.actual/s.target)*100) : 0;
+                        const over = s.actual > s.target;
+                        const diff = Math.abs(s.actual - s.target);
+                        return (
+                          <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${over?s.color+'55':T.border}` }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                              <span style={{ fontSize:10, fontFamily:T.fM, fontWeight:700, color:s.color }}>{s.emoji} {s.label} <span style={{ color:T.textMuted, fontWeight:400 }}>({s.pct}%)</span></span>
+                              <span style={{ fontSize:9, fontFamily:T.fM, color: over?s.color:T.textMuted, fontWeight:700 }}>{pct}%</span>
+                            </div>
+                            <div style={{ width:'100%', height:4, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden', marginBottom:6 }}>
+                              <div style={{ height:'100%', width:`${Math.min(pct,100)}%`, borderRadius:99, background:`linear-gradient(90deg,${s.color}88,${s.color})`, transition:'width 0.6s ease' }} />
+                            </div>
+                            <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                              <span style={{ color:T.textSub }}>{cur}{fmtN(s.actual)} spent</span>
+                              <span style={{ color:T.textMuted }}>target {cur}{fmtN(s.target)}</span>
+                            </div>
+                            <div style={{ marginTop:4, fontSize:9, fontFamily:T.fM, color: over?s.color:T.emerald }}>
+                              {over ? `▲ ${cur}${fmtN(diff)} over` : `▼ ${cur}${fmtN(diff)} under`}
+                            </div>
+                            <div style={{ marginTop:4, fontSize:9, fontFamily:T.fM, color:T.textMuted, lineHeight:1.4 }}>{s.desc}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ padding:'8px 12px', borderRadius:T.r, background:'rgba(255,255,255,0.03)', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+                      💡 <b style={{ color:T.text }}>The 50/30/20 rule</b> (Elizabeth Warren): spend <b style={{ color:T.sky }}>50%</b> on needs, <b style={{ color:T.violet }}>30%</b> on wants, save <b style={{ color:T.emerald }}>20%</b>. Categories are estimated — adjust your expense labels for a more accurate split.
+                    </div>
+                  </>
+                )}
+              </GlassCard>
+            );
+          })()}
+
           {/* Month summary banners */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
             {(() => {
@@ -5090,12 +5187,17 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               { label: lang==='fr' ? 'Revenus' : 'Income', val:`${cur}${fmtN(selMonthInc)}`, color:T.emerald, icon:'💰', tooltip:null },
               { label: lang==='fr' ? 'Dépensé' : 'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳', sub: debtPmtTotal>0?`incl. ${cur}${fmtN(debtPmtTotal)} debt pmts`:null, tooltip:null },
               (() => {
-                // Savings category expenses count as money saved, not spent
-                const SAVINGS_CATS = ['💰 Savings', 'Savings'];
-                const selMonthSavingsCat = selMonthExpenses.filter(e => SAVINGS_CATS.includes(e.category)).reduce((s,e)=>s+Number(e.amount||0),0);
-                const adjustedSpent = selMonthExp - selMonthSavingsCat;
-                const savedThisMonth = selMonthInc - adjustedSpent;
-                return { label: lang==='fr' ? 'Épargné ce mois' : 'Saved this month', val:`${savedThisMonth>=0?'':'-'}${cur}${fmtN(Math.abs(savedThisMonth))}`, color:savedThisMonth>=0?T.accent:T.rose, icon:savedThisMonth>=0?'✅':'⚠️', tooltip:'Income minus non-savings expenses. The 💰 Savings category is counted as saved money.' };
+                // Left in month = income minus all spending (incl. savings cat)
+                const leftInMonth = selMonthInc - selMonthExp;
+                const isPositive = leftInMonth >= 0;
+                return {
+                  label: lang==='fr' ? 'Reste ce mois' : 'Left in month',
+                  val: `${isPositive ? '' : '-'}${cur}${fmtN(Math.abs(leftInMonth))}`,
+                  color: isPositive ? T.accent : T.rose,
+                  icon: isPositive ? '🟢' : '🔴',
+                  sub: isPositive ? `+${cur}${fmtN(leftInMonth)} surplus` : `-${cur}${fmtN(Math.abs(leftInMonth))} over`,
+                  tooltip: 'Income minus all expenses this month. Negative means you\'ve spent more than you earned.',
+                };
               })(),
               (() => {
                 const SAVINGS_CATS = ['💰 Savings', 'Savings'];
