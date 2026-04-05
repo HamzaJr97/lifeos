@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v86
+// LifeOS — Personal Life Operating System  |  v87
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -1072,22 +1072,38 @@ const SectionLabel = ({ children }) => (
 // ── PAGE INFO TOOLTIP ─────────────────────────────────────────────────────────
 function PageInfoIcon({ content }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const [pos, setPos] = useState({ top:0, right:0 });
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      // Place popup below button, right-aligned; clamp so it doesn't go off-screen
+      const popupW = 300;
+      let left = r.right - popupW;
+      if (left < 8) left = 8;
+      setPos({ top: r.bottom + 6, left });
+    }
+    setOpen(v => !v);
+  };
+
   return (
     <div style={{ position:'relative', display:'inline-flex' }}>
       <button
-        onClick={() => setOpen(v => !v)}
+        ref={btnRef}
+        onClick={handleOpen}
         title="How to use this page"
         style={{ width:22, height:22, borderRadius:'50%', background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:T.textSub, cursor:'pointer', flexShrink:0, lineHeight:1 }}
       >ⓘ</button>
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:9997 }} />
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:19997 }} />
           <div style={{
-            position:'absolute', top:28, right:0, zIndex:9998,
+            position:'fixed', top: pos.top, left: pos.left, zIndex:19998,
             background:T.bg2, border:`1px solid ${T.borderLit}`,
-            borderRadius:T.rL, padding:'16px 18px', width:280,
-            boxShadow:`0 16px 40px rgba(0,0,0,0.55)`,
-            animation:'slideDown 0.18s ease', fontSize:11, fontFamily:T.fM,
+            borderRadius:T.rL, padding:'16px 18px', width:300,
+            boxShadow:`0 16px 40px rgba(0,0,0,0.72)`,
+            animation:'modalIn 0.18s ease', fontSize:11, fontFamily:T.fM,
             color:T.textSub, lineHeight:1.65,
           }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
@@ -4632,10 +4648,10 @@ function MoneyToolsTab({ data, cur }) {
   const monthExp = data.computed.monthExp;
   const monthInc = data.computed.monthInc;
 // ── Compound Growth Simulator ──────────────────────────────────────────
-const [principal, setPrincipal] = useState(10000);
-const [rate, setRate]           = useState(7);
-const [years, setYears]         = useState(20);
-const [monthly, setMonthly]     = useState(500);
+const [principal, setPrincipal] = useLocalStorage('los_cg_principal', 10000);
+const [rate, setRate]           = useLocalStorage('los_cg_rate', 7);
+const [years, setYears]         = useLocalStorage('los_cg_years', 20);
+const [monthly, setMonthly]     = useLocalStorage('los_cg_monthly', 500);
 const chartData = useMemo(() => {
   const d = []; let val = principal;
   for (let y = 0; y <= years; y++) {
@@ -4649,8 +4665,8 @@ const totalIn     = principal + monthly * 12 * years;
 const totalGrowth = finalVal - totalIn;
 
 // ── Emergency Fund Tracker ─────────────────────────────────────────────
-const [efMonths, setEfMonths]   = useState(6);
-const [efCurrent, setEfCurrent] = useState(0);
+const [efMonths, setEfMonths]   = useLocalStorage('los_ef_months', 6);
+const [efCurrent, setEfCurrent] = useLocalStorage('los_ef_current', 0);
 const monthlyFixed = ((debts||[]).reduce((s,d)=>s+Number(d.minPayment||0),0)) + ((subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0));
 const efTarget    = monthlyFixed + monthExp;
 const efGoal      = efTarget * efMonths;
@@ -5074,16 +5090,23 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               { label: lang==='fr' ? 'Revenus' : 'Income', val:`${cur}${fmtN(selMonthInc)}`, color:T.emerald, icon:'💰', tooltip:null },
               { label: lang==='fr' ? 'Dépensé' : 'Spent', val:`${cur}${fmtN(selMonthExp)}`, color:T.rose, icon:'💳', sub: debtPmtTotal>0?`incl. ${cur}${fmtN(debtPmtTotal)} debt pmts`:null, tooltip:null },
               (() => {
-                const savedThisMonth = selMonthInc - selMonthExp;
-                return { label: lang==='fr' ? 'Épargné ce mois' : 'Saved this month', val:`${savedThisMonth>=0?'':'-'}${cur}${fmtN(Math.abs(savedThisMonth))}`, color:savedThisMonth>=0?T.accent:T.rose, icon:savedThisMonth>=0?'✅':'⚠️', tooltip:'Income minus Expenses — negative means you spent more than you earned this month.' };
+                // Savings category expenses count as money saved, not spent
+                const SAVINGS_CATS = ['💰 Savings', 'Savings'];
+                const selMonthSavingsCat = selMonthExpenses.filter(e => SAVINGS_CATS.includes(e.category)).reduce((s,e)=>s+Number(e.amount||0),0);
+                const adjustedSpent = selMonthExp - selMonthSavingsCat;
+                const savedThisMonth = selMonthInc - adjustedSpent;
+                return { label: lang==='fr' ? 'Épargné ce mois' : 'Saved this month', val:`${savedThisMonth>=0?'':'-'}${cur}${fmtN(Math.abs(savedThisMonth))}`, color:savedThisMonth>=0?T.accent:T.rose, icon:savedThisMonth>=0?'✅':'⚠️', tooltip:'Income minus non-savings expenses. The 💰 Savings category is counted as saved money.' };
               })(),
               (() => {
+                const SAVINGS_CATS = ['💰 Savings', 'Savings'];
                 const totalSaved = availableMonths.reduce((sum, m) => {
                   const mInc = (incomes||[]).filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0);
-                  const mExp = (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+                  const mExpAll = (expenses||[]).filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0);
+                  const mSavingsCat = (expenses||[]).filter(e=>e.date?.startsWith(m)&&SAVINGS_CATS.includes(e.category)).reduce((s,e)=>s+Number(e.amount||0),0);
+                  const mExp = mExpAll - mSavingsCat;
                   return sum + (mInc - mExp);
                 }, 0);
-                return { label: lang==='fr' ? 'Total épargné' : 'Total Saved', val:`${totalSaved>=0?'':'-'}${cur}${fmtN(Math.abs(totalSaved))}`, color:totalSaved>=0?T.sky:T.rose, icon:'🏦', tooltip:'Sum of (income − expenses) across all recorded months — your cumulative savings.' };
+                return { label: lang==='fr' ? 'Total épargné' : 'Total Saved', val:`${totalSaved>=0?'':'-'}${cur}${fmtN(Math.abs(totalSaved))}`, color:totalSaved>=0?T.sky:T.rose, icon:'🏦', tooltip:'Cumulative savings across all months. The 💰 Savings category is counted as saved money, not spending.' };
               })(),
             ];})().map((s,i)=>(
               <GlassCard key={i} style={{ padding:'14px 16px', position:'relative' }}>
@@ -5204,7 +5227,10 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   {spendByCat.slice(0,5).map((c,i)=>(
                     <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, padding:'3px 0' }}>
                       <span style={{ color:T.textSub, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:8,height:8,borderRadius:'50%',background:c.color,display:'inline-block' }} />{c.name}</span>
-                      <span style={{ color:T.text, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
+                      <span style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        {selMonthInc > 0 && <span style={{ color:T.textMuted, fontSize:9 }}>{((c.value/selMonthInc)*100).toFixed(0)}% income</span>}
+                        <span style={{ color:T.text, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -10998,19 +11024,34 @@ function WatchlistTab() {
   // Fetch chart history for crypto with dynamic timeframe
   const fetchCryptoChart = async (coinId, sym, tf) => {
     const { cgDays } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
+    // For large ranges, show month+year; for 1M show month+day
+    const showYear = tf === '1Y' || tf === '5Y' || tf === 'All';
+    const formatLabel = (ts) => {
+      const d = new Date(ts);
+      if (showYear) return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+    const attemptFetch = async (fetchFn) => {
+      const res = await fetchFn();
+      if (!res.ok) throw new Error('cg_error');
+      return res.json();
+    };
     try {
-      // CoinGecko auto-selects granularity (hourly <90d, daily >=90d)
-      // Passing interval= on large ranges causes 400 errors on free tier
       const url = cgDays === 'max'
         ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=max`
         : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('cg_error');
-      const d = await res.json();
+      // Try direct first, then proxy fallback (CoinGecko allows browser fetch usually)
+      let d;
+      try {
+        d = await attemptFetch(() => fetch(url, { signal: AbortSignal.timeout(8000) }));
+      } catch {
+        // fallback via proxy
+        d = await attemptFetch(() => fetchViaProxy(url));
+      }
       if (d.prices && d.prices.length > 0) {
-        const all = d.prices.map(([ts, price]) => ({ t: new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'}), p: price }));
-        // Downsample to max 60 pts for large ranges
-        const step = all.length > 60 ? Math.ceil(all.length / 60) : 1;
+        const all = d.prices.map(([ts, price]) => ({ t: formatLabel(ts), p: price }));
+        // Downsample to max 80 pts for large ranges
+        const step = all.length > 80 ? Math.ceil(all.length / 80) : 1;
         const pts = all.filter((_,i) => i % step === 0);
         setCharts(prev => ({...prev, [`${sym}_${tf}`]: pts}));
       }
@@ -11072,6 +11113,12 @@ function WatchlistTab() {
             const price = meta.regularMarketPrice ?? meta.previousClose ?? null;
             const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? null;
             const changePct = price && prevClose && prevClose > 0 ? (((price - prevClose) / prevClose) * 100).toFixed(2) : '0';
+            const showYear = activeTf === '1Y' || activeTf === '5Y' || activeTf === 'All';
+            const fmtLabel = (ts) => {
+              const d = new Date(ts * 1000);
+              if (showYear) return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+              return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
             if (price !== null) {
               update[w.sym] = { price, change: changePct };
               anySuccess = true;
@@ -11080,7 +11127,7 @@ function WatchlistTab() {
             const ts = result.timestamp || [];
             const closes = result.indicators?.quote?.[0]?.close || [];
             if (closes.length > 0) {
-              const pts = ts.map((t, idx) => ({ t: new Date(t * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), p: closes[idx] || null })).filter(pt => pt.p !== null);
+              const pts = ts.map((t, idx) => ({ t: fmtLabel(t), p: closes[idx] || null })).filter(pt => pt.p !== null);
               setCharts(prev => ({ ...prev, [`${w.sym}_${activeTf}`]: pts }));
             }
           } catch {
