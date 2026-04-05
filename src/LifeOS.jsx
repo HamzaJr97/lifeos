@@ -4772,6 +4772,8 @@ const dtiLabel = dti > 43 ? 'High risk — reduce debt' : dti > 36 ? 'Stretched'
       <span style={{ display:'flex', alignItems:'center', gap:5 }}><span style={{ width:16, height:2, background:T.accent, display:'inline-block', borderRadius:2, borderTop:'2px dashed' }}/>Initial investment only</span>
     </div>
   </GlassCard>
+  {/* ── Spending Planner — tasks with estimated costs, moved from Knowledge tab ── */}
+  <SpendingPlannerSection notes={data.notes||[]} />
 </div>
   );
 }
@@ -4818,40 +4820,74 @@ function InvestmentsSubSection({ title, storageKey, children }) {
 }
 
 // ── NET WORTH PROJECTION CARD — collapsible, lives in Money > Overview ────────
-function NwProjectionCard({ chartData, hasProjection, cur }) {
+function NwProjectionCard({ chartData, cur, avgDelta, stdDelta }) {
   const [open, setOpen] = useState(false);
+  const hasProjection = chartData.some(d => d.base != null);
+  const lastActual    = chartData.filter(d => d.value != null).slice(-1)[0];
   return (
     <GlassCard style={{ padding:'20px 22px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }} onClick={()=>setOpen(v=>!v)}>
         <div>
           <SectionLabel>💎 Net Worth Projection</SectionLabel>
-          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>History + 6-month linear forecast</div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
+            History + 6-month scenario bands · <span style={{ color:T.amber }}>estimates only</span>
+          </div>
         </div>
         <button style={{ background:'none', border:'none', cursor:'pointer', color:T.textSub, fontSize:14, transition:'transform 0.2s', transform:open?'rotate(180deg)':'rotate(0deg)' }}>▾</button>
       </div>
       {open && (
         <div style={{ marginTop:16 }}>
+          {hasProjection && (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:14 }}>
+              {[
+                { label:'Conservative', val: lastActual ? Math.round(lastActual.value + (avgDelta - stdDelta) * 6) : null, color:T.rose,    desc:'−1σ growth' },
+                { label:'Base',         val: lastActual ? Math.round(lastActual.value + avgDelta * 6)               : null, color:T.accent,  desc:'avg growth' },
+                { label:'Optimistic',   val: lastActual ? Math.round(lastActual.value + (avgDelta + stdDelta) * 6)  : null, color:T.emerald, desc:'+1σ growth' },
+              ].map((s,i) => (
+                <div key={i} style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${s.color}22`, textAlign:'center' }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>{s.label}</div>
+                  <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val != null ? `${cur}${fmtN(s.val)}` : '—'}</div>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>{s.desc} · 6 mo</div>
+                </div>
+              ))}
+            </div>
+          )}
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={chartData} margin={{top:4,right:0,left:0,bottom:0}}>
+            <ComposedChart data={chartData} margin={{top:4,right:0,left:0,bottom:0}}>
               <defs>
-                <linearGradient id="nwGradMoney" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.35}/><stop offset="100%" stopColor={T.accent} stopOpacity={0}/></linearGradient>
-                <linearGradient id="projGradMoney" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.violet} stopOpacity={0.2}/><stop offset="100%" stopColor={T.violet} stopOpacity={0}/></linearGradient>
+                <linearGradient id="nwGradMoney" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={T.accent} stopOpacity={0.35}/>
+                  <stop offset="100%" stopColor={T.accent} stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="nwOptGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={T.emerald} stopOpacity={0.18}/>
+                  <stop offset="100%" stopColor={T.emerald} stopOpacity={0.04}/>
+                </linearGradient>
+                <linearGradient id="nwConGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={T.rose} stopOpacity={0.12}/>
+                  <stop offset="100%" stopColor={T.rose} stopOpacity={0.02}/>
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
               <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
               <YAxis hide />
               <Tooltip content={<ChartTooltip prefix={cur} />} />
+              {/* Shaded band: optimistic fill behind conservative fill creates the spread */}
+              {hasProjection && <Area type="monotone" dataKey="optimistic"   name="Optimistic"   stroke={T.emerald} strokeWidth={1} strokeDasharray="3 3" fill="url(#nwOptGrad)" dot={false} connectNulls />}
+              {hasProjection && <Area type="monotone" dataKey="conservative" name="Conservative" stroke={T.rose}    strokeWidth={1} strokeDasharray="3 3" fill="url(#nwConGrad)" dot={false} connectNulls />}
+              {hasProjection && <Area type="monotone" dataKey="base"         name="Base"         stroke={T.violet}  strokeWidth={1.5} strokeDasharray="4 3" fill="none"           dot={false} connectNulls />}
               <Area type="monotone" dataKey="value" name="Net Worth" stroke={T.accent} strokeWidth={2} fill="url(#nwGradMoney)" dot={false} />
-              {hasProjection && <Area type="monotone" dataKey="projected" name="Projected" stroke={T.violet} strokeWidth={1.5} strokeDasharray="4 3" fill="url(#projGradMoney)" dot={false} />}
-            </AreaChart>
+            </ComposedChart>
           </ResponsiveContainer>
-          {hasProjection && (
-            <div style={{ display:'flex', gap:16, marginTop:8 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.accent }} />Actual</div>
-              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.violet, opacity:0.7 }} />6-month projection</div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Based on recent growth rate · not financial advice</div>
-            </div>
-          )}
+          <div style={{ display:'flex', gap:14, marginTop:10, flexWrap:'wrap' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.accent }} />Actual</div>
+            {hasProjection && <>
+              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}><div style={{ width:12, height:2, background:T.violet, opacity:0.8, borderTop:'1px dashed' }} />Base</div>
+              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.emerald }}><div style={{ width:12, height:2, background:T.emerald, opacity:0.7 }} />Optimistic</div>
+              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.rose }}><div style={{ width:12, height:2, background:T.rose, opacity:0.7 }} />Conservative</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Bands = ±1 std-dev · not financial advice</div>
+            </>}
+          </div>
         </div>
       )}
     </GlassCard>
@@ -5015,15 +5051,26 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           {(() => {
             const nwHist = netWorthHistory.slice(-12);
             if (nwHist.length < 2) return null;
-            const growth = (nwHist[nwHist.length-1].value - nwHist[0].value) / Math.max(1, nwHist.length-1);
-            const projected = Array.from({length:6},(_,i) => ({
-              month: (() => { const d=new Date(); d.setMonth(d.getMonth()+i+1); return d.toISOString().slice(0,7); })(),
-              projected: Math.round(nwHist[nwHist.length-1].value + growth*(i+1)),
-            }));
+            // ── Projection bands: conservative / base / optimistic ──────────
+            // Uses month-over-month deltas to compute mean growth and std-dev,
+            // giving three scenarios rather than a single misleading linear line.
+            const last   = nwHist[nwHist.length-1].value;
+            const deltas = nwHist.slice(1).map((p,i) => p.value - nwHist[i].value);
+            const avgDelta = deltas.reduce((s,d)=>s+d,0) / deltas.length;
+            const stdDelta = Math.sqrt(deltas.reduce((s,d)=>s+(d-avgDelta)**2,0) / deltas.length);
+            const projected = Array.from({length:6},(_,i) => {
+              const mo = (() => { const d=new Date(); d.setMonth(d.getMonth()+i+1); return d.toISOString().slice(0,7); })();
+              const n  = i + 1;
+              return {
+                month:        mo,
+                base:         Math.round(last + avgDelta * n),
+                conservative: Math.round(last + (avgDelta - stdDelta) * n),
+                optimistic:   Math.round(last + (avgDelta + stdDelta) * n),
+              };
+            });
             const chartData = [...nwHist, ...projected];
-            const hasProjection = projected.some(d=>d.projected);
             return (
-              <NwProjectionCard chartData={chartData} hasProjection={hasProjection} cur={cur} />
+              <NwProjectionCard chartData={chartData} cur={cur} avgDelta={avgDelta} stdDelta={stdDelta} />
             );
           })()}
           {(debts||[]).length>0 && (
@@ -6893,6 +6940,7 @@ function KnowledgePage({ data, actions }) {
   const [notePriorityFilter, setNotePriorityFilter] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   const [noteSearch, setNoteSearch] = useState('');
+  const [showAllQn, setShowAllQn] = useState(false);
   const [taskSort, setTaskSort] = useState('due'); // 'due' | 'priority' | 'created'
   const [showDone, setShowDone] = useState(false);
   const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
@@ -6984,7 +7032,7 @@ function KnowledgePage({ data, actions }) {
           {filteredNotes.length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{noteSearch?`No notes match "${noteSearch}"` :'No notes yet. Create your first note to build your knowledge base.'}</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(280px,100%),1fr))', gap:12 }}>
               {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
                 <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${note.priority===1?T.rose:note.priority===2?T.amber:tc}88`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
@@ -7015,35 +7063,49 @@ function KnowledgePage({ data, actions }) {
             </div>
           )}
           {/* ── Quick Notes — merged from separate tab ───────────────────── */}
-          {qn.length > 0 && (
-            <div style={{ marginTop:24 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase' }}>📌 Quick Notes ({qn.length})</div>
-                <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ New</Btn>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10 }}>
-                {[...qn].sort((a,b)=>a.date<b.date?1:-1).slice(0,8).map((n,i)=>(
-                  <div key={n.id||i} style={{ padding:'14px', borderRadius:T.r, background:`${n.color||T.amber}10`, border:`1px solid ${n.color||T.amber}33`, animation:`fadeUp 0.25s ease ${i*0.05}s both` }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                      <div style={{ width:8, height:8, borderRadius:'50%', background:n.color||T.amber, flexShrink:0, marginTop:3 }} />
-                      <button onClick={()=>actions.removeQuickNote(n.id)} style={{ padding:2, borderRadius:4, background:'rgba(255,255,255,0.06)', border:'none', opacity:0.5, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button>
-                    </div>
-                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6, wordBreak:'break-word' }}>{n.text}</div>
-                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:8 }}>{n.date}</div>
+          {qn.length > 0 && (() => {
+            const QN_PAGE = 8;
+            const sorted = [...qn].sort((a,b)=>a.date<b.date?1:-1);
+            const visible = showAllQn ? sorted : sorted.slice(0, QN_PAGE);
+            return (
+              <div style={{ marginTop:24 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase' }}>📌 Quick Notes ({qn.length})</div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    {qn.length > QN_PAGE && (
+                      <button onClick={()=>setShowAllQn(v=>!v)} style={{ padding:'4px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:600, color:T.amber, background:`${T.amber}15`, border:`1px solid ${T.amber}33`, cursor:'pointer' }}>
+                        {showAllQn ? 'Show less' : `Show all ${qn.length}`}
+                      </button>
+                    )}
+                    <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ New</Btn>
                   </div>
-                ))}
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(200px,100%),1fr))', gap:10 }}>
+                  {visible.map((n,i)=>(
+                    <div key={n.id||i} style={{ padding:'14px', borderRadius:T.r, background:`${n.color||T.amber}10`, border:`1px solid ${n.color||T.amber}33`, animation:`fadeUp 0.25s ease ${i*0.04}s both` }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <div style={{ width:8, height:8, borderRadius:'50%', background:n.color||T.amber, flexShrink:0, marginTop:3 }} />
+                        <button onClick={()=>actions.removeQuickNote(n.id)} style={{ padding:2, borderRadius:4, background:'rgba(255,255,255,0.06)', border:'none', opacity:0.5, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button>
+                      </div>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6, wordBreak:'break-word' }}>{n.text}</div>
+                      <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:8 }}>{n.date}</div>
+                    </div>
+                  ))}
+                </div>
+                {!showAllQn && qn.length > QN_PAGE && (
+                  <button onClick={()=>setShowAllQn(true)} style={{ marginTop:10, width:'100%', padding:'8px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, cursor:'pointer' }}>
+                    +{qn.length - QN_PAGE} more quick notes — tap to expand
+                  </button>
+                )}
               </div>
-              {qn.length > 8 && <div style={{ marginTop:8, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{qn.length-8} more quick notes</div>}
-            </div>
-          )}
+            );
+          })()}
           {qn.length === 0 && (
             <div style={{ marginTop:24, display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
               <span style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>📌 No quick notes yet — capture a fleeting thought</span>
               <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ Quick Note</Btn>
             </div>
           )}
-          {/* ── Spending Planner ─────────────────────────────────────────── */}
-          <SpendingPlannerSection notes={notes} />
         </div>
       )}
       {tab==='tasks' && (() => {
@@ -8417,18 +8479,31 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
     });
   }, [habits, habitLogs]);
 
-  const insights = [
-    monthInc>0&&savRate<20 && { title:'Low Savings Rate', body:`You're saving ${savRate.toFixed(0)}% this month. Target 20-35% to build long-term wealth. Reduce spending by ${cur}${fmtN(0.2*monthInc-(monthInc-monthExp))} to hit 20%.`, color:T.amber, icon:'⚠️', type:'warning' },
-    monthInc>0&&savRate>=35 && { title:'Excellent Savings Rate', body:`${savRate.toFixed(0)}% savings rate — you're outperforming most. ${cur}${fmtN(monthInc-monthExp)} saved this month. On track for financial independence.`, color:T.emerald, icon:'📈', type:'positive' },
-    topCat && { title:`Top Spending: ${topCat[0]}`, body:`${topCat[0]} is your largest expense at ${cur}${fmtN(topCat[1])} this month (${monthInc>0?((topCat[1]/monthInc)*100).toFixed(0):0}% of income).`, color:T.violet, icon:'💳', type:'insight' },
-    Number(avgSleep7)>0&&Number(avgSleep7)<7 && { title:'Sleep Deficit Detected', body:`Average sleep of ${avgSleep7}h is below optimal 7-8h. Poor sleep correlates with reduced productivity and worse financial decisions.`, color:T.sky, icon:'😴', type:'insight' },
-    Number(avgSleep7)>=7 && { title:'Sleep Health Strong', body:`${avgSleep7}h average sleep over 7 days — within optimal range. Research shows well-rested individuals make better financial decisions.`, color:T.sky, icon:'🌙', type:'positive' },
-    bestStreak>=7 && { title:`Habit Momentum — ${bestStreak} Day Streak`, body:`Your longest active streak is ${bestStreak} days. Habits compound like investments — you're building powerful life capital.`, color:T.accent, icon:'🔥', type:'positive' },
-    (habits||[]).length>0&&todayDone===0 && { title:'No Habits Logged Today', body:`You have ${(habits||[]).length} habits but haven't logged any today. Consistency drives your XP and life score.`, color:T.amber, icon:'🎯', type:'warning' },
-    (debts||[]).length>0 && { title:'Active Debt Tracking', body:`${(debts||[]).length} debt(s) totaling ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}. Use the avalanche method (highest rate first) to minimize interest paid.`, color:T.rose, icon:'💳', type:'insight' },
-    (goals||[]).length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
-    (goals||[]).length>0 && { title:'Goal Progress', body:`${(goals||[]).filter(g=>(g.current||0)>=g.target).length} of ${(goals||[]).length} goals completed. Average progress: ${Math.round((goals||[]).reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,(goals||[]).length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
-  ].filter(Boolean).slice(0,6);
+  // ── insights: explicit push avoids the && / filter(Boolean) footgun where a
+  // falsy non-boolean value (e.g. 0) would silently drop or incorrectly pass.
+  const insights = [];
+  if (monthInc > 0 && savRate < 20)
+    insights.push({ title:'Low Savings Rate', body:`You're saving ${savRate.toFixed(0)}% this month. Target 20-35% to build long-term wealth. Reduce spending by ${cur}${fmtN(0.2*monthInc-(monthInc-monthExp))} to hit 20%.`, color:T.amber, icon:'⚠️', type:'warning' });
+  if (monthInc > 0 && savRate >= 35)
+    insights.push({ title:'Excellent Savings Rate', body:`${savRate.toFixed(0)}% savings rate — you're outperforming most. ${cur}${fmtN(monthInc-monthExp)} saved this month. On track for financial independence.`, color:T.emerald, icon:'📈', type:'positive' });
+  if (topCat)
+    insights.push({ title:`Top Spending: ${topCat[0]}`, body:`${topCat[0]} is your largest expense at ${cur}${fmtN(topCat[1])} this month (${monthInc>0?((topCat[1]/monthInc)*100).toFixed(0):0}% of income).`, color:T.violet, icon:'💳', type:'insight' });
+  if (Number(avgSleep7) > 0 && Number(avgSleep7) < 7)
+    insights.push({ title:'Sleep Deficit Detected', body:`Average sleep of ${avgSleep7}h is below optimal 7-8h. Poor sleep correlates with reduced productivity and worse financial decisions.`, color:T.sky, icon:'😴', type:'insight' });
+  if (Number(avgSleep7) >= 7)
+    insights.push({ title:'Sleep Health Strong', body:`${avgSleep7}h average sleep over 7 days — within optimal range. Research shows well-rested individuals make better financial decisions.`, color:T.sky, icon:'🌙', type:'positive' });
+  if (bestStreak >= 7)
+    insights.push({ title:`Habit Momentum — ${bestStreak} Day Streak`, body:`Your longest active streak is ${bestStreak} days. Habits compound like investments — you're building powerful life capital.`, color:T.accent, icon:'🔥', type:'positive' });
+  if ((habits||[]).length > 0 && todayDone === 0)
+    insights.push({ title:'No Habits Logged Today', body:`You have ${(habits||[]).length} habits but haven't logged any today. Consistency drives your XP and life score.`, color:T.amber, icon:'🎯', type:'warning' });
+  if ((debts||[]).length > 0)
+    insights.push({ title:'Active Debt Tracking', body:`${(debts||[]).length} debt(s) totaling ${cur}${fmtN((debts||[]).reduce((s,d)=>s+Number(d.balance||0),0))}. Use the avalanche method (highest rate first) to minimize interest paid.`, color:T.rose, icon:'💳', type:'insight' });
+  if ((goals||[]).length === 0)
+    insights.push({ title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' });
+  if ((goals||[]).length > 0)
+    insights.push({ title:'Goal Progress', body:`${(goals||[]).filter(g=>(g.current||0)>=g.target).length} of ${(goals||[]).length} goals completed. Average progress: ${Math.round((goals||[]).reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,(goals||[]).length))}%.`, color:T.amber, icon:'🏆', type:'positive' });
+  // Cap at 6 most relevant insights
+  insights.splice(6);
   // ── LIFE_STATS SCORING METHODOLOGY ──────────────────────────────────────────
   // Shared quality-based formulas — see GrowthPage for full documentation.
   // Health:    last-7-vitals weighted avg (sleep/8h→40, mood/10→30, energy/10→30)
@@ -10489,10 +10564,13 @@ function computeWeeklySnapshot({ expenses=[], incomes=[], habits=[], habitLogs={
   ];
   const weekNum   = Math.floor((now - new Date(now.getFullYear(),0,1)) / (7*86400000));
   const question  = QUESTIONS[weekNum % QUESTIONS.length];
+  // ISO week ID — used by WeeklyReviewModal to detect staleness across sessions
+  const weekId = `${now.getFullYear()}-W${String(weekNum + 1).padStart(2,'0')}`;
 
   return {
     weekLabel: `${wStr(weekStart)} – ${wStr(weekEnd)}`,
     weekStart: wStr(weekStart),
+    weekId,
     moved, did, coming, gap, question,
     raw: { thisExpTotal, thisIncTotal, thisSaved, habitConsistency, avgMood, avgSleep, vitalsCount: thisWeekVit.length },
     cur,
@@ -10503,8 +10581,20 @@ function WeeklyReviewModal({ open, onClose, data, actions }) {
   const snap  = useMemo(() => open ? computeWeeklySnapshot(data) : null, [open]);
   const [reflection, setReflection] = useState('');
   const [saved, setSaved]           = useState(false);
+  // ── Staleness check — compare stored ISO week ID to the current week ───────
+  // Key: 'los_weekly_brief_weekid' stores the weekId of the last-opened brief.
+  // If it differs from snap.weekId, the user is viewing a brief from a prior week.
+  const [lastSeenWeekId, setLastSeenWeekId] = useLocalStorage('los_weekly_brief_weekid', '');
+  const isStale = snap && lastSeenWeekId && lastSeenWeekId !== snap.weekId;
 
-  useEffect(() => { if (open) { setReflection(''); setSaved(false); } }, [open]);
+  useEffect(() => {
+    if (open) {
+      setReflection('');
+      setSaved(false);
+      // Record that the user has now opened the brief for this week
+      if (snap?.weekId) setLastSeenWeekId(snap.weekId);
+    }
+  }, [open]);
 
   const save = () => {
     if (!snap) return;
@@ -10536,6 +10626,19 @@ function WeeklyReviewModal({ open, onClose, data, actions }) {
           </div>
           <button onClick={onClose} style={{ color:T.textSub, background:'none', border:'none', cursor:'pointer', fontSize:20, lineHeight:1, padding:'2px 4px' }}>×</button>
         </div>
+
+        {/* ── Staleness banner — shown when the stored week ID doesn't match the current week */}
+        {isStale && (
+          <div style={{ margin:'14px 28px 0', padding:'12px 16px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}44`, display:'flex', alignItems:'center', gap:12 }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>⏳</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.amber, marginBottom:2 }}>Brief from a previous week</div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                Last viewed: <span style={{ color:T.amber, fontWeight:600 }}>{lastSeenWeekId}</span> · Current week: <span style={{ color:T.accent, fontWeight:600 }}>{snap.weekId}</span>. Data below reflects this week.
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ padding:'18px 28px 28px', display:'flex', flexDirection:'column', gap:20 }}>
 
