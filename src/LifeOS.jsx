@@ -235,8 +235,8 @@ const THEMES = {
 };
 
 // ── AI ROUTER ─────────────────────────────────────────────────────────────────
-// Single entry point for all AI calls. Routes to Ollama, OpenAI, or Anthropic
-// based on settings.aiProvider. Add new providers here — nowhere else.
+// Single entry point for all AI calls. Routes to Ollama, OpenAI, Anthropic,
+// or GitHub Models based on settings.aiProvider. Add new providers here — nowhere else.
 async function callAI(settings, { system, messages, max_tokens = 1000 }) {
   const provider = settings?.aiProvider || 'claude';
 
@@ -288,6 +288,60 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
     return data.choices?.[0]?.message?.content || '';
   }
 
+  // ── GROQ (free tier) ────────────────────────────────────────────────────────
+  // Free API key at console.groq.com — Llama 3.3 70B, very fast.
+  if (provider === 'groq') {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings?.aiApiKey || ''}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          ...messages,
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Groq error ${res.status}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
+  // ── GITHUB MODELS (free) ────────────────────────────────────────────────────
+  // Uses your existing GitHub PAT — free tier, OpenAI-compatible endpoint.
+  // Model: gpt-4o-mini (most generous free quota). Vision also supported.
+  if (provider === 'github') {
+    const model = settings?.githubModel || 'gpt-4o-mini';
+    const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${settings?.aiApiKey || ''}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens,
+        messages: [
+          ...(system ? [{ role: 'system', content: system }] : []),
+          ...messages,
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `GitHub Models error ${res.status}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || '';
+  }
+
   // ── ANTHROPIC (default) ─────────────────────────────────────────────────────
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -318,10 +372,10 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
 async function callAIVision(settings, { b64, mimeType, prompt, max_tokens = 400 }) {
   const provider = settings?.aiProvider || 'claude';
   if (provider === 'ollama') {
-    throw new Error('Receipt Scanner requires a vision model. Switch to Anthropic or OpenAI in Settings → AI Provider.');
+    throw new Error('Receipt Scanner requires a vision model. Switch to Anthropic, OpenAI, or GitHub Models in Settings → AI Provider.');
   }
-  if (provider === 'openai') {
-    // GPT-4o expects image_url with a data URI
+  if (provider === 'openai' || provider === 'github') {
+    // GPT-4o / gpt-4o-mini expect image_url with a data URI (same format for both)
     return callAI(settings, {
       max_tokens,
       messages: [{
@@ -1654,7 +1708,7 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, curre
 
   const scan = async (file) => {
     if (!file) return;
-    if (provider === 'ollama') { setError('Receipt Scanner requires a vision model. Switch to Anthropic or OpenAI in Settings → AI Provider.'); return; }
+    if (provider === 'ollama' || provider === 'groq') { setError('Receipt Scanner requires a vision model. Switch to Anthropic, OpenAI, or GitHub Models in Settings → AI Provider.'); return; }
     if (!apiKey) { setError('Add your API key in Settings → AI Provider to use Receipt Scanner.'); return; }
     setScanning(true); setError(''); setResult(null);
     const reader = new FileReader();
@@ -7014,7 +7068,7 @@ function KnowledgePage({ data, actions }) {
   const send = async () => {
     if (!input.trim()||loading) return;
     if (!apiKey) {
-      setMessages(p=>[...p,{role:'assistant',content:'⚠️ No AI provider configured. Go to Settings → AI Provider and select Anthropic, OpenAI, or Ollama. Your key is stored locally only.'}]);
+      setMessages(p=>[...p,{role:'assistant',content:'⚠️ No AI provider configured. Go to Settings → AI Provider and select GitHub Models or Groq (both free), or Anthropic/OpenAI. Your key is stored locally only.'}]);
       return;
     }
     const um={role:'user',content:input}; setMessages(p=>[...p,um]); setInput(''); setLoading(true);
@@ -9180,11 +9234,13 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
         <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>🤖 AI Provider — S5</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Select your AI backend for the AI Coach feature</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Select your AI backend for all AI features</div>
             {[
-              { id:'claude',  label:'Claude (Anthropic)',  icon:'⚡', desc:'Recommended — fastest, most accurate' },
-              { id:'ollama',  label:'Ollama (Local)',       icon:'🖥', desc:'Run locally with llama3, mistral, etc.' },
-              { id:'openai',  label:'GPT-4o (OpenAI)',     icon:'🟢', desc:'Requires an OpenAI API key' },
+              { id:'github', label:'GitHub Models (Free ✦)', icon:'🐙', desc:'Use your existing GitHub token — GPT-4o, no credit card, free' },
+              { id:'groq',   label:'Groq (Free ✦)',          icon:'⚡', desc:'Free Llama 3.3 70B — very fast, no credit card needed' },
+              { id:'claude', label:'Claude (Anthropic)',      icon:'🟣', desc:'Best quality — requires a paid Anthropic API key' },
+              { id:'openai', label:'GPT-4o (OpenAI)',         icon:'🟢', desc:'Requires an OpenAI API key' },
+              { id:'ollama', label:'Ollama (Local)',           icon:'🖥', desc:'Run locally with llama3, mistral, etc.' },
             ].map(prov=>(
               <div key={prov.id} onClick={()=>setAiProvider(prov.id)} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'12px', borderRadius:8, background:aiProvider===prov.id?T.accentDim:T.surface, border:`1px solid ${aiProvider===prov.id?T.accent+'55':T.border}`, cursor:'pointer', transition:'all 0.18s' }}>
                 <span style={{ fontSize:16, flexShrink:0 }}>{prov.icon}</span>
@@ -9195,12 +9251,31 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
                 {aiProvider===prov.id && <div style={{ marginLeft:'auto', fontSize:11, color:T.accent }}>✓</div>}
               </div>
             ))}
+            {/* Free provider setup guides */}
+            {aiProvider === 'github' && (
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'8px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, lineHeight:1.7 }}>
+                🐙 <strong>Get your free GitHub token:</strong><br/>
+                1. Go to <code style={{ color:T.accent }}>github.com/settings/tokens</code><br/>
+                2. Click <strong>Generate new token (classic)</strong><br/>
+                3. Give it any name, set expiry, tick no permissions<br/>
+                4. Copy the <code style={{ color:T.accent }}>ghp_…</code> token and paste below
+              </div>
+            )}
+            {aiProvider === 'groq' && (
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'8px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, lineHeight:1.7 }}>
+                ⚡ <strong>Get your free Groq key:</strong><br/>
+                1. Go to <code style={{ color:T.accent }}>console.groq.com</code> → sign up free<br/>
+                2. Go to <strong>API Keys</strong> → <strong>Create API Key</strong><br/>
+                3. Copy the <code style={{ color:T.accent }}>gsk_…</code> key and paste below<br/>
+                Model used: <code style={{ color:T.accent }}>llama-3.3-70b-versatile</code>
+              </div>
+            )}
             {aiProvider !== 'ollama' && (
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {/* Key input row */}
                 <div style={{ display:'flex', gap:8 }}>
                   <div style={{ flex:1 }}>
-                    <Input value={aiApiKey} onChange={e=>{ setAiApiKey(e.target.value); setKeyTestStatus(null); }} placeholder={`${aiProvider==='openai'?'sk-...':'sk-ant-...'} API key`} type="password" />
+                    <Input value={aiApiKey} onChange={e=>{ setAiApiKey(e.target.value); setKeyTestStatus(null); }} placeholder={aiProvider==='openai'?'sk-… OpenAI key':aiProvider==='github'?'ghp_… GitHub token':aiProvider==='groq'?'gsk_… Groq key':'sk-ant-… Anthropic key'} type="password" />
                   </div>
                   {/* Test connection button */}
                   <button
@@ -9233,7 +9308,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
                 )}
                 {keyTestStatus === 'ok' && (
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald, padding:'8px 12px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, lineHeight:1.5 }}>
-                    ✅ Connection successful — your {aiProvider==='openai'?'OpenAI':'Anthropic'} key is valid and the model responded. Hit Save to apply.
+                    ✅ Connected — {aiProvider==='github'?'GitHub Models (GPT-4o)':aiProvider==='groq'?'Groq (Llama 3.3 70B)':aiProvider==='openai'?'OpenAI':'Anthropic'} key is valid. Hit Save to apply.
                   </div>
                 )}
                 {/* Security notice */}
