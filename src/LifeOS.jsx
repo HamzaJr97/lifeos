@@ -142,7 +142,7 @@ import {
     /* Modal scroll lock */
     body.los-modal-open { overflow:hidden; touch-action:none; }
     /* Bottom sheet inner scroll */
-    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; max-height: calc(85vh - 120px); }
+    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; max-height: calc(92vh - 120px); flex: 1; min-height: 0; }
     /* TabNav: horizontal scroll on mobile, no wrapping */
     .los-tabnav { overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }
     .los-tabnav::-webkit-scrollbar { display:none; }
@@ -1208,7 +1208,7 @@ function Modal({ open, onClose, title, children, wide=false }) {
             <h2 style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
             <button onClick={onClose} style={{ padding:8, borderRadius:8, background:T.surface }}><IcoX size={16} stroke={T.textSub} /></button>
           </div>
-          <div className="los-sheet-body" style={{ paddingBottom:`calc(20px + var(--sab))` }}>
+          <div className="los-sheet-body" style={{ paddingBottom:`calc(20px + var(--sab))`, flex:1, minHeight:0 }}>
             {children}
           </div>
         </div>
@@ -3057,8 +3057,8 @@ function LifePulseChip({ pulse }) {
 
       {showBreakdown && (
         <>
-          <div onClick={() => setShowBreakdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 198 }} />
-          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 220, background: T.bg2, border: '1px solid ' + T.borderLit, borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', zIndex: 199, animation: 'slideDown 0.18s ease', overflow: 'hidden', padding: '14px 16px' }}>
+          <div onClick={() => setShowBreakdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 210 }} />
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 220, background: T.bg2, border: '1px solid ' + T.borderLit, borderRadius: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.5)', zIndex: 211, animation: 'slideDown 0.18s ease', overflow: 'hidden', padding: '14px 16px' }}>
             <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10, fontWeight: 700 }}>Life Pulse Breakdown</div>
             {Object.values(pulse.domains).map(d => (
               <div key={d.label} style={{ marginBottom: 8 }}>
