@@ -114,6 +114,7 @@ import {
     }
     @media (min-width:768px) {
       .los-mobile-only { display:none !important; }
+      .los-input { font-size: 12px !important; }
     }
     @keyframes slideUp { from { transform:translateY(100%); opacity:0.6; } to { transform:translateY(0); opacity:1; } }
     /* iOS tap highlight — removes grey flash on every tap */
@@ -130,12 +131,19 @@ import {
     /* Shared textarea style — avoids 50+ repeated inline blocks + ensures 16px on mobile */
     .los-textarea {
       width:100%; padding:9px 12px;
-      background:rgba(255,255,255,0.04);
+      background:var(--los-input-bg, rgba(255,255,255,0.04));
+      border:1px solid var(--los-border, rgba(255,255,255,0.07));
       border-radius:10px; font-family:inherit;
-      font-size:13px; color:#dde0f2; resize:vertical;
+      font-size:13px; color:var(--los-text, #dde0f2); resize:vertical;
       transition:border-color 0.2s; line-height:1.5;
     }
-    .los-textarea:focus { border-color:rgba(0,245,212,0.5); }
+    .los-textarea:focus { border-color:var(--los-accent-focus, rgba(0,245,212,0.5)); }
+    [data-theme="light"] {
+      --los-input-bg:    rgba(0,0,0,0.04);
+      --los-border:      rgba(0,0,0,0.10);
+      --los-text:        #1e1e2e;
+      --los-accent-focus:rgba(0,168,150,0.6);
+    }
     /* Touch-friendly × close buttons */
     .los-close-btn { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; transition:background 0.15s; }
     .los-close-btn:hover { background:rgba(255,255,255,0.06); }
@@ -152,6 +160,7 @@ import {
       .los-page-domain { font-size:7px !important; }
       /* iOS input zoom fix — Safari zooms in on inputs with font-size < 16px */
       input, textarea, select, .los-textarea { font-size: 16px !important; }
+      .los-input { font-size: 16px !important; }
       /* Touch targets — minimum 44px (Apple HIG) for tappable elements */
       .los-btn { min-height: 44px !important; }
       .los-tab { min-height: 44px !important; padding: 8px 13px !important; }
@@ -442,7 +451,7 @@ Level: ${level}, ${totalXP} XP`;
     if (raw) {
       const saved = JSON.parse(raw);
       const theme = saved?.theme;
-      if (theme && THEMES[theme]) Object.assign(T, THEMES[theme]);
+      if (theme && THEMES[theme]) { Object.assign(T, THEMES[theme]); document.documentElement.dataset.theme = theme; }
     }
   } catch {} // silent — fall back to dark
 })();
@@ -1114,10 +1123,10 @@ const ProgressBar = ({ pct, color=T.accent, height=4 }) => (
   </div>
 );
 const Input = ({ value, onChange, placeholder, type='text', style={}, onKeyDown }) => (
-  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, transition:'border-color 0.2s', ...style }} />
+  <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} placeholder={placeholder} className="los-input" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, color:T.text, transition:'border-color 0.2s', ...style }} />
 );
 const Select = ({ value, onChange, children, style={} }) => (
-  <select value={value} onChange={onChange} style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text, transition:'border-color 0.2s', ...style }}>{children}</select>
+  <select value={value} onChange={onChange} className="los-input" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, color:T.text, transition:'border-color 0.2s', ...style }}>{children}</select>
 );
 const SectionLabel = ({ children }) => (
   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:12 }}>{children}</div>
@@ -1344,7 +1353,7 @@ function QuickCaptureFAB({ onAction, isMobile }) {
   return (
     <div style={{ position:'fixed', bottom:bottomOffset, right:20, zIndex:9990 }}>
       {open && (
-        <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:-1 }} />
+        <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:9989 }} />
       )}
       {/* Popup card panel — no overlapping circles */}
       {open && (
@@ -1354,7 +1363,7 @@ function QuickCaptureFAB({ onAction, isMobile }) {
           borderRadius:T.rL, padding:'8px 6px',
           boxShadow:`0 16px 48px rgba(0,0,0,0.6), 0 0 24px ${T.accent}18`,
           display:'flex', flexDirection:'column', gap:4,
-          animation:'slideDown 0.18s ease', minWidth:170,
+          animation:'slideDown 0.18s ease', minWidth:170, maxWidth:'calc(100vw - 40px)',
         }}>
           <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.12em', padding:'2px 10px 6px' }}>
             {lang === 'fr' ? 'Enregistrer rapidement' : 'Quick Log'}
@@ -1387,15 +1396,75 @@ function QuickCaptureFAB({ onAction, isMobile }) {
   );
 }
 
+// ── MOBILE NAV DRAWER ────────────────────────────────────────────────────────
+// Slide-in from left on mobile when ☰ is tapped. Shows all pages + search.
+// The BottomNav only shows 4 primary pages — this drawer surfaces the rest.
+function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
+  const lang = useLang();
+  const ALL_NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
+  const EXTRA = [
+    { id:'timeline', label: lang==='fr'?'Chronologie':'Timeline',   emoji:'📅' },
+    { id:'archive',  label: lang==='fr'?'Archives':'Archive',       emoji:'🗃️' },
+    { id:'career',   label: lang==='fr'?'Carrière':'Career',        emoji:'💼' },
+    { id:'calendar', label: lang==='fr'?'Calendrier':'Calendar',    emoji:'📆' },
+  ];
+  const handleNav = (id) => { onNav(id); onClose(); };
+  return (
+    <>
+      {open && <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9984, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', animation:'fadeIn 0.2s ease' }} />}
+      <div style={{ position:'fixed', top:0, left:0, bottom:0, width:260, background:T.bg1, borderRight:`1px solid ${T.borderLit}`, zIndex:9985, display:'flex', flexDirection:'column', transform:open?'translateX(0)':'translateX(-100%)', transition:'transform 0.28s cubic-bezier(0.32,0.72,0,1)', boxShadow:open?'12px 0 40px rgba(0,0,0,0.5)':'none', paddingTop:'var(--sat)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 18px 12px', borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`, border:`1px solid ${T.accent}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div>
+            <span style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:700, letterSpacing:'0.12em' }}>LIFE OS</span>
+          </div>
+          <button onClick={onClose} style={{ padding:6, borderRadius:7, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', minWidth:32, minHeight:32 }}>
+            <IcoX size={14} stroke={T.textSub} />
+          </button>
+        </div>
+        <div style={{ flex:1, overflowY:'auto', padding:'10px 10px 0' }}>
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', padding:'6px 8px 4px' }}>Main</div>
+          {ALL_NAV.map(({ id, Icon, label }) => {
+            const isA = active === id;
+            return (
+              <button key={id} onClick={() => handleNav(id)} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'11px 12px', borderRadius:10, background:isA?T.accentDim:'transparent', color:isA?T.accent:T.text, border:`1px solid ${isA?T.accent+'33':'transparent'}`, marginBottom:2, transition:'all 0.15s', fontFamily:T.fD, fontSize:13, fontWeight:isA?700:400, textAlign:'left', cursor:'pointer' }}>
+                <Icon size={16} stroke={isA?T.accent:T.textSub} />
+                {label}
+                {isA && <div style={{ marginLeft:'auto', width:5, height:5, borderRadius:'50%', background:T.accent }} />}
+              </button>
+            );
+          })}
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', padding:'14px 8px 4px' }}>More</div>
+          {EXTRA.map(({ id, label, emoji }) => {
+            const isA = active === id;
+            return (
+              <button key={id} onClick={() => handleNav(id)} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'11px 12px', borderRadius:10, background:isA?T.accentDim:'transparent', color:isA?T.accent:T.text, border:`1px solid ${isA?T.accent+'33':'transparent'}`, marginBottom:2, transition:'all 0.15s', fontFamily:T.fD, fontSize:13, fontWeight:isA?700:400, textAlign:'left', cursor:'pointer' }}>
+                <span style={{ fontSize:15, width:20, textAlign:'center', flexShrink:0 }}>{emoji}</span>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ padding:'12px 10px', borderTop:`1px solid ${T.border}`, flexShrink:0, paddingBottom:`calc(12px + var(--sab))` }}>
+          <button onClick={() => { onSearch(); onClose(); }} style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', borderRadius:10, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontFamily:T.fM, fontSize:12, cursor:'pointer', transition:'all 0.15s' }}>
+            <IcoSearch size={14} stroke={T.textSub} />
+            <span style={{ flex:1, textAlign:'left' }}>{lang==='fr'?'Rechercher…':'Search…'}</span>
+            <span style={{ fontSize:9, color:T.textMuted, background:T.bg2, border:`1px solid ${T.border}`, borderRadius:4, padding:'2px 5px' }}>⌘K</span>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── BOTTOM NAV (mobile) ───────────────────────────────────────────────────────
+// 4 page items + AI button = 5 tappable targets (~78px each on 390px screen)
+// Knowledge / Intel / Settings reachable via nav drawer (☰) and ⌘K.
 const BOTTOM_NAV_DEFS = [
-  { id:'home',      Icon:IcoHome,     tKey:'home'      },
-  { id:'money',     Icon:IcoMoney,    tKey:'money'     },
-  { id:'health',    Icon:IcoHealth,   tKey:'health'    },
-  { id:'growth',    Icon:IcoGrowth,   tKey:'growth'    },
-  { id:'knowledge', Icon:IcoBook,     tKey:'knowledge' },
-  { id:'intel',     Icon:IcoBrain,    tKey:'intel'     },
-  { id:'settings',  Icon:IcoSettings, tKey:'settings'  },
+  { id:'home',   Icon:IcoHome,   tKey:'home'   },
+  { id:'money',  Icon:IcoMoney,  tKey:'money'  },
+  { id:'health', Icon:IcoHealth, tKey:'health' },
+  { id:'growth', Icon:IcoGrowth, tKey:'growth' },
 ];
 function BottomNav({ active, onNav, onAI, showAI }) {
   const lang = useLang();
@@ -13819,6 +13888,7 @@ export default function LifeOS() {
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const [showWeeklyReview,  setShowWeeklyReview ] = useState(false);
   const [showSyncModal,     setShowSyncModal    ] = useState(false);
+  const [drawerOpen,        setDrawerOpen       ] = useState(false);
   // ── NEW FEATURES ─────────────────────────────────────────────────────────────
   const [showPatternEngine, setShowPatternEngine] = useState(false);
   const [showLifeGraph,     setShowLifeGraph    ] = useState(false);
@@ -14017,6 +14087,7 @@ export default function LifeOS() {
   useEffect(() => {
     const savedTheme = settings.theme || 'dark';
     Object.assign(T, THEMES[savedTheme] || THEMES.dark);
+    document.documentElement.dataset.theme = savedTheme;
     setThemeVersion(v => v + 1);
   }, [settings.theme]);
 
@@ -14632,6 +14703,7 @@ export default function LifeOS() {
 
       {/* Bottom Nav — S2 mobile */}
       <BottomNav active={page} onNav={setPage} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
+      <MobileNavDrawer open={drawerOpen} onClose={()=>setDrawerOpen(false)} active={page} onNav={setPage} onSearch={()=>setCmdOpen(true)} />
 
       {/* Global modals triggered from Command Palette / FAB */}
       <LogExpenseModal open={globalModal==='expense'} onClose={()=>setGlobalModal(null)} onSave={e=>{addExpenseWithPop(e);setGlobalModal(null);}} goals={_goals} onGoalProgress={actions.updateGoalProgress} settings={settings} />
@@ -14651,7 +14723,7 @@ export default function LifeOS() {
         <div style={{ borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, paddingTop:`calc(${isMobile?'var(--sat)':'0px'} + 10px)`, paddingBottom:10, minHeight:isMobile?'calc(44px + var(--sat))':'50px', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7 }}>
             {isMobile && (
-              <button onClick={()=>setCmdOpen(true)} style={{ padding:'6px 8px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, marginRight:2, minWidth:36, minHeight:36, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <button onClick={()=>setDrawerOpen(true)} style={{ padding:'6px 8px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, marginRight:2, minWidth:36, minHeight:36, display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <IcoMenu size={15} stroke={T.textSub} />
               </button>
             )}
