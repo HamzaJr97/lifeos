@@ -147,10 +147,13 @@ import {
     /* Touch-friendly × close buttons */
     .los-close-btn { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; transition:background 0.15s; }
     .los-close-btn:hover { background:rgba(255,255,255,0.06); }
-    /* Modal scroll lock */
-    body.los-modal-open { overflow:hidden; touch-action:none; }
-    /* Bottom sheet inner scroll */
-    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; max-height: calc(92vh - 120px); flex: 1; min-height: 0; }
+    /* Modal scroll lock — overflow:hidden blocks background scroll;
+       touch-action:none removed here because it propagates to children and
+       kills inner scroll on Android WebViews */
+    body.los-modal-open { overflow:hidden; }
+    /* Bottom sheet inner scroll — touch-action:pan-y re-enables vertical
+       swipe gestures inside the sheet on Android despite body overflow:hidden */
+    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; max-height: calc(92vh - 120px); flex: 1; min-height: 0; }
     /* TabNav: horizontal scroll on mobile, no wrapping */
     .los-tabnav { overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }
     .los-tabnav::-webkit-scrollbar { display:none; }
@@ -191,6 +194,11 @@ import {
     button:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 6px; }
     a:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 4px; }
     select option { background:#0b0b1a; color:#dde0f2; }
+    /* Battery / accessibility: suppress looping ambient animations for users
+       who prefer reduced motion or on any device that opts in */
+    @media (prefers-reduced-motion: reduce) {
+      *[style*="glowPulse"], *[style*="dotPulse"] { animation: none !important; }
+    }
   `;
   document.head.appendChild(style);
 })();
@@ -252,7 +260,8 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
   // ── OLLAMA (local) ──────────────────────────────────────────────────────────
   if (provider === 'ollama') {
     const model = settings?.ollamaModel || 'llama3.2';
-    const res = await fetch('http://localhost:11434/api/chat', {
+    const ollamaHost = settings?.ollamaHost?.trim() || 'localhost';
+    const res = await fetch(`http://${ollamaHost}:11434/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1141,7 +1150,7 @@ function PageInfoIcon({ content }) {
       <button
         onClick={() => setOpen(true)}
         title="How to use this page"
-        style={{ width:26, height:26, borderRadius:8, background:`${T.sky}18`, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:T.sky, cursor:'pointer', flexShrink:0, lineHeight:1, fontWeight:700, transition:'all 0.15s' }}
+        style={{ width:44, height:44, borderRadius:8, background:`${T.sky}18`, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:T.sky, cursor:'pointer', flexShrink:0, lineHeight:1, fontWeight:700, transition:'all 0.15s' }}
         onMouseEnter={e=>{ e.currentTarget.style.background=`${T.sky}30`; e.currentTarget.style.borderColor=`${T.sky}66`; }}
         onMouseLeave={e=>{ e.currentTarget.style.background=`${T.sky}18`; e.currentTarget.style.borderColor=`${T.sky}33`; }}
       >ⓘ</button>
@@ -1229,7 +1238,7 @@ function Modal({ open, onClose, title, children, wide=false }) {
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:20, padding:24, width:'100%', maxWidth:wide?640:420, animation:'modalIn 0.25s ease', maxHeight:'90vh', overflowY:'auto' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <h2 style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
-          <button onClick={onClose}><IcoX size={16} stroke={T.textSub} /></button>
+          <button onClick={onClose} className="los-close-btn"><IcoX size={16} stroke={T.textSub} /></button>
         </div>
         {children}
       </div>
@@ -9388,9 +9397,19 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
             )}
             {aiProvider === 'ollama' && (
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) && (
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'8px 10px', borderRadius:T.r, background:`${T.amber}12`, border:`1px solid ${T.amber}44` }}>
+                    ⚠️ <strong>Mobile device detected.</strong> Ollama runs on your desktop — <code>localhost</code> here points to this phone, not your computer. Set the host below to your desktop's LAN IP (e.g. <code>192.168.1.42</code>), or switch to Groq for mobile.
+                  </div>
+                )}
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                  Make sure Ollama is running at <code style={{ color:T.accent }}>localhost:11434</code>. Note: Ollama only works when running LifeOS locally — not in Codespaces.
+                  Make sure Ollama is running at <code style={{ color:T.accent }}>{settings.ollamaHost||'localhost'}:11434</code>. Note: Ollama only works when running LifeOS locally — not in Codespaces.
                 </div>
+                <Input
+                  value={settings.ollamaHost||''}
+                  onChange={e=>actions.updateSettings({...settings, ollamaHost:e.target.value})}
+                  placeholder="Host — leave blank for localhost, or enter LAN IP e.g. 192.168.1.42"
+                />
                 <Input
                   value={settings.ollamaModel||'llama3.2'}
                   onChange={e=>actions.updateSettings({...settings, ollamaModel:e.target.value})}
@@ -14805,7 +14824,7 @@ export default function LifeOS() {
                 <div style={{ width:1, height:16, background:T.border, margin:'0 2px' }} />
               </>
             )}
-            <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s infinite', minWidth:36, minHeight:36 }}
+            <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s 3', minWidth:36, minHeight:36 }}
               onMouseEnter={e=>{if(!showAIPanel){e.currentTarget.style.background=T.accentDim;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}}
               onMouseLeave={e=>{if(!showAIPanel){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}}>
               <IcoBrain size={15} stroke="currentColor" />
