@@ -199,6 +199,16 @@ import {
     @media (prefers-reduced-motion: reduce) {
       *[style*="glowPulse"], *[style*="dotPulse"] { animation: none !important; }
     }
+    /* Page skeleton — shimmer bars shown while async content loads */
+    @keyframes shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
+    .los-skeleton {
+      border-radius: 6px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s infinite linear;
+    }
+    /* Page fade-in — replaces blank flash on navigation */
+    .los-page-enter { animation: fadeIn 0.18s ease both; }
   `;
   document.head.appendChild(style);
 })();
@@ -1126,6 +1136,22 @@ const GlassCard = ({ children, style={}, className='', onClick }) => (
 const Badge = ({ children, color=T.accent }) => (
   <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'2px 8px', borderRadius:99, background:color+'18', color, fontSize:9, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.06em', border:`1px solid ${color}28` }}>{children}</span>
 );
+// Lightweight skeleton shown for one frame while a page's first effect resolves.
+// Heights mirror a typical page header + card row + chart layout.
+function PageSkeleton() {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'4px 0', animation:'fadeIn 0.1s ease' }}>
+      <div className="los-skeleton" style={{ height:32, width:'40%' }} />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+        {[1,2,3].map(i=><div key={i} className="los-skeleton" style={{ height:72, borderRadius:10 }} />)}
+      </div>
+      <div className="los-skeleton" style={{ height:180, borderRadius:12 }} />
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {[1,2,3,4].map(i=><div key={i} className="los-skeleton" style={{ height:44, borderRadius:8, width: i%2===0?'85%':'100%' }} />)}
+      </div>
+    </div>
+  );
+}
 const ProgressBar = ({ pct, color=T.accent, height=4 }) => (
   <div style={{ width:'100%', height, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
     <div style={{ height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99, background:`linear-gradient(90deg, ${color}aa, ${color})`, boxShadow:`0 0 6px ${color}44`, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
@@ -14750,7 +14776,7 @@ export default function LifeOS() {
 
       <div style={{ flex:1, marginLeft:isMobile?0:T.sw, height:'100%', display:'flex', flexDirection:'column', position:'relative', zIndex:1, overflow:'hidden' }}>
         {/* Topbar */}
-        <div style={{ borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, paddingTop:`calc(${isMobile?'var(--sat)':'0px'} + 10px)`, paddingBottom:10, minHeight:isMobile?'calc(44px + var(--sat))':'50px', flexShrink:0 }}>
+        <div style={{ borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:`0 ${isMobile?'14px':'28px'}`, justifyContent:'space-between', background:`${T.bg}dd`, backdropFilter:'blur(20px)', position:'sticky', top:0, zIndex:50, paddingTop:`calc(var(--sat) + 10px)`, paddingBottom:10, minHeight:isMobile?'calc(44px + var(--sat))':'50px', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7 }}>
             {isMobile && (
               <button onClick={()=>setDrawerOpen(true)} style={{ padding:'6px 8px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, marginRight:2, minWidth:36, minHeight:36, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -14848,8 +14874,8 @@ export default function LifeOS() {
           </div>
         </div>
 
-        {/* Page */}
-        <div key={page} style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(72px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
+        {/* Page — key triggers fade-in on every navigation */}
+        <div key={page} className="los-page-enter" style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(72px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
           {VIEW[page]}
         </div>
 
