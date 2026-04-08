@@ -1485,7 +1485,7 @@ function BottomNav({ active, onNav, onAI, showAI }) {
         return (
           <button key={id} onClick={() => onNav(id)} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, background:'none', color:isA?T.accent:T.textSub, borderTop:`2px solid ${isA?T.accent:'transparent'}`, transition:'color 0.18s, border-color 0.18s', padding:'8px 2px', minHeight:52 }}>
             <Icon size={18} stroke={isA?T.accent:T.textSub} />
-            <span style={{ fontSize:7, fontFamily:T.fM, letterSpacing:'0.03em', fontWeight:isA?700:400 }}>{label.toUpperCase()}</span>
+            <span style={{ fontSize:10, fontFamily:T.fM, letterSpacing:'0.03em', fontWeight:isA?700:400 }}>{label.toUpperCase()}</span>
           </button>
         );
       })}
@@ -1495,7 +1495,7 @@ function BottomNav({ active, onNav, onAI, showAI }) {
           <IcoBrain size={12} stroke={T.accent} />
         </div>
         {!showAI && <span style={{ position:'absolute', top:6, left:'50%', marginLeft:6, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
-        <span style={{ fontSize:7, fontFamily:T.fM, letterSpacing:'0.03em', fontWeight:showAI?700:400, color:T.accent }}>AI</span>
+        <span style={{ fontSize:10, fontFamily:T.fM, letterSpacing:'0.03em', fontWeight:showAI?700:400, color:T.accent }}>AI</span>
       </button>
     </div>
   );
@@ -9113,7 +9113,7 @@ function CustomCatInput({ onAdd }) {
 }
 
 // ── SETTINGS PAGE ─────────────────────────────────────────────────────────────
-function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
+function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChange=()=>{} }) {
   const lang = useLang();
   const {settings={}} = data;
   const [name, setName] = useState(settings.name||'');
@@ -9131,8 +9131,8 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
 
   const save = () => {
     actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:'', weightUnit });
-    // Apply theme immediately so inline styles re-read T before next paint
-    Object.assign(T, THEMES[theme] || THEMES.dark);
+    // Mutate T and bump themeVersion via callback so all inline-style references re-render
+    onThemeChange(theme);
     // Note: currentLang global removed (Bug 5 fix) — language flows via LangContext
   };
   const exportCSV = () => {
@@ -9289,7 +9289,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal }) {
                 { id:'dark',  label:'🌑 Dark',  preview:'#040408' },
                 { id:'light', label:'☀️ Light', preview:'#f4f6fb' },
               ].map(th => (
-                <button key={th.id} onClick={()=>{ setTheme(th.id); Object.assign(T, THEMES[th.id]); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
+                <button key={th.id} onClick={()=>{ setTheme(th.id); onThemeChange(th.id); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
                   <div style={{ width:14, height:14, borderRadius:3, background:th.preview, border:`1px solid ${T.border}`, flexShrink:0 }} />
                   {th.label}
                 </button>
@@ -14133,6 +14133,17 @@ export default function LifeOS() {
     }
   }, []); // run once on mount — Sunday check handles the rest
 
+  // Derived: whether the weekly-review dot should appear on the topbar button.
+  // useMemo so localStorage is read once per render cycle, not inside JSX.
+  const hasWeeklyNew = useMemo(() => {
+    const WEEKLY_KEY = 'los_weekly_review_last';
+    const now = new Date();
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    const thisWeekId = d.toISOString().slice(0, 10);
+    return localStorage.getItem(WEEKLY_KEY) !== thisWeekId && now.getDay() === 0;
+  }, []); // stable for the session — day-of-week won't change mid-session
+
   // ── Month auto-summary on 1st of month ────────────────────────────────────
   useMonthAutoSummary({ expenses, incomes, habits, habitLogs, vitals, goals, settings, actions: { addChronicle: (c) => setChronicles(p => [c, ...p]) } });
 
@@ -14663,7 +14674,7 @@ export default function LifeOS() {
     calendar:  eb(<CalendarPage  data={data} />),
     intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} onNav={setPage} />),
     archive:   eb(<ArchivePage   data={data} />),
-    settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} />),
+    settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} onThemeChange={(themeId)=>{ Object.assign(T, THEMES[themeId] || THEMES.dark); document.documentElement.dataset.theme = themeId; setThemeVersion(v=>v+1); }} />),
   };
 
   // Global modal handler for Command Palette quick actions
@@ -14674,7 +14685,7 @@ export default function LifeOS() {
 
   const lang = settings.language || 'en';
   // First-launch check
-  useEffect(()=>{ if(!settings.onboarded&&!settings.name) setShowOnboarding(true); },[]);
+  useEffect(()=>{ if(!settings.onboarded&&!settings.name) setShowOnboarding(true); },[settings.onboarded, settings.name]);
   return (
     <LangContext.Provider value={lang}>
     <MoneyContext.Provider value={{ expenses, incomes, debts, assets, investments, budgets, subscriptions, bills, computed }}>
@@ -14764,20 +14775,14 @@ export default function LifeOS() {
               </div>
             )}
             <SmartAlertsButton alerts={smartAlerts} onNav={setPage} onModal={setGlobalModal} />
-            {!isMobile && (() => {
-              const WEEKLY_KEY = 'los_weekly_review_last';
-              const now = new Date();
-              const thisWeekId = (() => { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); })();
-              const hasNew = localStorage.getItem(WEEKLY_KEY) !== thisWeekId && now.getDay() === 0;
-              return (
-                <button onClick={()=>setShowWeeklyReview(true)} title="Weekly Review (W)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.text;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
-                  <IcoCalendar size={15} stroke="currentColor" />
-                  {hasNew && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
-                </button>
-              );
-            })()}
+            {!isMobile && (
+              <button onClick={()=>setShowWeeklyReview(true)} title="Weekly Review (W)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+                onMouseEnter={e=>{e.currentTarget.style.background=T.surface;e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.text;}}
+                onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
+                <IcoCalendar size={15} stroke="currentColor" />
+                {hasWeeklyNew && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+              </button>
+            )}
             {!isMobile && (() => {
               const { syncStatus, isConfigured, isPartial } = gistSync;
               const syncColor = syncStatus==='ok' ? T.emerald : syncStatus==='error' ? T.rose : syncStatus==='pushing'||syncStatus==='pulling' ? T.amber : isConfigured ? T.sky : T.textMuted;
