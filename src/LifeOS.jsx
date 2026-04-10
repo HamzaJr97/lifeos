@@ -4807,6 +4807,357 @@ function TimelinePage({ data }) {
 // ── MONEY PAGE (Enhanced: Debts + Subscriptions + Budget) ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ── EXPENSE ANOMALY BANNER ────────────────────────────────────────────────────
+function ExpenseAnomalyBanners({ expenses = [], selectedMonth, cur }) {
+  const anomalies = useMemo(() => {
+    if (!expenses.length) return [];
+    const now = selectedMonth;
+    const prev3 = [1,2,3].map(i => {
+      const d = new Date(now + '-01');
+      d.setMonth(d.getMonth() - i);
+      return d.toISOString().slice(0,7);
+    });
+    const cats = [...new Set(expenses.map(e => e.category).filter(Boolean))];
+    return cats.map(cat => {
+      const thisMonthSpend = expenses.filter(e => e.date?.startsWith(now) && e.category === cat)
+        .reduce((s,e) => s + Number(e.amount||0), 0);
+      const prevSpends = prev3.map(m => expenses.filter(e => e.date?.startsWith(m) && e.category === cat)
+        .reduce((s,e) => s + Number(e.amount||0), 0));
+      const prevWithData = prevSpends.filter(v => v > 0);
+      if (prevWithData.length === 0 || thisMonthSpend === 0) return null;
+      const avg = prevWithData.reduce((s,v) => s+v, 0) / prevWithData.length;
+      if (avg < 5) return null; // ignore trivial categories
+      const ratio = thisMonthSpend / avg;
+      if (ratio < 1.5) return null;
+      return { cat, ratio, thisMonthSpend, avg };
+    }).filter(Boolean).sort((a,b) => b.ratio - a.ratio);
+  }, [expenses, selectedMonth]);
+
+  const [dismissed, setDismissed] = useState({});
+  if (!anomalies.length) return null;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+      {anomalies.filter(a => !dismissed[a.cat]).map(a => (
+        <div key={a.cat} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:T.r, background:`linear-gradient(135deg,${T.amber}10,${T.rose}08)`, border:`1px solid ${T.amber}33`, animation:'slideDown 0.3s ease' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:16 }}>⚠️</span>
+            <div>
+              <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.amber }}>{a.cat}</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:T.text }}> is </span>
+              <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.rose }}>{a.ratio.toFixed(1)}×</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:T.text }}> your average this month</span>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
+                {cur}{fmtN(a.thisMonthSpend)} this month vs {cur}{fmtN(Math.round(a.avg))} avg · {((a.ratio-1)*100).toFixed(0)}% above normal
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setDismissed(d => ({...d, [a.cat]:true}))} style={{ padding:4, borderRadius:6, background:'rgba(255,255,255,0.06)', border:`1px solid ${T.border}`, color:T.textMuted, fontSize:11, minWidth:24, minHeight:24, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── CASH FLOW WATERFALL CHART ─────────────────────────────────────────────────
+function CashFlowWaterfallChart({ income, expenses, bills, subscriptions, debts, month, cur }) {
+  const FIXED_CATS = new Set(['Rent','Mortgage','Insurance','Utilities','Phone','Internet','Housing','Rent/Mortgage']);
+  const monthExp = expenses.filter(e => e.date?.startsWith(month));
+
+  const fixedExpenses = monthExp.filter(e => FIXED_CATS.has(e.category)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const varExpenses   = monthExp.filter(e => !FIXED_CATS.has(e.category)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const billsTotal    = bills.reduce((s,b)=>s+Number(b.amount||0),0);
+  const subsTotal     = subscriptions.reduce((s,sub)=>{
+    const n = Number(sub.amount||0);
+    return s + (sub.cycle==='yearly' ? n/12 : sub.cycle==='weekly' ? n*4.33 : n);
+  }, 0);
+  const debtPmts      = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
+  const totalFixed    = fixedExpenses + billsTotal + subsTotal + debtPmts;
+  const savings       = income - totalFixed - varExpenses;
+
+  if (income === 0 && totalFixed === 0 && varExpenses === 0) {
+    return <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow waterfall.</div>;
+  }
+
+  // Waterfall: income bar, then floating drops, then savings/deficit bar
+  // Each entry: { label, start (bottom of bar), size (height), color, isTotal }
+  const segments = [
+    { label:'Income',   start:0,                         size:income,      color:T.emerald, isTotal:true,  emoji:'💰' },
+    { label:'Fixed',    start:income - totalFixed,       size:totalFixed,  color:T.rose,    isTotal:false, emoji:'🏠' },
+    { label:'Variable', start:income-totalFixed-varExpenses, size:varExpenses, color:T.amber, isTotal:false, emoji:'🛒' },
+    { label:savings>=0?'Saved':'Deficit', start:0, size:Math.abs(savings), color:savings>=0?T.accent:T.rose, isTotal:true, emoji:savings>=0?'💎':'📉' },
+  ].filter(s => s.size > 0);
+
+  const maxVal = income || 1;
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:160, position:'relative', padding:'0 4px' }}>
+        {/* Y-axis guide lines */}
+        {[0,0.25,0.5,0.75,1].map(pct => (
+          <div key={pct} style={{ position:'absolute', left:0, right:0, bottom:`${pct*100}%`, borderTop:`1px dashed ${T.border}`, pointerEvents:'none', zIndex:0 }} />
+        ))}
+        {segments.map((seg, i) => {
+          const bottomPct  = (seg.start / maxVal) * 100;
+          const heightPct  = (seg.size / maxVal) * 100;
+          const isNeg      = !seg.isTotal;
+          return (
+            <div key={i} style={{ flex:1, position:'relative', height:'100%', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:1 }}>
+              <div style={{ position:'absolute', bottom:`${Math.max(0,bottomPct)}%`, width:'72%', height:`${Math.max(1,heightPct)}%`, background:`linear-gradient(180deg,${seg.color}cc,${seg.color}88)`, borderRadius:'4px 4px 2px 2px', border:`1px solid ${seg.color}55`, minHeight:4, display:'flex', alignItems:'center', justifyContent:'center', overflow:'visible' }}>
+                {/* Connector line to next bar (for non-total bars) */}
+                {isNeg && i < segments.length-1 && (
+                  <div style={{ position:'absolute', bottom:0, right:'-28%', width:'56%', height:1, background:`${seg.color}44`, borderBottom:`1px dashed ${seg.color}55` }} />
+                )}
+              </div>
+              <div style={{ position:'absolute', bottom:`${Math.max(0,bottomPct+heightPct)}%`, left:'50%', transform:'translateX(-50%)', whiteSpace:'nowrap', fontSize:9, fontFamily:T.fM, fontWeight:600, color:seg.color, marginBottom:2, textAlign:'center' }}>
+                {seg.emoji} {cur}{fmtN(Math.round(seg.size))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display:'flex', gap:6, marginTop:8 }}>
+        {segments.map((seg,i) => (
+          <div key={i} style={{ flex:1, textAlign:'center', fontSize:9, fontFamily:T.fM, color:T.textSub }}>{seg.label}</div>
+        ))}
+      </div>
+      {/* Breakdown detail row */}
+      {(billsTotal + subsTotal + debtPmts) > 0 && (
+        <div style={{ marginTop:10, padding:'8px 12px', background:T.surface, borderRadius:T.r, border:`1px solid ${T.border}`, display:'flex', gap:12, flexWrap:'wrap' }}>
+          {billsTotal > 0 && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>🧾 Bills <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(billsTotal))}</span></span>}
+          {subsTotal > 0  && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>🔄 Subs <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(subsTotal))}</span></span>}
+          {debtPmts > 0   && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>💳 Debt pmts <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(debtPmts))}</span></span>}
+          {fixedExpenses>0&& <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>🏠 Fixed exp <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(fixedExpenses))}</span></span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DEBT PAYOFF RACE CHART ────────────────────────────────────────────────────
+function DebtPayoffRaceChart({ debts, extraPayment, cur }) {
+  const [showMethod, setShowMethod] = useState('both');
+  const debtColors = [T.rose, T.amber, T.sky, T.violet, T.emerald, '#f472b6', '#fb923c'];
+
+  const simulate = useCallback((method) => {
+    const MAX = 120;
+    let remaining = [...debts].map(d => ({
+      id: d.id||d.name, name: d.name, bal: Number(d.balance||0),
+      monthlyRate: Number(d.rate||0)/100/12, min: Math.max(Number(d.minPayment||0),1),
+      rate: Number(d.rate||0),
+    })).sort((a,b) => method==='avalanche' ? b.rate-a.rate : a.bal-b.bal);
+
+    const timeline = [{ month: 0, ...Object.fromEntries(remaining.map(d=>[d.id, Math.round(d.bal)])) }];
+    let months = 0;
+    while (remaining.some(d=>d.bal>0.01) && months < MAX) {
+      months++;
+      let extra = extraPayment;
+      remaining = remaining.map(d => {
+        if (d.bal <= 0) return d;
+        const interest = d.bal * d.monthlyRate;
+        return {...d, bal: Math.max(0, d.bal + interest - d.min)};
+      });
+      for (let i=0; i<remaining.length; i++) {
+        if (remaining[i].bal>0 && extra>0) {
+          const pmt = Math.min(remaining[i].bal, extra);
+          remaining[i] = {...remaining[i], bal: remaining[i].bal - pmt};
+          extra -= pmt;
+        }
+      }
+      const entry = { month: months };
+      remaining.forEach(d => { entry[d.id] = Math.round(Math.max(0,d.bal)); });
+      timeline.push(entry);
+    }
+    return timeline;
+  }, [debts, extraPayment]);
+
+  const { avData, sbData } = useMemo(() => ({
+    avData: simulate('avalanche'),
+    sbData: simulate('snowball'),
+  }), [simulate]);
+
+  const activeDebts = debts.filter(d => Number(d.balance||0) > 0);
+  if (activeDebts.length < 2) return null;
+
+  const maxMonths = Math.max(avData.length, sbData.length);
+  const chartData = Array.from({length: maxMonths}, (_,i) => {
+    const av = avData[i] || {};
+    const sb = sbData[i] || {};
+    const entry = { month: i };
+    activeDebts.forEach(d => {
+      const id = d.id||d.name;
+      entry[`av_${id}`] = av[id] ?? 0;
+      entry[`sb_${id}`] = sb[id] ?? 0;
+    });
+    return entry;
+  });
+
+  const avPayoff = avData.length - 1;
+  const sbPayoff = sbData.length - 1;
+
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+        <SectionLabel>🏁 Debt Payoff Race</SectionLabel>
+        <div style={{ display:'flex', gap:6 }}>
+          {['avalanche','snowball','both'].map(m => (
+            <button key={m} onClick={()=>setShowMethod(m)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, textTransform:'capitalize', letterSpacing:'0.04em', background:showMethod===m?T.accentDim:T.surface, color:showMethod===m?T.accent:T.textSub, border:`1px solid ${showMethod===m?T.accent+'44':T.border}` }}>{m}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:16, marginBottom:10, flexWrap:'wrap' }}>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+          🏔️ Avalanche: <span style={{ color:T.accent, fontWeight:600 }}>{avPayoff} mo</span>
+          {avPayoff < sbPayoff && <span style={{ color:T.emerald, fontSize:9 }}> ({sbPayoff-avPayoff} mo faster)</span>}
+        </div>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+          ❄️ Snowball: <span style={{ color:T.violet, fontWeight:600 }}>{sbPayoff} mo</span>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={chartData} margin={{top:4,right:8,left:0,bottom:0}}>
+          <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+          <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} label={{value:'months',position:'insideBottom',fill:T.textMuted,fontSize:8,offset:-2}} />
+          <YAxis tickFormatter={v=>v>999?`${cur}${(v/1000).toFixed(0)}k`:`${cur}${v}`} tick={{fill:T.textSub,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} width={40} />
+          <Tooltip formatter={(v,name)=>[`${cur}${fmtN(v)}`, name.replace(/^(av|sb)_/,'').slice(0,18)]} labelFormatter={l=>`Month ${l}`} contentStyle={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,fontSize:10,fontFamily:T.fM}} />
+          {activeDebts.map((d, i) => {
+            const id = d.id||d.name;
+            const col = debtColors[i % debtColors.length];
+            const showAv = showMethod==='avalanche'||showMethod==='both';
+            const showSb = showMethod==='snowball'||showMethod==='both';
+            return [
+              showAv && <Line key={`av_${id}`} type="monotone" dataKey={`av_${id}`} stroke={col} strokeWidth={2} dot={false} strokeDasharray="0" name={`${d.name} (av)`} />,
+              showSb && <Line key={`sb_${id}`} type="monotone" dataKey={`sb_${id}`} stroke={col} strokeWidth={1.5} dot={false} strokeDasharray="4 3" name={`${d.name} (sb)`} opacity={0.65} />,
+            ];
+          })}
+        </LineChart>
+      </ResponsiveContainer>
+      {/* Legend */}
+      <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:8 }}>
+        {activeDebts.map((d,i) => (
+          <div key={d.id||i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:9, fontFamily:T.fM }}>
+            <div style={{ width:12, height:3, background:debtColors[i%debtColors.length], borderRadius:2 }} />
+            <span style={{ color:T.textSub }}>{d.name}</span>
+          </div>
+        ))}
+        {showMethod==='both' && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>— solid: avalanche · - - dashed: snowball</div>}
+      </div>
+    </GlassCard>
+  );
+}
+
+// ── BILL CALENDAR HEATMAP ─────────────────────────────────────────────────────
+function BillCalendarHeatmap({ bills = [], subscriptions = [], cur }) {
+  // Compute daily totals for days 1-31
+  const dailyTotals = useMemo(() => {
+    const totals = Array(31).fill(0);
+    const dayItems = Array(31).fill(null).map(()=>[]);
+
+    bills.forEach(b => {
+      if (!b.amount) return;
+      // Try to extract day from nextDate or dueDay
+      let day = null;
+      if (b.nextDate) day = new Date(b.nextDate + 'T12:00').getDate();
+      else if (b.dueDay) day = Number(b.dueDay);
+      if (day >= 1 && day <= 31) {
+        totals[day-1] += Number(b.amount||0);
+        dayItems[day-1].push({ name:b.name||'Bill', amount:Number(b.amount||0), emoji:b.emoji||'🧾' });
+      }
+    });
+
+    subscriptions.forEach(sub => {
+      if (!sub.amount) return;
+      let day = null;
+      if (sub.nextDate) day = new Date(sub.nextDate + 'T12:00').getDate();
+      if (day >= 1 && day <= 31) {
+        const monthly = sub.cycle==='yearly' ? Number(sub.amount)/12 : sub.cycle==='weekly' ? Number(sub.amount)*4.33 : Number(sub.amount);
+        totals[day-1] += monthly;
+        dayItems[day-1].push({ name:sub.name||'Sub', amount:monthly, emoji:sub.emoji||'🔄' });
+      }
+    });
+    return { totals, dayItems };
+  }, [bills, subscriptions]);
+
+  const { totals, dayItems } = dailyTotals;
+  const maxVal = Math.max(...totals, 1);
+  const totalOutflows = totals.reduce((s,v)=>s+v,0);
+  const crunchDays = totals.reduce((s,v,i)=>v>maxVal*0.7?s+1:s, 0);
+
+  const [hoveredDay, setHoveredDay] = useState(null);
+
+  return (
+    <GlassCard style={{ padding:'16px 18px', marginTop:12 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+        <SectionLabel>📅 Monthly Cash Outflow Map</SectionLabel>
+        <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+          {cur}{fmtN(Math.round(totalOutflows))}/mo total
+          {crunchDays > 0 && <span style={{ color:T.rose, marginLeft:6 }}>· {crunchDays} crunch day{crunchDays>1?'s':''}</span>}
+        </div>
+      </div>
+      {/* Day-of-week header */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3, marginBottom:3 }}>
+        {['M','T','W','T','F','S','S'].map((d,i)=>(
+          <div key={i} style={{ textAlign:'center', fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:3 }}>
+        {Array.from({length:31},(_,i)=>{
+          const val = totals[i];
+          const intensity = val / maxVal;
+          const isCrunch = val > maxVal * 0.7 && val > 0;
+          const isHigh = val > maxVal * 0.4 && val > 0;
+          const bg = val === 0
+            ? `rgba(255,255,255,0.03)`
+            : isCrunch
+              ? `rgba(239,68,68,${0.15+0.45*intensity})`
+              : isHigh
+                ? `rgba(251,146,60,${0.12+0.35*intensity})`
+                : `rgba(56,189,248,${0.08+0.3*intensity})`;
+          const borderCol = val === 0 ? T.border : isCrunch ? `rgba(239,68,68,0.35)` : isHigh ? `rgba(251,146,60,0.3)` : `rgba(56,189,248,0.25)`;
+          const isHovered = hoveredDay === i;
+          return (
+            <div key={i}
+              onMouseEnter={()=>setHoveredDay(i)}
+              onMouseLeave={()=>setHoveredDay(null)}
+              style={{ aspectRatio:'1', borderRadius:5, background:bg, border:`1px solid ${borderCol}`, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:val>0?'default':'default', position:'relative', transition:'transform 0.15s', transform:isHovered&&val>0?'scale(1.25)':'scale(1)', zIndex:isHovered?10:1 }}>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:val>0?'rgba(255,255,255,0.9)':T.textMuted, fontWeight:val>0?600:400, lineHeight:1 }}>{i+1}</div>
+              {val > 0 && <div style={{ fontSize:6, fontFamily:T.fM, color:'rgba(255,255,255,0.65)', marginTop:1, lineHeight:1 }}>{cur}{Math.round(val)>999?`${(val/1000).toFixed(1)}k`:Math.round(val)}</div>}
+              {/* Tooltip */}
+              {isHovered && val > 0 && (
+                <div style={{ position:'absolute', bottom:'110%', left:'50%', transform:'translateX(-50%)', background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'6px 8px', zIndex:20, minWidth:100, boxShadow:'0 4px 16px rgba(0,0,0,0.4)', pointerEvents:'none' }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, fontWeight:600 }}>Day {i+1}</div>
+                  {dayItems[i].map((item,j) => (
+                    <div key={j} style={{ display:'flex', justifyContent:'space-between', gap:8, fontSize:9, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap' }}>
+                      <span>{item.emoji} {item.name}</span>
+                      <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(item.amount))}</span>
+                    </div>
+                  ))}
+                  {dayItems[i].length > 1 && (
+                    <div style={{ marginTop:4, paddingTop:4, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                      <span style={{ color:T.textSub }}>Total</span>
+                      <span style={{ color:T.amber, fontWeight:600 }}>{cur}{fmtN(Math.round(val))}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {/* Legend */}
+      <div style={{ display:'flex', gap:10, marginTop:8, alignItems:'center' }}>
+        <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>Low</span>
+        {['rgba(56,189,248,0.2)','rgba(251,146,60,0.3)','rgba(239,68,68,0.35)','rgba(239,68,68,0.6)'].map((c,i)=>(
+          <div key={i} style={{ width:12, height:12, borderRadius:3, background:c }} />
+        ))}
+        <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>High (cash crunch)</span>
+        <div style={{ flex:1 }} />
+        <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>Hover cells for detail</span>
+      </div>
+    </GlassCard>
+  );
+}
+
 // ── MONEY TOOLS TAB ───────────────────────────────────────────────────────────
 function MoneyToolsTab({ data, cur }) {
   const {expenses=[], debts=[], subscriptions=[], assets=[], investments=[], settings={}} = data;
@@ -5193,19 +5544,16 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <Btn onClick={()=>onOpenMonthlyReview?.()} color={T.violet}>📅 Monthly Review</Btn>
           </div>
           <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Cash Flow — Last 6 Months</SectionLabel>
-            {cashflowMonths.length > 0 ? (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={cashflowMonths} barGap={3} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="m" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip prefix={cur} />} />
-                  <Bar dataKey="inc" name="Income" fill={T.emerald} opacity={0.85} radius={[4,4,0,0]} />
-                  <Bar dataKey="exp" name="Expenses" fill={T.rose} opacity={0.7} radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow trends.</div>}
+            <SectionLabel>Cash Flow Waterfall — {selectedMonth}</SectionLabel>
+            <CashFlowWaterfallChart
+              income={selMonthInc}
+              expenses={expenses}
+              bills={bills}
+              subscriptions={subscriptions||[]}
+              debts={debts}
+              month={selectedMonth}
+              cur={cur}
+            />
           </GlassCard>
           {/* ── Net Worth Projection (moved from Intelligence) ─────────────── */}
           {(() => {
@@ -5242,6 +5590,8 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
 
       {tab==='spending' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Anomaly detection banners */}
+          <ExpenseAnomalyBanners expenses={expenses} selectedMonth={selectedMonth} cur={cur} />
           {/* Controls */}
           <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
             <Btn onClick={()=>setModal('expense')} color={T.rose}>{lang==='fr'?'+ Dépense':' + Log Expense'}</Btn>
@@ -5674,6 +6024,9 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 <strong style={{ color:T.violet }}>Snowball</strong> pays smallest balance first — builds momentum and motivation.
               </div>
             </GlassCard>
+
+            {/* ── Debt Payoff Race ─────────────────────────────────────────── */}
+            <DebtPayoffRaceChart debts={debts} extraPayment={extraPayment} cur={cur} />
 
             {/* ── Debt → FI Impact ────────────────────────────────────────── */}
             {(() => {
@@ -6192,6 +6545,10 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                     </div>
                   )}
                 </GlassCard>
+                {/* ── Bill Calendar Heatmap ───────────────────────────────── */}
+                {(billsArr.length > 0 || (subscriptions||[]).length > 0) && (
+                  <BillCalendarHeatmap bills={billsArr} subscriptions={subscriptions||[]} cur={cur} />
+                )}
               )}
             </div>
           </div>
