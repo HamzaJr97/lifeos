@@ -10480,61 +10480,183 @@ function CalendarPage({ data }) {
   const now = new Date();
   const [viewYear,  setViewYear ] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [selectedDay, setSelectedDay] = useState(null); // day number clicked
 
   const prevMonth = () => { if (viewMonth===0) { setViewMonth(11); setViewYear(y=>y-1); } else setViewMonth(m=>m-1); };
   const nextMonth = () => { if (viewMonth===11) { setViewMonth(0); setViewYear(y=>y+1); } else setViewMonth(m=>m+1); };
 
-  const monthStr = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}`;
+  const monthStr  = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}`;
   const monthName = new Date(viewYear, viewMonth, 1).toLocaleString('en-US', { month:'long', year:'numeric' });
+  const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  const todayDay = isCurrentMonth ? now.getDate() : -1;
 
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const firstDay   = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
 
-  // Build day-indexed maps
-  const expByDay   = {};
-  const habitByDay = {};
-  const billByDay  = {};
-  const goalDeadlines = {};
-
-  (expenses||[]).filter(e=>e.date?.startsWith(monthStr)).forEach(e => {
-    const d = parseInt(e.date.slice(8));
-    if (!expByDay[d]) expByDay[d] = 0;
-    expByDay[d] += Number(e.amount||0);
-  });
-
-  (habits||[]).forEach(h => {
-    (habitLogs[h.id]||[]).filter(date=>date.startsWith(monthStr)).forEach(date => {
-      const d = parseInt(date.slice(8));
-      if (!habitByDay[d]) habitByDay[d] = 0;
-      habitByDay[d]++;
+  // ── per-day maps ─────────────────────────────────────────────────────────────
+  const expByDay      = useMemo(() => {
+    const m = {};
+    (expenses||[]).filter(e=>e.date?.startsWith(monthStr)).forEach(e => {
+      const d = parseInt(e.date.slice(8));
+      m[d] = (m[d]||0) + Number(e.amount||0);
     });
-  });
+    return m;
+  }, [expenses, monthStr]);
 
-  (bills||[]).forEach(b => {
-    if (b.nextDate?.startsWith(monthStr)) {
-      const d = parseInt(b.nextDate.slice(8));
-      if (!billByDay[d]) billByDay[d] = [];
-      billByDay[d].push(b.name);
+  const habitByDay    = useMemo(() => {
+    const m = {};
+    (habits||[]).forEach(h => {
+      (habitLogs[h.id]||[]).filter(date=>date.startsWith(monthStr)).forEach(date => {
+        const d = parseInt(date.slice(8));
+        m[d] = (m[d]||0) + 1;
+      });
+    });
+    return m;
+  }, [habits, habitLogs, monthStr]);
+
+  const billByDay     = useMemo(() => {
+    const m = {};
+    (bills||[]).forEach(b => {
+      if (b.nextDate?.startsWith(monthStr)) {
+        const d = parseInt(b.nextDate.slice(8));
+        m[d] = [...(m[d]||[]), b.name];
+      }
+    });
+    return m;
+  }, [bills, monthStr]);
+
+  const goalDeadlines = useMemo(() => {
+    const m = {};
+    (goals||[]).forEach(g => {
+      if (g.deadline?.startsWith(monthStr)) {
+        const d = parseInt(g.deadline.slice(8));
+        m[d] = [...(m[d]||[]), g.name];
+      }
+    });
+    return m;
+  }, [goals, monthStr]);
+
+  // ── Event load (density) per day ──────────────────────────────────────────
+  // Combines all signal types: expenses, habits, bills, goal deadlines
+  const loadByDay = useMemo(() => {
+    const m = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      let load = 0;
+      if (expByDay[d])      load += 1;                   // any spending = 1 unit
+      if (habitByDay[d])    load += habitByDay[d];        // each habit logged
+      if (billByDay[d])     load += billByDay[d].length;  // each bill
+      if (goalDeadlines[d]) load += goalDeadlines[d].length;
+      m[d] = load;
     }
-  });
+    return m;
+  }, [expByDay, habitByDay, billByDay, goalDeadlines, daysInMonth]);
 
-  (goals||[]).forEach(g => {
-    if (g.deadline?.startsWith(monthStr)) {
-      const d = parseInt(g.deadline.slice(8));
-      goalDeadlines[d] = (goalDeadlines[d]||[]).concat(g.name);
+  const maxLoad = Math.max(...Object.values(loadByDay), 1);
+
+  // ── Free time detection — days in the current week with load === 0 ─────────
+  const freeTimeDays = useMemo(() => {
+    if (!isCurrentMonth) return new Set();
+    const free = new Set();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay()); // Sunday
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      if (d.getMonth() === viewMonth && d.getFullYear() === viewYear) {
+        const day = d.getDate();
+        if ((loadByDay[day]||0) === 0 && day >= now.getDate()) free.add(day);
+      }
     }
-  });
+    return free;
+  }, [loadByDay, isCurrentMonth, viewMonth, viewYear, now]);
 
-  const todayDay = (now.getFullYear()===viewYear && now.getMonth()===viewMonth) ? now.getDate() : -1;
+  // ── Habit-to-calendar sync — unchecked habits for a day ───────────────────
+  const getUncheckedHabitsForDay = useCallback((day) => {
+    const dateStr = `${monthStr}-${String(day).padStart(2,'0')}`;
+    return (habits||[]).filter(h => !(habitLogs[h.id]||[]).includes(dateStr));
+  }, [habits, habitLogs, monthStr]);
+
+  const getCheckedHabitsForDay = useCallback((day) => {
+    const dateStr = `${monthStr}-${String(day).padStart(2,'0')}`;
+    return (habits||[]).filter(h => (habitLogs[h.id]||[]).includes(dateStr));
+  }, [habits, habitLogs, monthStr]);
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const totalMonthExp  = Object.values(expByDay).reduce((s,v)=>s+v,0);
+  const daysWithHabits = Object.keys(habitByDay).length;
+  const openDaysCount  = freeTimeDays.size;
 
   const cells = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
   const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const maxExp = Math.max(...Object.values(expByDay), 1);
-  const totalMonthExp = Object.values(expByDay).reduce((s,v)=>s+v,0);
-  const daysWithHabits = Object.keys(habitByDay).length;
+
+  // ── Day detail panel (clicked day) ────────────────────────────────────────
+  const DayDetailPanel = ({ day }) => {
+    if (!day) return null;
+    const dateStr   = `${monthStr}-${String(day).padStart(2,'0')}`;
+    const unchecked = getUncheckedHabitsForDay(day);
+    const checked   = getCheckedHabitsForDay(day);
+    const exps      = (expenses||[]).filter(e => e.date === dateStr);
+    const dayBills  = billByDay[day] || [];
+    const dayGoals  = goalDeadlines[day] || [];
+    const isFree    = freeTimeDays.has(day);
+    const HCOLORS   = [T.accent, T.violet, T.sky, T.amber, T.rose, T.emerald];
+    return (
+      <GlassCard style={{ padding:'18px 20px', border:`1px solid ${T.accent}33`, animation:'slideDown 0.2s ease' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>
+            {new Date(viewYear, viewMonth, day).toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'})}
+          </div>
+          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+            {isFree && <span style={{ fontSize:9, fontFamily:T.fM, color:T.emerald, background:`${T.emerald}15`, border:`1px solid ${T.emerald}33`, borderRadius:99, padding:'2px 8px' }}>🟢 Open — good for deep work</span>}
+            <button onClick={()=>setSelectedDay(null)} style={{ padding:'3px 7px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, fontSize:11, color:T.textMuted, cursor:'pointer' }}>×</button>
+          </div>
+        </div>
+        {/* Habits section */}
+        {(habits||[]).length > 0 && (
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Habits</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+              {checked.map((h,i) => (
+                <div key={h.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', borderRadius:6, background:`${T.emerald}10`, border:`1px solid ${T.emerald}22` }}>
+                  <span style={{ fontSize:12 }}>{h.emoji||'🔥'}</span>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.emerald, textDecoration:'line-through', opacity:0.8 }}>{h.name}</span>
+                  <span style={{ marginLeft:'auto', fontSize:9, color:T.emerald }}>✓</span>
+                </div>
+              ))}
+              {unchecked.map((h,i) => (
+                <div key={h.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}` }}>
+                  <span style={{ fontSize:12 }}>{h.emoji||'🔥'}</span>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{h.name}</span>
+                  <span style={{ marginLeft:'auto', fontSize:9, fontFamily:T.fM, color:T.textMuted }}>pending</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Expenses */}
+        {exps.length > 0 && (
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>Expenses</div>
+            {exps.map((e,i) => (
+              <div key={e.id||i} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', fontSize:11, fontFamily:T.fM }}>
+                <span style={{ color:T.textSub }}>{e.category} {e.note ? `· ${e.note}` : ''}</span>
+                <span style={{ color:T.rose }}>{cur}{fmtN(e.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Bills & goals */}
+        {dayBills.length > 0 && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:6 }}>🧾 Bills: {dayBills.join(', ')}</div>}
+        {dayGoals.length > 0 && <div style={{ fontSize:10, fontFamily:T.fM, color:T.violet }}>🎯 Deadline: {dayGoals.join(', ')}</div>}
+        {/* Empty state */}
+        {!exps.length && !dayBills.length && !dayGoals.length && (habits||[]).length === 0 && (
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Nothing logged for this day.</div>
+        )}
+      </GlassCard>
+    );
+  };
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
@@ -10549,75 +10671,206 @@ function CalendarPage({ data }) {
         accentColor={T.accent}
       />
       {gcalTab==='gcal' && <GoogleCalendarTab data={data} />}
-      {gcalTab==='local' && <div>
+      {gcalTab==='local' && (
+      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-      {/* Stats row */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12, marginBottom:18 }}>
-        {[
-          { label:'Month Spend',   val:`${cur}${fmtN(totalMonthExp)}`, color:T.rose   },
-          { label:'Active Days',   val:`${daysWithHabits} days`,       color:T.accent },
-          { label:'Bills Due',     val:`${Object.keys(billByDay).length}`,  color:T.amber  },
-          { label:'Goal Deadlines',val:`${Object.keys(goalDeadlines).length}`, color:T.violet },
-        ].map((m,i)=>(
-          <GlassCard key={i} style={{ padding:'14px 16px' }}>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{m.label}</div>
-            <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:m.color }}>{m.val}</div>
-          </GlassCard>
-        ))}
-      </div>
-
-      <GlassCard style={{ padding:'22px' }}>
-        {/* Navigation */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-          <button onClick={prevMonth} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoChevLeft size={16} stroke={T.textSub} /></button>
-          <span style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text }}>{monthName}</span>
-          <button onClick={nextMonth} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoChevR size={16} stroke={T.textSub} /></button>
-        </div>
-
-        {/* Day headers */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:4 }}>
-          {DAYS.map(d=>(
-            <div key={d} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center', letterSpacing:'0.06em', paddingBottom:4 }}>{d.toUpperCase()}</div>
+        {/* ── Stats row ─────────────────────────────────────────────────── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12 }}>
+          {[
+            { label:'Month Spend',    val:`${cur}${fmtN(totalMonthExp)}`,              color:T.rose    },
+            { label:'Active Days',    val:`${daysWithHabits} days`,                    color:T.accent  },
+            { label:'Bills Due',      val:`${Object.keys(billByDay).length}`,           color:T.amber   },
+            { label:'Goal Deadlines', val:`${Object.keys(goalDeadlines).length}`,       color:T.violet  },
+            { label:'Open Days',      val:isCurrentMonth ? `${openDaysCount} this wk`:'—', color:T.emerald },
+          ].map((m,i)=>(
+            <GlassCard key={i} style={{ padding:'14px 16px' }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{m.label}</div>
+              <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:m.color }}>{m.val}</div>
+            </GlassCard>
           ))}
         </div>
 
-        {/* Calendar grid */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
-          {cells.map((day, i) => {
-            if (!day) return <div key={`e${i}`} />;
-            const isToday = day === todayDay;
-            const expAmt  = expByDay[day] || 0;
-            const habCnt  = habitByDay[day] || 0;
-            const hasBill = !!billByDay[day];
-            const hasGoal = !!goalDeadlines[day];
-            const expIntensity = expAmt > 0 ? Math.min(expAmt / maxExp, 1) : 0;
-            return (
-              <div key={day} style={{ minHeight:68, padding:'6px 4px', borderRadius:8, background:isToday?T.accentLo:T.surface, border:`1px solid ${isToday?T.accent+'66':T.border}`, position:'relative', display:'flex', flexDirection:'column', gap:2 }}>
-                <span style={{ fontSize:10, fontFamily:T.fM, fontWeight:isToday?700:400, color:isToday?T.accent:T.text, textAlign:'center' }}>{day}</span>
-                {/* Expense bar */}
-                {expAmt > 0 && (
-                  <div title={`${cur}${fmtN(expAmt)} spent`} style={{ height:3, borderRadius:2, background:T.rose, opacity:0.4+expIntensity*0.6, width:'80%', alignSelf:'center' }} />
-                )}
-                {/* Dots */}
-                <div style={{ display:'flex', flexWrap:'wrap', gap:2, justifyContent:'center' }}>
-                  {habCnt > 0 && <div title={`${habCnt} habit${habCnt>1?'s':''}`} style={{ width:6, height:6, borderRadius:'50%', background:T.accent, opacity:0.85 }} />}
-                  {hasBill && <div title={`Bill: ${billByDay[day].join(', ')}`} style={{ width:6, height:6, borderRadius:'50%', background:T.amber }} />}
-                  {hasGoal && <div title={`Deadline: ${goalDeadlines[day].join(', ')}`} style={{ width:6, height:6, borderRadius:'50%', background:T.violet }} />}
-                </div>
-                {expAmt > 0 && <div style={{ fontSize:7, fontFamily:T.fM, color:T.rose, textAlign:'center', opacity:0.8 }}>{cur}{expAmt>=1000?fmtN(expAmt):expAmt.toFixed(0)}</div>}
+        {/* ── Free time banner ──────────────────────────────────────────── */}
+        {freeTimeDays.size > 0 && (
+          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderRadius:T.r, background:`${T.emerald}0a`, border:`1px solid ${T.emerald}33`, animation:'slideDown 0.3s ease' }}>
+            <span style={{ fontSize:18 }}>🟢</span>
+            <div>
+              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.emerald, marginBottom:2 }}>
+                {freeTimeDays.size} open day{freeTimeDays.size>1?'s':''} this week
               </div>
-            );
-          })}
-        </div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                {[...freeTimeDays].sort((a,b)=>a-b).map(d => new Date(viewYear,viewMonth,d).toLocaleDateString('en-US',{weekday:'short',day:'numeric'})).join(' · ')} — ideal for deep work or scheduling
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* Legend */}
-        <div style={{ display:'flex', gap:16, marginTop:14, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
-          {[{color:T.accent,label:'Habits logged'},{color:T.rose,label:'Expense activity'},{color:T.amber,label:'Bill due'},{color:T.violet,label:'Goal deadline'}].map((l,i)=>(
-            <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ width:8, height:8, borderRadius:'50%', background:l.color, display:'inline-block' }} />{l.label}</span>
-          ))}
-        </div>
-      </GlassCard>
-      </div>}
+        {/* ── Calendar grid ─────────────────────────────────────────────── */}
+        <GlassCard style={{ padding:'22px' }}>
+          {/* Navigation */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+            <button onClick={prevMonth} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoChevLeft size={16} stroke={T.textSub} /></button>
+            <span style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text }}>{monthName}</span>
+            <button onClick={nextMonth} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoChevR size={16} stroke={T.textSub} /></button>
+          </div>
+
+          {/* Day headers */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:4 }}>
+            {DAYS.map(d => (
+              <div key={d} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center', letterSpacing:'0.06em', paddingBottom:4 }}>{d.toUpperCase()}</div>
+            ))}
+          </div>
+
+          {/* Calendar cells */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
+            {cells.map((day, idx) => {
+              if (!day) return <div key={`e${idx}`} />;
+              const isToday   = day === todayDay;
+              const isOpen    = freeTimeDays.has(day);
+              const isSelected = day === selectedDay;
+              const load      = loadByDay[day] || 0;
+              const intensity = load / Math.max(maxLoad, 1);
+              // Heat colour: 0 = transparent, mid = amber, high = rose
+              const heatBg = load === 0
+                ? isOpen ? `${T.emerald}0d` : 'transparent'
+                : intensity < 0.33
+                  ? `rgba(56,189,248,${0.06+intensity*0.18})`   // sky — light
+                  : intensity < 0.66
+                    ? `rgba(251,146,60,${0.06+intensity*0.2})`  // amber — medium
+                    : `rgba(239,68,68,${0.08+intensity*0.22})`; // rose — busy
+              const heatBorder = load === 0
+                ? isOpen ? `${T.emerald}33` : T.border
+                : intensity < 0.33 ? `rgba(56,189,248,0.25)`
+                : intensity < 0.66 ? `rgba(251,146,60,0.3)`
+                : `rgba(239,68,68,0.35)`;
+
+              // Today's unchecked habits as task pills
+              const todayUnchecked = isToday ? getUncheckedHabitsForDay(day) : [];
+              const todayChecked   = isToday ? getCheckedHabitsForDay(day)   : [];
+              const expAmt         = expByDay[day] || 0;
+              const hasBill        = !!billByDay[day];
+              const hasGoal        = !!goalDeadlines[day];
+
+              return (
+                <div
+                  key={day}
+                  onClick={() => setSelectedDay(day === selectedDay ? null : day)}
+                  style={{
+                    minHeight:74, padding:'5px 4px', borderRadius:8, cursor:'pointer',
+                    background: isToday ? T.accentLo : isSelected ? `${T.violet}15` : heatBg,
+                    border:`1.5px solid ${isSelected ? T.violet+'66' : isToday ? T.accent+'66' : heatBorder}`,
+                    position:'relative', display:'flex', flexDirection:'column', gap:2,
+                    transition:'all 0.15s',
+                  }}>
+                  {/* Day number + open label */}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                    <span style={{ fontSize:10, fontFamily:T.fM, fontWeight:isToday?700:400, color:isToday?T.accent:T.text }}>{day}</span>
+                    {isOpen && <span style={{ fontSize:6, fontFamily:T.fM, color:T.emerald, fontWeight:700, lineHeight:1.2 }}>OPEN</span>}
+                  </div>
+
+                  {/* Load heat bar */}
+                  {load > 0 && (
+                    <div style={{ height:2, borderRadius:1, width:'85%', alignSelf:'center',
+                      background: intensity < 0.33 ? T.sky : intensity < 0.66 ? T.amber : T.rose,
+                      opacity: 0.5 + intensity*0.5,
+                    }} />
+                  )}
+
+                  {/* Today habit task pills — show up to 2, then "+N more" */}
+                  {isToday && todayUnchecked.length > 0 && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:1, marginTop:1 }}>
+                      {todayUnchecked.slice(0,2).map(h => (
+                        <div key={h.id} style={{ fontSize:6, fontFamily:T.fM, color:T.amber, background:`${T.amber}15`, borderRadius:3, padding:'1px 4px', display:'flex', alignItems:'center', gap:2, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis' }}>
+                          <span>{h.emoji||'🔥'}</span><span style={{ overflow:'hidden', textOverflow:'ellipsis', maxWidth:44 }}>{h.name}</span>
+                        </div>
+                      ))}
+                      {todayUnchecked.length > 2 && (
+                        <div style={{ fontSize:6, fontFamily:T.fM, color:T.textMuted }}>+{todayUnchecked.length-2} more</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Checked habits today: subtle green count */}
+                  {isToday && todayChecked.length > 0 && (
+                    <div style={{ fontSize:6, fontFamily:T.fM, color:T.emerald, opacity:0.8 }}>✓ {todayChecked.length} done</div>
+                  )}
+
+                  {/* Signal dots for non-today cells */}
+                  {!isToday && (
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:2, justifyContent:'center', marginTop:'auto' }}>
+                      {(habitByDay[day]||0) > 0 && <div title={`${habitByDay[day]} habits`} style={{ width:5, height:5, borderRadius:'50%', background:T.accent, opacity:0.85 }} />}
+                      {hasBill && <div title={`Bill: ${billByDay[day].join(', ')}`} style={{ width:5, height:5, borderRadius:'50%', background:T.amber }} />}
+                      {hasGoal && <div title={`Deadline: ${goalDeadlines[day].join(', ')}`} style={{ width:5, height:5, borderRadius:'50%', background:T.violet }} />}
+                      {expAmt > 0 && <div title={`${cur}${fmtN(expAmt)}`} style={{ width:5, height:5, borderRadius:'50%', background:T.rose, opacity:0.7 }} />}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div style={{ display:'flex', gap:12, marginTop:14, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+            {[
+              {color:'rgba(56,189,248,0.4)',  label:'Light day'},
+              {color:'rgba(251,146,60,0.4)',  label:'Busy day'},
+              {color:'rgba(239,68,68,0.4)',   label:'Heavy day'},
+              {color:`${T.emerald}44`,        label:'Open (deep work)'},
+              {color:T.accent,               label:'Habits'},
+              {color:T.amber,                label:'Bill due'},
+              {color:T.violet,               label:'Goal deadline'},
+            ].map((l,i) => (
+              <span key={i} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <span style={{ width:8, height:8, borderRadius:3, background:l.color, display:'inline-block', flexShrink:0 }} />
+                {l.label}
+              </span>
+            ))}
+          </div>
+        </GlassCard>
+
+        {/* ── Day detail panel ──────────────────────────────────────────── */}
+        {selectedDay && <DayDetailPanel day={selectedDay} />}
+
+        {/* ── This week's habit task list ───────────────────────────────── */}
+        {isCurrentMonth && (habits||[]).length > 0 && (() => {
+          const todayUnchecked = getUncheckedHabitsForDay(todayDay);
+          const todayChecked   = getCheckedHabitsForDay(todayDay);
+          if (todayUnchecked.length === 0 && todayChecked.length === 0) return null;
+          const HCOLORS = [T.accent, T.violet, T.sky, T.amber, T.rose, T.emerald];
+          return (
+            <GlassCard style={{ padding:'18px 20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <SectionLabel>📋 Today's Habit Tasks</SectionLabel>
+                <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                  {todayChecked.length}/{habits.length} done
+                </span>
+              </div>
+              {/* Progress bar */}
+              <ProgressBar pct={habits.length > 0 ? (todayChecked.length/habits.length)*100 : 0} color={T.accent} height={4} />
+              <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:12 }}>
+                {/* Unchecked first */}
+                {todayUnchecked.map((h,i) => (
+                  <div key={h.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <div style={{ width:28, height:28, borderRadius:7, background:`${HCOLORS[i%HCOLORS.length]}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0 }}>{h.emoji||'🔥'}</div>
+                    <div style={{ flex:1, fontSize:12, fontFamily:T.fM, color:T.text }}>{h.name}</div>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:`${T.amber}15`, borderRadius:99, padding:'2px 8px', flexShrink:0 }}>pending</span>
+                  </div>
+                ))}
+                {/* Checked, greyed out */}
+                {todayChecked.map((h,i) => (
+                  <div key={h.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:T.r, background:`${T.emerald}08`, border:`1px solid ${T.emerald}1a`, opacity:0.7 }}>
+                    <div style={{ width:28, height:28, borderRadius:7, background:`${T.emerald}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0 }}>{h.emoji||'🔥'}</div>
+                    <div style={{ flex:1, fontSize:12, fontFamily:T.fM, color:T.textSub, textDecoration:'line-through' }}>{h.name}</div>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.emerald, flexShrink:0 }}>✓ done</span>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          );
+        })()}
+
+      </div>
+      )}
     </div>
   );
 }
