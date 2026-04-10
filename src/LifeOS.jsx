@@ -6512,6 +6512,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   <div style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>No bills tracked yet</div>
                 </GlassCard>
               ) : (
+                <>
                 <GlassCard style={{ padding:'14px 18px' }}>
                   {upcomingBills.map((bill,i)=>{ const daysUntil=Math.ceil((new Date(bill.nextDate)-new Date())/(1000*60*60*24)); const isOverdue=daysUntil<0; const isUrgent=daysUntil<=3&&daysUntil>=0; const statusColor=isOverdue?T.rose:isUrgent?T.amber:T.textSub; return (
                     <div key={bill.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<upcomingBills.length-1?`1px solid ${T.border}`:'none' }}>
@@ -6546,9 +6547,8 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   )}
                 </GlassCard>
                 {/* ── Bill Calendar Heatmap ───────────────────────────────── */}
-                {(billsArr.length > 0 || (subscriptions||[]).length > 0) && (
-                  <BillCalendarHeatmap bills={billsArr} subscriptions={subscriptions||[]} cur={cur} />
-                )}
+                <BillCalendarHeatmap bills={billsArr} subscriptions={subscriptions||[]} cur={cur} />
+                </>
               )}
             </div>
           </div>
