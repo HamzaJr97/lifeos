@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v87
+// LifeOS — Personal Life Operating System  |  v96
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -4477,6 +4477,146 @@ function HomePage({ data, actions, onNav }) {
   const SEV_BG_MAP = { urgent:'#FCEBEB', warn:'#FAEEDA', info:'#E6F1FB', positive:'#E1F5EE' };
   const SEV_TXT    = { urgent:'#791F1F', warn:'#633806', info:'#042C53',  positive:'#04342C' };
 
+  // ── Daily Briefing — AI bullets, cached per day ───────────────────────
+  const [dailyBrief, setDailyBrief] = useLocalStorage('los_daily_brief', { date:'', bullets:[], loading:false });
+  const [briefLoading, setBriefLoading] = useState(false);
+  const briefIsToday = dailyBrief?.date === today();
+
+  const generateDailyBrief = useCallback(async () => {
+    if (briefLoading || briefIsToday) return;
+    setBriefLoading(true);
+    // Build concise data snapshot for AI
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-7);
+    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate()-14);
+    const wStr = weekAgo.toISOString().slice(0,10);
+    const twStr = twoWeeksAgo.toISOString().slice(0,10);
+    const thisWeekExp = (expenses||[]).filter(e=>e.date>=wStr).reduce((s,e)=>s+Number(e.amount||0),0);
+    const lastWeekExp = (expenses||[]).filter(e=>e.date>=twStr&&e.date<wStr).reduce((s,e)=>s+Number(e.amount||0),0);
+    const sleep7 = (vitals||[]).filter(v=>v.date>=wStr&&v.sleep).map(v=>Number(v.sleep));
+    const sleep14 = (vitals||[]).filter(v=>v.date>=twStr&&v.date<wStr&&v.sleep).map(v=>Number(v.sleep));
+    const avgSleep7 = sleep7.length?sleep7.reduce((s,x)=>s+x,0)/sleep7.length:0;
+    const avgSleep14 = sleep14.length?sleep14.reduce((s,x)=>s+x,0)/sleep14.length:0;
+    const staleGoals = (goals||[]).filter(g=>Number(g.current||0)<Number(g.target||1)&&g.updatedAt&&g.updatedAt<twStr);
+    const topCat = (()=>{ const m={}; (expenses||[]).filter(e=>e.date>=wStr).forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);}); return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; })();
+    const habitPct = (habits||[]).length>0 ? Math.round((Object.values(habitLogs).flat().filter(d=>d>=wStr).length/((habits||[]).length*7))*100) : 0;
+
+    const prompt = `You are a personal life coach. Generate exactly 3 concise insight bullets (max 12 words each) based on this data. Be specific with numbers. Return JSON array of strings only, no markdown.
+
+Data: spending this week ${cur}${fmtN(Math.round(thisWeekExp))} vs last week ${cur}${fmtN(Math.round(lastWeekExp))} (${lastWeekExp>0?Math.round((thisWeekExp/lastWeekExp-1)*100):0}% change). Avg sleep this week: ${avgSleep7.toFixed(1)}h vs prior week ${avgSleep14.toFixed(1)}h. Habit completion: ${habitPct}%. Top spend category: ${topCat?`${topCat[0]} ${cur}${fmtN(Math.round(topCat[1]))}`:'-'}. Stale goals (no progress 14d): ${staleGoals.map(g=>g.name).join(', ')||'none'}. Savings rate: ${savRate.toFixed(1)}%. Net worth: ${cur}${fmtN(netWorth)}.
+
+Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
+
+    try {
+      const text = await callAI(settings, { max_tokens:200, messages:[{ role:'user', content:prompt }] });
+      const cleaned = (text||'').replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed) && parsed.length>0) {
+        setDailyBrief({ date:today(), bullets:parsed.slice(0,3) });
+      } else throw new Error('bad parse');
+    } catch {
+      // Fallback: build deterministic bullets from data
+      const bullets = [];
+      if (lastWeekExp>0) { const d=Math.round((thisWeekExp/lastWeekExp-1)*100); bullets.push(d>=0?`Spent ${d}% more than last week · ${cur}${fmtN(Math.round(thisWeekExp))} total`:`Spent ${Math.abs(d)}% less than last week · good progress`); }
+      else if (thisWeekExp>0) bullets.push(`${cur}${fmtN(Math.round(thisWeekExp))} spent this week${topCat?` · top: ${topCat[0]}`:''}`);
+      if (avgSleep7>0&&avgSleep14>0) { const d=(avgSleep7-avgSleep14).toFixed(1); bullets.push(Number(d)>=0?`Sleep up ${d}h avg vs last week · ${avgSleep7.toFixed(1)}h nightly`:`Sleep down ${Math.abs(Number(d))}h avg vs last week · ${avgSleep7.toFixed(1)}h`); }
+      else if (avgSleep7>0) bullets.push(`Avg sleep ${avgSleep7.toFixed(1)}h this week · target 7-8h`);
+      if (staleGoals.length>0) bullets.push(`${staleGoals.length} goal${staleGoals.length>1?'s':''} with no progress in 14 days`);
+      else if (habitPct>0) bullets.push(`${habitPct}% habit completion this week${habitPct>=80?' · excellent':habitPct>=60?' · on track':' · needs focus'}`);
+      if (bullets.length<3) bullets.push(`Savings rate ${savRate.toFixed(1)}% · net worth ${cur}${fmtN(netWorth)}`);
+      setDailyBrief({ date:today(), bullets:bullets.slice(0,3) });
+    }
+    setBriefLoading(false);
+  }, [briefLoading, briefIsToday, expenses, vitals, goals, habits, habitLogs, savRate, netWorth, settings, cur]);
+
+  // Auto-generate on mount if not today's
+  useEffect(() => {
+    if (!briefIsToday && (expenses||[]).length > 0) {
+      generateDailyBrief();
+    }
+  }, []); // eslint-disable-line
+
+  // ── Mood trend 7-day sparkline data ──────────────────────────────────
+  const mood7 = useMemo(() => {
+    return Array.from({length:7},(_,i)=>{
+      const d=new Date(); d.setDate(d.getDate()-6+i);
+      const ds=d.toISOString().slice(0,10);
+      const entry=(vitals||[]).find(v=>v.date===ds);
+      return { day:['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()], date:ds, mood:entry?Number(entry.mood):null, sleep:entry?Number(entry.sleep):null };
+    });
+  }, [vitals]);
+  const moodTrend = useMemo(()=>{
+    const vals=mood7.filter(d=>d.mood!==null).map(d=>d.mood);
+    if(vals.length<2) return 0;
+    const first=vals[0], last=vals[vals.length-1];
+    return last-first;
+  },[mood7]);
+
+  // ── Weekly progress rings data ────────────────────────────────────────
+  const weekAgoStr = useMemo(()=>{ const d=new Date();d.setDate(d.getDate()-7);return d.toISOString().slice(0,10); },[]);
+  const twoWeeksAgoStr = useMemo(()=>{ const d=new Date();d.setDate(d.getDate()-14);return d.toISOString().slice(0,10); },[]);
+
+  const ringData = useMemo(()=>{
+    // Finance ring — savings rate this week vs last
+    const wkExp=(expenses||[]).filter(e=>e.date>=weekAgoStr).reduce((s,e)=>s+Number(e.amount||0),0);
+    const wkInc=(incomes||[]).filter(i=>i.date>=weekAgoStr).reduce((s,i)=>s+Number(i.amount||0),0);
+    const lkExp=(expenses||[]).filter(e=>e.date>=twoWeeksAgoStr&&e.date<weekAgoStr).reduce((s,e)=>s+Number(e.amount||0),0);
+    const lkInc=(incomes||[]).filter(i=>i.date>=twoWeeksAgoStr&&i.date<weekAgoStr).reduce((s,i)=>s+Number(i.amount||0),0);
+    const finScore=wkInc>0?Math.min(100,Math.round(((wkInc-wkExp)/wkInc)*100+50)):Math.max(0,50-Math.round(wkExp/50));
+    const lkFinScore=lkInc>0?Math.min(100,Math.round(((lkInc-lkExp)/lkInc)*100+50)):50;
+
+    // Health ring — vitals & sleep quality
+    const wkVitals=(vitals||[]).filter(v=>v.date>=weekAgoStr);
+    const lkVitals=(vitals||[]).filter(v=>v.date>=twoWeeksAgoStr&&v.date<weekAgoStr);
+    const avgMoodWk=wkVitals.length?wkVitals.reduce((s,v)=>s+Number(v.mood||0),0)/wkVitals.length:0;
+    const avgMoodLk=lkVitals.length?lkVitals.reduce((s,v)=>s+Number(v.mood||0),0)/lkVitals.length:0;
+    const avgSleepWk=wkVitals.length?wkVitals.reduce((s,v)=>s+Number(v.sleep||0),0)/wkVitals.length:0;
+    const healthScore=Math.min(100,Math.round((avgMoodWk/10)*50+(avgSleepWk/8)*50));
+    const lkHealthScore=Math.min(100,Math.round((avgMoodLk/10)*50+((lkVitals.length?lkVitals.reduce((s,v)=>s+Number(v.sleep||0),0)/lkVitals.length:0)/8)*50));
+
+    // Growth ring — habit completion this week
+    const wkLogs=Object.values(habitLogs).flat().filter(d=>d>=weekAgoStr).length;
+    const lkLogs=Object.values(habitLogs).flat().filter(d=>d>=twoWeeksAgoStr&&d<weekAgoStr).length;
+    const maxPossible=(habits||[]).length*7;
+    const growthScore=maxPossible>0?Math.min(100,Math.round((wkLogs/maxPossible)*100)):0;
+    const lkGrowthScore=maxPossible>0?Math.min(100,Math.round((lkLogs/maxPossible)*100)):0;
+
+    // Knowledge ring — notes + books engagement
+    const wkNotes=(notes||[]).filter(n=>n.date>=weekAgoStr).length;
+    const lkNotes=(notes||[]).filter(n=>n.date>=twoWeeksAgoStr&&n.date<weekAgoStr).length;
+    const knowledgeScore=Math.min(100,wkNotes*20+(wkNotes>0?40:0));
+    const lkKnowledgeScore=Math.min(100,lkNotes*20+(lkNotes>0?40:0));
+
+    return [
+      { label:'Finance', score:finScore, prev:lkFinScore, color:T.emerald, icon:'💰', nav:'money' },
+      { label:'Health',  score:healthScore, prev:lkHealthScore, color:T.sky, icon:'❤️', nav:'health' },
+      { label:'Growth',  score:growthScore, prev:lkGrowthScore, color:T.accent, icon:'🔥', nav:'growth' },
+      { label:'Knowledge',score:knowledgeScore,prev:lkKnowledgeScore,color:T.amber,icon:'📚',nav:'knowledge'},
+    ];
+  }, [expenses, incomes, vitals, habits, habitLogs, notes, weekAgoStr, twoWeeksAgoStr]);
+
+  // ── Next milestone — nearest goal deadline ────────────────────────────
+  const nextMilestone = useMemo(()=>{
+    const active=(goals||[]).filter(g=>Number(g.current||0)<Number(g.target||1)&&g.deadline&&g.deadline>=today());
+    if(!active.length) return null;
+    const nearest=active.sort((a,b)=>a.deadline<b.deadline?-1:1)[0];
+    const days=Math.ceil((new Date(nearest.deadline)-new Date())/86400000);
+    const pct=Math.min(100,Math.round((Number(nearest.current||0)/Number(nearest.target||1))*100));
+    return { ...nearest, daysLeft:days, pct };
+  },[goals]);
+
+  // ── Spaced repetition queue for Home card ─────────────────────────────
+  const [homeSrQueue] = useLocalStorage('los_sr_queue', {});
+  const SR_INTERVALS_HOME = [1,3,7,21];
+  const homeReviewNotes = useMemo(() => (notes||[]).filter(n => {
+    const b=(n.body||'').toLowerCase();
+    return b.includes('#review')||(n.title||'').toLowerCase().includes('#review')||(n.tag||'').toLowerCase()==='review';
+  }), [notes]);
+  const homeSrDue = useMemo(() => homeReviewNotes.filter(n => {
+    const e=homeSrQueue[n.id];
+    if(!e) return true;
+    return e.nextReview<=today();
+  }), [homeReviewNotes, homeSrQueue]);
+
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} settings={settings} />
@@ -4519,24 +4659,161 @@ function HomePage({ data, actions, onNav }) {
             </div>
           </div>
           <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-            {[{label:'Money', score:fhs, color:fhs>=70?T.emerald:fhs>=40?T.amber:T.rose},{label:'Health', score:healthScore, color:healthScore>=70?T.emerald:healthScore>=40?T.amber:T.rose},{label:'Growth', score:growthScore, color:growthScore>=70?T.emerald:growthScore>=40?T.amber:T.rose}].map((d,i)=>(
-              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, minWidth:52 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>{d.label}</div>
-                <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:d.color, lineHeight:1 }}>{d.score}</div>
-                <div style={{ width:44, height:3, borderRadius:99, background:T.surfaceHi, overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:`${d.score}%`, background:d.color, borderRadius:99, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
-                </div>
-              </div>
-            ))}
-            <div style={{ width:1, height:40, background:T.border, flexShrink:0 }} />
+            {ringData.map((d,i)=>{
+              const R=20, circ=2*Math.PI*R, dash=circ*(d.score/100), gap=circ-dash;
+              const delta=d.score-d.prev;
+              return (
+                <button key={i} onClick={()=>onNav(d.nav)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, minWidth:54, background:'none', border:'none', cursor:'pointer', padding:'2px 4px', borderRadius:8, transition:'background 0.15s' }}
+                  onMouseEnter={e=>e.currentTarget.style.background=d.color+'14'}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                  <svg width={48} height={48} viewBox="0 0 48 48">
+                    <circle cx={24} cy={24} r={R} fill="none" stroke={T.surfaceHi} strokeWidth={4}/>
+                    <circle cx={24} cy={24} r={R} fill="none" stroke={d.color} strokeWidth={4}
+                      strokeDasharray={`${dash} ${gap}`} strokeLinecap="round"
+                      transform="rotate(-90 24 24)" style={{ transition:'stroke-dasharray 0.8s cubic-bezier(0.34,1.56,0.64,1)' }}/>
+                    <text x={24} y={27} textAnchor="middle" fontSize={10} fontWeight={700} fontFamily="system-ui" fill={d.color}>{d.score}</text>
+                  </svg>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>{d.label}</div>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:delta>0?T.emerald:delta<0?T.rose:T.textMuted, lineHeight:1 }}>{delta>0?`↑${delta}`:delta<0?`↓${Math.abs(delta)}`:'─'}</div>
+                </button>
+              );
+            })}
+            <div style={{ width:1, height:48, background:T.border, flexShrink:0 }} />
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>Life Score</div>
-              <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:T.violet, lineHeight:1 }}>{lifeScore}</div>
-              <div style={{ width:54, height:3, borderRadius:99, background:T.surfaceHi, overflow:'hidden' }}>
-                <div style={{ height:'100%', width:`${lifeScore}%`, background:`linear-gradient(90deg,${T.violet},${T.accent})`, borderRadius:99 }} />
-              </div>
+              {(() => {
+                const R=22, circ=2*Math.PI*R, dash=circ*(lifeScore/100), gap=circ-dash;
+                return (
+                  <svg width={54} height={54} viewBox="0 0 54 54">
+                    <defs><linearGradient id="lifeRingGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={T.violet}/><stop offset="100%" stopColor={T.accent}/></linearGradient></defs>
+                    <circle cx={27} cy={27} r={R} fill="none" stroke={T.surfaceHi} strokeWidth={5}/>
+                    <circle cx={27} cy={27} r={R} fill="none" stroke="url(#lifeRingGrad)" strokeWidth={5}
+                      strokeDasharray={`${dash} ${gap}`} strokeLinecap="round"
+                      transform="rotate(-90 27 27)" style={{ transition:'stroke-dasharray 0.9s cubic-bezier(0.34,1.56,0.64,1)' }}/>
+                    <text x={27} y={29} textAnchor="middle" fontSize={11} fontWeight={800} fontFamily="system-ui" fill={T.violet}>{lifeScore}</text>
+                  </svg>
+                );
+              })()}
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>Life Score</div>
             </div>
           </div>
+        </div>
+
+        {/* ── DAILY BRIEFING ─────────────────────────────────────────────── */}
+        <GlassCard style={{ padding:'14px 18px', border:`1px solid rgba(139,92,246,0.25)`, background:'rgba(139,92,246,0.04)', animation:'fadeUp 0.35s ease 0.04s both' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:briefIsToday&&(dailyBrief?.bullets||[]).length>0?10:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:16 }}>📰</span>
+              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.violet }}>Today's Briefing</div>
+              {briefIsToday && <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, padding:'1px 6px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}` }}>cached today</div>}
+            </div>
+            <button onClick={()=>{ setDailyBrief({date:'',bullets:[]}); generateDailyBrief(); }}
+              disabled={briefLoading}
+              style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:briefLoading?T.surface:T.violetDim, border:`1px solid ${T.violet}33`, color:briefLoading?T.textMuted:T.violet, cursor:briefLoading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:4 }}>
+              {briefLoading ? <><div style={{ width:8,height:8,borderRadius:'50%',border:`2px solid ${T.violet}33`,borderTopColor:T.violet,animation:'spin 0.8s linear infinite' }}/> Generating…</> : '↻ Refresh'}
+            </button>
+          </div>
+          {briefLoading && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {[1,2,3].map(i=><div key={i} style={{ height:10, borderRadius:99, background:T.surfaceHi, animation:'glowPulse 1.5s infinite', width:['85%','70%','60%'][i-1] }}/>)}
+            </div>
+          )}
+          {!briefLoading && (dailyBrief?.bullets||[]).length>0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {(dailyBrief.bullets||[]).map((b,i)=>(
+                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
+                  <div style={{ width:4, height:4, borderRadius:'50%', background:T.violet, flexShrink:0, marginTop:5 }}/>
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{b}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!briefLoading && !(dailyBrief?.bullets||[]).length && (
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>Add expenses, vitals, and goals to generate your daily briefing.</div>
+          )}
+        </GlassCard>
+
+        {/* ── MOOD SPARKLINE + NEXT MILESTONE ─────────────────────────────── */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, animation:'fadeUp 0.35s ease 0.06s both' }}>
+          {/* 7-day mood sparkline */}
+          <GlassCard style={{ padding:'14px 16px', cursor:'pointer' }} onClick={()=>onNav('health')}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.sky }}>7-Day Mood</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:moodTrend>0?T.emerald:moodTrend<0?T.rose:T.textMuted, fontWeight:600 }}>
+                {moodTrend>0?`↑ ${moodTrend.toFixed(1)} trending up`:moodTrend<0?`↓ ${Math.abs(moodTrend).toFixed(1)} declining`:'→ stable'}
+              </div>
+            </div>
+            {mood7.some(d=>d.mood!==null) ? (
+              <>
+                <svg viewBox="0 0 160 44" style={{ width:'100%', overflow:'visible', display:'block', marginBottom:4 }}>
+                  {(() => {
+                    const pts=mood7; const vals=pts.map(d=>d.mood??null);
+                    const defined=vals.filter(v=>v!==null); if(!defined.length) return null;
+                    const minV=Math.min(...defined), maxV=Math.max(...defined)||1;
+                    const range=maxV-minV||1;
+                    const xs=pts.map((_,i)=>10+i*(140/6));
+                    const ys=pts.map(p=>p.mood!=null?36-((p.mood-minV)/range)*28:null);
+                    // Area fill
+                    const areaPts=xs.map((x,i)=>ys[i]!=null?`${x},${ys[i]}`:null).filter(Boolean);
+                    if(areaPts.length<2) return null;
+                    const linePath=areaPts.map((p,i)=>(i===0?'M':'L')+p).join(' ');
+                    const areaPath=linePath+` L${xs[pts.map((_,i)=>ys[i]).lastIndexOf(pts.map((_,i)=>ys[i]).filter(y=>y!=null).slice(-1)[0])].toFixed(1)},42 L${xs[pts.findIndex((_,i)=>ys[i]!=null)].toFixed(1)},42 Z`;
+                    const trendColor=moodTrend>0?T.emerald:moodTrend<0?T.rose:T.sky;
+                    return (
+                      <>
+                        <defs><linearGradient id="moodAreaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={trendColor} stopOpacity="0.2"/><stop offset="100%" stopColor={trendColor} stopOpacity="0"/></linearGradient></defs>
+                        <path d={areaPath} fill="url(#moodAreaGrad)"/>
+                        <path d={linePath} fill="none" stroke={trendColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+                        {pts.map((p,i)=>p.mood!=null&&(
+                          <circle key={i} cx={xs[i]} cy={ys[i]} r={3} fill={trendColor} opacity={0.9}>
+                            <title>{p.day}: {p.mood}/10</title>
+                          </circle>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </svg>
+                <div style={{ display:'flex', justifyContent:'space-between' }}>
+                  {mood7.map((d,i)=>(
+                    <div key={i} style={{ textAlign:'center', flex:1 }}>
+                      <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted }}>{d.day}</div>
+                      {d.mood!=null && <div style={{ fontSize:8, fontFamily:T.fM, color:T.sky, fontWeight:600 }}>{d.mood}</div>}
+                      {d.mood==null && <div style={{ fontSize:8, color:T.surfaceHi }}>·</div>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ height:50, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
+                <div style={{ fontSize:20 }}>😶</div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see mood trend</div>
+              </div>
+            )}
+          </GlassCard>
+
+          {/* Next milestone */}
+          <GlassCard style={{ padding:'14px 16px', cursor:'pointer' }} onClick={()=>onNav('money')}>
+            <div style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.amber, marginBottom:8 }}>🎯 Next Milestone</div>
+            {nextMilestone ? (
+              <>
+                <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{nextMilestone.name}</div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6, fontSize:10, fontFamily:T.fM }}>
+                  <span style={{ color:nextMilestone.daysLeft<=7?T.rose:nextMilestone.daysLeft<=30?T.amber:T.textSub }}>
+                    {nextMilestone.daysLeft<=0?'Due today!':nextMilestone.daysLeft===1?'1 day left':`${nextMilestone.daysLeft} days left`}
+                  </span>
+                  <span style={{ color:nextMilestone.pct>=75?T.emerald:T.amber, fontWeight:600 }}>{nextMilestone.pct}%</span>
+                </div>
+                <ProgressBar pct={nextMilestone.pct} color={nextMilestone.pct>=75?T.emerald:nextMilestone.daysLeft<=7?T.rose:T.amber} height={6} />
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>
+                  Deadline: {nextMilestone.deadline}
+                </div>
+              </>
+            ) : (
+              <div style={{ height:60, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:6 }}>
+                <div style={{ fontSize:20 }}>🏁</div>
+                <button onClick={e=>{e.stopPropagation();setModal('goal');}} style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:T.amberDim, border:`1px solid ${T.amber}33`, borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>+ Set a goal deadline</button>
+              </div>
+            )}
+          </GlassCard>
         </div>
 
         {/* ── DAILY PRIORITY ────────────────────────────────────────────── */}
@@ -4568,27 +4845,45 @@ function HomePage({ data, actions, onNav }) {
           </div>
         </GlassCard>
 
-        {/* ── RISK ALERTS ───────────────────────────────────────────────── */}
+        {/* ── RISK ALERTS — tiered severity ─────────────────────────────── */}
         {riskAlerts.length > 0 && (
           <div style={{ animation:'fadeUp 0.35s ease 0.1s both' }}>
-            <TierLabel color={T.rose}>Alerts</TierLabel>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <TierLabel color={riskAlerts.some(a=>a.severity==='urgent')?T.rose:T.amber}>
+                {riskAlerts.some(a=>a.severity==='urgent')?'🚨 Critical Alerts':'⚠️ Alerts'}
+              </TierLabel>
+              {riskAlerts.length > 1 && (
+                <button onClick={()=>dismissAllAlerts(riskAlerts)} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:'none', border:'none', cursor:'pointer' }}>
+                  Dismiss all ×
+                </button>
+              )}
+            </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
               {riskAlerts.map((a, i) => {
                 const sev=a.severity||'warn';
-                const bc=SEV_COLOR[sev]||T.amber;
-                const bg=sev==='urgent'?`${T.rose}10`:sev==='positive'?`${T.emerald}08`:`${T.amber}08`;
-                const tc=sev==='urgent'?T.rose:sev==='positive'?T.emerald:T.amber;
+                const SEV_CONFIG = {
+                  urgent: { border:T.rose, bg:`${T.rose}10`, badge:'CRITICAL', badgeBg:`${T.rose}20`, badgeColor:T.rose, ctaLabel:'Fix now', ctaBg:T.rose, ctaColor:'#fff' },
+                  warn:   { border:T.amber, bg:`${T.amber}08`, badge:'WARNING', badgeBg:`${T.amber}18`, badgeColor:T.amber, ctaLabel:'Review', ctaBg:`${T.amber}22`, ctaColor:T.amber },
+                  info:   { border:T.sky, bg:`${T.sky}06`, badge:'INFO', badgeBg:`${T.sky}15`, badgeColor:T.sky, ctaLabel:'View', ctaBg:`${T.sky}15`, ctaColor:T.sky },
+                  positive:{ border:T.emerald, bg:`${T.emerald}06`, badge:'GOOD', badgeBg:`${T.emerald}15`, badgeColor:T.emerald, ctaLabel:'See more', ctaBg:`${T.emerald}15`, ctaColor:T.emerald },
+                };
+                const cfg=SEV_CONFIG[sev]||SEV_CONFIG.warn;
                 return (
-                  <div key={a.id} style={{ padding:'12px 16px', borderRadius:T.rL, background:bg, borderLeft:`3px solid ${bc}55`, display:'flex', alignItems:'flex-start', gap:12, animation:`fadeUp 0.25s ease ${i*0.06}s both`, border:`1px solid ${bc}22`, borderLeft:`3px solid ${bc}` }}>
+                  <div key={a.id} style={{ padding:'13px 16px', borderRadius:T.rL, background:cfg.bg, border:`1px solid ${cfg.border}33`, borderLeft:`3px solid ${cfg.border}`, display:'flex', alignItems:'flex-start', gap:12, animation:`fadeUp 0.25s ease ${i*0.06}s both` }}>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{a.title}</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                        <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:700, letterSpacing:'0.1em', padding:'2px 7px', borderRadius:99, background:cfg.badgeBg, color:cfg.badgeColor, flexShrink:0 }}>{cfg.badge}</span>
+                        <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</div>
+                      </div>
                       <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{a.body}</div>
                     </div>
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
                       {a.action && (
                         <button onClick={()=>{ if(a.actionModal) setModal(a.actionModal); else if(a.actionNav) onNav(a.actionNav); }}
-                          style={{ padding:'5px 12px', borderRadius:99, background:`${bc}18`, border:`1px solid ${bc}33`, fontSize:9, fontFamily:T.fM, color:tc, cursor:'pointer', fontWeight:700, whiteSpace:'nowrap' }}>
-                          {a.action}
+                          style={{ padding:'6px 12px', borderRadius:T.r, background:cfg.ctaBg, border:`1px solid ${cfg.border}44`, fontSize:10, fontFamily:T.fM, color:cfg.ctaColor, cursor:'pointer', fontWeight:700, whiteSpace:'nowrap', transition:'all 0.15s' }}
+                          onMouseEnter={e=>e.currentTarget.style.filter='brightness(1.1)'}
+                          onMouseLeave={e=>e.currentTarget.style.filter='none'}>
+                          {cfg.ctaLabel} →
                         </button>
                       )}
                       <button onClick={()=>setDismissed(p=>({...p,[a.dismissKey]:today()}))}
@@ -4627,6 +4922,43 @@ function HomePage({ data, actions, onNav }) {
             </div>
           );
         })()}
+
+        {/* ── SPACED REPETITION QUEUE CARD ──────────────────────────────── */}
+        {homeSrDue.length > 0 && (
+          <div style={{ animation:'fadeUp 0.35s ease 0.12s both' }}>
+            <TierLabel color={T.sky}>Review Queue</TierLabel>
+            <GlassCard style={{ padding:'16px 20px', border:`1px solid ${T.sky}33`, background:`${T.sky}05` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:18 }}>🔁</span>
+                  <div>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.sky }}>Spaced Repetition — {homeSrDue.length} note{homeSrDue.length>1?'s':''} due</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Notes tagged #review on their scheduled return</div>
+                  </div>
+                </div>
+                <button onClick={()=>onNav('knowledge')} style={{ padding:'5px 12px', borderRadius:99, background:`${T.sky}15`, border:`1px solid ${T.sky}33`, color:T.sky, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>Open queue →</button>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {homeSrDue.slice(0,3).map((n,i)=>{
+                  const e=homeSrQueue[n.id]; const stage=e?.stage??0;
+                  return (
+                    <div key={n.id||i} style={{ padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:10 }}>
+                      <span style={{ fontSize:14 }}>📖</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.title}</div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Stage {stage+1}/4 · {SR_INTERVALS_HOME[Math.min(stage,3)]}d interval</div>
+                      </div>
+                      <div style={{ display:'flex', gap:3, flexShrink:0 }}>
+                        {[0,1,2,3].map(s=><div key={s} style={{ width:14,height:4,borderRadius:99,background:s<=stage?T.sky:T.surface,border:`1px solid ${s<=stage?T.sky+'55':T.border}` }}/>)}
+                      </div>
+                    </div>
+                  );
+                })}
+                {homeSrDue.length>3 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{homeSrDue.length-3} more due today</div>}
+              </div>
+            </GlassCard>
+          </div>
+        )}
 
         {/* ── LIFE TRAJECTORY ───────────────────────────────────────────── */}
         <TierLabel color={T.violet}>Trajectory</TierLabel>
@@ -6620,8 +6952,13 @@ function HealthPage({ data, actions }) {
   const [elapsed, setElapsed] = useState(0);
   const [focusHabitId, setFocusHabitId] = useState('');
   const [focusComplete, setFocusComplete] = useState(false);
+  const [recoveryTips, setRecoveryTips] = useLocalStorage('los_recovery_tips', null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [targetWeight, setTargetWeight] = useLocalStorage('los_target_weight', '');
+  const [targetWeightEdit, setTargetWeightEdit] = useState(false);
+  const [targetWeightInput, setTargetWeightInput] = useState('');
   const {vitals=[], habits=[], habitLogs={}} = data;
-  const wu = data.settings?.weightUnit || 'lbs'; // UX fix: weight unit from settings
+  const wu = data.settings?.weightUnit || 'lbs';
 
   useEffect(() => {
     if (!focusActive) return;
@@ -6656,6 +6993,153 @@ function HealthPage({ data, actions }) {
   const avgSleepQ   = recent7.filter(v=>v.sleepQuality>0).length ? (recent7.filter(v=>v.sleepQuality>0).reduce((s,v)=>s+Number(v.sleepQuality||0),0)/recent7.filter(v=>v.sleepQuality>0).length).toFixed(1) : null;
   const latestWeight = sorted.find(v=>v.weight>0);
   const STAR_COLORS = { 5:T.emerald, 4:T.accent, 3:T.amber, 2:T.rose, 1:T.rose };
+
+  // ── 1. Pearson correlation helpers ───────────────────────────────────
+  const pearson = (xs, ys) => {
+    const n=xs.length; if(n<3) return null;
+    const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+    const num=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0);
+    const den=Math.sqrt(xs.reduce((s,x)=>s+(x-mx)**2,0)*ys.reduce((s,y)=>s+(y-my)**2,0));
+    return den===0?null:num/den;
+  };
+
+  const correlationInsights = useMemo(()=>{
+    const withBoth = (vitals||[]).filter(v=>v.sleep>0&&v.mood>0);
+    const withEnergy = (vitals||[]).filter(v=>v.sleep>0&&v.energy>0);
+    const insights = [];
+
+    // Sleep → Mood
+    if (withBoth.length>=5) {
+      const hiSleep=withBoth.filter(v=>Number(v.sleep)>=7), loSleep=withBoth.filter(v=>Number(v.sleep)<7);
+      const r=pearson(withBoth.map(v=>Number(v.sleep)),withBoth.map(v=>Number(v.mood)));
+      if(hiSleep.length>=2&&loSleep.length>=2) {
+        const hiAvg=(hiSleep.reduce((s,v)=>s+Number(v.mood),0)/hiSleep.length).toFixed(1);
+        const loAvg=(loSleep.reduce((s,v)=>s+Number(v.mood),0)/loSleep.length).toFixed(1);
+        const diff=(Number(hiAvg)-Number(loAvg)).toFixed(1);
+        if(Math.abs(Number(diff))>=0.5) {
+          insights.push({
+            icon:'😴',
+            title:'Sleep → Mood',
+            color:T.sky,
+            r: r!=null?r.toFixed(2):null,
+            desc:`On nights you sleep 7h+, your mood averages ${hiAvg}/10 vs ${loAvg}/10 — a ${diff}pt difference (${hiSleep.length} vs ${loSleep.length} nights)`,
+            strength:Math.abs(Number(diff))>=2?'strong':Math.abs(Number(diff))>=1?'moderate':'weak',
+          });
+        }
+      }
+    }
+
+    // Sleep → Energy
+    if (withEnergy.length>=5) {
+      const hiSleep=withEnergy.filter(v=>Number(v.sleep)>=7), loSleep=withEnergy.filter(v=>Number(v.sleep)<7);
+      const r=pearson(withEnergy.map(v=>Number(v.sleep)),withEnergy.map(v=>Number(v.energy)));
+      if(hiSleep.length>=2&&loSleep.length>=2) {
+        const hiAvg=(hiSleep.reduce((s,v)=>s+Number(v.energy),0)/hiSleep.length).toFixed(1);
+        const loAvg=(loSleep.reduce((s,v)=>s+Number(v.energy),0)/loSleep.length).toFixed(1);
+        const diff=(Number(hiAvg)-Number(loAvg)).toFixed(1);
+        if(Math.abs(Number(diff))>=0.5) {
+          insights.push({
+            icon:'⚡',
+            title:'Sleep → Energy',
+            color:T.accent,
+            r: r!=null?r.toFixed(2):null,
+            desc:`With 7h+ sleep, your energy averages ${hiAvg}/10 vs ${loAvg}/10 on short nights — ${diff}pt gap (r=${r!=null?r.toFixed(2):'n/a'})`,
+            strength:Math.abs(Number(diff))>=2?'strong':Math.abs(Number(diff))>=1?'moderate':'weak',
+          });
+        }
+      }
+    }
+
+    // Mood → Steps correlation
+    const withMoodSteps=(vitals||[]).filter(v=>v.mood>0&&v.steps>0);
+    if(withMoodSteps.length>=5) {
+      const r=pearson(withMoodSteps.map(v=>Number(v.mood)),withMoodSteps.map(v=>Number(v.steps)));
+      if(r!=null&&Math.abs(r)>0.35) {
+        insights.push({
+          icon:'🚶',
+          title:'Mood → Activity',
+          color:T.emerald,
+          r:r.toFixed(2),
+          desc:`${r>0?'Higher':'Lower'} mood days correlate with ${r>0?'more':'fewer'} steps (r=${r.toFixed(2)}). ${r>0?'Movement and mood reinforce each other.':'Worth exploring the direction of causality.'}`,
+          strength:Math.abs(r)>=0.6?'strong':Math.abs(r)>=0.4?'moderate':'weak',
+        });
+      }
+    }
+    return insights;
+  }, [vitals]);
+
+  // ── 2. Sleep debt tracker (14-day rolling) ───────────────────────────
+  const sleepDebt = useMemo(()=>{
+    const twoWksAgo=new Date(); twoWksAgo.setDate(twoWksAgo.getDate()-13);
+    const twoWksStr=twoWksAgo.toISOString().slice(0,10);
+    const recent14=(vitals||[]).filter(v=>v.date>=twoWksStr&&v.sleep>0);
+    if(recent14.length===0) return null;
+    const TARGET=8;
+    const debt=recent14.reduce((s,v)=>s+Math.max(0,TARGET-Number(v.sleep)),0);
+    const avgSleep14=recent14.reduce((s,v)=>s+Number(v.sleep),0)/recent14.length;
+    return { debt:parseFloat(debt.toFixed(1)), daysLogged:recent14.length, avgSleep14:parseFloat(avgSleep14.toFixed(1)), status:debt>20?'severe':debt>10?'high':debt>4?'moderate':'low' };
+  },[vitals]);
+
+  // ── 3. Body Score — composite 0–100 over 30 days ────────────────────
+  const STEPS_TARGET=8000;
+  const bodyScore30 = useMemo(()=>{
+    const thirtyAgo=new Date(); thirtyAgo.setDate(thirtyAgo.getDate()-29);
+    const thirtyStr=thirtyAgo.toISOString().slice(0,10);
+    return [...(vitals||[])].filter(v=>v.date>=thirtyStr&&(v.sleep>0||v.mood>0||v.energy>0)).sort((a,b)=>a.date>b.date?1:-1).map(v=>{
+      const sleepPts=Math.min(100,(Number(v.sleep||0)/8)*100)*0.35;
+      const moodPts=Math.min(100,(Number(v.mood||0)/10)*100)*0.25;
+      const energyPts=Math.min(100,(Number(v.energy||0)/10)*100)*0.25;
+      const stepsPts=Math.min(100,(Number(v.steps||0)/STEPS_TARGET)*100)*0.15;
+      return { date:v.date, score:Math.round(sleepPts+moodPts+energyPts+stepsPts) };
+    });
+  },[vitals]);
+  const latestBodyScore=bodyScore30.length?bodyScore30[bodyScore30.length-1].score:null;
+  const prevBodyScore=bodyScore30.length>1?bodyScore30[bodyScore30.length-2].score:null;
+  const bodyScoreDelta=latestBodyScore!=null&&prevBodyScore!=null?latestBodyScore-prevBodyScore:null;
+
+  // ── 4. Recovery recommendations (auto-surface after poor vitals) ─────
+  const lastVitals = sorted[0];
+  const needsRecovery = lastVitals && (Number(lastVitals.mood||0)<5||Number(lastVitals.sleep||0)<6) && lastVitals.date===today();
+  const generateRecovery = async () => {
+    if(recoveryLoading||!lastVitals) return;
+    setRecoveryLoading(true);
+    try {
+      const text=await callAI(data.settings,{max_tokens:400,messages:[{role:'user',content:`You are a personal wellness coach. The user just logged poor vitals: sleep=${lastVitals.sleep}h, mood=${lastVitals.mood}/10, energy=${lastVitals.energy}/10. Generate exactly 3 specific, actionable recovery tips. Keep each under 20 words. Return JSON array of strings only: ["tip1","tip2","tip3"]`}]});
+      const parsed=JSON.parse((text||'').replace(/```json|```/g,'').trim());
+      if(Array.isArray(parsed)) setRecoveryTips({date:today(),tips:parsed.slice(0,3),mood:lastVitals.mood,sleep:lastVitals.sleep});
+    } catch {
+      setRecoveryTips({date:today(),tips:[
+        Number(lastVitals.sleep||0)<6?'Take a 20-min nap before 3pm to partially offset sleep debt':'Avoid screens 1 hour before bed tonight',
+        Number(lastVitals.mood||0)<5?'Try 5 minutes of box breathing — inhale 4s, hold 4s, exhale 4s':'A 10-minute walk can measurably lift mood within 15 minutes',
+        'Hydrate — dehydration amplifies fatigue and mood swings significantly',
+      ],mood:lastVitals.mood,sleep:lastVitals.sleep});
+    }
+    setRecoveryLoading(false);
+  };
+  // Auto-trigger on page load if today's vitals are poor
+  useEffect(()=>{
+    if(needsRecovery&&(!recoveryTips||recoveryTips.date!==today())) generateRecovery();
+  },[needsRecovery]); // eslint-disable-line
+
+  // ── 5. BMI / Weight trajectory ───────────────────────────────────────
+  const weightTrajectory = useMemo(()=>{
+    const wData=[...vitals].filter(v=>Number(v.weight)>0).sort((a,b)=>a.date>b.date?1:-1);
+    if(wData.length<2) return null;
+    const current=Number(wData[wData.length-1].weight);
+    const oldest=Number(wData[0].weight);
+    const daySpan=Math.max(1,Math.ceil((new Date(wData[wData.length-1].date)-new Date(wData[0].date))/86400000));
+    const ratePerDay=(current-oldest)/daySpan; // + = gaining, - = losing
+    const tw=Number(targetWeight)||0;
+    const gap=tw>0?current-tw:null;
+    const daysToGoal=tw>0&&ratePerDay!==0&&((ratePerDay<0&&tw<current)||(ratePerDay>0&&tw>current))?Math.abs(gap/ratePerDay):null;
+    const projDate=daysToGoal?new Date(Date.now()+daysToGoal*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):null;
+    // BMI requires height — we use a fallback message if not set
+    const heightCm=Number(data.settings?.heightCm||0);
+    const weightKg=wu==='lbs'?current*0.453592:current;
+    const bmi=heightCm>0?parseFloat((weightKg/((heightCm/100)**2)).toFixed(1)):null;
+    const bmiLabel=bmi?bmi<18.5?'Underweight':bmi<25?'Normal':bmi<30?'Overweight':'Obese':'';
+    return { current, oldest, ratePerDay:parseFloat(ratePerDay.toFixed(3)), gap:gap!=null?parseFloat(gap.toFixed(1)):null, daysToGoal:daysToGoal?Math.round(daysToGoal):null, projDate, bmi, bmiLabel, wData };
+  },[vitals, targetWeight, wu, data.settings]);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <LogVitalsModal open={modal==='vitals'} onClose={()=>setModal(null)} onSave={e=>{actions.addVitals(e);setModal(null);}} existingDates={(vitals||[]).map(v=>v.date)} weightUnit={wu} />
@@ -6671,8 +7155,12 @@ function HealthPage({ data, actions }) {
           { label:'Avg Sleep (7d)', val:`${avgSleep}h`, sub:avgSleepQ?`Quality: ${avgSleepQ}/5 ⭐`:Number(avgSleep)>=7?'Great rest!':'Aim for 7-8h', color:T.sky },
           { label:'Avg Mood (7d)',  val:`${avgMood}/10`, sub:'Emotional wellbeing', color:T.violet },
           { label:'Avg Energy (7d)',val:`${avgEnergy}/10`, sub:'Vitality level', color:T.accent },
-          { label:'Current Weight', val:latestWeight?`${latestWeight.weight} ${wu}`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
-          { label:'Avg Steps (7d)', val:(() => { const s=recent7.filter(v=>v.steps>0); return s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length).toLocaleString():'—'; })(), sub:'Daily step count', color:T.amber },
+          latestBodyScore!=null
+            ? { label:'Body Score', val:`${latestBodyScore}/100`, sub:bodyScoreDelta!=null?(bodyScoreDelta>0?`↑ ${bodyScoreDelta}pts today`:`↓ ${Math.abs(bodyScoreDelta)}pts today`):'Today\'s composite', color:latestBodyScore>=70?T.emerald:latestBodyScore>=45?T.amber:T.rose }
+            : { label:'Current Weight', val:latestWeight?`${latestWeight.weight} ${wu}`:'—', sub:latestWeight?latestWeight.date:'Not logged', color:T.emerald },
+          sleepDebt
+            ? { label:'Sleep Debt (14d)', val:`${sleepDebt.debt}h`, sub:sleepDebt.status==='severe'?'🚨 Critical':sleepDebt.status==='high'?'⚠️ High':sleepDebt.status==='moderate'?'Moderate':'✅ Low debt', color:sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:sleepDebt.status==='moderate'?T.amber:T.emerald }
+            : { label:'Avg Steps (7d)', val:(()=>{ const s=recent7.filter(v=>v.steps>0); return s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length).toLocaleString():'—'; })(), sub:'Daily step count', color:T.amber },
         ].map((m,i)=>(
           <StatCard key={i} label={m.label} val={m.val} sub={m.sub} color={m.color} />
         ))}
@@ -6743,6 +7231,167 @@ function HealthPage({ data, actions }) {
 
       {healthTab==='overview' && <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+          {/* ── Recovery Recommendations (auto-surfaced after poor vitals) ── */}
+          {(needsRecovery||(recoveryTips&&recoveryTips.date===today())) && (
+            <GlassCard style={{ padding:'18px 20px', border:`1px solid ${T.rose}33`, background:`${T.rose}06`, animation:'slideDown 0.3s ease' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:18 }}>🩺</span>
+                  <div>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.rose }}>Recovery Mode</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+                      {lastVitals&&`Today — sleep ${lastVitals.sleep}h · mood ${lastVitals.mood}/10`}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={generateRecovery} disabled={recoveryLoading} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:`${T.rose}15`, border:`1px solid ${T.rose}33`, color:T.rose, cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                  {recoveryLoading?<><div style={{ width:8,height:8,borderRadius:'50%',border:`2px solid ${T.rose}33`,borderTopColor:T.rose,animation:'spin 0.8s linear infinite' }}/>Getting tips…</>:'↻ Refresh'}
+                </button>
+              </div>
+              {(recoveryTips?.tips||[]).length>0 ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {(recoveryTips.tips||[]).map((tip,i)=>(
+                    <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, animation:`fadeUp 0.25s ease ${i*0.08}s both` }}>
+                      <span style={{ fontSize:14, flexShrink:0 }}>{['💤','🧘','💧'][i]}</span>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{tip}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : recoveryLoading ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {[1,2,3].map(i=><div key={i} style={{ height:34,borderRadius:T.r,background:T.surface,animation:'glowPulse 1.5s infinite' }}/>)}
+                </div>
+              ) : null}
+            </GlassCard>
+          )}
+
+          {/* ── Body Score 30-day trend ──────────────────────────────────── */}
+          {bodyScore30.length>=3 && (
+            <GlassCard style={{ padding:'18px 20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <SectionLabel>🫀 Body Score (30d)</SectionLabel>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {latestBodyScore!=null && <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:latestBodyScore>=70?T.emerald:latestBodyScore>=45?T.amber:T.rose }}>{latestBodyScore}</span>}
+                  {bodyScoreDelta!=null && <span style={{ fontSize:9, fontFamily:T.fM, color:bodyScoreDelta>0?T.emerald:bodyScoreDelta<0?T.rose:T.textMuted }}>{bodyScoreDelta>0?`↑${bodyScoreDelta}`:bodyScoreDelta<0?`↓${Math.abs(bodyScoreDelta)}`:'─'}</span>}
+                </div>
+              </div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:8 }}>Sleep×0.35 + Mood×0.25 + Energy×0.25 + Steps×0.15</div>
+              <ResponsiveContainer width="100%" height={90}>
+                <AreaChart data={bodyScore30} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <defs><linearGradient id="bodyScoreGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.sky} stopOpacity={0.3}/><stop offset="100%" stopColor={T.sky} stopOpacity={0}/></linearGradient></defs>
+                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} interval={Math.floor(bodyScore30.length/4)} />
+                  <YAxis domain={[0,100]} hide />
+                  <Tooltip contentStyle={{ background:T.bg2,border:`1px solid ${T.border}`,borderRadius:8,fontFamily:T.fM,fontSize:11 }} formatter={v=>[`${v}/100`,'Body Score']} />
+                  <Area type="monotone" dataKey="score" stroke={T.sky} strokeWidth={2} fill="url(#bodyScoreGrad)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </GlassCard>
+          )}
+
+          {/* ── Correlation Insights ─────────────────────────────────────── */}
+          {correlationInsights.length>0 && (
+            <GlassCard style={{ padding:'18px 20px' }}>
+              <SectionLabel>🔗 Correlation Insights</SectionLabel>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:10 }}>Computed from your {(vitals||[]).length} logged entries</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {correlationInsights.map((ins,i)=>(
+                  <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${ins.color}33`, borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.25s ease ${i*0.08}s both` }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+                      <span style={{ fontSize:16 }}>{ins.icon}</span>
+                      <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</span>
+                      <span style={{ fontSize:8, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:`${ins.color}18`, color:ins.color, fontWeight:600, marginLeft:'auto' }}>
+                        {ins.strength}
+                        {ins.r&&` · r=${ins.r}`}
+                      </span>
+                    </div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{ins.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          {/* ── Sleep Debt tracker ───────────────────────────────────────── */}
+          {sleepDebt && (
+            <GlassCard style={{ padding:'16px 18px', border:`1px solid ${sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:T.sky}33`, background:`${sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:T.sky}05` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:22 }}>🌙</span>
+                  <div>
+                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text }}>Sleep Debt (14d)</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Based on {sleepDebt.daysLogged} logged nights vs 8h target</div>
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:T.sky }}>{sleepDebt.debt}h</div>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:T.emerald, fontWeight:600 }}>
+                    {sleepDebt.status==='severe'?'🚨 Critical debt':sleepDebt.status==='high'?'⚠️ High debt':sleepDebt.status==='moderate'?'Moderate':'✅ Well rested'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>
+                  <span>Avg {sleepDebt.avgSleep14}h/night this fortnight</span>
+                  <span>Target 8h</span>
+                </div>
+                <ProgressBar pct={Math.min(100,(sleepDebt.avgSleep14/8)*100)} color={sleepDebt.avgSleep14>=7.5?T.emerald:sleepDebt.avgSleep14>=6.5?T.amber:T.rose} height={6} />
+                {sleepDebt.debt>0 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>Add {(sleepDebt.debt/sleepDebt.daysLogged).toFixed(1)}h/night over the next {sleepDebt.daysLogged} days to clear your debt.</div>}
+              </div>
+            </GlassCard>
+          )}
+
+          {/* ── BMI / Weight trajectory ──────────────────────────────────── */}
+          {weightTrajectory && (
+            <GlassCard style={{ padding:'18px 20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <SectionLabel>⚖️ Weight & BMI</SectionLabel>
+                {!targetWeightEdit ? (
+                  <button onClick={()=>{ setTargetWeightInput(targetWeight||''); setTargetWeightEdit(true); }} style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:T.amberDim, border:`1px solid ${T.amber}33`, borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>
+                    {targetWeight?`Target: ${targetWeight} ${wu}`:'Set goal weight'}
+                  </button>
+                ) : (
+                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                    <input value={targetWeightInput} onChange={e=>setTargetWeightInput(e.target.value)} type="number" placeholder={`Goal (${wu})`} style={{ width:80, padding:'3px 8px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.text }} />
+                    <button onClick={()=>{ setTargetWeight(targetWeightInput); setTargetWeightEdit(false); }} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:T.amber, color:'#000', border:'none', cursor:'pointer', fontWeight:700 }}>Save</button>
+                    <button onClick={()=>setTargetWeightEdit(false)} style={{ fontSize:10, background:'none', border:'none', cursor:'pointer', color:T.textMuted }}>✕</button>
+                  </div>
+                )}
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
+                {[
+                  { label:'Current', val:`${weightTrajectory.current} ${wu}`, color:T.emerald },
+                  weightTrajectory.bmi ? { label:'BMI', val:`${weightTrajectory.bmi}`, sub:weightTrajectory.bmiLabel, color:weightTrajectory.bmi<18.5||weightTrajectory.bmi>=30?T.rose:weightTrajectory.bmi<25?T.emerald:T.amber } : { label:'BMI', val:'—', sub:'Set height in Settings', color:T.textMuted },
+                  targetWeight ? { label:'Goal', val:`${targetWeight} ${wu}`, sub:weightTrajectory.gap!=null?`${weightTrajectory.gap>0?'-':''}${Math.abs(weightTrajectory.gap)} to go`:'', color:T.amber } : { label:'Trend', val:weightTrajectory.ratePerDay>0?`+${(weightTrajectory.ratePerDay*7).toFixed(1)}/wk`:weightTrajectory.ratePerDay<0?`${(weightTrajectory.ratePerDay*7).toFixed(1)}/wk`:'Stable', sub:'Per week', color:weightTrajectory.ratePerDay<0?T.emerald:T.amber },
+                ].map((m,i)=>(
+                  <div key={i} style={{ padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{m.label}</div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+                    {m.sub&&<div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:1 }}>{m.sub}</div>}
+                  </div>
+                ))}
+              </div>
+              {targetWeight&&weightTrajectory.projDate&&weightTrajectory.daysToGoal && (
+                <div style={{ padding:'8px 12px', borderRadius:T.r, background:`${T.amber}0e`, border:`1px solid ${T.amber}33`, fontSize:10, fontFamily:T.fM, color:T.text }}>
+                  📅 At current pace ({(weightTrajectory.ratePerDay*7>0?'+':'')+((weightTrajectory.ratePerDay)*7).toFixed(2)} {wu}/wk), reach {targetWeight} {wu} in ~{weightTrajectory.daysToGoal} days · <span style={{ color:T.amber }}>{weightTrajectory.projDate}</span>
+                </div>
+              )}
+              {targetWeight&&(!weightTrajectory.projDate||!weightTrajectory.daysToGoal)&&weightTrajectory.ratePerDay===0 && (
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Weight is stable — no projected date. Log more data to establish a trend.</div>
+              )}
+              <ResponsiveContainer width="100%" height={100} style={{ marginTop:12 }}>
+                <LineChart data={weightTrajectory.wData.slice(-20)} margin={{top:4,right:0,left:0,bottom:0}}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis domain={['dataMin - 2','dataMax + 2']} hide />
+                  <Tooltip content={<ChartTooltip suffix={` ${wu}`} />} />
+                  {targetWeight&&<ReferenceArea y1={Number(targetWeight)-0.5} y2={Number(targetWeight)+0.5} stroke={T.amber} strokeOpacity={0.4} fill={T.amber} fillOpacity={0.08} />}
+                  <Line type="monotone" dataKey="weight" name="Weight" stroke={T.emerald} strokeWidth={2} dot={{fill:T.emerald,r:2}} />
+                </LineChart>
+              </ResponsiveContainer>
+            </GlassCard>
+          )}
+
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Sleep History</SectionLabel>
             {recent7.length>0 ? (
@@ -6806,37 +7455,6 @@ function HealthPage({ data, actions }) {
               </div>
             </GlassCard>
           )}
-          {(() => {
-            const weightData = [...vitals].filter(v=>Number(v.weight)>0).sort((a,b)=>a.date>b.date?1:-1).slice(-20);
-            if (weightData.length < 2) return null;
-            const minW = Math.min(...weightData.map(v=>Number(v.weight)));
-            const maxW = Math.max(...weightData.map(v=>Number(v.weight)));
-            const range = maxW - minW;
-            const delta = Number(weightData[weightData.length-1].weight) - Number(weightData[0].weight);
-            const deltaColor = delta > 0 ? T.amber : delta < 0 ? T.emerald : T.textSub;
-            return (
-              <GlassCard style={{ padding:'20px 22px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                  <SectionLabel>Weight Trend</SectionLabel>
-                  <span style={{ fontSize:10, fontFamily:T.fM, color:deltaColor, fontWeight:600 }}>{delta>0?'+':''}{delta.toFixed(1)} {wu}</span>
-                </div>
-                <ResponsiveContainer width="100%" height={120}>
-                  <LineChart data={weightData} margin={{top:4,right:0,left:0,bottom:0}}>
-                    <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis domain={[minW - (range||5)*0.3, maxW + (range||5)*0.3]} hide />
-                    <Tooltip content={<ChartTooltip suffix={` ${wu}`} />} />
-                    <Line type="monotone" dataKey="weight" name="Weight" stroke={T.emerald} strokeWidth={2} dot={{fill:T.emerald,r:3}} />
-                  </LineChart>
-                </ResponsiveContainer>
-                <div style={{ display:'flex', gap:20, marginTop:6, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
-                  <span>Low: {minW} {wu}</span>
-                  <span>High: {maxW} {wu}</span>
-                  <span>Latest: {weightData[weightData.length-1].weight} {wu}</span>
-                </div>
-              </GlassCard>
-            );
-          })()}
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Recent Vitals</SectionLabel>
             {sorted.slice(0,8).map((v,i)=>(
@@ -7783,6 +8401,56 @@ function EditNoteModal({ open, onClose, note, onSave }) {
   );
 }
 
+// ── BOOK CARD — extracted to avoid hook-in-loop violation ─────────────────
+function BookCard({ b, onUpdate, onRemove }) {
+  const pct = b.totalPages>0?Math.round((b.pagesRead/b.totalPages)*100):0;
+  const daysSince = b.startDate ? Math.max(1,Math.ceil((new Date()-new Date(b.startDate))/86400000)) : 1;
+  const pace = b.pagesRead>0 ? (b.pagesRead/daysSince).toFixed(1) : 0;
+  const daysLeft = b.totalPages>0&&Number(pace)>0 ? Math.ceil((b.totalPages-b.pagesRead)/Number(pace)) : null;
+  const col = pct>=100?T.emerald:pct>50?T.sky:T.amber;
+  const [editPages, setEditPages] = useState(b.pagesRead);
+  return (
+    <GlassCard style={{ padding:'18px 20px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+        <div>
+          <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{b.title}</div>
+          {b.author && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>by {b.author}</div>}
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>Started {b.startDate} · {daysSince} day{daysSince!==1?'s':''} reading</div>
+        </div>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          {pct>=100 && <Badge color={T.emerald}>✓ Finished</Badge>}
+          <button onClick={()=>onRemove(b.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={10} stroke={T.rose} /></button>
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
+        {[
+          { label:'Progress', val:`${b.pagesRead}/${b.totalPages||'?'} pages`, color:col },
+          { label:'Pace', val:`${pace} pg/day`, color:T.sky },
+          { label:'Est. finish', val:pct>=100?'Done! 🎉':daysLeft?`~${daysLeft}d left`:'Add total pages', color:pct>=100?T.emerald:T.violet },
+        ].map((m,i)=>(
+          <div key={i} style={{ padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{m.label}</div>
+            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginBottom:10 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:10, fontFamily:T.fM }}>
+          <span style={{ color:T.textSub }}>Reading progress</span>
+          <span style={{ color:col, fontWeight:600 }}>{pct}%</span>
+        </div>
+        <ProgressBar pct={pct} color={col} height={7} />
+      </div>
+      {pct<100 && (
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <Input type="number" value={editPages} onChange={e=>setEditPages(Number(e.target.value))} min={0} max={b.totalPages||99999} style={{ flex:1, padding:'6px 10px', fontSize:12 }} placeholder="Update pages read" />
+          <button onClick={()=>onUpdate(b.id, editPages)} style={{ padding:'6px 14px', borderRadius:T.r, background:T.amber+'22', border:`1px solid ${T.amber}44`, color:T.amber, fontFamily:T.fM, fontSize:11, fontWeight:600, cursor:'pointer' }}>Update →</button>
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function KnowledgePage({ data, actions }) {
   const lang = useLang();
@@ -7795,16 +8463,108 @@ function KnowledgePage({ data, actions }) {
   const [notePriorityFilter, setNotePriorityFilter] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   const [noteSearch, setNoteSearch] = useState('');
-  const [taskSort, setTaskSort] = useState('due'); // 'due' | 'priority' | 'created'
+  const [taskSort, setTaskSort] = useState('due');
   const [showDone, setShowDone] = useState(false);
   const [messages, setMessages] = useState([{ role:'assistant', content:"Hello. I'm your Life Intelligence Engine. I have a complete view of your finances, health, habits, and goals. How can I help you today?" }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState(null); // for related-notes panel
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [kgActiveTag, setKgActiveTag] = useState(null);
+  const [books, setBooks] = useLocalStorage('los_books', []);
+  const [bookModal, setBookModal] = useState(false);
+  const [bkTitle, setBkTitle] = useState(''); const [bkAuthor, setBkAuthor] = useState('');
+  const [bkTotal, setBkTotal] = useState(''); const [bkRead, setBkRead] = useState('');
+  const [bkStartDate, setBkStartDate] = useState(today());
+  const [srQueue, setSrQueue] = useLocalStorage('los_sr_queue', {}); // { noteId: { interval, nextReview, stage } }
   const endRef = useRef(null);
   const {notes=[], expenses=[], incomes=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, assets=[], investments=[], debts=[], settings={}, quickNotes=[]} = data;
   const cur = settings.currency||'$';
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
   const buildContext = () => buildLifeContext(data);
   const apiKey = settings.aiApiKey || '';
+
+  // ── Note Insights Panel stats ────────────────────────────────────────────
+  const noteStats = useMemo(() => {
+    const thisMonth = today().slice(0,7);
+    const monthNotes = (notes||[]).filter(n => n.date?.startsWith(thisMonth));
+    const wordCounts = (notes||[]).map(n => ((n.body||'').trim().split(/\s+/).filter(Boolean).length));
+    const avgWords = wordCounts.length ? Math.round(wordCounts.reduce((s,x)=>s+x,0)/wordCounts.length) : 0;
+    // Tag frequency
+    const tagMap = {};
+    (notes||[]).forEach(n => { if (n.tag) tagMap[n.tag] = (tagMap[n.tag]||0)+1; });
+    const topTags = Object.entries(tagMap).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    // Writing streak — consecutive days with at least one note
+    let streak = 0;
+    const today_ = today();
+    for (let i=0; i<60; i++) {
+      const d = new Date(); d.setDate(d.getDate()-i);
+      const ds = d.toISOString().slice(0,10);
+      if ((notes||[]).some(n=>n.date===ds)) streak++;
+      else if (i>0) break;
+    }
+    return { monthNotes: monthNotes.length, avgWords, topTags, streak, total: (notes||[]).length };
+  }, [notes]);
+
+  // ── Related notes — word-overlap similarity (pure JS, no AI) ────────────
+  const getRelatedNotes = useCallback((targetNote, allNotes, limit=3) => {
+    if (!targetNote || !allNotes.length) return [];
+    const tokenize = (txt) => (txt||'').toLowerCase().split(/[\s,.:;!?'"()\[\]{}\/\\—–-]+/).filter(w=>w.length>3 && !['this','that','with','from','have','been','they','will','were','their','there','about','also','into','more','some'].includes(w));
+    const targetWords = new Set(tokenize(`${targetNote.title} ${targetNote.body}`));
+    return allNotes
+      .filter(n => n.id !== targetNote.id && !n.archived)
+      .map(n => {
+        const words = tokenize(`${n.title} ${n.body}`);
+        const overlap = words.filter(w => targetWords.has(w)).length;
+        const score = overlap / Math.sqrt(Math.max(1, targetWords.size * words.length));
+        return { ...n, _sim: score };
+      })
+      .filter(n => n._sim > 0)
+      .sort((a,b) => b._sim - a._sim)
+      .slice(0, limit);
+  }, []);
+
+  // ── Spaced Repetition helpers ────────────────────────────────────────────
+  const SR_INTERVALS = [1, 3, 7, 21]; // days
+  const reviewNotes = useMemo(() => (notes||[]).filter(n => {
+    const body = (n.body||'').toLowerCase();
+    const title = (n.title||'').toLowerCase();
+    const tag = (n.tag||'').toLowerCase();
+    return body.includes('#review') || title.includes('#review') || tag === 'review';
+  }), [notes]);
+
+  const srDueToday = useMemo(() => {
+    const todayStr = today();
+    return reviewNotes.filter(n => {
+      const entry = srQueue[n.id];
+      if (!entry) return true; // never reviewed → due immediately
+      return entry.nextReview <= todayStr;
+    });
+  }, [reviewNotes, srQueue]);
+
+  const markSRDone = useCallback((noteId) => {
+    setSrQueue(prev => {
+      const cur = prev[noteId] || { stage: 0 };
+      const nextStage = Math.min(cur.stage + 1, SR_INTERVALS.length - 1);
+      const nextDate = new Date();
+      nextDate.setDate(nextDate.getDate() + SR_INTERVALS[nextStage]);
+      return { ...prev, [noteId]: { stage: nextStage, nextReview: nextDate.toISOString().slice(0,10), interval: SR_INTERVALS[nextStage] } };
+    });
+  }, [setSrQueue]);
+
+  const resetSR = useCallback((noteId) => {
+    setSrQueue(prev => { const n = {...prev}; delete n[noteId]; return n; });
+  }, [setSrQueue]);
+
+  // ── Book helpers ─────────────────────────────────────────────────────────
+  const addBook = () => {
+    if (!bkTitle.trim()) return;
+    const total = Number(bkTotal)||0;
+    const read = Math.min(Number(bkRead)||0, total);
+    setBooks(prev => [...prev, { id: Date.now(), title: bkTitle.trim(), author: bkAuthor.trim(), totalPages: total, pagesRead: read, startDate: bkStartDate, logs: [] }]);
+    setBkTitle(''); setBkAuthor(''); setBkTotal(''); setBkRead(''); setBookModal(false);
+  };
+  const updateBookPages = (id, pages) => setBooks(prev => prev.map(b => b.id===id ? { ...b, pagesRead: Math.min(pages, b.totalPages||pages), logs: [...(b.logs||[]), { date: today(), pages }] } : b));
+  const removeBook = (id) => setBooks(prev => prev.filter(b => b.id !== id));
   const send = async () => {
     if (!input.trim()||loading) return;
     if (!apiKey) {
@@ -7863,13 +8623,45 @@ function KnowledgePage({ data, actions }) {
         infoIcon={<PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} />}
       />
       <TabNav
-        tabs={['notes','tasks','courses','capsule','note analysis','gmail'].map(t=>({ id:t, label:t }))}
+        tabs={['notes','tasks','books','courses','capsule','note analysis','gmail'].map(t=>({ id:t, label:t==='books'?'📚 Books':t==='note analysis'?'🧠 Analysis':t }))}
         active={tab}
         onChange={setTab}
         accentColor={T.amber}
       />
       {tab==='notes' && (
         <div>
+          {/* ── Note Insights Panel ──────────────────────────────────────── */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10, marginBottom:14 }}>
+            {[
+              { label:'Notes this month', val: noteStats.monthNotes, color: T.amber, icon:'📝' },
+              { label:'Avg words/note',   val: noteStats.avgWords,   color: T.sky,   icon:'✍️' },
+              { label:'Writing streak',   val: `🔥 ${noteStats.streak}d`, color: T.accent, icon:'📅' },
+              { label:'Total notes',      val: noteStats.total,      color: T.violet, icon:'🗂' },
+            ].map((s,i)=>(
+              <GlassCard key={i} style={{ padding:'12px 14px' }}>
+                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>{s.label}</div>
+                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+              </GlassCard>
+            ))}
+          </div>
+          {noteStats.topTags.length>0 && (
+            <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em' }}>TOP TAGS:</span>
+              {noteStats.topTags.map(([tag,cnt])=>(
+                <button key={tag} onClick={()=>{}} style={{ padding:'2px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:T.amber+'18', border:`1px solid ${T.amber}33`, color:T.amber, cursor:'default' }}>{tag} · {cnt}</button>
+              ))}
+              <div style={{ flex:1 }}/>
+              <button onClick={()=>setShowKnowledgeGraph(true)} style={{ padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:600, background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.35)', color:'#c084fc', cursor:'pointer' }}>🕸️ Knowledge Graph</button>
+            </div>
+          )}
+          {/* SR due-today badge */}
+          {srDueToday.length>0 && (
+            <div onClick={()=>setTab('review queue')} style={{ padding:'8px 14px', borderRadius:T.r, background:`${T.sky}10`, border:`1px solid ${T.sky}33`, marginBottom:12, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:14 }}>🔁</span>
+              <span style={{ fontSize:11, fontFamily:T.fM, color:T.sky, fontWeight:600 }}>{srDueToday.length} note{srDueToday.length>1?'s':''} due for review today</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Open queue →</span>
+            </div>
+          )}
           <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center' }}>
             <div style={{ flex:1, position:'relative' }}>
               <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
@@ -7887,8 +8679,8 @@ function KnowledgePage({ data, actions }) {
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{noteSearch?`No notes match "${noteSearch}"` :'No notes yet. Create your first note to build your knowledge base.'}</div></GlassCard>
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
-              {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; return (
-                <GlassCard key={note.id||i} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${note.priority===1?T.rose:note.priority===2?T.amber:tc}88`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1 }}>
+              {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; const isSelected = selectedNoteId===note.id; const related = isSelected ? getRelatedNotes(note, notes) : []; return (
+                <GlassCard key={note.id||i} onClick={()=>setSelectedNoteId(isSelected?null:note.id)} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${note.priority===1?T.rose:note.priority===2?T.amber:tc}88`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1, border:isSelected?`1px solid ${T.amber}55`:undefined, background:isSelected?`${T.amber}06`:undefined }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                     <div style={{ display:'flex', gap:5, alignItems:'center', flexWrap:'wrap' }}>
                       <Badge color={tc}>{note.tag||'General'}</Badge>
@@ -7912,6 +8704,25 @@ function KnowledgePage({ data, actions }) {
                   </div>
                   <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7, textDecoration:note.done?'line-through':'' }}>{note.title}</div>
                   <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body||note.content||note.text||''}</div>
+                  {/* ── Related notes panel ──────────────────────────────── */}
+                  {isSelected && related.length>0 && (
+                    <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, animation:'slideDown 0.2s ease' }}>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>🔗 Related Notes</div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                        {related.map((rn,ri)=>(
+                          <div key={ri} onClick={e=>{e.stopPropagation();setSelectedNoteId(rn.id);}} style={{ padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}
+                            onMouseEnter={e=>e.currentTarget.style.borderColor=T.amber+'44'}
+                            onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:2 }}>{rn.title}</div>
+                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{(rn.body||'').slice(0,80)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isSelected && related.length===0 && (
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted }}>No similar notes found — add more notes with overlapping topics.</div>
+                  )}
                 </GlassCard>
               ); })}
             </div>
@@ -8125,6 +8936,217 @@ function KnowledgePage({ data, actions }) {
               </div>
             )}
           </div>
+        );
+      })()}
+
+      {tab==='books' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Stats row */}
+          {books.length>0 && (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10 }}>
+              {[
+                { label:'Books tracked', val: books.length, color:T.amber },
+                { label:'Completed', val: books.filter(b=>b.pagesRead>=b.totalPages&&b.totalPages>0).length, color:T.emerald },
+                { label:'In progress', val: books.filter(b=>b.pagesRead>0&&b.pagesRead<b.totalPages).length, color:T.sky },
+                { label:'Total pages read', val: books.reduce((s,b)=>s+(b.pagesRead||0),0), color:T.violet },
+              ].map((s,i)=>(
+                <GlassCard key={i} style={{ padding:'12px 14px' }}>
+                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{s.label}</div>
+                  <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+                </GlassCard>
+              ))}
+            </div>
+          )}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Track books with pages read, progress, and reading pace.</div>
+            <Btn onClick={()=>setBookModal(true)} color={T.amber}>+ Add Book</Btn>
+          </div>
+          {bookModal && (
+            <GlassCard style={{ padding:'16px 18px' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <Input value={bkTitle} onChange={e=>setBkTitle(e.target.value)} placeholder="Book title" autoFocus />
+                  <Input value={bkAuthor} onChange={e=>setBkAuthor(e.target.value)} placeholder="Author (optional)" />
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                  <Input type="number" value={bkTotal} onChange={e=>setBkTotal(e.target.value)} placeholder="Total pages" />
+                  <Input type="number" value={bkRead} onChange={e=>setBkRead(e.target.value)} placeholder="Pages read" />
+                  <Input type="date" value={bkStartDate} onChange={e=>setBkStartDate(e.target.value)} />
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <Btn onClick={addBook} color={T.amber} style={{ flex:1 }}>Add Book</Btn>
+                  <button onClick={()=>setBookModal(false)} style={{ padding:'8px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Cancel</button>
+                </div>
+              </div>
+            </GlassCard>
+          )}
+          {books.length===0&&!bookModal && <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No books yet. Add one to start tracking your reading!</div></GlassCard>}
+          {[...books].sort((a,b)=>{ const pa=a.totalPages>0?a.pagesRead/a.totalPages:0; const pb=b.totalPages>0?b.pagesRead/b.totalPages:0; return pb-pa; }).map(b=>(
+            <BookCard key={b.id} b={b} onUpdate={updateBookPages} onRemove={removeBook} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Review Queue tab ─────────────────────────────────────────────── */}
+      {tab==='review queue' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ padding:'14px 18px', borderRadius:T.rL, background:`${T.sky}08`, border:`1px solid ${T.sky}22` }}>
+            <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.sky, marginBottom:4 }}>🔁 Spaced Repetition Queue</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>Notes tagged <code style={{ background:T.surface, padding:'1px 5px', borderRadius:4, fontSize:9 }}>#review</code> resurface on a 1→3→7→21 day schedule. Mark each as reviewed to advance the interval.</div>
+          </div>
+          {reviewNotes.length===0 ? (
+            <GlassCard style={{ padding:40, textAlign:'center' }}>
+              <div style={{ fontSize:28, marginBottom:12 }}>🔁</div>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No review notes yet</div>
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Tag any note with <strong>#review</strong> in its body or title to add it to the spaced repetition queue.</div>
+            </GlassCard>
+          ) : (
+            <>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10, marginBottom:6 }}>
+                {[
+                  { label:'Due today', val: srDueToday.length, color: srDueToday.length>0?T.rose:T.emerald },
+                  { label:'Total in queue', val: reviewNotes.length, color: T.sky },
+                  { label:'Reviewed', val: Object.keys(srQueue).length, color: T.emerald },
+                ].map((s,i)=>(
+                  <GlassCard key={i} style={{ padding:'12px 14px' }}>
+                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{s.label}</div>
+                    <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
+                  </GlassCard>
+                ))}
+              </div>
+              {/* Due today */}
+              {srDueToday.length>0 && (
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.rose, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>📬 Due Today ({srDueToday.length})</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {srDueToday.map((n,i)=>{
+                      const entry = srQueue[n.id];
+                      const stage = entry?.stage??0;
+                      const nextInterval = SR_INTERVALS[Math.min(stage+1,SR_INTERVALS.length-1)];
+                      return (
+                        <GlassCard key={n.id||i} style={{ padding:'16px 18px', borderLeft:`3px solid ${T.sky}55`, animation:`fadeUp 0.25s ease ${i*0.06}s both` }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10 }}>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{n.title}</div>
+                              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{n.body||''}</div>
+                              <div style={{ display:'flex', gap:8, marginTop:8, alignItems:'center', flexWrap:'wrap' }}>
+                                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Stage {stage+1}/4 · next in {nextInterval}d if reviewed</span>
+                                {[1,3,7,21].map((iv,si)=>(
+                                  <div key={iv} style={{ width:20, height:4, borderRadius:99, background:si<=stage?T.sky:T.surface, border:`1px solid ${si<=stage?T.sky+'55':T.border}`, transition:'background 0.2s' }} />
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                              <button onClick={()=>markSRDone(n.id)} style={{ padding:'6px 12px', borderRadius:T.r, background:`${T.emerald}18`, border:`1px solid ${T.emerald}44`, color:T.emerald, fontFamily:T.fM, fontSize:11, fontWeight:600, cursor:'pointer' }}>✓ Reviewed</button>
+                              <button onClick={()=>resetSR(n.id)} style={{ padding:'6px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, color:T.textMuted, fontFamily:T.fM, fontSize:10, cursor:'pointer' }}>↺</button>
+                            </div>
+                          </div>
+                        </GlassCard>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* All queue notes not due today */}
+              {reviewNotes.filter(n=>!srDueToday.find(d=>d.id===n.id)).length>0 && (
+                <div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>⏳ Upcoming</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {reviewNotes.filter(n=>!srDueToday.find(d=>d.id===n.id)).map((n,i)=>{
+                      const entry = srQueue[n.id];
+                      return (
+                        <div key={n.id||i} style={{ padding:'10px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div>
+                            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{n.title}</div>
+                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>Next review: {entry?.nextReview||'today'} · Stage {(entry?.stage??0)+1}/4</div>
+                          </div>
+                          <button onClick={()=>resetSR(n.id)} style={{ padding:'4px 8px', borderRadius:T.r, background:'transparent', border:`1px solid ${T.border}`, fontSize:9, fontFamily:T.fM, color:T.textMuted, cursor:'pointer' }}>Reset</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Knowledge Graph Modal ─────────────────────────────────────────── */}
+      {showKnowledgeGraph && (() => {
+        // Build tag→note adjacency for SVG graph
+        const tagMap = {};
+        (notes||[]).filter(n=>!n.archived&&n.tag).forEach(n => {
+          if (!tagMap[n.tag]) tagMap[n.tag] = [];
+          tagMap[n.tag].push(n);
+        });
+        const tagList = Object.entries(tagMap);
+        const [activeTag, setActiveTag_] = [kgActiveTag, setKgActiveTag];
+        const W=560, H=360, cx=W/2, cy=H/2;
+        const r = Math.min(cx,cy)-60;
+        const nodes = tagList.map(([tag,ns],i)=>{
+          const angle = (i/tagList.length)*2*Math.PI - Math.PI/2;
+          return { tag, notes:ns, x:cx+r*Math.cos(angle), y:cy+r*Math.sin(angle), size:10+Math.min(ns.length*4,30) };
+        });
+        // Edges: tags that share notes with overlapping words
+        const edges = [];
+        for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
+          const wordsI = new Set(nodes[i].notes.flatMap(n=>(n.body||'').toLowerCase().split(/\W+/).filter(w=>w.length>4)));
+          const wordsJ = nodes[j].notes.flatMap(n=>(n.body||'').toLowerCase().split(/\W+/).filter(w=>w.length>4));
+          const overlap = wordsJ.filter(w=>wordsI.has(w)).length;
+          if (overlap>2) edges.push({ i,j,weight:Math.min(overlap/10,1) });
+        }
+        const filteredNotesByTag = activeTag ? tagMap[activeTag]||[] : [];
+        return (
+          <>
+            <div onClick={()=>{ setShowKnowledgeGraph(false); setKgActiveTag(null); }} style={{ position:'fixed', inset:0, zIndex:9970, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(5px)', animation:'fadeIn 0.2s ease' }} />
+            <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9971, width:'min(640px,96vw)', maxHeight:'90vh', overflowY:'auto', background:T.bg2, border:'1px solid rgba(192,132,252,0.4)', borderRadius:20, boxShadow:'0 32px 80px rgba(0,0,0,0.85)', animation:'modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
+              <div style={{ padding:'18px 22px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:20 }}>🕸️</span>
+                  <div>
+                    <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:800, color:'#c084fc' }}>Knowledge Graph</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{tagList.length} tag clusters · click a node to filter notes</div>
+                  </div>
+                </div>
+                <button onClick={()=>{ setShowKnowledgeGraph(false); setKgActiveTag(null); }} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+              </div>
+              <div style={{ padding:'16px 22px' }}>
+                <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', background:T.surface, borderRadius:14, border:`1px solid ${T.border}` }}>
+                  {edges.map((e,i)=>(
+                    <line key={i} x1={nodes[e.i].x} y1={nodes[e.i].y} x2={nodes[e.j].x} y2={nodes[e.j].y}
+                      stroke="rgba(192,132,252,0.2)" strokeWidth={e.weight*3+0.5} />
+                  ))}
+                  {nodes.map((n,i)=>{
+                    const isActive = activeTag===n.tag;
+                    const PALETTE = [T.accent,T.violet,T.sky,T.amber,T.emerald,T.rose,'#c084fc','#f97316'];
+                    const col = PALETTE[i%PALETTE.length];
+                    return (
+                      <g key={i} onClick={()=>setActiveTag_(activeTag===n.tag?null:n.tag)} style={{ cursor:'pointer' }}>
+                        <circle cx={n.x} cy={n.y} r={n.size} fill={isActive?col:col+'30'} stroke={col} strokeWidth={isActive?2.5:1.5} />
+                        <text x={n.x} y={n.y-n.size-6} textAnchor="middle" fontSize={10} fontFamily="system-ui" fill={col} fontWeight={isActive?700:400}>{n.tag}</text>
+                        <text x={n.x} y={n.y+4} textAnchor="middle" fontSize={9} fontFamily="system-ui" fill={isActive?'white':col} opacity={0.8}>{n.notes.length}</text>
+                      </g>
+                    );
+                  })}
+                  {tagList.length===0 && <text x={W/2} y={H/2} textAnchor="middle" fontSize={12} fill="rgba(255,255,255,0.3)" fontFamily="system-ui">Add notes with tags to populate the graph</text>}
+                </svg>
+                {activeTag && filteredNotesByTag.length>0 && (
+                  <div style={{ marginTop:14, animation:'slideDown 0.2s ease' }}>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:'#c084fc', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>{filteredNotesByTag.length} notes in "{activeTag}"</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                      {filteredNotesByTag.map((n,i)=>(
+                        <div key={i} style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                          <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:2 }}>{n.title}</div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{(n.body||'').slice(0,100)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
         );
       })()}
 
@@ -9287,6 +10309,9 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
   const [coachMessages, setCoachMessages] = useLocalStorage('los_fincoach_msgs', []);
   const [coachInput, setCoachInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
+  const [insightHistory, setInsightHistory] = useLocalStorage('los_insight_history', []);
+  const [showInsightHistory, setShowInsightHistory] = useState(false);
+  const [digestCopied, setDigestCopied] = useState(false);
   const {expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], assets=[], debts=[], totalXP=0, settings={}} = data;
   const cur = settings.currency||'$';
   // Use pre-computed values from App root
@@ -9359,6 +10384,67 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
     (goals||[]).length===0 && { title:'Set Your First Goal', body:'No goals defined yet. Users with written goals are 42% more likely to achieve them. Set a financial target to unlock projection tools.', color:'#c084fc', icon:'🎯', type:'coach' },
     (goals||[]).length>0 && { title:'Goal Progress', body:`${(goals||[]).filter(g=>(g.current||0)>=g.target).length} of ${(goals||[]).length} goals completed. Average progress: ${Math.round((goals||[]).reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,(goals||[]).length))}%.`, color:T.amber, icon:'🏆', type:'positive' },
   ].filter(Boolean).slice(0,6);
+
+  // ── Weekly digest composer ────────────────────────────────────────────────
+  const composeWeeklyDigest = () => {
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-7);
+    const weekStr = weekAgo.toISOString().slice(0,10);
+    const weekExpenses = (expenses||[]).filter(e=>e.date>=weekStr);
+    const weekTotal = weekExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
+    const weekIncome = (incomes||[]).filter(i=>i.date>=weekStr).reduce((s,i)=>s+Number(i.amount||0),0);
+    const weekHabitDays = [...new Set(Object.values(habitLogs).flat().filter(d=>d>=weekStr))].length;
+    const totalHabitPossible = (habits||[]).length * 7;
+    const habitPct = totalHabitPossible>0?Math.round((Object.values(habitLogs).flat().filter(d=>d>=weekStr).length/totalHabitPossible)*100):0;
+    const avgMood = (vitals||[]).filter(v=>v.date>=weekStr&&v.mood).reduce((s,v,_,a)=>s+Number(v.mood)/a.length,0);
+    const avgSleep = (vitals||[]).filter(v=>v.date>=weekStr&&v.sleep).reduce((s,v,_,a)=>s+Number(v.sleep)/a.length,0);
+    const topCatWeek = (() => { const m={}; weekExpenses.forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);}); return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; })();
+    const dateLabel = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    const lines = [
+      `📊 LIFE OS — WEEKLY DIGEST`,
+      `Week ending ${dateLabel}`,
+      `${'─'.repeat(38)}`,
+      ``,
+      `💰 FINANCES`,
+      `  Income logged:    ${cur}${fmtN(weekIncome)}`,
+      `  Spending:         ${cur}${fmtN(weekTotal)}`,
+      `  Net:              ${cur}${fmtN(weekIncome-weekTotal)}`,
+      topCatWeek ? `  Top category:     ${topCatWeek[0]} (${cur}${fmtN(topCatWeek[1])})` : null,
+      `  Month savings:    ${savRate.toFixed(1)}% (${cur}${fmtN(monthInc-monthExp)} saved)`,
+      `  Net worth:        ${cur}${fmtN(nw)}`,
+      ``,
+      `🔥 HABITS`,
+      `  Completion rate:  ${habitPct}%`,
+      `  Active habits:    ${(habits||[]).length}`,
+      `  Best streak:      ${bestStreak} days`,
+      ``,
+      (vitals||[]).filter(v=>v.date>=weekStr).length>0 ? `🏃 HEALTH` : null,
+      avgMood>0 ? `  Avg mood:         ${avgMood.toFixed(1)}/10` : null,
+      avgSleep>0 ? `  Avg sleep:        ${avgSleep.toFixed(1)}h` : null,
+      ``,
+      `🎯 GOALS`,
+      `  Active:           ${(goals||[]).length}`,
+      `  Completed:        ${(goals||[]).filter(g=>(g.current||0)>=g.target).length}`,
+      ``,
+      insights.length>0 ? `🧠 TOP INSIGHTS` : null,
+      ...insights.slice(0,3).map(ins=>ins?`  · ${ins.title}`:null),
+      ``,
+      `${'─'.repeat(38)}`,
+      `Generated by LifeOS · ${dateLabel}`,
+    ].filter(v=>v!==null).join('\n');
+    return lines;
+  };
+
+  // ── Insight history saver — call after any AI-powered insight generation ──
+  const saveInsightSnapshot = (label) => {
+    const snap = {
+      id: Date.now(),
+      ts: new Date().toLocaleString(),
+      label,
+      insights: insights.map(ins=>({ title:ins.title, body:ins.body, type:ins.type })),
+      summary: { nw: fmtN(nw), savRate: savRate.toFixed(1), bestStreak, monthInc: fmtN(monthInc), monthExp: fmtN(monthExp) },
+    };
+    setInsightHistory(prev => [snap, ...(prev||[])].slice(0,10));
+  };
   const LIFE_STATS = [
     { label:'Financial', val:Math.min(100,Math.round((savRate*0.5)+(nw>0?30:0)+((debts||[]).length===0?20:0))), color:T.emerald },
     { label:'Health',    val:Math.min(100,(vitals||[]).length*8), color:T.sky },
@@ -9489,6 +10575,59 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
 
       {tab==='overview' && (
         <>
+          {/* ── Insight History + Weekly Digest toolbar ─────────────────── */}
+          <div style={{ display:'flex', gap:10, marginBottom:14, flexWrap:'wrap' }}>
+            <button onClick={()=>{ saveInsightSnapshot('Manual snapshot'); }} style={{ padding:'6px 13px', borderRadius:99, background:'rgba(192,132,252,0.1)', border:'1px solid rgba(192,132,252,0.3)', color:'#c084fc', fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+              💾 Save Snapshot
+            </button>
+            <button onClick={()=>setShowInsightHistory(v=>!v)} style={{ padding:'6px 13px', borderRadius:99, background:showInsightHistory?'rgba(192,132,252,0.15)':T.surface, border:`1px solid ${showInsightHistory?'rgba(192,132,252,0.5)':T.border}`, color:showInsightHistory?'#c084fc':T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+              🕐 History {(insightHistory||[]).length>0?`(${(insightHistory||[]).length})`:''}
+            </button>
+            <button onClick={()=>{
+              const text = composeWeeklyDigest();
+              navigator.clipboard.writeText(text).then(()=>{ setDigestCopied(true); setTimeout(()=>setDigestCopied(false),2500); });
+            }} style={{ padding:'6px 13px', borderRadius:99, background:digestCopied?'rgba(52,211,153,0.15)':T.surface, border:`1px solid ${digestCopied?T.emerald+'55':T.border}`, color:digestCopied?T.emerald:T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+              {digestCopied?'✅ Copied!':'📋 Copy Weekly Digest'}
+            </button>
+          </div>
+
+          {/* ── Insight history browser ──────────────────────────────────── */}
+          {showInsightHistory && (
+            <GlassCard style={{ padding:'16px 18px', marginBottom:14, border:'1px solid rgba(192,132,252,0.25)', background:'rgba(192,132,252,0.04)', animation:'slideDown 0.2s ease' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:'#c084fc' }}>🕐 Insight History</div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  {(insightHistory||[]).length>0 && <button onClick={()=>setInsightHistory([])} style={{ fontSize:9, fontFamily:T.fM, color:T.rose, background:'none', border:'none', cursor:'pointer' }}>Clear all</button>}
+                  <button onClick={()=>setShowInsightHistory(false)} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'3px 8px', cursor:'pointer' }}>✕</button>
+                </div>
+              </div>
+              {(insightHistory||[]).length===0 ? (
+                <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'18px 0' }}>No snapshots yet. Click "Save Snapshot" to record today's insights.</div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:360, overflowY:'auto' }}>
+                  {(insightHistory||[]).map((snap,i)=>(
+                    <div key={snap.id||i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text }}>{snap.label||'Snapshot'}</div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{snap.ts}</div>
+                      </div>
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
+                        {[{label:'NW',val:cur+snap.summary?.nw,color:T.accent},{label:'Save%',val:snap.summary?.savRate+'%',color:T.emerald},{label:'Streak',val:'🔥'+snap.summary?.bestStreak+'d',color:T.amber}].map((kpi,j)=>(
+                          <div key={j} style={{ padding:'3px 8px', borderRadius:99, background:kpi.color+'14', border:`1px solid ${kpi.color}33`, fontSize:9, fontFamily:T.fM, color:kpi.color, fontWeight:600 }}>{kpi.label}: {kpi.val}</div>
+                        ))}
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                        {(snap.insights||[]).map((ins,j)=>(
+                          <div key={j} style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>· {ins.title}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </GlassCard>
+          )}
+
           <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
             {insights.map((ins,i)=>(
               <GlassCard key={i} style={{ padding:'18px 22px', borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.3s ease ${i*0.07}s both` }}>
@@ -14072,6 +15211,15 @@ function PatternEngine({ data, open, onClose }) {
     return results;
   }, [expenses, vitals, habits, habitLogs, incomes, goals, settings]);
 
+  // ── Auto-discovery: pre-populate top 3 strongest local patterns on open ──
+  useEffect(() => {
+    if (!open) return;
+    if (!patterns && localCorrelations.length > 0) {
+      const top3 = [...localCorrelations].sort((a,b)=>(b.strength||0)-(a.strength||0)).slice(0,3);
+      setPatterns({ items: top3, ts: new Date().toLocaleString(), aiCount: 0, autoDiscovered: true });
+    }
+  }, [open]); // eslint-disable-line
+
   const runAIPatterns = async () => {
     if (loading) return;
     setLoading(true);
@@ -14128,7 +15276,7 @@ function PatternEngine({ data, open, onClose }) {
             <button onClick={runAIPatterns} disabled={loading} style={{ padding:'8px 18px', borderRadius:T.r, background:loading?T.surface:'rgba(139,92,246,0.18)', border:`1px solid ${loading?T.border:'rgba(139,92,246,0.5)'}`, color:loading?T.textSub:'#c084fc', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
               {loading ? <><div style={{ width:10, height:10, borderRadius:'50%', border:'2px solid rgba(139,92,246,0.3)', borderTopColor:'#c084fc', animation:'spin 0.8s linear infinite' }}/> Analyzing…</> : '🔍 Run Deep Analysis'}
             </button>
-            {patterns?.ts && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Last run: {patterns.ts} · {patterns.aiCount||0} AI + {localCorrelations.length} local patterns</span>}
+            {patterns?.ts && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{patterns.autoDiscovered?'✨ Auto-discovered on open':'Last run: '+patterns.ts} · {patterns.aiCount||0} AI + {localCorrelations.length} local patterns</span>}
             {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>⚠️ Add API key for AI patterns</span>}
           </div>
         </div>
@@ -14785,6 +15933,83 @@ function ParallelYou({ data, open, onClose }) {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+
+              {/* KPI Delta View — current vs projected at 1y / 5y / 10y */}
+              {(() => {
+                const monthlyDelta = (() => {
+                  if (scenario==='savings'||scenario==='expense') return result.val;
+                  if (scenario==='invest') return result.val * 1.042; // avg with compounding
+                  if (scenario==='habit') return 0;
+                  return 0;
+                })();
+                const habitScore = Math.min(100, (habits||[]).length*15 + (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0)*2);
+                const healthScore = Math.min(100,(vitals||[]).length*8);
+                const savingsRateNow = data.computed?.savRate||0;
+                const projections = [1,5,10].map(yr => {
+                  const mo = yr * 12;
+                  const invest7pct = (v, m) => v * Math.pow(1+0.07/12, m);
+                  const realNW = invest7pct(nw, mo);
+                  const parallelNW = invest7pct(nw + monthlyDelta*mo, mo);
+                  const realSavRate = savingsRateNow;
+                  const parallelSavRate = Math.min(99, savingsRateNow + (scenario==='savings'||scenario==='expense'? (monthlyDelta/Math.max(1,data.computed?.monthInc||1))*100 : 0));
+                  return { yr, mo, realNW, parallelNW, deltaNW: parallelNW-realNW, realSavRate, parallelSavRate, habitScore, healthScore };
+                });
+                return (
+                  <div style={{ borderRadius:14, border:`1px solid rgba(56,189,248,0.2)`, background:'rgba(56,189,248,0.04)', overflow:'hidden' }}>
+                    <div style={{ padding:'12px 16px', borderBottom:`1px solid rgba(56,189,248,0.15)`, display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:14 }}>📊</span>
+                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.sky }}>KPI Delta View</div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Current vs Parallel at 1y / 5y / 10y</div>
+                    </div>
+                    <div style={{ overflowX:'auto' }}>
+                      <table style={{ width:'100%', borderCollapse:'collapse', fontFamily:T.fM, fontSize:10 }}>
+                        <thead>
+                          <tr style={{ background:'rgba(56,189,248,0.06)' }}>
+                            <th style={{ padding:'10px 14px', textAlign:'left', color:T.textSub, fontWeight:600, fontSize:9, letterSpacing:'0.07em', whiteSpace:'nowrap' }}>METRIC</th>
+                            {projections.map(p=>(
+                              <React.Fragment key={p.yr}>
+                                <th style={{ padding:'10px 10px', textAlign:'center', color:T.textSub, fontWeight:600, fontSize:9, letterSpacing:'0.07em' }}>NOW</th>
+                                <th style={{ padding:'10px 10px', textAlign:'center', color:T.sky, fontWeight:700, fontSize:9, letterSpacing:'0.07em' }}>{p.yr}Y ↗</th>
+                              </React.Fragment>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            { label:'Net Worth', icon:'💰', fmt: v=>`${cur}${fmtN(v)}`, now: nw, vals: projections.map(p=>p.parallelNW), realVals: projections.map(p=>p.realNW), color:T.emerald },
+                            { label:'Savings Rate', icon:'📈', fmt: v=>`${v.toFixed(1)}%`, now: savingsRateNow, vals: projections.map(p=>p.parallelSavRate), realVals: projections.map(p=>p.realSavRate), color:T.sky },
+                            { label:'Habit Score', icon:'🔥', fmt: v=>`${Math.round(v)}/100`, now: habitScore, vals: projections.map(p=>Math.min(100,p.habitScore+(scenario==='habit'?p.yr*3:0))), realVals: projections.map(p=>p.habitScore), color:T.accent },
+                            { label:'Health Score', icon:'❤️', fmt: v=>`${Math.round(v)}/100`, now: healthScore, vals: projections.map(p=>Math.min(100,p.healthScore+p.yr*2)), realVals: projections.map(p=>Math.min(100,p.healthScore+p.yr)), color:T.rose },
+                          ].map((row,ri)=>(
+                            <tr key={ri} style={{ borderTop:`1px solid ${T.border}` }}>
+                              <td style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>
+                                <span>{row.icon}</span>
+                                <span style={{ color:T.text, fontWeight:600 }}>{row.label}</span>
+                              </td>
+                              {projections.map((p,pi)=>{
+                                const parallelVal = row.vals[pi];
+                                const realVal = row.realVals[pi];
+                                const delta = parallelVal - realVal;
+                                const isPos = delta >= 0;
+                                return (
+                                  <React.Fragment key={p.yr}>
+                                    <td style={{ padding:'10px 10px', textAlign:'center', color:T.textSub }}>{row.fmt(ri===0?nw:ri===1?savingsRateNow:ri===2?habitScore:healthScore)}</td>
+                                    <td style={{ padding:'10px 10px', textAlign:'center' }}>
+                                      <div style={{ color:row.color, fontWeight:700 }}>{row.fmt(parallelVal)}</div>
+                                      {delta!==0 && <div style={{ fontSize:8, color:isPos?T.emerald:T.rose, marginTop:2 }}>{isPos?'+':''}{row.label==='Net Worth'?`${cur}${fmtN(delta)}`:row.fmt(delta)}</div>}
+                                    </td>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div style={{ padding:'8px 16px', fontSize:9, fontFamily:T.fM, color:T.textMuted, borderTop:`1px solid ${T.border}` }}>Net Worth projected at 7% annual growth. Scores are estimates based on current trends.</div>
+                  </div>
+                );
+              })()}
 
               {/* AI Narrative */}
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
