@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v96
+// LifeOS — Personal Life Operating System  |  v99
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -146,7 +146,7 @@ import {
     }
     /* Touch-friendly × close buttons */
     .los-close-btn { min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; cursor:pointer; transition:background 0.15s; }
-    .los-close-btn:hover { background:rgba(255,255,255,0.06); }
+    .los-close-btn:hover { background:rgba(255,255,255,0.08); }
     /* Modal scroll lock — overflow:hidden blocks background scroll;
        touch-action:none removed here because it propagates to children and
        kills inner scroll on Android WebViews */
@@ -1250,8 +1250,7 @@ function Modal({ open, onClose, title, children, wide=false }) {
           <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:'0 auto 18px', flexShrink:0 }} />
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexShrink:0 }}>
             <h2 style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
-            <button onClick={onClose} style={{ padding:8, borderRadius:8, background:T.surface }}><IcoX size={16} stroke={T.textSub} /></button>
-          </div>
+            <BtnClose onClick={onClose} />          </div>
           <div className="los-sheet-body" style={{ paddingBottom:`calc(20px + var(--sab))`, flex:1, minHeight:0 }}>
             {children}
           </div>
@@ -1264,15 +1263,71 @@ function Modal({ open, onClose, title, children, wide=false }) {
       <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:20, padding:24, width:'100%', maxWidth:wide?640:420, animation:'modalIn 0.25s ease', maxHeight:'90vh', overflowY:'auto' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <h2 style={{ fontSize:16, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
-          <button onClick={onClose} className="los-close-btn"><IcoX size={16} stroke={T.textSub} /></button>
-        </div>
+          <BtnClose onClick={onClose} />        </div>
         {children}
       </div>
     </div>
   );
 }
-const Btn = ({ children, onClick, color=T.accent, disabled=false, full=false, style={} }) => (
-  <button className="los-btn" onClick={onClick} disabled={disabled} style={{ padding:'10px 20px', borderRadius:T.r, background:disabled?T.surface:(color+'18'), color:disabled?T.textMuted:color, border:`1px solid ${disabled?T.border:(color+'44')}`, fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em', width:full?'100%':'auto', minHeight:44, transition:'all 0.18s', display:'inline-flex', alignItems:'center', justifyContent:'center', gap:6, ...style }}>{children}</button>
+// ── BTN — unified button component with variant system ────────────────────────
+// variant: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success'
+// color prop still works for backward compat (treated as custom primary tint)
+const Btn = ({ children, onClick, color, variant, disabled=false, full=false, style={} }) => {
+  // Resolve variant → visual config
+  const cfg = (() => {
+    if (variant === 'ghost')     return { bg:'transparent', hoverBg:T.surface, border:`1px solid ${T.border}`, text:T.textSub };
+    if (variant === 'secondary') return { bg:T.surface, hoverBg:T.surfaceHi, border:`1px solid ${T.border}`, text:T.textSub };
+    if (variant === 'danger')    return { bg:`${T.rose}18`, hoverBg:`${T.rose}28`, border:`1px solid ${T.rose}44`, text:T.rose };
+    if (variant === 'success')   return { bg:`${T.emerald}18`, hoverBg:`${T.emerald}28`, border:`1px solid ${T.emerald}44`, text:T.emerald };
+    // 'primary' or legacy color prop
+    const c = color || T.accent;
+    return { bg:`${c}18`, hoverBg:`${c}28`, border:`1px solid ${c}44`, text:c };
+  })();
+  return (
+    <button
+      className="los-btn"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding:'10px 20px', borderRadius:T.r,
+        background: disabled ? T.surface : cfg.bg,
+        color: disabled ? T.textMuted : cfg.text,
+        border: disabled ? `1px solid ${T.border}` : cfg.border,
+        fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em',
+        width: full ? '100%' : 'auto', minHeight:44,
+        transition:'all 0.18s', display:'inline-flex',
+        alignItems:'center', justifyContent:'center', gap:6,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        ...style
+      }}
+      onMouseEnter={e=>{ if(!disabled) e.currentTarget.style.background=cfg.hoverBg; }}
+      onMouseLeave={e=>{ if(!disabled) e.currentTarget.style.background=disabled?T.surface:cfg.bg; }}
+    >{children}</button>
+  );
+};
+
+// ── BTNCLOSE — standardised modal/panel close button (always 44×44 tap target) ─
+const BtnClose = ({ onClick, size=16, style={} }) => (
+  <button
+    onClick={onClick}
+    className="los-close-btn"
+    aria-label="Close"
+    style={{
+      minWidth:44, minHeight:44, display:'inline-flex', alignItems:'center', justifyContent:'center',
+      borderRadius:8, background:T.surface, border:`1px solid ${T.border}`,
+      cursor:'pointer', transition:'background 0.15s', flexShrink:0,
+      ...style
+    }}
+    onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHi}
+    onMouseLeave={e=>e.currentTarget.style.background=T.surface}
+  >
+    <IcoX size={size} stroke={T.textSub} />
+  </button>
+);
+
+// ── BTNCANCEL — standardised cancel / secondary dismiss button ────────────────
+const BtnCancel = ({ children='Cancel', onClick, style={} }) => (
+  <Btn variant="secondary" onClick={onClick} style={style}>{children}</Btn>
 );
 
 // ── SHARED DESIGN SYSTEM COMPONENTS ──────────────────────────────────────────
@@ -1453,9 +1508,7 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
             <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${T.accent}22,${T.violet}22)`, border:`1px solid ${T.accent}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13 }}>⬡</div>
             <span style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:700, letterSpacing:'0.12em' }}>LIFE OS</span>
           </div>
-          <button onClick={onClose} style={{ padding:6, borderRadius:7, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', minWidth:32, minHeight:32 }}>
-            <IcoX size={14} stroke={T.textSub} />
-          </button>
+          <BtnClose onClick={onClose} size={14} />
         </div>
         <div style={{ flex:1, overflowY:'auto', padding:'10px 10px 0' }}>
           <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', padding:'6px 8px 4px' }}>Main</div>
@@ -1843,7 +1896,7 @@ function ReceiptScannerModal({ open, onClose, onExpenseDetected, settings, curre
       <div style={{ width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', borderRadius:20, background:T.bg, border:`1px solid ${T.border}`, padding:'28px 30px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <h2 style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.text }}>🧾 Receipt Scanner</h2>
-          <button onClick={onClose} style={{ fontSize:20, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>×</button>
+          <BtnClose onClick={onClose} />
         </div>
         {!result && !scanning && (
           <div
@@ -3287,7 +3340,7 @@ function LogDecisionModal({ open, onClose, onSave }) {
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, borderRadius: 20, background: T.bg1, border: '1px solid ' + T.border, padding: '28px 32px', animation: 'modalIn 0.25s ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: T.text }}>📝 Log a Decision</h2>
-          <button onClick={onClose} style={{ fontSize: 20, color: T.textSub, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+          <BtnClose onClick={onClose} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
@@ -3327,7 +3380,7 @@ function LogDecisionModal({ open, onClose, onSave }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-            <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: T.r, background: T.surface, border: '1px solid ' + T.border, fontFamily: T.fM, fontSize: 11, color: T.textSub, cursor: 'pointer' }}>Cancel</button>
+            <BtnCancel onClick={onClose} />
             <Btn onClick={save} color={T.accent} style={{ flex: 1 }} disabled={!title.trim()}>Save Decision</Btn>
           </div>
         </div>
@@ -4231,7 +4284,9 @@ if (typeof PropTypes !== 'undefined') {
   GlassCard.propTypes    = { children: PropTypes.node, style: PropTypes.object, className: PropTypes.string, onClick: PropTypes.func };
   Badge.propTypes        = { children: PropTypes.node, color: PropTypes.string };
   ProgressBar.propTypes  = { pct: PropTypes.number, color: PropTypes.string, height: PropTypes.number };
-  Btn.propTypes          = { children: PropTypes.node, onClick: PropTypes.func, color: PropTypes.string, disabled: PropTypes.bool, full: PropTypes.bool, style: PropTypes.object };
+  Btn.propTypes          = { children: PropTypes.node, onClick: PropTypes.func, color: PropTypes.string, variant: PropTypes.oneOf(['primary','secondary','ghost','danger','success']), disabled: PropTypes.bool, full: PropTypes.bool, style: PropTypes.object };
+  BtnClose.propTypes     = { onClick: PropTypes.func.isRequired, size: PropTypes.number, style: PropTypes.object };
+  BtnCancel.propTypes    = { children: PropTypes.node, onClick: PropTypes.func, style: PropTypes.object };
   Modal.propTypes        = { open: PropTypes.bool, onClose: PropTypes.func, title: PropTypes.string, children: PropTypes.node, wide: PropTypes.bool };
   // Feature components
   HabitHeatmap.propTypes = { habitLogs: PropTypes.object.isRequired, habits: PropTypes.array.isRequired };
@@ -8975,7 +9030,7 @@ function KnowledgePage({ data, actions }) {
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <Btn onClick={addBook} color={T.amber} style={{ flex:1 }}>Add Book</Btn>
-                  <button onClick={()=>setBookModal(false)} style={{ padding:'8px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Cancel</button>
+                  <BtnCancel onClick={()=>setBookModal(false)} />
                 </div>
               </div>
             </GlassCard>
@@ -9109,7 +9164,7 @@ function KnowledgePage({ data, actions }) {
                     <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{tagList.length} tag clusters · click a node to filter notes</div>
                   </div>
                 </div>
-                <button onClick={()=>{ setShowKnowledgeGraph(false); setKgActiveTag(null); }} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+                <BtnClose onClick={()=>{ setShowKnowledgeGraph(false); setKgActiveTag(null); }} size={13} />
               </div>
               <div style={{ padding:'16px 22px' }}>
                 <svg viewBox={`0 0 ${W} ${H}`} style={{ width:'100%', background:T.surface, borderRadius:14, border:`1px solid ${T.border}` }}>
@@ -10264,8 +10319,8 @@ function DataIngestTab({ data, actions }) {
               </div>
               <div style={{ display:'flex', gap:8 }}>
                 <Btn onClick={()=>setParsed(p=>p.map(x=>({...x,_accepted:true})))}  color={T.sky}     style={{ fontSize:10, padding:'5px 12px' }}>All</Btn>
-                <Btn onClick={()=>setParsed(p=>p.map(x=>({...x,_accepted:false})))} color={T.textSub} style={{ fontSize:10, padding:'5px 12px' }}>None</Btn>
-                <Btn onClick={()=>{setStage('idle');setParsed([]);}} color={T.textSub} style={{ fontSize:10, padding:'5px 12px' }}>Cancel</Btn>
+                <Btn onClick={()=>setParsed(p=>p.map(x=>({...x,_accepted:false})))} variant="ghost" style={{ fontSize:10, padding:'5px 12px' }}>None</Btn>
+                <Btn onClick={()=>{setStage('idle');setParsed([]);}} variant="ghost" style={{ fontSize:10, padding:'5px 12px' }}>Cancel</Btn>
                 <Btn onClick={saveAccepted} color={T.accent} style={{ fontSize:10, padding:'5px 14px' }}>Save {parsed.filter(p=>p._accepted).length} →</Btn>
               </div>
             </div>
@@ -11300,7 +11355,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             })()}
 
             <Btn full onClick={exportData} color={T.sky}>📦 Export All Data (JSON)</Btn>
-            <Btn full onClick={()=>{ const d = { los_habits:data.habits, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes }; navigator.clipboard.writeText(JSON.stringify(d,null,2)).then(()=>alert('Data copied to clipboard!')).catch(()=>alert('Clipboard copy failed — try Export JSON instead')); }} color={T.textSub}>📋 Copy Data to Clipboard</Btn>
+            <Btn full onClick={()=>{ const d = { los_habits:data.habits, los_expenses:data.expenses, los_incomes:data.incomes, los_debts:data.debts, los_goals:data.goals, los_investments:data.investments, los_vitals:data.vitals, los_notes:data.notes }; navigator.clipboard.writeText(JSON.stringify(d,null,2)).then(()=>alert('Data copied to clipboard!')).catch(()=>alert('Clipboard copy failed — try Export JSON instead')); }} variant="secondary">📋 Copy Data to Clipboard</Btn>
             <Btn full onClick={exportCSV} color={T.emerald}>📊 Export Expenses CSV</Btn>
             <label style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'10px 20px', borderRadius:T.r, background:T.violetDim, color:T.violet, border:`1px solid ${T.violet}44`, fontSize:12, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
               📥 Import Backup (JSON)
@@ -12113,7 +12168,7 @@ function SimulateDecisionModal({ open, onClose, data }) {
               {step===0 ? 'What are you deciding?' : step===1 ? 'Tune the numbers' : 'The 5-year picture'}
             </h2>
           </div>
-          <button onClick={onClose} style={{ color:T.textSub, background:'none', border:'none', cursor:'pointer', fontSize:20 }}>×</button>
+          <BtnClose onClick={onClose} />
         </div>
 
         <div style={{ padding:'18px 28px 28px', display:'flex', flexDirection:'column', gap:16 }}>
@@ -12505,7 +12560,7 @@ function EditGoalModal({ open, onClose, goal, onSave }) {
       <div style={{ width:'100%', maxWidth:520, maxHeight:'90vh', overflowY:'auto', borderRadius:20, background:T.bg, border:`1px solid ${T.border}`, padding:'28px 32px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22 }}>
           <h2 style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.text }}>✏️ Edit Goal</h2>
-          <button onClick={onClose} style={{ fontSize:20, color:T.textSub, background:'none', border:'none', cursor:'pointer' }}>×</button>
+          <BtnClose onClick={onClose} />
         </div>
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           {/* Emoji + Name row */}
@@ -12565,7 +12620,7 @@ function EditGoalModal({ open, onClose, goal, onSave }) {
           </div>
           {/* Actions */}
           <div style={{ display:'flex', gap:8, marginTop:8 }}>
-            <button onClick={onClose} style={{ flex:1, padding:'10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Cancel</button>
+            <BtnCancel onClick={onClose} style={{ flex:1 }} />
             <Btn onClick={()=>onSave(goal.id, { name:name.trim()||goal.name, target:Number(target)||goal.target, current:Number(current), deadline, emoji:emoji||'🎯', cat, milestones })} color={T.accent} style={{ flex:2, padding:'10px 0' }}>Save Goal</Btn>
           </div>
         </div>
@@ -12868,7 +12923,7 @@ function WeeklyReviewModal({ open, onClose, data, actions }) {
             <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:5, fontWeight:700 }}>📋 Weekly Review</div>
             <h2 style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:T.text }}>{weekLabel}</h2>
           </div>
-          <button onClick={onClose} style={{ color:T.textSub, background:'none', border:'none', cursor:'pointer', fontSize:20, lineHeight:1, padding:'2px 4px' }}>×</button>
+          <BtnClose onClick={onClose} />
         </div>
 
         <div style={{ padding:'18px 28px 28px', display:'flex', flexDirection:'column', gap:20 }}>
@@ -12986,7 +13041,7 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
       <div style={{width:'100%',maxWidth:560,maxHeight:'90vh',overflowY:'auto',borderRadius:20,background:T.bg,border:`1px solid ${T.border}`,padding:'28px 32px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
           <h2 style={{fontSize:18,fontFamily:T.fD,fontWeight:800,color:T.text}}>📅 Monthly Review — {m}</h2>
-          <button onClick={onClose} style={{fontSize:20,color:T.textSub,background:'none',border:'none',cursor:'pointer'}}>×</button>
+          <BtnClose onClick={onClose} />
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
           {[
@@ -13013,7 +13068,7 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
             <Input value={nextFocus} onChange={e=>setNextFocus(e.target.value)} placeholder="One key priority…" /></div>
         </div>
         <div style={{display:'flex',gap:10,marginTop:20}}>
-          <button onClick={onClose} style={{padding:'10px 20px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+          <BtnCancel onClick={onClose} />
           <Btn onClick={save} color={T.accent} style={{flex:1}}>Save to Chronicles</Btn>
         </div>
       </div>
@@ -13071,7 +13126,7 @@ function CourseTrackerTab({ data, actions }) {
             <Input value={url} onChange={e=>setUrl(e.target.value)} placeholder="URL (optional)" />
             <div style={{display:'flex',gap:8}}>
               <Btn onClick={add} color={T.violet} style={{flex:1}}>Add Course</Btn>
-              <button onClick={()=>setModal(false)} style={{padding:'8px 16px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+              <BtnCancel onClick={()=>setModal(false)} />
             </div>
           </div>
         </GlassCard>
@@ -13136,7 +13191,7 @@ function TimeCapsuleTab({ data, actions }) {
             <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Open on</div><Input type="date" value={openDate} onChange={e=>setOpenDate(e.target.value)} min={today()} /></div>
             <div style={{display:'flex',gap:8}}>
               <Btn onClick={add} color={T.violet} style={{flex:1}}>Seal Capsule 🔒</Btn>
-              <button onClick={()=>setModal(false)} style={{padding:'8px 16px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+              <BtnCancel onClick={()=>setModal(false)} />
             </div>
           </div>
         </GlassCard>
@@ -13226,7 +13281,7 @@ function TradeJournalTab() {
           <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Rationale / notes…" style={{marginBottom:8}} />
           <div style={{display:'flex',gap:8}}>
             <Btn onClick={add} color={T.accent} style={{flex:1}}>Save Trade</Btn>
-            <button onClick={()=>setModal(false)} style={{padding:'8px 16px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontFamily:T.fM,fontSize:11,color:T.textSub,cursor:'pointer'}}>Cancel</button>
+            <BtnCancel onClick={()=>setModal(false)} />
           </div>
         </GlassCard>
       )}
@@ -14444,9 +14499,7 @@ Be warm but direct. Reference specific numbers. Prefer 2-4 sentence answers. Nev
           {messages.length > 0 && (
             <button onClick={clearMessages} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 8px', cursor:'pointer' }}>New chat</button>
           )}
-          <button onClick={onClose} style={{ padding:6, borderRadius:7, color:T.textSub, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <IcoX size={13} stroke={T.textSub} />
-          </button>
+          <BtnClose onClick={onClose} size={13} />
         </div>
         <div style={{ flex:1, overflowY:'auto', padding:'14px 16px', display:'flex', flexDirection:'column', gap:12 }}>
           {messages.length > 0 && messages[0]?.isBriefing && (
@@ -15270,7 +15323,7 @@ function PatternEngine({ data, open, onClose }) {
                 <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Hidden correlations across your life data</div>
               </div>
             </div>
-            <button onClick={onClose} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+            <BtnClose onClick={onClose} size={13} />
           </div>
           <div style={{ display:'flex', gap:10, alignItems:'center', marginTop:10, flexWrap:'wrap' }}>
             <button onClick={runAIPatterns} disabled={loading} style={{ padding:'8px 18px', borderRadius:T.r, background:loading?T.surface:'rgba(139,92,246,0.18)', border:`1px solid ${loading?T.border:'rgba(139,92,246,0.5)'}`, color:loading?T.textSub:'#c084fc', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
@@ -15500,7 +15553,7 @@ function LifeGraph({ data, open, onClose }) {
             <button onClick={fetchAIEdges} disabled={aiLoading} style={{ padding:'6px 14px', borderRadius:8, background:'rgba(0,245,212,0.1)', border:'1px solid rgba(0,245,212,0.3)', color:T.accent, fontFamily:T.fM, fontSize:10, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer' }}>
               {aiLoading ? '🤖 Connecting…' : '🤖 AI Connections'}
             </button>
-            <button onClick={onClose} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+            <BtnClose onClick={onClose} size={13} />
           </div>
         </div>
 
@@ -15858,7 +15911,7 @@ function ParallelYou({ data, open, onClose }) {
               <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Simulate alternate timelines on your real data</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}><IcoX size={13} stroke={T.textSub} /></button>
+          <BtnClose onClick={onClose} size={13} />
         </div>
 
         <div style={{ padding:'22px 24px', display:'flex', flexDirection:'column', gap:20 }}>
