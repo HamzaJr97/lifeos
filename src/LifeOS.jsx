@@ -482,6 +482,7 @@ const LOCALES = {
     home:'Home', timeline:'Timeline', money:'Money', health:'Health',
     growth:'Growth', knowledge:'Knowledge', intel:'Intelligence',
     archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar', research:'Research',
+    projects:'Projects', groceries:'Groceries',
     // Finance
     netWorth:'Net Worth', savingsRate:'Savings Rate', expenses:'Expenses', income:'Income',
     spent:'Spent', remaining:'Remaining', budgetLeft:'Budget Left',
@@ -520,6 +521,7 @@ const LOCALES = {
     home:'Accueil', timeline:'Journal', money:'Finance', health:'Santé',
     growth:'Croissance', knowledge:'Savoir', intel:'Intelligence',
     archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier', research:'Recherche',
+    projects:'Projets', groceries:'Courses',
     // Finance
     netWorth:'Patrimoine Net', savingsRate:'Taux d\'épargne', expenses:'Dépenses', income:'Revenus',
     spent:'Dépensé', remaining:'Restant', budgetLeft:'Budget restant',
@@ -779,6 +781,8 @@ const IcoUpload    = (p) => <Ico {...p} d={<><polyline points="16 16 12 12 8 16"
 const IcoDownload  = (p) => <Ico {...p} d={<><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></>} />;
 const IcoPhone     = (p) => <Ico {...p} d={<><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></>} />;
 const IcoLink      = (p) => <Ico {...p} d={<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></>} />;
+const IcoCartPlus  = (p) => <Ico {...p} d={<><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/><line x1="17" y1="9" x2="17" y2="15"/><line x1="14" y1="12" x2="20" y2="12"/></>} />;
+const IcoListCheck = (p) => <Ico {...p} d={<><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></>} />;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── GIST AUTO-SYNC HOOK ───────────────────────────────────────────────────────
@@ -789,7 +793,8 @@ const GIST_SYNC_KNOWN_KEYS = [
   'los_habits','los_habitlogs','los_expenses','los_incomes','los_debts',
   'los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp',
   'los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills',
-  'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions'
+  'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions',
+  'los_projects','los_groceries'
 ];
 
 function buildGistSnapshot() {
@@ -1493,10 +1498,12 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
   const lang = useLang();
   const ALL_NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   const EXTRA = [
-    { id:'timeline', label: lang==='fr'?'Chronologie':'Timeline',   emoji:'📅' },
-    { id:'archive',  label: lang==='fr'?'Archives':'Archive',       emoji:'🗃️' },
-    { id:'career',   label: lang==='fr'?'Carrière':'Career',        emoji:'💼' },
-    { id:'calendar', label: lang==='fr'?'Calendrier':'Calendar',    emoji:'📆' },
+    { id:'projects',  label: lang==='fr'?'Projets':'Projects',       emoji:'📋' },
+    { id:'groceries', label: lang==='fr'?'Courses':'Groceries',       emoji:'🛒' },
+    { id:'timeline',  label: lang==='fr'?'Chronologie':'Timeline',   emoji:'📅' },
+    { id:'archive',   label: lang==='fr'?'Archives':'Archive',       emoji:'🗃️' },
+    { id:'career',    label: lang==='fr'?'Carrière':'Career',        emoji:'💼' },
+    { id:'calendar',  label: lang==='fr'?'Calendrier':'Calendar',    emoji:'📆' },
   ];
   const handleNav = (id) => { onNav(id); onClose(); };
   return (
@@ -1607,16 +1614,20 @@ function ToastContainer({ toasts, onUndo, onDismiss, isMobile }) {
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
 // NAV uses t() at render time via a getter so labels auto-update with lang
-// NAV: 7 items — removed Timeline, Archive, Career, Calendar.
-// Timeline and Archive are pure history (no actions). Career and Calendar
-// are low-frequency tools accessible via the Intelligence page or ⌘K.
-// All pages still exist and are accessible via Command Palette (⌘K).
+// NAV: All primary pages shown on desktop sidebar. Secondary pages (Timeline, Archive, Career, Calendar,
+// Projects, Groceries) are also listed so they're accessible from the sidebar on laptop/desktop.
 const NAV_DEFS = [
   { id:'home',      Icon:IcoHome,       tKey:'home'        },
   { id:'money',     Icon:IcoMoney,      tKey:'money'       },
   { id:'health',    Icon:IcoHealth,     tKey:'health'      },
   { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
+  { id:'projects',  Icon:IcoListCheck,  tKey:'projects'    },
+  { id:'groceries', Icon:IcoCartPlus,   tKey:'groceries'   },
+  { id:'calendar',  Icon:IcoCalendar,   tKey:'calendar'    },
+  { id:'career',    Icon:IcoBriefcase,  tKey:'career'      },
+  { id:'timeline',  Icon:IcoTimeline,   tKey:'timeline'    },
+  { id:'archive',   Icon:IcoArchive,    tKey:'archive'     },
   { id:'intel',     Icon:IcoBrain,      tKey:'intel'       },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
@@ -11424,6 +11435,296 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ── PROJECTS PAGE — Project management with task lists ───────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function ProjectsPage({ data, actions }) {
+  const { projects = [] } = data;
+  const lang = useLang();
+  const [showDone, setShowDone] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  // new project form
+  const [showForm, setShowForm] = useState(false);
+  const [pName, setPName] = useState('');
+  const [pDesc, setPDesc] = useState('');
+  const [pColor, setPColor] = useState(T.accent);
+  const [pDue, setPDue] = useState('');
+  // task form per project
+  const [taskInputs, setTaskInputs] = useState({});
+
+  const COLORS = [T.accent, T.violet, T.amber, T.rose, T.emerald, T.sky, '#c084fc'];
+
+  const saveProject = () => {
+    if (!pName.trim()) return;
+    actions.addProject({ name:pName.trim(), desc:pDesc.trim(), color:pColor, due:pDue });
+    setPName(''); setPDesc(''); setPColor(T.accent); setPDue(''); setShowForm(false);
+  };
+
+  const addTask = (projId) => {
+    const txt = (taskInputs[projId] || '').trim();
+    if (!txt) return;
+    actions.addTask(projId, { text:txt });
+    setTaskInputs(p => ({ ...p, [projId]:'' }));
+  };
+
+  const active = projects.filter(p => {
+    const allDone = (p.tasks||[]).length > 0 && (p.tasks||[]).every(t => t.done);
+    return !allDone;
+  });
+  const done = projects.filter(p => {
+    const allDone = (p.tasks||[]).length > 0 && (p.tasks||[]).every(t => t.done);
+    return allDone;
+  });
+  const displayed = showDone ? done : active;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <PageHeader
+        domain="Projects"
+        domainColor={T.violet}
+        title={lang==='fr'?'Projets':'Projects'}
+        subtitle={`${active.length} active · ${done.length} completed`}
+        actions={
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <button onClick={()=>setShowDone(v=>!v)} style={{ fontSize:10, fontFamily:T.fM, padding:'4px 11px', borderRadius:99, background:showDone?T.violet+'22':'transparent', color:showDone?T.violet:T.textSub, border:`1px solid ${showDone?T.violet+'44':T.border}`, cursor:'pointer', transition:'all 0.15s' }}>
+              {showDone ? (lang==='fr'?'✓ Terminés':'✓ Completed') : (lang==='fr'?'Actifs':'Active')}
+            </button>
+            <Btn color={T.violet} onClick={()=>setShowForm(v=>!v)}>+ {lang==='fr'?'Projet':'Project'}</Btn>
+          </div>
+        }
+      />
+
+      {/* New project form */}
+      {showForm && (
+        <GlassCard style={{ border:`1px solid ${T.violet}33` }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <SectionLabel>{lang==='fr'?'Nouveau projet':'New Project'}</SectionLabel>
+            <input className="los-input" value={pName} onChange={e=>setPName(e.target.value)} placeholder={lang==='fr'?'Nom du projet…':'Project name…'} onKeyDown={e=>e.key==='Enter'&&saveProject()} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13, width:'100%' }} />
+            <textarea className="los-textarea" value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder={lang==='fr'?'Description (optionnel)…':'Description (optional)…'} rows={2} />
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{lang==='fr'?'Couleur:':'Color:'}</span>
+              {COLORS.map(c => (
+                <button key={c} onClick={()=>setPColor(c)} style={{ width:20, height:20, borderRadius:'50%', background:c, border:pColor===c?`2px solid ${T.text}`:'2px solid transparent', cursor:'pointer', flexShrink:0 }} />
+              ))}
+              <span style={{ marginLeft:8, fontSize:10, fontFamily:T.fM, color:T.textSub }}>{lang==='fr'?'Échéance:':'Due:'}</span>
+              <input type="date" value={pDue} onChange={e=>setPDue(e.target.value)} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 8px', color:T.text, fontSize:11, fontFamily:T.fM }} />
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <Btn color={T.violet} onClick={saveProject}>{lang==='fr'?'Créer':'Create'}</Btn>
+              <Btn onClick={()=>setShowForm(false)} style={{ background:'transparent', border:`1px solid ${T.border}`, color:T.textSub }}>{lang==='fr'?'Annuler':'Cancel'}</Btn>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {displayed.length === 0 && (
+        <GlassCard>
+          <div style={{ textAlign:'center', padding:'40px 20px', color:T.textMuted }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>{showDone ? '🏆' : '📋'}</div>
+            <div style={{ fontSize:13, fontFamily:T.fM }}>{showDone ? (lang==='fr'?'Aucun projet terminé':'No completed projects') : (lang==='fr'?'Aucun projet actif. Créez-en un !':'No active projects. Create one!')}</div>
+          </div>
+        </GlassCard>
+      )}
+
+      {displayed.map(proj => {
+        const tasks = proj.tasks || [];
+        const doneTasks = tasks.filter(t => t.done).length;
+        const pct = tasks.length > 0 ? Math.round((doneTasks/tasks.length)*100) : 0;
+        const isExpanded = expandedId === proj.id;
+        const overdue = proj.due && new Date(proj.due) < new Date() && pct < 100;
+        return (
+          <GlassCard key={proj.id} style={{ border:`1px solid ${proj.color}22`, transition:'all 0.2s' }}>
+            {/* Project header */}
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom: isExpanded ? 14 : 0 }}>
+              <div style={{ width:4, minHeight:44, borderRadius:4, background:proj.color, flexShrink:0, marginTop:2 }} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                  <button onClick={()=>setExpandedId(isExpanded?null:proj.id)} style={{ fontSize:14, fontWeight:700, fontFamily:T.fD, color:T.text, background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0, flex:1, minWidth:0 }}>
+                    {proj.name}
+                  </button>
+                  {proj.due && (
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:overdue?T.rose:T.textMuted, background:overdue?T.roseDim:'transparent', padding:overdue?'2px 6px':'0', borderRadius:4 }}>
+                      {overdue?'⚠ ':''}{lang==='fr'?'Échéance:':'Due:'} {proj.due}
+                    </span>
+                  )}
+                  <button onClick={()=>actions.removeProject(proj.id)} style={{ fontSize:11, color:T.textMuted, background:'none', border:'none', cursor:'pointer', padding:'2px 6px', borderRadius:4, flexShrink:0 }} title="Delete project">✕</button>
+                </div>
+                {proj.desc && <div style={{ fontSize:11, color:T.textSub, marginTop:3, fontFamily:T.fM }}>{proj.desc}</div>}
+                {/* Progress bar */}
+                <div style={{ marginTop:8, display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ flex:1, height:4, borderRadius:4, background:T.surface, overflow:'hidden' }}>
+                    <div style={{ width:`${pct}%`, height:'100%', background:pct===100?T.emerald:proj.color, borderRadius:4, transition:'width 0.4s ease' }} />
+                  </div>
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:pct===100?T.emerald:T.textSub, minWidth:32, textAlign:'right' }}>{pct}%</span>
+                  <button onClick={()=>setExpandedId(isExpanded?null:proj.id)} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer', padding:'2px 4px' }}>
+                    {tasks.length} {lang==='fr'?'tâches':'tasks'} {isExpanded?'▲':'▼'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Tasks list — expanded */}
+            {isExpanded && (
+              <div style={{ marginLeft:16, display:'flex', flexDirection:'column', gap:6 }}>
+                {tasks.length === 0 && (
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, padding:'8px 0' }}>{lang==='fr'?'Aucune tâche. Ajoutez-en une ci-dessous.':'No tasks yet. Add one below.'}</div>
+                )}
+                {tasks.map(task => (
+                  <div key={task.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, background:task.done?T.surface:'transparent', transition:'all 0.15s' }}>
+                    <button onClick={()=>actions.toggleTask(proj.id, task.id)} style={{ width:18, height:18, borderRadius:5, border:`2px solid ${task.done?proj.color:T.border}`, background:task.done?proj.color:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer', transition:'all 0.15s' }}>
+                      {task.done && <span style={{ fontSize:10, color:T.bg, fontWeight:700 }}>✓</span>}
+                    </button>
+                    <span style={{ flex:1, fontSize:12, fontFamily:T.fM, color:task.done?T.textMuted:T.text, textDecoration:task.done?'line-through':'none', transition:'all 0.15s' }}>{task.text}</span>
+                    <button onClick={()=>actions.removeTask(proj.id, task.id)} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', opacity:0.5, padding:'2px 4px' }}>✕</button>
+                  </div>
+                ))}
+                {/* Add task input */}
+                <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                  <input className="los-input" value={taskInputs[proj.id]||''} onChange={e=>setTaskInputs(p=>({...p,[proj.id]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addTask(proj.id)} placeholder={lang==='fr'?'Nouvelle tâche…':'New task…'} style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'8px 12px', color:T.text, fontSize:12, fontFamily:T.fM }} />
+                  <Btn color={proj.color} onClick={()=>addTask(proj.id)} style={{ flexShrink:0, padding:'8px 14px' }}>+</Btn>
+                </div>
+              </div>
+            )}
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── GROCERIES PAGE — Shopping list with categories ───────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function GroceriesPage({ data, actions }) {
+  const { groceries = [] } = data;
+  const lang = useLang();
+  const [itemText, setItemText] = useState('');
+  const [itemCat, setItemCat] = useState('Other');
+  const [itemQty, setItemQty] = useState('');
+  const [filterCat, setFilterCat] = useState('All');
+
+  const CATS = lang==='fr'
+    ? ['Fruits & Légumes','Produits laitiers','Viandes & Poissons','Épicerie','Boissons','Surgelés','Hygiène','Autre']
+    : ['Fruits & Veg','Dairy','Meat & Fish','Pantry','Drinks','Frozen','Hygiene','Other'];
+  const CAT_EMOJI = { 'Fruits & Veg':'🥦','Fruits & Légumes':'🥦','Dairy':'🧀','Produits laitiers':'🧀','Meat & Fish':'🥩','Viandes & Poissons':'🥩','Pantry':'🥫','Épicerie':'🥫','Drinks':'🥤','Boissons':'🥤','Frozen':'🧊','Surgelés':'🧊','Hygiene':'🧴','Hygiène':'🧴','Other':'🛒','Autre':'🛒' };
+  const CAT_COLORS = { 'Fruits & Veg':T.emerald,'Fruits & Légumes':T.emerald,'Dairy':T.sky,'Produits laitiers':T.sky,'Meat & Fish':T.rose,'Viandes & Poissons':T.rose,'Pantry':T.amber,'Épicerie':T.amber,'Drinks':T.violet,'Boissons':T.violet,'Frozen':T.accent,'Surgelés':T.accent,'Hygiene':'#c084fc','Hygiène':'#c084fc','Other':T.textSub,'Autre':T.textSub };
+
+  const addItem = () => {
+    if (!itemText.trim()) return;
+    actions.addGroceryItem({ text:itemText.trim(), category:itemCat, qty:itemQty.trim() });
+    setItemText(''); setItemQty('');
+  };
+
+  const checkedCount = groceries.filter(g => g.checked).length;
+  const totalCount = groceries.length;
+
+  const activeCats = [...new Set(groceries.map(g => g.category))].filter(Boolean);
+  const allCats = lang==='fr' ? ['Tous',...activeCats] : ['All',...activeCats];
+
+  const filtered = filterCat==='All'||filterCat==='Tous'
+    ? groceries
+    : groceries.filter(g => g.category === filterCat);
+
+  // Group by category
+  const grouped = filtered.reduce((acc, item) => {
+    const cat = item.category || 'Other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <PageHeader
+        domain={lang==='fr'?'Courses':'Groceries'}
+        domainColor={T.emerald}
+        title={lang==='fr'?'Liste de courses':'Shopping List'}
+        subtitle={`${checkedCount}/${totalCount} ${lang==='fr'?'cochés':'checked'}`}
+        actions={
+          checkedCount > 0 && (
+            <Btn onClick={actions.clearCheckedGroceries} style={{ background:T.roseDim, color:T.rose, border:`1px solid ${T.rose}33` }}>
+              🗑 {lang==='fr'?'Effacer cochés':'Clear checked'}
+            </Btn>
+          )
+        }
+      />
+
+      {/* Add item form */}
+      <GlassCard style={{ border:`1px solid ${T.emerald}22` }}>
+        <SectionLabel>{lang==='fr'?'Ajouter un article':'Add Item'}</SectionLabel>
+        <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+          <input className="los-input" value={itemText} onChange={e=>setItemText(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addItem()} placeholder={lang==='fr'?'Nom de l\'article…':'Item name…'} style={{ flex:'1 1 160px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13 }} />
+          <input className="los-input" value={itemQty} onChange={e=>setItemQty(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addItem()} placeholder={lang==='fr'?'Qté (ex: 2kg)':'Qty (e.g. 2kg)'} style={{ width:100, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13 }} />
+          <select value={itemCat} onChange={e=>setItemCat(e.target.value)} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:12, fontFamily:T.fM, flex:'0 0 auto' }}>
+            {CATS.map(c => <option key={c} value={c}>{CAT_EMOJI[c]||'•'} {c}</option>)}
+          </select>
+          <Btn color={T.emerald} onClick={addItem} style={{ flexShrink:0 }}>+ {lang==='fr'?'Ajouter':'Add'}</Btn>
+        </div>
+      </GlassCard>
+
+      {/* Progress bar */}
+      {totalCount > 0 && (
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ flex:1, height:6, borderRadius:6, background:T.surface, overflow:'hidden' }}>
+            <div style={{ width:`${totalCount>0?(checkedCount/totalCount)*100:0}%`, height:'100%', background:T.emerald, borderRadius:6, transition:'width 0.4s ease' }} />
+          </div>
+          <span style={{ fontSize:10, fontFamily:T.fM, color:checkedCount===totalCount?T.emerald:T.textSub, minWidth:40, textAlign:'right' }}>
+            {checkedCount===totalCount&&totalCount>0 ? '✓ Done!' : `${Math.round(checkedCount/totalCount*100)}%`}
+          </span>
+        </div>
+      )}
+
+      {/* Category filter pills */}
+      {activeCats.length > 1 && (
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {allCats.map(c => (
+            <button key={c} onClick={()=>setFilterCat(c)} style={{ fontSize:10, fontFamily:T.fM, padding:'4px 11px', borderRadius:99, background:(filterCat===c)?T.emerald+'22':'transparent', color:(filterCat===c)?T.emerald:T.textSub, border:`1px solid ${(filterCat===c)?T.emerald+'44':T.border}`, cursor:'pointer', transition:'all 0.15s' }}>
+              {c==='All'||c==='Tous' ? (lang==='fr'?'Tous':'All') : `${CAT_EMOJI[c]||'•'} ${c}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {groceries.length === 0 && (
+        <GlassCard>
+          <div style={{ textAlign:'center', padding:'40px 20px', color:T.textMuted }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>🛒</div>
+            <div style={{ fontSize:13, fontFamily:T.fM }}>{lang==='fr'?'Liste vide. Ajoutez vos articles !':'List is empty. Add your items!'}</div>
+          </div>
+        </GlassCard>
+      )}
+
+      {/* Grouped items */}
+      {Object.entries(grouped).map(([cat, items]) => {
+        const catColor = CAT_COLORS[cat] || T.textSub;
+        const allChecked = items.every(i => i.checked);
+        return (
+          <GlassCard key={cat} style={{ opacity: allChecked ? 0.6 : 1, transition:'opacity 0.3s' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+              <span style={{ fontSize:16 }}>{CAT_EMOJI[cat]||'•'}</span>
+              <span style={{ fontSize:11, fontWeight:700, fontFamily:T.fM, color:catColor, letterSpacing:'0.06em', textTransform:'uppercase' }}>{cat}</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>{items.filter(i=>i.checked).length}/{items.length}</span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+              {items.map(item => (
+                <div key={item.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, background:'transparent', transition:'all 0.15s', cursor:'pointer' }} onClick={()=>actions.toggleGroceryItem(item.id)}>
+                  <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?catColor:T.border}`, background:item.checked?catColor:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.15s' }}>
+                    {item.checked && <span style={{ fontSize:11, color:T.bg, fontWeight:700 }}>✓</span>}
+                  </div>
+                  <span style={{ flex:1, fontSize:13, color:item.checked?T.textMuted:T.text, textDecoration:item.checked?'line-through':'none', transition:'all 0.2s', fontFamily:T.fM }}>{item.text}</span>
+                  {item.qty && <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, background:T.surface, padding:'2px 7px', borderRadius:6, flexShrink:0 }}>{item.qty}</span>}
+                  <button onClick={e=>{e.stopPropagation();actions.removeGroceryItem(item.id);}} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', padding:'2px 4px', opacity:0.5, flexShrink:0 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ── S4: CAREER PAGE ──────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 const JOB_STAGES = ['Applied','Interview','Offer','Rejected'];
@@ -16146,6 +16447,8 @@ export default function LifeOS() {
   const [chronicles,    setChronicles    ] = useLocalStorage('los_chronicles',   []);
   const [decisions,     setDecisions     ] = useLocalStorage('los_decisions',    []);
   const [challenges,    setChallenges    ] = useLocalStorage('los_challenges',   []);
+  const [projects,      setProjects      ] = useLocalStorage('los_projects',      []);
+  const [groceries,     setGroceries     ] = useLocalStorage('los_groceries',     []);
 
   // ── NULL SANITIZER — defense-in-depth against JSON.parse("null") edge case ──
   // useLocalStorage guards against this, but if any value slipped through as null
@@ -16164,6 +16467,8 @@ export default function LifeOS() {
   const _chronicles    = chronicles    || [];
   const _decisions     = decisions     || [];
   const _challenges    = challenges    || [];
+  const _projects      = projects      || [];
+  const _groceries     = groceries     || [];
   const _habitLogs     = habitLogs     || {};
   const _budgets       = budgets       || {};
   const _netWorthHistory = netWorthHistory || [];
@@ -16752,6 +17057,18 @@ export default function LifeOS() {
     updateCareer, updateInvestmentPrice,
     // Batch 1+2
     addChronicle, removeChronicle, addDecision, removeDecision, joinChallenge, toggleChallengeDay, leaveChallenge,
+    // Projects
+    addProject:      (p) => setProjects(prev => [...prev, { id:Date.now(), ...p, tasks:[], createdAt:new Date().toISOString() }]),
+    removeProject:   (id) => setProjects(prev => prev.filter(p => p.id !== id)),
+    updateProject:   (id, patch) => setProjects(prev => prev.map(p => p.id===id ? { ...p, ...patch } : p)),
+    addTask:         (projId, task) => setProjects(prev => prev.map(p => p.id===projId ? { ...p, tasks:[...(p.tasks||[]), { id:Date.now(), done:false, ...task }] } : p)),
+    toggleTask:      (projId, taskId) => setProjects(prev => prev.map(p => p.id===projId ? { ...p, tasks:(p.tasks||[]).map(t => t.id===taskId ? { ...t, done:!t.done } : t) } : p)),
+    removeTask:      (projId, taskId) => setProjects(prev => prev.map(p => p.id===projId ? { ...p, tasks:(p.tasks||[]).filter(t => t.id!==taskId) } : p)),
+    // Groceries
+    addGroceryItem:    (item) => setGroceries(prev => [...prev, { id:Date.now(), checked:false, ...item }]),
+    toggleGroceryItem: (id)   => setGroceries(prev => prev.map(g => g.id===id ? { ...g, checked:!g.checked } : g)),
+    removeGroceryItem: (id)   => setGroceries(prev => prev.filter(g => g.id!==id)),
+    clearCheckedGroceries: () => setGroceries(prev => prev.filter(g => !g.checked)),
   };
 
   const isMobile = useMobile();
@@ -16764,6 +17081,7 @@ export default function LifeOS() {
     focusSessions:_focusSessions, quickNotes:_quickNotes,
     subscriptions:_subscriptions, budgets:_budgets, bills:_bills, career,
     chronicles:_chronicles, challenges:_challenges, decisions:_decisions,
+    projects:_projects, groceries:_groceries,
     computed,
     isMobile,
   };
@@ -16867,6 +17185,8 @@ export default function LifeOS() {
     calendar:  eb(<CalendarPage  data={data} />),
     intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} onNav={setPage} />),
     archive:   eb(<ArchivePage   data={data} />),
+    projects:  eb(<ProjectsPage  data={data} actions={actions} />),
+    groceries: eb(<GroceriesPage data={data} actions={actions} />),
     settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} onThemeChange={(themeId)=>{ Object.assign(T, THEMES[themeId] || THEMES.dark); document.documentElement.dataset.theme = themeId; setThemeVersion(v=>v+1); }} />),
   };
 
