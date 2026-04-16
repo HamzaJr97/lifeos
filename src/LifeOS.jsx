@@ -482,7 +482,7 @@ const LOCALES = {
     home:'Home', timeline:'Timeline', money:'Money', health:'Health',
     growth:'Growth', knowledge:'Knowledge', intel:'Intelligence',
     archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar', research:'Research',
-    projects:'Projects', groceries:'Groceries',
+    projects:'Projects', groceries:'Groceries', lifehub:'Life Hub',
     // Finance
     netWorth:'Net Worth', savingsRate:'Savings Rate', expenses:'Expenses', income:'Income',
     spent:'Spent', remaining:'Remaining', budgetLeft:'Budget Left',
@@ -521,7 +521,7 @@ const LOCALES = {
     home:'Accueil', timeline:'Journal', money:'Finance', health:'Santé',
     growth:'Croissance', knowledge:'Savoir', intel:'Intelligence',
     archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier', research:'Recherche',
-    projects:'Projets', groceries:'Courses',
+    projects:'Projets', groceries:'Courses', lifehub:'Hub Vie',
     // Finance
     netWorth:'Patrimoine Net', savingsRate:'Taux d\'épargne', expenses:'Dépenses', income:'Revenus',
     spent:'Dépensé', remaining:'Restant', budgetLeft:'Budget restant',
@@ -1498,12 +1498,8 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
   const lang = useLang();
   const ALL_NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   const EXTRA = [
-    { id:'projects',  label: lang==='fr'?'Projets':'Projects',       emoji:'📋' },
-    { id:'groceries', label: lang==='fr'?'Courses':'Groceries',       emoji:'🛒' },
-    { id:'timeline',  label: lang==='fr'?'Chronologie':'Timeline',   emoji:'📅' },
-    { id:'archive',   label: lang==='fr'?'Archives':'Archive',       emoji:'🗃️' },
-    { id:'career',    label: lang==='fr'?'Carrière':'Career',        emoji:'💼' },
-    { id:'calendar',  label: lang==='fr'?'Calendrier':'Calendar',    emoji:'📆' },
+    { id:'lifehub',   label: lang==='fr'?'Hub Vie':'Life Hub',          emoji:'💼' },
+    { id:'calendar',  label: lang==='fr'?'Calendrier':'Calendar',        emoji:'📆' },
   ];
   const handleNav = (id) => { onNav(id); onClose(); };
   return (
@@ -1614,20 +1610,16 @@ function ToastContainer({ toasts, onUndo, onDismiss, isMobile }) {
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
 // NAV uses t() at render time via a getter so labels auto-update with lang
-// NAV: All primary pages shown on desktop sidebar. Secondary pages (Timeline, Archive, Career, Calendar,
-// Projects, Groceries) are also listed so they're accessible from the sidebar on laptop/desktop.
+// NAV: Desktop sidebar — Knowledge includes Projects, Money includes Groceries,
+// Career+Timeline+Archive are merged into Life Hub.
 const NAV_DEFS = [
   { id:'home',      Icon:IcoHome,       tKey:'home'        },
   { id:'money',     Icon:IcoMoney,      tKey:'money'       },
   { id:'health',    Icon:IcoHealth,     tKey:'health'      },
   { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
-  { id:'projects',  Icon:IcoListCheck,  tKey:'projects'    },
-  { id:'groceries', Icon:IcoCartPlus,   tKey:'groceries'   },
+  { id:'lifehub',   Icon:IcoBriefcase,  tKey:'lifehub'     },
   { id:'calendar',  Icon:IcoCalendar,   tKey:'calendar'    },
-  { id:'career',    Icon:IcoBriefcase,  tKey:'career'      },
-  { id:'timeline',  Icon:IcoTimeline,   tKey:'timeline'    },
-  { id:'archive',   Icon:IcoArchive,    tKey:'archive'     },
   { id:'intel',     Icon:IcoBrain,      tKey:'intel'       },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
@@ -5135,7 +5127,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
 }
 
 // ── TIMELINE PAGE ─────────────────────────────────────────────────────────────
-function TimelinePage({ data }) {
+function TimelinePage({ data, embedded }) {
   const lang = useLang();
   const { expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], investments=[], debts=[], settings={} } = data;
   const [filter, setFilter] = useState('all');
@@ -5158,11 +5150,11 @@ function TimelinePage({ data }) {
   const groups = useMemo(()=>{ const g={}; filtered.forEach(ev=>{ const d=ev.ts?.slice(0,10)||'Unknown'; if(!g[d])g[d]=[]; g[d].push(ev); }); return Object.entries(g).sort((a,b)=>a[0]<b[0]?1:-1); },[filtered]);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <PageHeader
+      {!embedded && <PageHeader
         domain="Core System"
         title="Life Timeline"
         subtitle={`${allEvents.length} events recorded across all domains`}
-      />
+      />}
       <div style={{ display:'flex', gap:6, marginBottom:22, flexWrap:'wrap' }}>
         {cats.map(cat=>{ const colorMap={expense:T.rose,income:T.emerald,investment:T.violet,habit:T.accent,health:T.sky,goal:T.amber,debt:T.rose}; const c=colorMap[cat]||T.textSub; return (
           <button key={cat} onClick={()=>setFilter(cat)} style={{ padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, textTransform:'uppercase', letterSpacing:'0.06em', background:filter===cat?(c+'18'):'transparent', color:filter===cat?c:T.textSub, border:`1px solid ${filter===cat?c+'44':T.border}`, transition:'all 0.15s' }}>{cat==='all'?'⬡ All':cat}</button>
@@ -5857,7 +5849,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const TABS = ['overview','spending','debts','investments','goals','tools','more'];
+  const TABS = ['overview','spending','debts','investments','goals','tools','groceries','more'];
   const TAB_LABELS = {
     overview:    lang==='fr'?'Vue':'Overview',
     spending:    lang==='fr'?'Dépenses':'Spending',
@@ -5865,6 +5857,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
     investments: lang==='fr'?'Invest':'Invest',
     goals:       lang==='fr'?'Objectifs':'Goals',
     tools:       lang==='fr'?'Outils':'Tools',
+    groceries:   lang==='fr'?'🛒 Courses':'🛒 Groceries',
     more:        '··· More',
     recurring:   lang==='fr'?'Récurrent':'Recurring',
     assets:      lang==='fr'?'Actifs':'Assets',
@@ -6970,6 +6963,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {tab==='forecast' && <LifeForecastTab data={data} />}
 
       {/* More panel — gateway to advanced tabs */}
+      {tab==='groceries' && <GroceriesPage data={data} actions={actions} embedded />}
       {tab==='more' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>ADVANCED TOOLS</div>
@@ -8689,7 +8683,7 @@ function KnowledgePage({ data, actions }) {
         infoIcon={<PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} />}
       />
       <TabNav
-        tabs={['notes','tasks','books','courses','capsule','note analysis','gmail'].map(t=>({ id:t, label:t==='books'?'📚 Books':t==='note analysis'?'🧠 Analysis':t }))}
+        tabs={['notes','tasks','projects','books','courses','capsule','note analysis','gmail'].map(t=>({ id:t, label:t==='books'?'📚 Books':t==='note analysis'?'🧠 Analysis':t==='projects'?'📋 Projects':t }))}
         active={tab}
         onChange={setTab}
         accentColor={T.amber}
@@ -9004,6 +8998,8 @@ function KnowledgePage({ data, actions }) {
           </div>
         );
       })()}
+
+      {tab==='projects' && <ProjectsPage data={data} actions={actions} embedded />}
 
       {tab==='books' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -10910,7 +10906,7 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
 }
 
 // ── ARCHIVE PAGE ──────────────────────────────────────────────────────────────
-function ArchivePage({ data }) {
+function ArchivePage({ data, embedded }) {
   const {netWorthHistory=[], expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], settings={}} = data;
   const cur = settings.currency||'$'; const thisMonth = today().slice(0,7);
   const monthExp = (expenses||[]).filter(e=>e.date?.startsWith(thisMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
@@ -10918,11 +10914,11 @@ function ArchivePage({ data }) {
   const bestStreak = (habits||[]).reduce((mx,h)=>{const s=getStreak(h.id,habitLogs);return s>mx?s:mx;},0);
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <PageHeader
+      {!embedded && <PageHeader
         domain="Archive"
         title="Life History"
         infoIcon={<PageInfoIcon content="Browse your complete history of expenses, incomes, habits, goals, and vitals. Use the search bar to find anything. Export your data as JSON for backup." />}
-      />
+      />}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
         <GlassCard style={{ padding:'20px 22px' }}>
           <SectionLabel>Net Worth History</SectionLabel>
@@ -11435,158 +11431,212 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── PROJECTS PAGE — Project management with task lists ───────────────────────
+// ── PROJECTS PAGE — Project + tasks created in one single flow ───────────────
 // ══════════════════════════════════════════════════════════════════════════════
-function ProjectsPage({ data, actions }) {
+function ProjectsPage({ data, actions, embedded }) {
   const { projects = [] } = data;
   const lang = useLang();
   const [showDone, setShowDone] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
-  // new project form
-  const [showForm, setShowForm] = useState(false);
-  const [pName, setPName] = useState('');
-  const [pDesc, setPDesc] = useState('');
-  const [pColor, setPColor] = useState(T.accent);
-  const [pDue, setPDue] = useState('');
-  // task form per project
   const [taskInputs, setTaskInputs] = useState({});
-
   const COLORS = [T.accent, T.violet, T.amber, T.rose, T.emerald, T.sky, '#c084fc'];
 
-  const saveProject = () => {
-    if (!pName.trim()) return;
-    actions.addProject({ name:pName.trim(), desc:pDesc.trim(), color:pColor, due:pDue });
-    setPName(''); setPDesc(''); setPColor(T.accent); setPDue(''); setShowForm(false);
+  // ── Single inline creation flow: step 1 = project details, step 2 = add tasks
+  const [draft, setDraft] = useState(null); // null | { name, desc, color, due, tasks:[] }
+  const [draftTask, setDraftTask] = useState('');
+  const draftTaskRef = useRef(null);
+
+  const startDraft = () => setDraft({ name:'', desc:'', color:T.violet, due:'', tasks:[] });
+  const cancelDraft = () => { setDraft(null); setDraftTask(''); };
+
+  const addDraftTask = () => {
+    const txt = draftTask.trim();
+    if (!txt) return;
+    setDraft(d => ({ ...d, tasks:[...d.tasks, { id:Date.now(), text:txt, done:false }] }));
+    setDraftTask('');
+    setTimeout(() => draftTaskRef.current?.focus(), 0);
+  };
+  const removeDraftTask = (id) => setDraft(d => ({ ...d, tasks:d.tasks.filter(t=>t.id!==id) }));
+
+  const saveDraft = () => {
+    if (!draft || !draft.name.trim()) return;
+    actions.addProject({ name:draft.name.trim(), desc:draft.desc.trim(), color:draft.color, due:draft.due, tasks:draft.tasks });
+    setExpandedId(null);
+    setDraft(null); setDraftTask('');
   };
 
   const addTask = (projId) => {
-    const txt = (taskInputs[projId] || '').trim();
+    const txt = (taskInputs[projId]||'').trim();
     if (!txt) return;
     actions.addTask(projId, { text:txt });
     setTaskInputs(p => ({ ...p, [projId]:'' }));
   };
 
-  const active = projects.filter(p => {
-    const allDone = (p.tasks||[]).length > 0 && (p.tasks||[]).every(t => t.done);
-    return !allDone;
-  });
-  const done = projects.filter(p => {
-    const allDone = (p.tasks||[]).length > 0 && (p.tasks||[]).every(t => t.done);
-    return allDone;
-  });
+  const active = projects.filter(p => !((p.tasks||[]).length>0 && (p.tasks||[]).every(t=>t.done)));
+  const done   = projects.filter(p =>  (p.tasks||[]).length>0 && (p.tasks||[]).every(t=>t.done));
   const displayed = showDone ? done : active;
 
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader
-        domain="Projects"
-        domainColor={T.violet}
-        title={lang==='fr'?'Projets':'Projects'}
-        subtitle={`${active.length} active · ${done.length} completed`}
-        actions={
-          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <button onClick={()=>setShowDone(v=>!v)} style={{ fontSize:10, fontFamily:T.fM, padding:'4px 11px', borderRadius:99, background:showDone?T.violet+'22':'transparent', color:showDone?T.violet:T.textSub, border:`1px solid ${showDone?T.violet+'44':T.border}`, cursor:'pointer', transition:'all 0.15s' }}>
-              {showDone ? (lang==='fr'?'✓ Terminés':'✓ Completed') : (lang==='fr'?'Actifs':'Active')}
-            </button>
-            <Btn color={T.violet} onClick={()=>setShowForm(v=>!v)}>+ {lang==='fr'?'Projet':'Project'}</Btn>
-          </div>
-        }
-      />
+  const inner = (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Toolbar */}
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <div style={{ flex:1, fontSize:11, fontFamily:T.fM, color:T.textSub }}>
+          {active.length} {lang==='fr'?'actif':'active'} · {done.length} {lang==='fr'?'terminé':'done'}
+        </div>
+        <button onClick={()=>setShowDone(v=>!v)} style={{ fontSize:10, fontFamily:T.fM, padding:'4px 11px', borderRadius:99, background:showDone?T.violet+'22':'transparent', color:showDone?T.violet:T.textSub, border:`1px solid ${showDone?T.violet+'44':T.border}`, cursor:'pointer', transition:'all 0.15s' }}>
+          {showDone?(lang==='fr'?'✓ Terminés':'✓ Done'):(lang==='fr'?'Actifs':'Active')}
+        </button>
+        {!draft && <Btn color={T.violet} onClick={startDraft}>+ {lang==='fr'?'Nouveau projet':'New Project'}</Btn>}
+      </div>
 
-      {/* New project form */}
-      {showForm && (
-        <GlassCard style={{ border:`1px solid ${T.violet}33` }}>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <SectionLabel>{lang==='fr'?'Nouveau projet':'New Project'}</SectionLabel>
-            <input className="los-input" value={pName} onChange={e=>setPName(e.target.value)} placeholder={lang==='fr'?'Nom du projet…':'Project name…'} onKeyDown={e=>e.key==='Enter'&&saveProject()} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13, width:'100%' }} />
-            <textarea className="los-textarea" value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder={lang==='fr'?'Description (optionnel)…':'Description (optional)…'} rows={2} />
-            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+      {/* ── Draft creation card: project info + tasks in ONE card ── */}
+      {draft && (
+        <GlassCard style={{ border:`1px solid ${draft.color}55`, animation:'fadeUp 0.2s ease' }}>
+          <SectionLabel style={{ marginBottom:12 }}>{lang==='fr'?'✏️ Nouveau projet':'✏️ New Project'}</SectionLabel>
+
+          {/* Step 1 — Project details */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
+            <input
+              autoFocus
+              className="los-input"
+              value={draft.name}
+              onChange={e=>setDraft(d=>({...d,name:e.target.value}))}
+              onKeyDown={e=>e.key==='Enter'&&draftTaskRef.current?.focus()}
+              placeholder={lang==='fr'?'Nom du projet…':'Project name…'}
+              style={{ background:T.surface, border:`1px solid ${draft.color}44`, borderRadius:8, padding:'10px 13px', color:T.text, fontSize:14, fontWeight:600, width:'100%' }}
+            />
+            <textarea
+              className="los-textarea"
+              value={draft.desc}
+              onChange={e=>setDraft(d=>({...d,desc:e.target.value}))}
+              placeholder={lang==='fr'?'Description (optionnel)…':'Description (optional)…'}
+              rows={2}
+            />
+            <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
               <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{lang==='fr'?'Couleur:':'Color:'}</span>
-              {COLORS.map(c => (
-                <button key={c} onClick={()=>setPColor(c)} style={{ width:20, height:20, borderRadius:'50%', background:c, border:pColor===c?`2px solid ${T.text}`:'2px solid transparent', cursor:'pointer', flexShrink:0 }} />
+              {COLORS.map(c=>(
+                <button key={c} onClick={()=>setDraft(d=>({...d,color:c}))} style={{ width:22, height:22, borderRadius:'50%', background:c, border:draft.color===c?`3px solid ${T.text}`:'3px solid transparent', cursor:'pointer', flexShrink:0, transition:'border 0.15s' }} />
               ))}
-              <span style={{ marginLeft:8, fontSize:10, fontFamily:T.fM, color:T.textSub }}>{lang==='fr'?'Échéance:':'Due:'}</span>
-              <input type="date" value={pDue} onChange={e=>setPDue(e.target.value)} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 8px', color:T.text, fontSize:11, fontFamily:T.fM }} />
+              <span style={{ marginLeft:6, fontSize:10, fontFamily:T.fM, color:T.textSub }}>{lang==='fr'?'Échéance:':'Due:'}</span>
+              <input type="date" value={draft.due} onChange={e=>setDraft(d=>({...d,due:e.target.value}))} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 9px', color:T.text, fontSize:11, fontFamily:T.fM }} />
             </div>
-            <div style={{ display:'flex', gap:8 }}>
-              <Btn color={T.violet} onClick={saveProject}>{lang==='fr'?'Créer':'Create'}</Btn>
-              <Btn onClick={()=>setShowForm(false)} style={{ background:'transparent', border:`1px solid ${T.border}`, color:T.textSub }}>{lang==='fr'?'Annuler':'Cancel'}</Btn>
+          </div>
+
+          {/* Step 2 — Add tasks immediately */}
+          <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:14 }}>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:draft.color, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:10 }}>
+              {lang==='fr'?'📋 Tâches du projet':'📋 Project Tasks'}
             </div>
+            {draft.tasks.map((t,i)=>(
+              <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:7, background:T.surface, marginBottom:5 }}>
+                <div style={{ width:7, height:7, borderRadius:'50%', background:draft.color, flexShrink:0 }} />
+                <span style={{ flex:1, fontSize:12, fontFamily:T.fM, color:T.text }}>{t.text}</span>
+                <button onClick={()=>removeDraftTask(t.id)} style={{ fontSize:11, color:T.textMuted, background:'none', border:'none', cursor:'pointer', opacity:0.6, padding:'1px 4px' }}>✕</button>
+              </div>
+            ))}
+            <div style={{ display:'flex', gap:8, marginTop:6 }}>
+              <input
+                ref={draftTaskRef}
+                className="los-input"
+                value={draftTask}
+                onChange={e=>setDraftTask(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&addDraftTask()}
+                placeholder={lang==='fr'?'Ajouter une tâche… (Entrée)':'Add a task… (Enter)'}
+                style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'8px 12px', color:T.text, fontSize:12, fontFamily:T.fM }}
+              />
+              <Btn color={draft.color} onClick={addDraftTask} style={{ padding:'8px 14px', flexShrink:0 }}>+</Btn>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display:'flex', gap:8, marginTop:16 }}>
+            <Btn color={draft.color} onClick={saveDraft} style={{ opacity:draft.name.trim()?1:0.4, pointerEvents:draft.name.trim()?'auto':'none' }}>
+              {lang==='fr'?'✓ Créer le projet':'✓ Create Project'}
+              {draft.tasks.length>0 && <span style={{ marginLeft:6, fontSize:9, opacity:0.8 }}>+ {draft.tasks.length} {lang==='fr'?'tâche':'task'}{draft.tasks.length>1?'s':''}</span>}
+            </Btn>
+            <Btn onClick={cancelDraft} style={{ background:'transparent', border:`1px solid ${T.border}`, color:T.textSub }}>{lang==='fr'?'Annuler':'Cancel'}</Btn>
           </div>
         </GlassCard>
       )}
 
-      {displayed.length === 0 && (
+      {/* Empty state */}
+      {displayed.length===0 && !draft && (
         <GlassCard>
-          <div style={{ textAlign:'center', padding:'40px 20px', color:T.textMuted }}>
-            <div style={{ fontSize:36, marginBottom:12 }}>{showDone ? '🏆' : '📋'}</div>
-            <div style={{ fontSize:13, fontFamily:T.fM }}>{showDone ? (lang==='fr'?'Aucun projet terminé':'No completed projects') : (lang==='fr'?'Aucun projet actif. Créez-en un !':'No active projects. Create one!')}</div>
+          <div style={{ textAlign:'center', padding:'32px 20px', color:T.textMuted }}>
+            <div style={{ fontSize:34, marginBottom:10 }}>{showDone?'🏆':'📋'}</div>
+            <div style={{ fontSize:12, fontFamily:T.fM }}>
+              {showDone?(lang==='fr'?'Aucun projet terminé':'No completed projects'):(lang==='fr'?'Aucun projet. Créez-en un !':'No projects yet. Create one!')}
+            </div>
           </div>
         </GlassCard>
       )}
 
+      {/* Project cards */}
       {displayed.map(proj => {
-        const tasks = proj.tasks || [];
-        const doneTasks = tasks.filter(t => t.done).length;
-        const pct = tasks.length > 0 ? Math.round((doneTasks/tasks.length)*100) : 0;
-        const isExpanded = expandedId === proj.id;
-        const overdue = proj.due && new Date(proj.due) < new Date() && pct < 100;
+        const tasks = proj.tasks||[];
+        const doneTasks = tasks.filter(t=>t.done).length;
+        const pct = tasks.length>0?Math.round((doneTasks/tasks.length)*100):0;
+        const isExp = expandedId===proj.id;
+        const overdue = proj.due && new Date(proj.due)<new Date() && pct<100;
         return (
-          <GlassCard key={proj.id} style={{ border:`1px solid ${proj.color}22`, transition:'all 0.2s' }}>
-            {/* Project header */}
-            <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom: isExpanded ? 14 : 0 }}>
-              <div style={{ width:4, minHeight:44, borderRadius:4, background:proj.color, flexShrink:0, marginTop:2 }} />
+          <GlassCard key={proj.id} style={{ border:`1px solid ${proj.color}22` }}>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
+              <div style={{ width:4, minHeight:52, borderRadius:4, background:proj.color, flexShrink:0, marginTop:2 }} />
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                  <button onClick={()=>setExpandedId(isExpanded?null:proj.id)} style={{ fontSize:14, fontWeight:700, fontFamily:T.fD, color:T.text, background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0, flex:1, minWidth:0 }}>
+                {/* Title row */}
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:3 }}>
+                  <button onClick={()=>setExpandedId(isExp?null:proj.id)} style={{ fontSize:14, fontWeight:700, fontFamily:T.fD, color:T.text, background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0, flex:1, minWidth:0 }}>
                     {proj.name}
                   </button>
-                  {proj.due && (
-                    <span style={{ fontSize:9, fontFamily:T.fM, color:overdue?T.rose:T.textMuted, background:overdue?T.roseDim:'transparent', padding:overdue?'2px 6px':'0', borderRadius:4 }}>
-                      {overdue?'⚠ ':''}{lang==='fr'?'Échéance:':'Due:'} {proj.due}
-                    </span>
-                  )}
-                  <button onClick={()=>actions.removeProject(proj.id)} style={{ fontSize:11, color:T.textMuted, background:'none', border:'none', cursor:'pointer', padding:'2px 6px', borderRadius:4, flexShrink:0 }} title="Delete project">✕</button>
+                  {overdue && <span style={{ fontSize:9, fontFamily:T.fM, color:T.rose, background:T.roseDim, padding:'2px 7px', borderRadius:4 }}>⚠ {lang==='fr'?'En retard':'Overdue'}</span>}
+                  {proj.due && !overdue && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{lang==='fr'?'Échéance':'Due'}: {proj.due}</span>}
+                  <button onClick={()=>actions.removeProject(proj.id)} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', padding:'2px 6px', opacity:0.5 }}>✕</button>
                 </div>
-                {proj.desc && <div style={{ fontSize:11, color:T.textSub, marginTop:3, fontFamily:T.fM }}>{proj.desc}</div>}
-                {/* Progress bar */}
-                <div style={{ marginTop:8, display:'flex', alignItems:'center', gap:8 }}>
+                {proj.desc && <div style={{ fontSize:11, color:T.textSub, fontFamily:T.fM, marginBottom:8 }}>{proj.desc}</div>}
+                {/* Progress + expand toggle */}
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   <div style={{ flex:1, height:4, borderRadius:4, background:T.surface, overflow:'hidden' }}>
                     <div style={{ width:`${pct}%`, height:'100%', background:pct===100?T.emerald:proj.color, borderRadius:4, transition:'width 0.4s ease' }} />
                   </div>
-                  <span style={{ fontSize:9, fontFamily:T.fM, color:pct===100?T.emerald:T.textSub, minWidth:32, textAlign:'right' }}>{pct}%</span>
-                  <button onClick={()=>setExpandedId(isExpanded?null:proj.id)} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:'none', border:'none', cursor:'pointer', padding:'2px 4px' }}>
-                    {tasks.length} {lang==='fr'?'tâches':'tasks'} {isExpanded?'▲':'▼'}
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:pct===100?T.emerald:T.textSub, minWidth:30, textAlign:'right' }}>{pct===100?'✓':pct+'%'}</span>
+                  <button onClick={()=>setExpandedId(isExp?null:proj.id)} style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:T.surface, border:`1px solid ${T.border}`, borderRadius:5, cursor:'pointer', padding:'2px 8px', flexShrink:0 }}>
+                    {tasks.length} {lang==='fr'?'tâches':'tasks'} {isExp?'▲':'▼'}
                   </button>
                 </div>
+
+                {/* Task list — expanded */}
+                {isExp && (
+                  <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:5 }}>
+                    {tasks.length===0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, padding:'4px 0' }}>{lang==='fr'?'Aucune tâche.':'No tasks yet.'}</div>}
+                    {tasks.map(task=>(
+                      <div key={task.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, background:task.done?T.surface:'transparent', transition:'background 0.15s' }}>
+                        <button onClick={()=>actions.toggleTask(proj.id,task.id)} style={{ width:18, height:18, borderRadius:5, border:`2px solid ${task.done?proj.color:T.border}`, background:task.done?proj.color:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer', transition:'all 0.15s' }}>
+                          {task.done&&<span style={{ fontSize:9, color:T.bg, fontWeight:700 }}>✓</span>}
+                        </button>
+                        <span style={{ flex:1, fontSize:12, fontFamily:T.fM, color:task.done?T.textMuted:T.text, textDecoration:task.done?'line-through':'none', transition:'all 0.15s' }}>{task.text}</span>
+                        <button onClick={()=>actions.removeTask(proj.id,task.id)} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', opacity:0.4, padding:'2px 4px' }}>✕</button>
+                      </div>
+                    ))}
+                    {/* Inline add-task row */}
+                    <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                      <input className="los-input" value={taskInputs[proj.id]||''} onChange={e=>setTaskInputs(p=>({...p,[proj.id]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addTask(proj.id)} placeholder={lang==='fr'?'Nouvelle tâche…':'New task…'} style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'7px 11px', color:T.text, fontSize:12, fontFamily:T.fM }} />
+                      <Btn color={proj.color} onClick={()=>addTask(proj.id)} style={{ padding:'7px 13px', flexShrink:0 }}>+</Btn>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Tasks list — expanded */}
-            {isExpanded && (
-              <div style={{ marginLeft:16, display:'flex', flexDirection:'column', gap:6 }}>
-                {tasks.length === 0 && (
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, padding:'8px 0' }}>{lang==='fr'?'Aucune tâche. Ajoutez-en une ci-dessous.':'No tasks yet. Add one below.'}</div>
-                )}
-                {tasks.map(task => (
-                  <div key={task.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, background:task.done?T.surface:'transparent', transition:'all 0.15s' }}>
-                    <button onClick={()=>actions.toggleTask(proj.id, task.id)} style={{ width:18, height:18, borderRadius:5, border:`2px solid ${task.done?proj.color:T.border}`, background:task.done?proj.color:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer', transition:'all 0.15s' }}>
-                      {task.done && <span style={{ fontSize:10, color:T.bg, fontWeight:700 }}>✓</span>}
-                    </button>
-                    <span style={{ flex:1, fontSize:12, fontFamily:T.fM, color:task.done?T.textMuted:T.text, textDecoration:task.done?'line-through':'none', transition:'all 0.15s' }}>{task.text}</span>
-                    <button onClick={()=>actions.removeTask(proj.id, task.id)} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', opacity:0.5, padding:'2px 4px' }}>✕</button>
-                  </div>
-                ))}
-                {/* Add task input */}
-                <div style={{ display:'flex', gap:8, marginTop:4 }}>
-                  <input className="los-input" value={taskInputs[proj.id]||''} onChange={e=>setTaskInputs(p=>({...p,[proj.id]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addTask(proj.id)} placeholder={lang==='fr'?'Nouvelle tâche…':'New task…'} style={{ flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'8px 12px', color:T.text, fontSize:12, fontFamily:T.fM }} />
-                  <Btn color={proj.color} onClick={()=>addTask(proj.id)} style={{ flexShrink:0, padding:'8px 14px' }}>+</Btn>
-                </div>
-              </div>
-            )}
           </GlassCard>
         );
       })}
+    </div>
+  );
+
+  if (embedded) return inner;
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <PageHeader domain={lang==='fr'?'Projets':'Projects'} domainColor={T.violet} title={lang==='fr'?'Projets':'Projects'} subtitle={`${active.length} actif · ${done.length} terminé`} />
+      {inner}
     </div>
   );
 }
@@ -11594,19 +11644,19 @@ function ProjectsPage({ data, actions }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── GROCERIES PAGE — Shopping list with categories ───────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-function GroceriesPage({ data, actions }) {
+function GroceriesPage({ data, actions, embedded }) {
   const { groceries = [] } = data;
   const lang = useLang();
   const [itemText, setItemText] = useState('');
-  const [itemCat, setItemCat] = useState('Other');
+  const [itemCat, setItemCat] = useState(lang==='fr'?'Autre':'Other');
   const [itemQty, setItemQty] = useState('');
   const [filterCat, setFilterCat] = useState('All');
 
   const CATS = lang==='fr'
     ? ['Fruits & Légumes','Produits laitiers','Viandes & Poissons','Épicerie','Boissons','Surgelés','Hygiène','Autre']
     : ['Fruits & Veg','Dairy','Meat & Fish','Pantry','Drinks','Frozen','Hygiene','Other'];
-  const CAT_EMOJI = { 'Fruits & Veg':'🥦','Fruits & Légumes':'🥦','Dairy':'🧀','Produits laitiers':'🧀','Meat & Fish':'🥩','Viandes & Poissons':'🥩','Pantry':'🥫','Épicerie':'🥫','Drinks':'🥤','Boissons':'🥤','Frozen':'🧊','Surgelés':'🧊','Hygiene':'🧴','Hygiène':'🧴','Other':'🛒','Autre':'🛒' };
-  const CAT_COLORS = { 'Fruits & Veg':T.emerald,'Fruits & Légumes':T.emerald,'Dairy':T.sky,'Produits laitiers':T.sky,'Meat & Fish':T.rose,'Viandes & Poissons':T.rose,'Pantry':T.amber,'Épicerie':T.amber,'Drinks':T.violet,'Boissons':T.violet,'Frozen':T.accent,'Surgelés':T.accent,'Hygiene':'#c084fc','Hygiène':'#c084fc','Other':T.textSub,'Autre':T.textSub };
+  const CAT_EMOJI = {'Fruits & Veg':'🥦','Fruits & Légumes':'🥦','Dairy':'🧀','Produits laitiers':'🧀','Meat & Fish':'🥩','Viandes & Poissons':'🥩','Pantry':'🥫','Épicerie':'🥫','Drinks':'🥤','Boissons':'🥤','Frozen':'🧊','Surgelés':'🧊','Hygiene':'🧴','Hygiène':'🧴','Other':'🛒','Autre':'🛒'};
+  const CAT_COLORS = {'Fruits & Veg':T.emerald,'Fruits & Légumes':T.emerald,'Dairy':T.sky,'Produits laitiers':T.sky,'Meat & Fish':T.rose,'Viandes & Poissons':T.rose,'Pantry':T.amber,'Épicerie':T.amber,'Drinks':T.violet,'Boissons':T.violet,'Frozen':T.accent,'Surgelés':T.accent,'Hygiene':'#c084fc','Hygiène':'#c084fc','Other':T.textSub,'Autre':T.textSub};
 
   const addItem = () => {
     if (!itemText.trim()) return;
@@ -11614,112 +11664,131 @@ function GroceriesPage({ data, actions }) {
     setItemText(''); setItemQty('');
   };
 
-  const checkedCount = groceries.filter(g => g.checked).length;
-  const totalCount = groceries.length;
+  const checkedCount = groceries.filter(g=>g.checked).length;
+  const totalCount   = groceries.length;
+  const activeCats   = [...new Set(groceries.map(g=>g.category))].filter(Boolean);
+  const allCatsLabel = lang==='fr'?'Tous':'All';
+  const allCats      = [allCatsLabel, ...activeCats];
+  const filtered     = filterCat===allCatsLabel ? groceries : groceries.filter(g=>g.category===filterCat);
+  const grouped      = filtered.reduce((acc,item)=>{ const c=item.category||'Other'; (acc[c]=acc[c]||[]).push(item); return acc; },{});
 
-  const activeCats = [...new Set(groceries.map(g => g.category))].filter(Boolean);
-  const allCats = lang==='fr' ? ['Tous',...activeCats] : ['All',...activeCats];
-
-  const filtered = filterCat==='All'||filterCat==='Tous'
-    ? groceries
-    : groceries.filter(g => g.category === filterCat);
-
-  // Group by category
-  const grouped = filtered.reduce((acc, item) => {
-    const cat = item.category || 'Other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(item);
-    return acc;
-  }, {});
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      <PageHeader
-        domain={lang==='fr'?'Courses':'Groceries'}
-        domainColor={T.emerald}
-        title={lang==='fr'?'Liste de courses':'Shopping List'}
-        subtitle={`${checkedCount}/${totalCount} ${lang==='fr'?'cochés':'checked'}`}
-        actions={
-          checkedCount > 0 && (
-            <Btn onClick={actions.clearCheckedGroceries} style={{ background:T.roseDim, color:T.rose, border:`1px solid ${T.rose}33` }}>
-              🗑 {lang==='fr'?'Effacer cochés':'Clear checked'}
-            </Btn>
-          )
-        }
-      />
-
-      {/* Add item form */}
+  const inner = (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Quick-add form */}
       <GlassCard style={{ border:`1px solid ${T.emerald}22` }}>
-        <SectionLabel>{lang==='fr'?'Ajouter un article':'Add Item'}</SectionLabel>
-        <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
-          <input className="los-input" value={itemText} onChange={e=>setItemText(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addItem()} placeholder={lang==='fr'?'Nom de l\'article…':'Item name…'} style={{ flex:'1 1 160px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13 }} />
-          <input className="los-input" value={itemQty} onChange={e=>setItemQty(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addItem()} placeholder={lang==='fr'?'Qté (ex: 2kg)':'Qty (e.g. 2kg)'} style={{ width:100, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13 }} />
-          <select value={itemCat} onChange={e=>setItemCat(e.target.value)} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:12, fontFamily:T.fM, flex:'0 0 auto' }}>
-            {CATS.map(c => <option key={c} value={c}>{CAT_EMOJI[c]||'•'} {c}</option>)}
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+          <input autoFocus className="los-input" value={itemText} onChange={e=>setItemText(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addItem()} placeholder={lang==='fr'?'Ajouter un article…':'Add item…'} style={{ flex:'1 1 150px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 12px', color:T.text, fontSize:13 }} />
+          <input className="los-input" value={itemQty} onChange={e=>setItemQty(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addItem()} placeholder={lang==='fr'?'Qté':'Qty'} style={{ width:80, background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 10px', color:T.text, fontSize:13 }} />
+          <select value={itemCat} onChange={e=>setItemCat(e.target.value)} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, padding:'9px 10px', color:T.text, fontSize:11, fontFamily:T.fM, flex:'0 0 auto' }}>
+            {CATS.map(c=><option key={c} value={c}>{CAT_EMOJI[c]||'•'} {c}</option>)}
           </select>
-          <Btn color={T.emerald} onClick={addItem} style={{ flexShrink:0 }}>+ {lang==='fr'?'Ajouter':'Add'}</Btn>
+          <Btn color={T.emerald} onClick={addItem} style={{ flexShrink:0, padding:'9px 16px' }}>+ {lang==='fr'?'Ajouter':'Add'}</Btn>
         </div>
       </GlassCard>
 
       {/* Progress bar */}
-      {totalCount > 0 && (
+      {totalCount>0 && (
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ flex:1, height:6, borderRadius:6, background:T.surface, overflow:'hidden' }}>
-            <div style={{ width:`${totalCount>0?(checkedCount/totalCount)*100:0}%`, height:'100%', background:T.emerald, borderRadius:6, transition:'width 0.4s ease' }} />
+          <div style={{ flex:1, height:5, borderRadius:5, background:T.surface, overflow:'hidden' }}>
+            <div style={{ width:`${(checkedCount/totalCount)*100}%`, height:'100%', background:T.emerald, borderRadius:5, transition:'width 0.4s ease' }} />
           </div>
-          <span style={{ fontSize:10, fontFamily:T.fM, color:checkedCount===totalCount?T.emerald:T.textSub, minWidth:40, textAlign:'right' }}>
-            {checkedCount===totalCount&&totalCount>0 ? '✓ Done!' : `${Math.round(checkedCount/totalCount*100)}%`}
+          <span style={{ fontSize:10, fontFamily:T.fM, color:checkedCount===totalCount&&totalCount>0?T.emerald:T.textSub, minWidth:50, textAlign:'right' }}>
+            {checkedCount===totalCount&&totalCount>0?'✓ Done!':` ${checkedCount}/${totalCount}`}
           </span>
+          {checkedCount>0 && (
+            <Btn onClick={actions.clearCheckedGroceries} style={{ fontSize:10, padding:'4px 10px', background:T.roseDim, color:T.rose, border:`1px solid ${T.rose}33`, flexShrink:0 }}>
+              🗑 {lang==='fr'?'Effacer cochés':'Clear checked'}
+            </Btn>
+          )}
         </div>
       )}
 
       {/* Category filter pills */}
-      {activeCats.length > 1 && (
+      {activeCats.length>1 && (
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {allCats.map(c => (
-            <button key={c} onClick={()=>setFilterCat(c)} style={{ fontSize:10, fontFamily:T.fM, padding:'4px 11px', borderRadius:99, background:(filterCat===c)?T.emerald+'22':'transparent', color:(filterCat===c)?T.emerald:T.textSub, border:`1px solid ${(filterCat===c)?T.emerald+'44':T.border}`, cursor:'pointer', transition:'all 0.15s' }}>
-              {c==='All'||c==='Tous' ? (lang==='fr'?'Tous':'All') : `${CAT_EMOJI[c]||'•'} ${c}`}
+          {allCats.map(c=>(
+            <button key={c} onClick={()=>setFilterCat(c)} style={{ fontSize:10, fontFamily:T.fM, padding:'4px 11px', borderRadius:99, background:filterCat===c?T.emerald+'22':'transparent', color:filterCat===c?T.emerald:T.textSub, border:`1px solid ${filterCat===c?T.emerald+'44':T.border}`, cursor:'pointer', transition:'all 0.15s' }}>
+              {c===allCatsLabel?allCatsLabel:`${CAT_EMOJI[c]||'•'} ${c}`}
             </button>
           ))}
         </div>
       )}
 
-      {/* Empty state */}
-      {groceries.length === 0 && (
+      {/* Empty */}
+      {groceries.length===0 && (
         <GlassCard>
-          <div style={{ textAlign:'center', padding:'40px 20px', color:T.textMuted }}>
-            <div style={{ fontSize:36, marginBottom:12 }}>🛒</div>
-            <div style={{ fontSize:13, fontFamily:T.fM }}>{lang==='fr'?'Liste vide. Ajoutez vos articles !':'List is empty. Add your items!'}</div>
+          <div style={{ textAlign:'center', padding:'32px 20px', color:T.textMuted }}>
+            <div style={{ fontSize:34, marginBottom:10 }}>🛒</div>
+            <div style={{ fontSize:12, fontFamily:T.fM }}>{lang==='fr'?'Liste vide. Ajoutez vos articles !':'List is empty. Add your items!'}</div>
           </div>
         </GlassCard>
       )}
 
       {/* Grouped items */}
-      {Object.entries(grouped).map(([cat, items]) => {
-        const catColor = CAT_COLORS[cat] || T.textSub;
-        const allChecked = items.every(i => i.checked);
+      {Object.entries(grouped).map(([cat,items])=>{
+        const catColor = CAT_COLORS[cat]||T.textSub;
+        const allChecked = items.every(i=>i.checked);
         return (
-          <GlassCard key={cat} style={{ opacity: allChecked ? 0.6 : 1, transition:'opacity 0.3s' }}>
+          <GlassCard key={cat} style={{ opacity:allChecked?0.55:1, transition:'opacity 0.3s' }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-              <span style={{ fontSize:16 }}>{CAT_EMOJI[cat]||'•'}</span>
+              <span style={{ fontSize:15 }}>{CAT_EMOJI[cat]||'•'}</span>
               <span style={{ fontSize:11, fontWeight:700, fontFamily:T.fM, color:catColor, letterSpacing:'0.06em', textTransform:'uppercase' }}>{cat}</span>
               <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>{items.filter(i=>i.checked).length}/{items.length}</span>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-              {items.map(item => (
-                <div key={item.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, background:'transparent', transition:'all 0.15s', cursor:'pointer' }} onClick={()=>actions.toggleGroceryItem(item.id)}>
+              {items.map(item=>(
+                <div key={item.id} className="los-row" onClick={()=>actions.toggleGroceryItem(item.id)} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:8, cursor:'pointer', transition:'background 0.12s' }}>
                   <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${item.checked?catColor:T.border}`, background:item.checked?catColor:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.15s' }}>
-                    {item.checked && <span style={{ fontSize:11, color:T.bg, fontWeight:700 }}>✓</span>}
+                    {item.checked&&<span style={{ fontSize:11, color:T.bg, fontWeight:700 }}>✓</span>}
                   </div>
-                  <span style={{ flex:1, fontSize:13, color:item.checked?T.textMuted:T.text, textDecoration:item.checked?'line-through':'none', transition:'all 0.2s', fontFamily:T.fM }}>{item.text}</span>
-                  {item.qty && <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, background:T.surface, padding:'2px 7px', borderRadius:6, flexShrink:0 }}>{item.qty}</span>}
-                  <button onClick={e=>{e.stopPropagation();actions.removeGroceryItem(item.id);}} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', padding:'2px 4px', opacity:0.5, flexShrink:0 }}>✕</button>
+                  <span style={{ flex:1, fontSize:13, color:item.checked?T.textMuted:T.text, textDecoration:item.checked?'line-through':'none', fontFamily:T.fM, transition:'all 0.2s' }}>{item.text}</span>
+                  {item.qty&&<span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, background:T.surface, padding:'2px 7px', borderRadius:6, flexShrink:0 }}>{item.qty}</span>}
+                  <button onClick={e=>{e.stopPropagation();actions.removeGroceryItem(item.id);}} style={{ fontSize:10, color:T.textMuted, background:'none', border:'none', cursor:'pointer', opacity:0.45, padding:'2px 5px', flexShrink:0 }}>✕</button>
                 </div>
               ))}
             </div>
           </GlassCard>
         );
       })}
+    </div>
+  );
+
+  if (embedded) return inner;
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <PageHeader domain={lang==='fr'?'Courses':'Groceries'} domainColor={T.emerald} title={lang==='fr'?'Liste de courses':'Shopping List'} subtitle={`${checkedCount}/${totalCount} ${lang==='fr'?'cochés':'checked'}`} />
+      {inner}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── LIFE HUB — Career + Timeline + Archive in one place ─────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+function LifeHubPage({ data, actions }) {
+  const lang = useLang();
+  const [tab, setTab] = useState('career');
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <PageHeader
+        domain={lang==='fr'?'Hub Vie':'Life Hub'}
+        domainColor={T.amber}
+        title={lang==='fr'?'Hub Vie':'Life Hub'}
+        subtitle={lang==='fr'?'Carrière · Journal · Archives':'Career · Timeline · Archive'}
+      />
+      <TabNav
+        tabs={[
+          { id:'career',   label:`💼 ${lang==='fr'?'Carrière':'Career'}` },
+          { id:'timeline', label:`📅 ${lang==='fr'?'Chronologie':'Timeline'}` },
+          { id:'archive',  label:`🗃️ ${lang==='fr'?'Archives':'Archive'}` },
+        ]}
+        active={tab}
+        onChange={setTab}
+        accentColor={T.amber}
+      />
+      {tab==='career'   && <CareerPage   data={data} actions={actions} embedded />}
+      {tab==='timeline' && <TimelinePage data={data} embedded />}
+      {tab==='archive'  && <ArchivePage  data={data} embedded />}
     </div>
   );
 }
@@ -11730,7 +11799,7 @@ function GroceriesPage({ data, actions }) {
 const JOB_STAGES = ['Applied','Interview','Offer','Rejected'];
 const STAGE_COLORS = { Applied:T.sky, Interview:T.amber, Offer:T.emerald, Rejected:T.textMuted };
 
-function CareerPage({ data, actions }) {
+function CareerPage({ data, actions, embedded }) {
   const lang = useLang();
   const { career = {} } = data;
   const jobs = career.jobs || [];
@@ -11829,11 +11898,11 @@ function CareerPage({ data, actions }) {
         </div>
       </Modal>
 
-      <PageHeader
+      {!embedded && <PageHeader
         domain="Career Domain"
         title={lang==='fr'?'Hub Carrière':'Career Hub'}
         infoIcon={<PageInfoIcon content={<div><p><b>💼 Career</b> — Log your current role, track job applications, skills, and salary history.</p><p style={{marginTop:8}}><b>📈 Focus Billing</b> — Set an hourly rate and track how much you've earned per focus session.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlock badges for reaching milestones across all life domains.</p></div>} />}
-      />
+      />}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:18 }}>
         {statCards.map((m,i)=>(
           <StatCard key={i} label={m.label} val={m.val} color={m.color} />
@@ -17187,6 +17256,7 @@ export default function LifeOS() {
     archive:   eb(<ArchivePage   data={data} />),
     projects:  eb(<ProjectsPage  data={data} actions={actions} />),
     groceries: eb(<GroceriesPage data={data} actions={actions} />),
+    lifehub:   eb(<LifeHubPage   data={data} actions={actions} />),
     settings:  eb(<SettingsPage  data={data} actions={actions} gistSync={gistSync} onOpenSyncModal={()=>setShowSyncModal(true)} onThemeChange={(themeId)=>{ Object.assign(T, THEMES[themeId] || THEMES.dark); document.documentElement.dataset.theme = themeId; setThemeVersion(v=>v+1); }} />),
   };
 
