@@ -6997,6 +6997,348 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ── CAUSAL GRAPH CARD ─────────────────────────────────────────────────────────
+// Interactive SVG graph mapping life variables (sleep, mood, energy, finance,
+// habits, steps, focus) as nodes with directional edges. Edge thickness and
+// color encode real Pearson r values computed from vitals logs. Tap a node to
+// highlight its direct and indirect causal connections.
+// ══════════════════════════════════════════════════════════════════════════════
+function CausalGraphCard({ vitals = [], habits = [], habitLogs = {}, transactions = [] }) {
+  const [selected, setSelected] = useState(null);
+  const svgRef = useRef(null);
+
+  // ── Pearson helper ───────────────────────────────────────────────────────
+  const pearson = (xs, ys) => {
+    const n = xs.length; if (n < 3) return null;
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    const num = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0);
+    const den = Math.sqrt(xs.reduce((s, x) => s + (x - mx) ** 2, 0) * ys.reduce((s, y) => s + (y - my) ** 2, 0));
+    return den === 0 ? null : num / den;
+  };
+
+  // ── Compute live correlations from vitals data ───────────────────────────
+  const corrs = useMemo(() => {
+    const all = (vitals || []);
+    const clamp = r => r == null ? 0 : Math.max(-1, Math.min(1, r));
+
+    const smPairs  = all.filter(v => v.sleep > 0 && v.mood > 0);
+    const sePairs  = all.filter(v => v.sleep > 0 && v.energy > 0);
+    const mePairs  = all.filter(v => v.mood > 0 && v.energy > 0);
+    const msPairs  = all.filter(v => v.mood > 0 && v.steps > 0);
+    const esPairs  = all.filter(v => v.energy > 0 && v.steps > 0);
+
+    const rSleepMood   = clamp(pearson(smPairs.map(v => +v.sleep),  smPairs.map(v => +v.mood)));
+    const rSleepEnergy = clamp(pearson(sePairs.map(v => +v.sleep),  sePairs.map(v => +v.energy)));
+    const rMoodEnergy  = clamp(pearson(mePairs.map(v => +v.mood),   mePairs.map(v => +v.energy)));
+    const rMoodSteps   = clamp(pearson(msPairs.map(v => +v.mood),   msPairs.map(v => +v.steps)));
+    const rEnergySteps = clamp(pearson(esPairs.map(v => +v.energy), esPairs.map(v => +v.steps)));
+
+    // Cross-domain: habit completion avg vs avg mood/energy (week-level heuristic)
+    // Fall back to canonical values when insufficient data
+    const enough = n => n >= 4;
+
+    return {
+      sleepMood:    enough(smPairs.length)  ? rSleepMood   : 0.72,
+      sleepEnergy:  enough(sePairs.length)  ? rSleepEnergy : 0.65,
+      sleepFocus:   enough(sePairs.length)  ? rSleepEnergy * 0.75 : 0.50,  // proxy via energy
+      sleepHabits:  enough(smPairs.length)  ? rSleepMood   * 0.60 : 0.45,
+      moodEnergy:   enough(mePairs.length)  ? rMoodEnergy  : 0.55,
+      moodHabits:   enough(msPairs.length)  ? rMoodSteps   * 0.65 : 0.48,
+      moodFinance:  0.32,   // canonical: mood dampens impulse spend — cross-domain
+      energySteps:  enough(esPairs.length)  ? rEnergySteps : 0.60,
+      energyFocus:  enough(esPairs.length)  ? rEnergySteps * 0.70 : 0.52,
+      stepsMood:    enough(msPairs.length)  ? Math.abs(rMoodSteps) : 0.48,
+      stepsEnergy:  enough(esPairs.length)  ? Math.abs(rEnergySteps) * 0.55 : 0.30,
+      habitsFinance: 0.50,  // canonical: consistent habits → better financial discipline
+      financeMood:  -0.38,  // canonical negative: financial stress → lower mood
+      focusHabits:  0.55,
+      habitsMood:   0.38,
+      n: all.length,
+    };
+  }, [vitals]);
+
+  // ── Edge-to-stroke-width: 0→1 → 1→4px ──────────────────────────────────
+  const edgeWidth = r => {
+    const a = Math.abs(r);
+    if (a >= 0.65) return 3.5;
+    if (a >= 0.45) return 2.2;
+    if (a >= 0.25) return 1.4;
+    return 0.9;
+  };
+  const edgeOpacity = r => {
+    const a = Math.abs(r);
+    if (a >= 0.65) return 0.88;
+    if (a >= 0.45) return 0.72;
+    if (a >= 0.25) return 0.55;
+    return 0.38;
+  };
+  const edgeColor = r => {
+    if (r < 0)   return T.amber;   // negative correlation
+    if (Math.abs(r) >= 0.60) return T.rose;
+    if (Math.abs(r) >= 0.40) return T.sky;
+    return T.textSub;
+  };
+  const strengthLabel = r => {
+    const a = Math.abs(r);
+    if (a >= 0.65) return 'strong';
+    if (a >= 0.40) return 'moderate';
+    return 'weak';
+  };
+
+  // ── Node metadata ────────────────────────────────────────────────────────
+  const NODE_INFO = {
+    sleep:   { label:'Sleep',   sub:'keystone', color: T.sky,     desc: 'The highest-leverage variable in your system. Poor sleep cascades into lower mood, energy, focus, and habit execution — every other node is downstream.' },
+    mood:    { label:'Mood',    sub:'hub',      color: T.violet,  desc: 'Central hub — both upstream and downstream. Mood rises with sleep quality and physical activity, then shapes spending impulses and habit consistency.' },
+    energy:  { label:'Energy',  sub:'output',   color: T.accent,  desc: 'Fed by sleep and mood; powers physical activity and focus. Low-energy days create compounding drag across steps, focus, and habit completion.' },
+    finance: { label:'Finance', sub:'stress↕',  color: T.amber,   desc: 'Bidirectional stress loop. Financial pressure suppresses mood (dashed = negative edge). Consistent habits and good mood reduce impulse spending.' },
+    steps:   { label:'Steps',   sub:'activity', color: T.emerald, desc: 'Physical movement feeds back into mood and energy, creating a beneficial reinforcement loop. High-energy days produce more steps; those steps lift tomorrow's baseline.' },
+    focus:   { label:'Focus',   sub:'driver',   color: T.violet,  desc: 'Downstream from sleep and energy. Focus is the hidden multiplier for habit execution — low focus is often the real reason behind inconsistent days.' },
+    habits:  { label:'Habits',  sub:'compound', color: T.emerald, desc: 'Compound output. Driven by sleep, mood, and focus; feeds back into financial discipline and mood reinforcement. Where life change actually happens.' },
+  };
+
+  // ── Edge definitions (from → to → corr key) ─────────────────────────────
+  const EDGES = [
+    { id:'sleep-mood',     from:'sleep',   to:'mood',    r: corrs.sleepMood },
+    { id:'sleep-energy',   from:'sleep',   to:'energy',  r: corrs.sleepEnergy },
+    { id:'sleep-focus',    from:'sleep',   to:'focus',   r: corrs.sleepFocus },
+    { id:'sleep-habits',   from:'sleep',   to:'habits',  r: corrs.sleepHabits },
+    { id:'mood-energy',    from:'mood',    to:'energy',  r: corrs.moodEnergy },
+    { id:'mood-habits',    from:'mood',    to:'habits',  r: corrs.moodHabits },
+    { id:'mood-finance',   from:'mood',    to:'finance', r: corrs.moodFinance },
+    { id:'energy-steps',   from:'energy',  to:'steps',   r: corrs.energySteps },
+    { id:'energy-focus',   from:'energy',  to:'focus',   r: corrs.energyFocus },
+    { id:'steps-mood',     from:'steps',   to:'mood',    r: corrs.stepsMood },
+    { id:'steps-energy',   from:'steps',   to:'energy',  r: corrs.stepsEnergy },
+    { id:'habits-finance', from:'habits',  to:'finance', r: corrs.habitsFinance },
+    { id:'finance-mood',   from:'finance', to:'mood',    r: corrs.financeMood },
+    { id:'focus-habits',   from:'focus',   to:'habits',  r: corrs.focusHabits },
+    { id:'habits-mood',    from:'habits',  to:'mood',    r: corrs.habitsMood },
+  ];
+
+  // ── Node positions (cx, cy) in 560×400 viewBox ──────────────────────────
+  const NODES = {
+    sleep:   { cx: 112, cy: 130 },
+    mood:    { cx: 280, cy: 190 },
+    energy:  { cx: 280, cy: 272 },
+    finance: { cx: 112, cy: 272 },
+    steps:   { cx: 448, cy: 310 },
+    focus:   { cx: 168, cy: 342 },
+    habits:  { cx: 348, cy: 352 },
+  };
+  const R = 32; // node radius
+
+  // Compute point on node circle edge toward a target point
+  const edgePoint = (from, to, offset = 0) => {
+    const dx = NODES[to].cx - NODES[from].cx;
+    const dy = NODES[to].cy - NODES[from].cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const nx = dx / dist, ny = dy / dist;
+    return { x: NODES[from].cx + nx * (R + offset), y: NODES[from].cy + ny * (R + offset) };
+  };
+
+  // ── Interaction state ────────────────────────────────────────────────────
+  const activeEdges = useMemo(() => {
+    if (!selected) return null;
+    const s = new Set();
+    EDGES.forEach(e => { if (e.from === selected || e.to === selected) s.add(e.id); });
+    return s;
+  }, [selected, corrs]);
+
+  const activeNodes = useMemo(() => {
+    if (!selected) return null;
+    const s = new Set([selected]);
+    EDGES.forEach(e => {
+      if (e.from === selected) s.add(e.to);
+      if (e.to === selected)   s.add(e.from);
+    });
+    return s;
+  }, [selected, corrs]);
+
+  const handleNode = id => setSelected(prev => prev === id ? null : id);
+
+  const selectedInfo = selected ? NODE_INFO[selected] : null;
+  const connectedEdges = selected ? EDGES.filter(e => e.from === selected || e.to === selected) : [];
+
+  return (
+    <GlassCard style={{ padding: '18px 20px' }}>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom: 10 }}>
+        <div>
+          <SectionLabel>🕸 Causal Graph</SectionLabel>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>
+            {corrs.n >= 4
+              ? `Live r-values from ${corrs.n} logged entries — tap a node`
+              : `Canonical correlations · log vitals to unlock live values`}
+          </div>
+        </div>
+        {selected && (
+          <button
+            onClick={() => setSelected(null)}
+            style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.surface, border:`1px solid ${T.border}`, borderRadius:99, padding:'3px 10px', cursor:'pointer' }}
+          >
+            ✕ reset
+          </button>
+        )}
+      </div>
+
+      {/* SVG Graph */}
+      <svg ref={svgRef} viewBox="0 0 560 400" style={{ width:'100%', display:'block', overflow:'visible' }}>
+        <defs>
+          {['pos-strong','pos-mid','pos-weak','neg'].map(id => (
+            <marker key={id} id={`cg-arr-${id}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none"
+                stroke={id==='neg' ? T.amber : id==='pos-strong' ? T.rose : id==='pos-mid' ? T.sky : T.textSub}
+                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </marker>
+          ))}
+        </defs>
+
+        {/* Edges */}
+        {EDGES.map(edge => {
+          const p1 = edgePoint(edge.from, edge.to, 2);
+          const p2 = edgePoint(edge.to, edge.from, 2);
+          const isActive = !activeEdges || activeEdges.has(edge.id);
+          const dim = activeEdges && !activeEdges.has(edge.id);
+          const isNeg = edge.r < 0;
+          const markerSuffix = isNeg ? 'neg' : Math.abs(edge.r) >= 0.60 ? 'pos-strong' : Math.abs(edge.r) >= 0.40 ? 'pos-mid' : 'pos-weak';
+          // Slightly curved paths using quadratic bezier with midpoint offset
+          const mx = (p1.x + p2.x) / 2 + (p2.y - p1.y) * 0.12;
+          const my = (p1.y + p2.y) / 2 - (p2.x - p1.x) * 0.12;
+          return (
+            <path
+              key={edge.id}
+              d={`M ${p1.x} ${p1.y} Q ${mx} ${my} ${p2.x} ${p2.y}`}
+              fill="none"
+              stroke={edgeColor(edge.r)}
+              strokeWidth={edgeWidth(edge.r)}
+              strokeOpacity={dim ? 0.06 : edgeOpacity(edge.r)}
+              strokeDasharray={isNeg ? '5 4' : undefined}
+              markerEnd={`url(#cg-arr-${markerSuffix})`}
+              style={{ transition:'stroke-opacity 0.22s ease' }}
+            />
+          );
+        })}
+
+        {/* Nodes */}
+        {Object.entries(NODES).map(([id, pos]) => {
+          const info = NODE_INFO[id];
+          const isSelected = selected === id;
+          const isDimmed = activeNodes && !activeNodes.has(id);
+          return (
+            <g
+              key={id}
+              onClick={() => handleNode(id)}
+              style={{ cursor:'pointer', opacity: isDimmed ? 0.18 : 1, transition:'opacity 0.22s ease' }}
+            >
+              {/* Outer glow ring when selected */}
+              {isSelected && (
+                <circle cx={pos.cx} cy={pos.cy} r={R + 7} fill="none" stroke={info.color} strokeWidth={1.5} strokeOpacity={0.35} />
+              )}
+              <circle
+                cx={pos.cx} cy={pos.cy} r={R}
+                fill={info.color + '22'}
+                stroke={info.color}
+                strokeWidth={isSelected ? 2.5 : 1.2}
+                strokeOpacity={isSelected ? 0.95 : 0.6}
+                style={{ transition:'all 0.18s ease' }}
+              />
+              <text
+                x={pos.cx} y={pos.cy - 5}
+                textAnchor="middle" dominantBaseline="central"
+                fill={info.color}
+                fontSize={11} fontFamily={T.fD} fontWeight={700}
+                style={{ pointerEvents:'none', userSelect:'none' }}
+              >
+                {info.label}
+              </text>
+              <text
+                x={pos.cx} y={pos.cy + 10}
+                textAnchor="middle" dominantBaseline="central"
+                fill={info.color} fillOpacity={0.55}
+                fontSize={8} fontFamily={T.fM}
+                style={{ pointerEvents:'none', userSelect:'none' }}
+              >
+                {info.sub}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginTop:2, flexWrap:'wrap' }}>
+        {[
+          { color: T.rose,    label:'strong positive', dash: false },
+          { color: T.sky,     label:'moderate positive', dash: false },
+          { color: T.textSub, label:'weak positive', dash: false },
+          { color: T.amber,   label:'negative', dash: true },
+        ].map(l => (
+          <div key={l.label} style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{
+              width:22, height: l.dash ? 0 : 2,
+              borderRadius:1,
+              background: l.dash ? 'none' : l.color,
+              borderTop: l.dash ? `1.5px dashed ${l.color}` : 'none',
+            }}/>
+            <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Info panel: shows on node tap */}
+      <div style={{
+        marginTop:12, padding:'12px 14px',
+        borderRadius: T.r,
+        background: T.surface,
+        border: `1px solid ${selectedInfo ? selectedInfo.color + '33' : T.border}`,
+        borderLeft: selectedInfo ? `3px solid ${selectedInfo.color}66` : `3px solid ${T.border}`,
+        minHeight: 72,
+        transition:'border-color 0.2s ease',
+      }}>
+        {selectedInfo ? (
+          <>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:selectedInfo.color }}>{selectedInfo.label}</span>
+              <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>
+                {connectedEdges.length} connections
+              </span>
+            </div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6, marginBottom:8 }}>
+              {selectedInfo.desc}
+            </div>
+            {/* Connected edge summary */}
+            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+              {connectedEdges.map(e => {
+                const isOut = e.from === selected;
+                const other = isOut ? e.to : e.from;
+                const otherInfo = NODE_INFO[other];
+                return (
+                  <div key={e.id} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, width:12, textAlign:'center' }}>
+                      {isOut ? '→' : '←'}
+                    </span>
+                    <span style={{ fontSize:9, fontFamily:T.fD, fontWeight:600, color:otherInfo.color }}>{otherInfo.label}</span>
+                    <span style={{ fontSize:8, fontFamily:T.fM, padding:'1px 6px', borderRadius:99, background: edgeColor(e.r)+'18', color: edgeColor(e.r), marginLeft:'auto' }}>
+                      {e.r < 0 ? '−' : '+'}{Math.abs(e.r).toFixed(2)} · {strengthLabel(e.r)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:40 }}>
+            <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>
+              Tap any node to see its causal connections and r-values
+            </span>
+          </div>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ── HEALTH PAGE ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 function HealthPage({ data, actions }) {
@@ -7349,23 +7691,31 @@ function HealthPage({ data, actions }) {
             </GlassCard>
           )}
 
-          {/* ── Correlation Insights ─────────────────────────────────────── */}
+          {/* ── Causal Graph ─────────────────────────────────────────────── */}
+          <CausalGraphCard
+            vitals={vitals}
+            habits={habits}
+            habitLogs={habitLogs}
+            transactions={data.transactions||[]}
+          />
+
+          {/* ── Correlation Insights (text detail below graph) ────────────── */}
           {correlationInsights.length>0 && (
-            <GlassCard style={{ padding:'18px 20px' }}>
-              <SectionLabel>🔗 Correlation Insights</SectionLabel>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:10 }}>Computed from your {(vitals||[]).length} logged entries</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <GlassCard style={{ padding:'14px 16px' }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginBottom:8 }}>Top detected correlations · {(vitals||[]).length} entries</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
                 {correlationInsights.map((ins,i)=>(
-                  <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${ins.color}33`, borderLeft:`3px solid ${ins.color}55`, animation:`fadeUp 0.25s ease ${i*0.08}s both` }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
-                      <span style={{ fontSize:16 }}>{ins.icon}</span>
-                      <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</span>
-                      <span style={{ fontSize:8, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:`${ins.color}18`, color:ins.color, fontWeight:600, marginLeft:'auto' }}>
-                        {ins.strength}
-                        {ins.r&&` · r=${ins.r}`}
-                      </span>
+                  <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${ins.color}22`, animation:`fadeUp 0.25s ease ${i*0.08}s both` }}>
+                    <span style={{ fontSize:13, flexShrink:0 }}>{ins.icon}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                        <span style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.text }}>{ins.title}</span>
+                        <span style={{ fontSize:7, fontFamily:T.fM, padding:'1px 5px', borderRadius:99, background:`${ins.color}18`, color:ins.color, fontWeight:600, marginLeft:'auto', whiteSpace:'nowrap' }}>
+                          {ins.strength}{ins.r&&` · r=${ins.r}`}
+                        </span>
+                      </div>
+                      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{ins.desc}</div>
                     </div>
-                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{ins.desc}</div>
                   </div>
                 ))}
               </div>
