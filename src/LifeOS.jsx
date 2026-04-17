@@ -7091,7 +7091,7 @@ function CausalGraphCard({ vitals = [], habits = [], habitLogs = {}, transaction
     mood:    { label:'Mood',    sub:'hub',      color: T.violet,  desc: 'Central hub — both upstream and downstream. Mood rises with sleep quality and physical activity, then shapes spending impulses and habit consistency.' },
     energy:  { label:'Energy',  sub:'output',   color: T.accent,  desc: 'Fed by sleep and mood; powers physical activity and focus. Low-energy days create compounding drag across steps, focus, and habit completion.' },
     finance: { label:'Finance', sub:'stress↕',  color: T.amber,   desc: 'Bidirectional stress loop. Financial pressure suppresses mood (dashed = negative edge). Consistent habits and good mood reduce impulse spending.' },
-    steps:   { label:'Steps',   sub:'activity', color: T.emerald, desc: 'Physical movement feeds back into mood and energy, creating a beneficial reinforcement loop. High-energy days produce more steps; those steps lift tomorrow's baseline.' },
+    steps:   { label:'Steps',   sub:'activity', color: T.emerald, desc: 'Physical movement feeds back into mood and energy, creating a beneficial reinforcement loop. High-energy days produce more steps; those steps lift tomorrow\'s baseline.' },
     focus:   { label:'Focus',   sub:'driver',   color: T.violet,  desc: 'Downstream from sleep and energy. Focus is the hidden multiplier for habit execution — low focus is often the real reason behind inconsistent days.' },
     habits:  { label:'Habits',  sub:'compound', color: T.emerald, desc: 'Compound output. Driven by sleep, mood, and focus; feeds back into financial discipline and mood reinforcement. Where life change actually happens.' },
   };
