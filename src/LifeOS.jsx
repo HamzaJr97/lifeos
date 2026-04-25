@@ -797,10 +797,27 @@ const GIST_SYNC_KNOWN_KEYS = [
   'los_projects','los_groceries'
 ];
 
+// Keys inside los_settings that must NEVER leave the device.
+// These are credentials — pushing them to a Gist (even a private one)
+// triggers GitHub's secret-scanning bot which auto-revokes the token.
+const SETTINGS_SECRETS = ['aiApiKey', 'gistToken', 'ollamaHost'];
+
 function buildGistSnapshot() {
   const snap = {};
   GIST_SYNC_KNOWN_KEYS.forEach(k => {
-    try { const v = localStorage.getItem(k); if (v !== null) snap[k] = JSON.parse(v); } catch {}
+    try {
+      const v = localStorage.getItem(k);
+      if (v === null) return;
+      if (k === 'los_settings') {
+        // Deep-clone and strip secrets before including in the snapshot
+        const parsed = JSON.parse(v);
+        const safe = { ...parsed };
+        SETTINGS_SECRETS.forEach(secret => delete safe[secret]);
+        snap[k] = safe;
+      } else {
+        snap[k] = JSON.parse(v);
+      }
+    } catch {}
   });
   snap._syncedAt = new Date().toISOString();
   return snap;
@@ -885,7 +902,21 @@ function useGistAutoSync(data) {
       }
       GIST_SYNC_KNOWN_KEYS.forEach(k => {
         if (d[k] !== undefined) {
-          try { localStorage.setItem(k, JSON.stringify(d[k])); } catch {}
+          try {
+            if (k === 'los_settings') {
+              // Merge pulled settings but keep local secrets intact —
+              // the snapshot was already stripped of them on push.
+              const localRaw = localStorage.getItem('los_settings');
+              const localSettings = localRaw ? JSON.parse(localRaw) : {};
+              const preserved = {};
+              SETTINGS_SECRETS.forEach(secret => {
+                if (localSettings[secret] !== undefined) preserved[secret] = localSettings[secret];
+              });
+              localStorage.setItem(k, JSON.stringify({ ...d[k], ...preserved }));
+            } else {
+              localStorage.setItem(k, JSON.stringify(d[k]));
+            }
+          } catch {}
         }
       });
       const ts = new Date().toLocaleString();
