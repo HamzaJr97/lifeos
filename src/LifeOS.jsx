@@ -165,7 +165,7 @@ import {
       input, textarea, select, .los-textarea { font-size: 16px !important; }
       .los-input { font-size: 16px !important; }
       /* Touch targets — minimum 44px (Apple HIG) for tappable elements */
-      .los-btn { min-height: 44px !important; }
+      .los-btn { min-height: 44px !important; padding: 8px 16px !important; }
       .los-tab { min-height: 44px !important; padding: 8px 13px !important; }
       /* Responsive grids — prevent overflow on 390px screens */
       [style*="minmax(280px"] { grid-template-columns: 1fr !important; }
@@ -1310,14 +1310,15 @@ function Modal({ open, onClose, title, children, wide=false }) {
 // color prop still works for backward compat (treated as custom primary tint)
 const Btn = ({ children, onClick, color, variant, disabled=false, full=false, style={} }) => {
   // Resolve variant → visual config
+  // All variants use ghost/outline style — no filled colour blobs.
   const cfg = (() => {
-    if (variant === 'ghost')     return { bg:'transparent', hoverBg:T.surface, border:`1px solid ${T.border}`, text:T.textSub };
-    if (variant === 'secondary') return { bg:T.surface, hoverBg:T.surfaceHi, border:`1px solid ${T.border}`, text:T.textSub };
-    if (variant === 'danger')    return { bg:`${T.rose}18`, hoverBg:`${T.rose}28`, border:`1px solid ${T.rose}44`, text:T.rose };
-    if (variant === 'success')   return { bg:`${T.emerald}18`, hoverBg:`${T.emerald}28`, border:`1px solid ${T.emerald}44`, text:T.emerald };
-    // 'primary' or legacy color prop
+    if (variant === 'ghost')     return { bg:'transparent', hoverBg:T.surface,          border:`1px solid ${T.border}`,           text:T.textSub,  hoverBorder:T.border };
+    if (variant === 'secondary') return { bg:'transparent', hoverBg:T.surface,          border:`1px solid ${T.border}`,           text:T.textSub,  hoverBorder:T.border };
+    if (variant === 'danger')    return { bg:'transparent', hoverBg:`${T.rose}10`,      border:`1px solid ${T.rose}33`,           text:T.rose,     hoverBorder:`${T.rose}66` };
+    if (variant === 'success')   return { bg:'transparent', hoverBg:`${T.emerald}10`,   border:`1px solid ${T.emerald}33`,        text:T.emerald,  hoverBorder:`${T.emerald}66` };
+    // 'primary' or legacy color prop — ghost with accent border
     const c = color || T.accent;
-    return { bg:`${c}18`, hoverBg:`${c}28`, border:`1px solid ${c}44`, text:c };
+    return { bg:'transparent', hoverBg:`${c}10`, border:`1px solid ${c}33`, text:c, hoverBorder:`${c}66` };
   })();
   return (
     <button
@@ -1325,19 +1326,20 @@ const Btn = ({ children, onClick, color, variant, disabled=false, full=false, st
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding:'10px 20px', borderRadius:T.r,
-        background: disabled ? T.surface : cfg.bg,
+        padding:'6px 14px', borderRadius:T.r,
+        background: disabled ? 'transparent' : cfg.bg,
         color: disabled ? T.textMuted : cfg.text,
         border: disabled ? `1px solid ${T.border}` : cfg.border,
-        fontSize:12, fontFamily:T.fM, fontWeight:600, letterSpacing:'0.04em',
-        width: full ? '100%' : 'auto', minHeight:44,
-        transition:'all 0.18s', display:'inline-flex',
+        fontSize:11, fontFamily:T.fD, fontWeight:500, letterSpacing:'0.01em',
+        width: full ? '100%' : 'auto', minHeight:36,
+        transition:'all 0.15s', display:'inline-flex',
         alignItems:'center', justifyContent:'center', gap:6,
         cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
         ...style
       }}
-      onMouseEnter={e=>{ if(!disabled) e.currentTarget.style.background=cfg.hoverBg; }}
-      onMouseLeave={e=>{ if(!disabled) e.currentTarget.style.background=disabled?T.surface:cfg.bg; }}
+      onMouseEnter={e=>{ if(!disabled){ e.currentTarget.style.background=cfg.hoverBg; e.currentTarget.style.borderColor=cfg.hoverBorder||cfg.border.replace('1px solid ',''); } }}
+      onMouseLeave={e=>{ if(!disabled){ e.currentTarget.style.background=cfg.bg; e.currentTarget.style.borderColor=cfg.border.replace('1px solid ',''); } }}
     >{children}</button>
   );
 };
