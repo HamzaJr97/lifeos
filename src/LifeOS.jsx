@@ -225,7 +225,11 @@ let T = {
   emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
   sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
   text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-  fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace', ──────────────────────────────────────────────────────────
+  fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace',
+  r:'10px', rL:'16px', sw:72,
+};
+
+// ── S5: THEME SYSTEM ──────────────────────────────────────────────────────────
 const THEMES = {
   dark: {
     bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
