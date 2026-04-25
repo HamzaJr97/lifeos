@@ -74,7 +74,7 @@ import {
 
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;600;700;800;900&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
   document.head.appendChild(link);
   const style = document.createElement('style');
   style.textContent = `
@@ -225,11 +225,7 @@ let T = {
   emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
   sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
   text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-  fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
-  r:'10px', rL:'16px', sw:72,
-};
-
-// ── S5: THEME SYSTEM ──────────────────────────────────────────────────────────
+  fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace', ──────────────────────────────────────────────────────────
 const THEMES = {
   dark: {
     bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
@@ -242,7 +238,7 @@ const THEMES = {
     emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
     sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
     text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-    fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
+    fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace',
     r:'10px', rL:'16px', sw:72,
   },
   light: {
@@ -256,7 +252,7 @@ const THEMES = {
     emerald:'#059669', emeraldDim:'rgba(5,150,105,0.12)',
     sky:'#0284c7', skyDim:'rgba(2,132,199,0.12)',
     text:'#1e1e2e', textSub:'#4a4a6a', textMuted:'#9090b0',
-    fD:'Syne, sans-serif', fM:'"IBM Plex Mono", monospace',
+    fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace',
     r:'10px', rL:'16px', sw:72,
   },
 };
@@ -1378,16 +1374,54 @@ const TierLabel = ({ children, color=T.textMuted }) => (
   </div>
 );
 
-// StatCard — uniform KPI card with optional trend indicator
-const StatCard = ({ label, val, sub, color=T.accent, trend=null, onClick=null }) => (
-  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.surface, border:`1px solid ${T.border}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3 }}
+// MiniSparkline — tiny inline SVG trend line for KPI cards
+const MiniSparkline = ({ data=[], color=T.accent, width=64, height=28 }) => {
+  if (!data || data.length < 2) return null;
+  const nums = data.map(Number).filter(n => !isNaN(n));
+  if (nums.length < 2) return null;
+  const mn = Math.min(...nums), mx = Math.max(...nums);
+  const range = mx - mn || 1;
+  const pts = nums.map((v, i) => {
+    const x = (i / (nums.length - 1)) * width;
+    const y = height - ((v - mn) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  // Area fill path
+  const first = `0,${height}`;
+  const last  = `${width},${height}`;
+  const area  = `${first} ${pts} ${last}`;
+  return (
+    <svg width={width} height={height} style={{ display:'block', overflow:'visible' }}>
+      <defs>
+        <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35"/>
+          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#sg-${color.replace('#','')})`} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Last point dot */}
+      {(() => { const last = pts.split(' ').pop(); const [lx,ly] = last.split(','); return <circle cx={lx} cy={ly} r="2.5" fill={color} />; })()}
+    </svg>
+  );
+};
+
+// StatCard — uniform KPI card with embedded sparkline + trend badge
+const StatCard = ({ label, val, sub, color=T.accent, trend=null, onClick=null, sparkline=null }) => (
+  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.surface, border:`1px solid ${T.border}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3, position:'relative', overflow:'hidden' }}
     onMouseEnter={e=>{ if(onClick) e.currentTarget.style.borderColor=color+'44'; }}
     onMouseLeave={e=>{ if(onClick) e.currentTarget.style.borderColor=T.border; }}>
+    {/* Sparkline watermark — bottom-right */}
+    {sparkline && sparkline.length >= 2 && (
+      <div style={{ position:'absolute', bottom:8, right:10, opacity:0.7, pointerEvents:'none' }}>
+        <MiniSparkline data={sparkline} color={color} width={64} height={28} />
+      </div>
+    )}
     <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase' }}>{label}</div>
     <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
       <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color, lineHeight:1.1 }}>{val}</div>
       {trend !== null && (
-        <span style={{ fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.emerald : trend < 0 ? T.rose : T.textMuted, fontWeight:600 }}>
+        <span style={{ display:'inline-flex', alignItems:'center', gap:2, fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.emerald : trend < 0 ? T.rose : T.textMuted, fontWeight:700, padding:'2px 6px', borderRadius:99, background: trend > 0 ? T.emeraldDim : trend < 0 ? T.roseDim : 'transparent' }}>
           {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'}{Math.abs(trend)}%
         </span>
       )}
@@ -5104,19 +5138,60 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         <TierLabel color={T.accent}>Today</TierLabel>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:14 }}>
 
-          {/* Habits strip — primary action widget */}
-          {(habits||[]).length > 0 ? (
             <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.25s both' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Today's Habits &nbsp;<span style={{ color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent }}>({todayDone}/{(habits||[]).length})</span></div>
                 <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>All →</button>
               </div>
+              {/* Radial rings for top 3 habits */}
+              {(habits||[]).length > 0 && (() => {
+                const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                const top3 = (habits||[]).slice(0,3);
+                const r=20, stroke=4, circ=2*Math.PI*r;
+                return (
+                  <div style={{ display:'flex', justifyContent:'center', gap:20, marginBottom:14, paddingBottom:14, borderBottom:`1px solid ${T.border}` }}>
+                    {top3.map((h,i) => {
+                      const done = (habitLogs[h.id]||[]).includes(today());
+                      const streak = getStreak(h.id, habitLogs);
+                      const hc = HCOLORS[i % HCOLORS.length];
+                      // pct: done=100%, else use streak/30 as fill proxy (min 5% if not done)
+                      const pct = done ? 100 : Math.min(90, (streak / 30) * 100);
+                      const dash = (pct/100)*circ;
+                      return (
+                        <button key={h.id} onClick={()=>{ if(!done) actions.logHabit(h.id); }}
+                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, background:'none', border:'none', cursor:done?'default':'pointer', padding:0 }}>
+                          <div style={{ position:'relative', width:54, height:54 }}>
+                            <svg width="54" height="54" viewBox="0 0 54 54" style={{ transform:'rotate(-90deg)' }}>
+                              <circle cx="27" cy="27" r={r} fill="none" stroke={`${hc}22`} strokeWidth={stroke} />
+                              <circle cx="27" cy="27" r={r} fill="none" stroke={hc} strokeWidth={stroke}
+                                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
+                                strokeLinecap="round"
+                                style={{ transition:'stroke-dasharray 0.6s cubic-bezier(0.22,1,0.36,1)' }} />
+                            </svg>
+                            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              {done
+                                ? <span style={{ fontSize:16 }}>✓</span>
+                                : <span style={{ fontSize:13 }}>{h.emoji||'🔥'}</span>
+                              }
+                            </div>
+                          </div>
+                          <div style={{ fontSize:9, fontFamily:T.fM, color:done?hc:T.textSub, textAlign:'center', maxWidth:58, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight:done?700:400 }}>
+                            {h.name.length>8?h.name.slice(0,8)+'…':h.name}
+                          </div>
+                          {streak>0&&<div style={{ fontSize:8, fontFamily:T.fM, color:streak>=7?T.amber:T.textMuted }}>🔥{streak}d</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              {/* Remaining habits as compact rows */}
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {(habits||[]).slice(0,6).map((h,i)=>{
+                {(habits||[]).slice(3,7).map((h,i)=>{
                   const done=((habitLogs[h.id]||[]).includes(today()));
                   const streak=getStreak(h.id,habitLogs);
                   const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                  const hc=HCOLORS[i%HCOLORS.length];
+                  const hc=HCOLORS[(i+3)%HCOLORS.length];
                   return (
                     <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 4px', borderRadius:7, transition:'background 0.15s' }}>
                       <button onClick={()=>{ if(!done) actions.logHabit(h.id); }} style={{ width:22, height:22, borderRadius:6, flexShrink:0, background:done?hc+'22':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.2s' }}
@@ -5963,20 +6038,34 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {tab==='overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {/* ── KPI strip — seamless panel, 1px dividers ── */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
-            {[
-              { label:'Net Worth',    val:`${cur}${fmtN(netWorth)}`,          sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent  },
-              { label:'Income',       val:`${cur}${fmtN(monthInc)}`,           sub:'This month',                                                            color:T.emerald },
-              { label:'Spending',     val:`${cur}${fmtN(monthExp)}`,           sub:monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'—',    color:T.rose    },
-              { label:'Saved',        val:`${savRate.toFixed(1)}%`,             sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} this month`,               color:T.sky     },
-            ].map((m,i) => (
-              <div key={i} style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
-                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1.1 }}>{m.val}</div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+          {(() => {
+            const nwSparkline = (netWorthHistory||[]).slice(-8).map(h=>h.value);
+            const incSparkline = cashflowMonths.slice(-6).map(m=>m.inc);
+            const expSparkline = cashflowMonths.slice(-6).map(m=>m.exp);
+            const savSparkline = cashflowMonths.slice(-6).map(m=>m.inc>0?((m.inc-m.exp)/m.inc)*100:0);
+            const kpis = [
+              { label:'Net Worth',  val:`${cur}${fmtN(netWorth)}`,       sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent,  sparkline:nwSparkline },
+              { label:'Income',     val:`${cur}${fmtN(monthInc)}`,        sub:'This month total',                                                      color:T.emerald, sparkline:incSparkline },
+              { label:'Spending',   val:`${cur}${fmtN(monthExp)}`,        sub:monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'—',   color:T.rose,    sparkline:expSparkline },
+              { label:'Saved',      val:`${savRate.toFixed(1)}%`,          sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved`,                   color:T.sky,     sparkline:savSparkline },
+            ];
+            return (
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
+                {kpis.map((m,i) => (
+                  <div key={i} style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4, position:'relative', overflow:'hidden' }}>
+                    {m.sparkline.length >= 2 && (
+                      <div style={{ position:'absolute', bottom:8, right:10, opacity:0.65, pointerEvents:'none' }}>
+                        <MiniSparkline data={m.sparkline} color={m.color} width={60} height={24} />
+                      </div>
+                    )}
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
+                    <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:m.color, lineHeight:1.1 }}>{m.val}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()}
 
           {/* ── Ghost action buttons — compact, icon + label ── */}
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -6286,20 +6375,31 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               <GlassCard style={{ padding:'20px 22px' }}>
-                <SectionLabel>{lang==='fr'?`Répartition — `:`Breakdown — `}{selectedMonth}</SectionLabel>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart><Pie data={spendByCat} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">{spendByCat.map((e,i)=><Cell key={i} fill={e.color} />)}</Pie><Tooltip content={<ChartTooltip prefix={cur} />} /></PieChart>
-                </ResponsiveContainer>
-                <div style={{ marginTop:10 }}>
-                  {spendByCat.slice(0,5).map((c,i)=>(
-                    <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, padding:'3px 0' }}>
-                      <span style={{ color:T.textSub, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:8,height:8,borderRadius:'50%',background:c.color,display:'inline-block' }} />{c.name}</span>
-                      <span style={{ display:'flex', gap:8, alignItems:'center' }}>
-                        {selMonthInc > 0 && <span style={{ color:T.textMuted, fontSize:9 }}>{((c.value/selMonthInc)*100).toFixed(0)}% income</span>}
-                        <span style={{ color:T.text, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
-                      </span>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
+                  <SectionLabel>{lang==='fr'?`Répartition — `:`By Category — `}{selectedMonth}</SectionLabel>
+                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, fontWeight:600 }}>Total {cur}{fmtN(selMonthExp)}</span>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {spendByCat.slice(0,7).map((c,i) => {
+                    const pct = selMonthExp > 0 ? (c.value / selMonthExp) * 100 : 0;
+                    return (
+                      <div key={i}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                          <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{c.name}</span>
+                          <span style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:c.color }}>{cur}{fmtN(c.value)}</span>
+                        </div>
+                        <div style={{ position:'relative', height:6, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
+                          <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${pct}%`, borderRadius:99, background:`linear-gradient(90deg,${c.color}99,${c.color})`, transition:'width 0.6s cubic-bezier(0.22,1,0.36,1)' }} />
+                        </div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:3 }}>{pct.toFixed(1)}% of spending{selMonthInc>0?` · ${((c.value/selMonthInc)*100).toFixed(0)}% of income`:''}</div>
+                      </div>
+                    );
+                  })}
+                  {spendByCat.length > 7 && (
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, paddingTop:4, borderTop:`1px solid ${T.border}` }}>
+                      +{spendByCat.length-7} more categories · {cur}{fmtN(spendByCat.slice(7).reduce((s,c)=>s+c.value,0))}
                     </div>
-                  ))}
+                  )}
                 </div>
               </GlassCard>
               <GlassCard style={{ padding:'20px 22px' }}>
@@ -7787,6 +7887,73 @@ function HealthPage({ data, actions }) {
               </div>
             </GlassCard>
           )}
+
+          {/* ── Sleep Quality Heatmap — 14 days ──────────────────────────── */}
+          {sorted.length > 0 && (() => {
+            const last14 = sorted.slice(0,14).reverse();
+            const getSleepColor = (hrs) => {
+              const h = Number(hrs||0);
+              if (h === 0) return T.surface;
+              if (h >= 8)   return T.emerald;
+              if (h >= 7)   return T.accent;
+              if (h >= 6)   return T.amber;
+              return T.rose;
+            };
+            const getSleepLabel = (hrs) => {
+              const h = Number(hrs||0);
+              if (h === 0) return 'No data';
+              if (h >= 8)  return '≥8h — Great';
+              if (h >= 7)  return '7–8h — Good';
+              if (h >= 6)  return '6–7h — Fair';
+              return '<6h — Poor';
+            };
+            return (
+              <GlassCard style={{ padding:'18px 20px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                  <div>
+                    <SectionLabel>😴 Sleep Quality · Last 14 Days</SectionLabel>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>hrs / night — color = quality range</div>
+                  </div>
+                  {last14.length>0 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>avg {(last14.filter(v=>v.sleep>0).reduce((s,v)=>s+Number(v.sleep||0),0)/Math.max(1,last14.filter(v=>v.sleep>0).length)).toFixed(1)}h</div>}
+                </div>
+                <div style={{ display:'flex', gap:4, alignItems:'flex-end', marginBottom:10 }}>
+                  {last14.map((v,i) => {
+                    const hrs = Number(v.sleep||0);
+                    const hgt = hrs > 0 ? Math.max(12, Math.min(52, (hrs/10)*52)) : 8;
+                    const color = getSleepColor(hrs);
+                    return (
+                      <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                        <div title={`${v.date}: ${hrs>0?hrs+'h':'No data'}`}
+                          style={{ width:'100%', height:hgt, borderRadius:4, background:hrs>0?color:`${T.border}`, opacity:hrs>0?1:0.35, transition:'height 0.4s ease', cursor:'default', position:'relative' }}
+                          className="los-heat">
+                          {hrs > 0 && <div style={{ position:'absolute', bottom:'100%', left:'50%', transform:'translateX(-50%)', fontSize:8, fontFamily:T.fM, color, marginBottom:2, whiteSpace:'nowrap', fontWeight:700 }}>{hrs}h</div>}
+                        </div>
+                        <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>
+                          {new Date(v.date).toLocaleDateString('en',{weekday:'narrow'})}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Pad empty days if fewer than 14 logged */}
+                  {Array.from({length:Math.max(0,14-last14.length)}).map((_,i)=>(
+                    <div key={`pad-${i}`} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                      <div style={{ width:'100%', height:8, borderRadius:4, background:T.border, opacity:0.2 }} />
+                      <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted }}>—</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Legend */}
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+                  {[[T.emerald,'≥8h'],[T.accent,'7–8h'],[T.amber,'6–7h'],[T.rose,'<6h']].map(([c,l])=>(
+                    <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                      <div style={{ width:8, height:8, borderRadius:2, background:c }} />
+                      <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{l}</span>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            );
+          })()}
 
           {/* ── Sleep Debt tracker ───────────────────────────────────────── */}
           {sleepDebt && (
@@ -16553,22 +16720,22 @@ function AmbientMode({ data, open, onClose }) {
 
         // Value text
         ctx.save(); ctx.globalAlpha = 0.95; ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff'; ctx.font = `700 ${orb.size * 0.34 * pulse}px Syne, sans-serif`;
+        ctx.fillStyle = '#ffffff'; ctx.font = `700 ${orb.size * 0.34 * pulse}px Cabinet Grotesk, sans-serif`;
         ctx.fillText(orb.value, orb.x, orb.y + 5);
-        ctx.fillStyle = orb.color; ctx.font = `400 ${orb.size * 0.19 * pulse}px "IBM Plex Mono", monospace`;
+        ctx.fillStyle = orb.color; ctx.font = `400 ${orb.size * 0.19 * pulse}px "DM Mono", monospace`;
         ctx.fillText(orb.label.toUpperCase(), orb.x, orb.y + orb.size*0.22*pulse + 12);
         ctx.restore();
       });
 
       // Corner watermark
-      ctx.save(); ctx.fillStyle = 'rgba(0,245,212,0.15)'; ctx.font = '700 11px "IBM Plex Mono", monospace'; ctx.textAlign = 'left';
+      ctx.save(); ctx.fillStyle = 'rgba(0,245,212,0.15)'; ctx.font = '700 11px "DM Mono", monospace'; ctx.textAlign = 'left';
       ctx.fillText('LIFE OS  ·  AMBIENT', 24, H-18); ctx.restore();
-      ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.font = '400 10px "IBM Plex Mono", monospace'; ctx.textAlign = 'right';
+      ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.font = '400 10px "DM Mono", monospace'; ctx.textAlign = 'right';
       ctx.fillText(new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}), W-24, H-18); ctx.restore();
 
       // ESC hint
       if (frame < 140) {
-        ctx.save(); ctx.globalAlpha = Math.max(0, (140-frame)/60); ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '400 11px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+        ctx.save(); ctx.globalAlpha = Math.max(0, (140-frame)/60); ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '400 11px "DM Mono", monospace'; ctx.textAlign = 'center';
         ctx.fillText('Press ESC or click anywhere to exit', W/2, H-20); ctx.restore();
       }
 
