@@ -5280,7 +5280,7 @@ function ExpenseAnomalyBanners({ expenses = [], selectedMonth, cur }) {
   );
 }
 
-// ── CASH FLOW WATERFALL CHART ─────────────────────────────────────────────────
+// ── CASH FLOW CHART — compact horizontal bar layout ───────────────────────────
 function CashFlowWaterfallChart({ income, expenses, bills, subscriptions, debts, month, cur }) {
   const FIXED_CATS = new Set(['Rent','Mortgage','Insurance','Utilities','Phone','Internet','Housing','Rent/Mortgage']);
   const monthExp = expenses.filter(e => e.date?.startsWith(month));
@@ -5292,63 +5292,71 @@ function CashFlowWaterfallChart({ income, expenses, bills, subscriptions, debts,
     const n = Number(sub.amount||0);
     return s + (sub.cycle==='yearly' ? n/12 : sub.cycle==='weekly' ? n*4.33 : n);
   }, 0);
-  const debtPmts      = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
-  const totalFixed    = fixedExpenses + billsTotal + subsTotal + debtPmts;
-  const savings       = income - totalFixed - varExpenses;
+  const debtPmts   = debts.reduce((s,d)=>s+Number(d.minPayment||0),0);
+  const totalFixed = fixedExpenses + billsTotal + subsTotal + debtPmts;
+  const totalSpend = totalFixed + varExpenses;
+  const balance    = income - totalSpend;
 
   if (income === 0 && totalFixed === 0 && varExpenses === 0) {
-    return <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log income & expenses to see cash flow waterfall.</div>;
+    return (
+      <div style={{ padding:'28px 0', textAlign:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>
+        Log income & expenses to see cash flow.
+      </div>
+    );
   }
 
-  // Waterfall: income bar, then floating drops, then savings/deficit bar
-  // Each entry: { label, start (bottom of bar), size (height), color, isTotal }
-  const segments = [
-    { label:'Income',   start:0,                         size:income,      color:T.emerald, isTotal:true,  emoji:'💰' },
-    { label:'Fixed',    start:income - totalFixed,       size:totalFixed,  color:T.rose,    isTotal:false, emoji:'🏠' },
-    { label:'Variable', start:income-totalFixed-varExpenses, size:varExpenses, color:T.amber, isTotal:false, emoji:'🛒' },
-    { label:savings>=0?'Saved':'Deficit', start:0, size:Math.abs(savings), color:savings>=0?T.accent:T.rose, isTotal:true, emoji:savings>=0?'💎':'📉' },
-  ].filter(s => s.size > 0);
+  const maxVal = Math.max(income, totalSpend, 1);
 
-  const maxVal = income || 1;
+  const rows = [
+    { label:'Income',   value:income,      color:T.emerald, pct:(income/maxVal)*100 },
+    { label:'Fixed',    value:totalFixed,  color:T.rose,    pct:(totalFixed/maxVal)*100 },
+    { label:'Variable', value:varExpenses, color:T.amber,   pct:(varExpenses/maxVal)*100 },
+    { label:balance>=0?'Saved':'Deficit', value:Math.abs(balance), color:balance>=0?T.accent:T.rose, pct:(Math.abs(balance)/maxVal)*100 },
+  ].filter(r => r.value > 0);
 
   return (
-    <div>
-      <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:160, position:'relative', padding:'0 4px' }}>
-        {/* Y-axis guide lines */}
-        {[0,0.25,0.5,0.75,1].map(pct => (
-          <div key={pct} style={{ position:'absolute', left:0, right:0, bottom:`${pct*100}%`, borderTop:`1px dashed ${T.border}`, pointerEvents:'none', zIndex:0 }} />
-        ))}
-        {segments.map((seg, i) => {
-          const bottomPct  = (seg.start / maxVal) * 100;
-          const heightPct  = (seg.size / maxVal) * 100;
-          const isNeg      = !seg.isTotal;
-          return (
-            <div key={i} style={{ flex:1, position:'relative', height:'100%', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:1 }}>
-              <div style={{ position:'absolute', bottom:`${Math.max(0,bottomPct)}%`, width:'72%', height:`${Math.max(1,heightPct)}%`, background:`linear-gradient(180deg,${seg.color}cc,${seg.color}88)`, borderRadius:'4px 4px 2px 2px', border:`1px solid ${seg.color}55`, minHeight:4, display:'flex', alignItems:'center', justifyContent:'center', overflow:'visible' }}>
-                {/* Connector line to next bar (for non-total bars) */}
-                {isNeg && i < segments.length-1 && (
-                  <div style={{ position:'absolute', bottom:0, right:'-28%', width:'56%', height:1, background:`${seg.color}44`, borderBottom:`1px dashed ${seg.color}55` }} />
-                )}
-              </div>
-              <div style={{ position:'absolute', bottom:`${Math.max(0,bottomPct+heightPct)}%`, left:'50%', transform:'translateX(-50%)', whiteSpace:'nowrap', fontSize:9, fontFamily:T.fM, fontWeight:600, color:seg.color, marginBottom:2, textAlign:'center' }}>
-                {seg.emoji} {cur}{fmtN(Math.round(seg.size))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ display:'flex', gap:6, marginTop:8 }}>
-        {segments.map((seg,i) => (
-          <div key={i} style={{ flex:1, textAlign:'center', fontSize:9, fontFamily:T.fM, color:T.textSub }}>{seg.label}</div>
-        ))}
-      </div>
-      {/* Breakdown detail row */}
-      {(billsTotal + subsTotal + debtPmts) > 0 && (
-        <div style={{ marginTop:10, padding:'8px 12px', background:T.surface, borderRadius:T.r, border:`1px solid ${T.border}`, display:'flex', gap:12, flexWrap:'wrap' }}>
-          {billsTotal > 0 && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>🧾 Bills <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(billsTotal))}</span></span>}
-          {subsTotal > 0  && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>🔄 Subs <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(subsTotal))}</span></span>}
-          {debtPmts > 0   && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>💳 Debt pmts <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(debtPmts))}</span></span>}
-          {fixedExpenses>0&& <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>🏠 Fixed exp <span style={{ color:T.rose }}>{cur}{fmtN(Math.round(fixedExpenses))}</span></span>}
+    <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+      {rows.map((row, i) => (
+        <div key={i} style={{ display:'grid', gridTemplateColumns:'68px 1fr 72px', gap:10, alignItems:'center' }}>
+          <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'right', letterSpacing:'0.06em', textTransform:'uppercase' }}>
+            {row.label}
+          </span>
+          <div style={{ height:20, borderRadius:4, background:`${row.color}0a`, border:`1px solid ${row.color}18`, overflow:'hidden', position:'relative' }}>
+            <div style={{ position:'absolute', left:0, top:3, bottom:3, width:`${Math.max(row.pct,1)}%`, borderRadius:3, background:`${row.color}55`, transition:'width 0.5s ease' }} />
+          </div>
+          <span style={{ fontSize:11, fontFamily:T.fM, color:row.color, fontWeight:600, textAlign:'right' }}>
+            {cur}{fmtN(Math.round(row.value))}
+          </span>
+        </div>
+      ))}
+
+      {/* Breakdown pills */}
+      {(billsTotal + subsTotal + debtPmts + fixedExpenses) > 0 && (
+        <div style={{ display:'flex', gap:14, paddingTop:10, marginTop:2, borderTop:`1px solid ${T.border}`, flexWrap:'wrap' }}>
+          {billsTotal > 0 && (
+            <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:T.sky, display:'inline-block', flexShrink:0 }} />
+              Bills {cur}{fmtN(Math.round(billsTotal))}
+            </span>
+          )}
+          {subsTotal > 0 && (
+            <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:T.violet, display:'inline-block', flexShrink:0 }} />
+              Subs {cur}{fmtN(Math.round(subsTotal))}
+            </span>
+          )}
+          {debtPmts > 0 && (
+            <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:T.emerald, display:'inline-block', flexShrink:0 }} />
+              Debt pmts {cur}{fmtN(Math.round(debtPmts))}
+            </span>
+          )}
+          {fixedExpenses > 0 && (
+            <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:T.rose, display:'inline-block', flexShrink:0 }} />
+              Fixed exp {cur}{fmtN(Math.round(fixedExpenses))}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -5952,21 +5960,46 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
 
       {tab==='overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
-            {[{ label:'Net Worth', val:`${cur}${fmtN(netWorth)}`, sub:`Assets ${cur}${fmtN(assetVal+invVal)} - Debts ${cur}${fmtN(debtVal)}`, color:T.accent }, { label:'Monthly Income', val:`${cur}${fmtN(monthInc)}`, sub:'This month total', color:T.emerald }, { label:'Monthly Spend', val:`${cur}${fmtN(monthExp)}`, sub:`${monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'Track income to compare'}`, color:T.rose }, { label:'Savings Rate', val:`${savRate.toFixed(1)}%`, sub:`${cur}${fmtN(monthInc-monthExp)} saved`, color:T.sky }].map((m,i)=>(
-              <StatCard key={i} label={m.label} val={m.val} sub={m.sub} color={m.color} />
+          {/* ── KPI strip — seamless panel, 1px dividers ── */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
+            {[
+              { label:'Net Worth',    val:`${cur}${fmtN(netWorth)}`,          sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent  },
+              { label:'Income',       val:`${cur}${fmtN(monthInc)}`,           sub:'This month',                                                            color:T.emerald },
+              { label:'Spending',     val:`${cur}${fmtN(monthExp)}`,           sub:monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'—',    color:T.rose    },
+              { label:'Saved',        val:`${savRate.toFixed(1)}%`,             sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} this month`,               color:T.sky     },
+            ].map((m,i) => (
+              <div key={i} style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4 }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
+                <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1.1 }}>{m.val}</div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+              </div>
             ))}
           </div>
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-            <Btn onClick={()=>setModal('expense')} color={T.rose}>{lang==='fr'?'+ Dépense':' + Log Expense'}</Btn>
-            <Btn onClick={()=>setReceiptScannerOpen(true)} color={T.amber}>🧾 Scan Receipt</Btn>
-            <Btn onClick={()=>setModal('income')} color={T.emerald}>{lang==='fr'?'+ Revenu':' + Log Income'}</Btn>
-            <Btn onClick={()=>setModal('asset')} color={T.accent}>+ Add Asset</Btn>
-            <Btn onClick={()=>setModal('debt')} color={T.rose}>+ Add Debt</Btn>
-            <Btn onClick={()=>onOpenMonthlyReview?.()} color={T.violet}>📅 Monthly Review</Btn>
+
+          {/* ── Ghost action buttons — compact, icon + label ── */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {[
+              { label:lang==='fr'?'Dépense':'Expense',       color:T.rose,    onClick:()=>setModal('expense'),          icon:<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></> },
+              { label:'Scan',                                 color:T.amber,   onClick:()=>setReceiptScannerOpen(true),  icon:<><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></> },
+              { label:lang==='fr'?'Revenu':'Income',          color:T.emerald, onClick:()=>setModal('income'),           icon:<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></> },
+              { label:'Asset',                                color:T.accent,  onClick:()=>setModal('asset'),            icon:<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
+              { label:'Debt',                                 color:T.rose,    onClick:()=>setModal('debt'),             icon:<><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></> },
+              { label:'Review',                               color:T.violet,  onClick:()=>onOpenMonthlyReview?.(),     icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></> },
+            ].map((btn, i) => (
+              <button key={i} onClick={btn.onClick} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 13px', borderRadius:8, fontSize:11, fontFamily:T.fD, fontWeight:500, border:`1px solid ${btn.color}33`, color:btn.color, background:'transparent', cursor:'pointer', transition:'all 0.15s', minHeight:36 }}
+                onMouseEnter={e=>{ e.currentTarget.style.background=`${btn.color}12`; e.currentTarget.style.borderColor=`${btn.color}66`; }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor=`${btn.color}33`; }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{btn.icon}</svg>
+                {btn.label}
+              </button>
+            ))}
           </div>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Cash Flow Waterfall — {selectedMonth}</SectionLabel>
+
+          <GlassCard style={{ padding:'16px 18px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <span style={{ fontSize:9, fontFamily:T.fM, letterSpacing:'0.1em', color:T.textMuted, textTransform:'uppercase' }}>Cash Flow</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:T.accentDim, padding:'2px 8px', borderRadius:4, border:`1px solid ${T.accent}22` }}>{selectedMonth}</span>
+            </div>
             <CashFlowWaterfallChart
               income={selMonthInc}
               expenses={expenses}
