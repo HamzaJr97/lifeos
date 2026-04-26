@@ -74,7 +74,7 @@ import {
 
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;600;700;800;900&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
   document.head.appendChild(link);
   const style = document.createElement('style');
   style.textContent = `
@@ -225,7 +225,7 @@ let T = {
   emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
   sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
   text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-  fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace',
+  fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace',
   r:'10px', rL:'16px', sw:72,
 };
 
@@ -242,7 +242,7 @@ const THEMES = {
     emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
     sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
     text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-    fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace',
+    fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace',
     r:'10px', rL:'16px', sw:72,
   },
   light: {
@@ -256,7 +256,7 @@ const THEMES = {
     emerald:'#059669', emeraldDim:'rgba(5,150,105,0.12)',
     sky:'#0284c7', skyDim:'rgba(2,132,199,0.12)',
     text:'#1e1e2e', textSub:'#4a4a6a', textMuted:'#9090b0',
-    fD:'"Cabinet Grotesk", sans-serif', fM:'"DM Mono", monospace',
+    fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace',
     r:'10px', rL:'16px', sw:72,
   },
 };
@@ -1378,54 +1378,16 @@ const TierLabel = ({ children, color=T.textMuted }) => (
   </div>
 );
 
-// MiniSparkline — tiny inline SVG trend line for KPI cards
-const MiniSparkline = ({ data=[], color=T.accent, width=64, height=28 }) => {
-  if (!data || data.length < 2) return null;
-  const nums = data.map(Number).filter(n => !isNaN(n));
-  if (nums.length < 2) return null;
-  const mn = Math.min(...nums), mx = Math.max(...nums);
-  const range = mx - mn || 1;
-  const pts = nums.map((v, i) => {
-    const x = (i / (nums.length - 1)) * width;
-    const y = height - ((v - mn) / range) * (height - 4) - 2;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  // Area fill path
-  const first = `0,${height}`;
-  const last  = `${width},${height}`;
-  const area  = `${first} ${pts} ${last}`;
-  return (
-    <svg width={width} height={height} style={{ display:'block', overflow:'visible' }}>
-      <defs>
-        <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35"/>
-          <stop offset="100%" stopColor={color} stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      <polygon points={area} fill={`url(#sg-${color.replace('#','')})`} />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      {/* Last point dot */}
-      {(() => { const last = pts.split(' ').pop(); const [lx,ly] = last.split(','); return <circle cx={lx} cy={ly} r="2.5" fill={color} />; })()}
-    </svg>
-  );
-};
-
-// StatCard — uniform KPI card with embedded sparkline + trend badge
-const StatCard = ({ label, val, sub, color=T.accent, trend=null, onClick=null, sparkline=null }) => (
-  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.surface, border:`1px solid ${T.border}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3, position:'relative', overflow:'hidden' }}
+// StatCard — uniform KPI card with optional trend indicator
+const StatCard = ({ label, val, sub, color=T.accent, trend=null, onClick=null }) => (
+  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.surface, border:`1px solid ${T.border}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3 }}
     onMouseEnter={e=>{ if(onClick) e.currentTarget.style.borderColor=color+'44'; }}
     onMouseLeave={e=>{ if(onClick) e.currentTarget.style.borderColor=T.border; }}>
-    {/* Sparkline watermark — bottom-right */}
-    {sparkline && sparkline.length >= 2 && (
-      <div style={{ position:'absolute', bottom:8, right:10, opacity:0.7, pointerEvents:'none' }}>
-        <MiniSparkline data={sparkline} color={color} width={64} height={28} />
-      </div>
-    )}
     <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase' }}>{label}</div>
     <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
       <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color, lineHeight:1.1 }}>{val}</div>
       {trend !== null && (
-        <span style={{ display:'inline-flex', alignItems:'center', gap:2, fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.emerald : trend < 0 ? T.rose : T.textMuted, fontWeight:700, padding:'2px 6px', borderRadius:99, background: trend > 0 ? T.emeraldDim : trend < 0 ? T.roseDim : 'transparent' }}>
+        <span style={{ fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.emerald : trend < 0 ? T.rose : T.textMuted, fontWeight:600 }}>
           {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'}{Math.abs(trend)}%
         </span>
       )}
@@ -5142,60 +5104,19 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         <TierLabel color={T.accent}>Today</TierLabel>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:14 }}>
 
+          {/* Habits strip — primary action widget */}
+          {(habits||[]).length > 0 ? (
             <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.25s both' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                 <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Today's Habits &nbsp;<span style={{ color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent }}>({todayDone}/{(habits||[]).length})</span></div>
                 <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>All →</button>
               </div>
-              {/* Radial rings for top 3 habits */}
-              {(habits||[]).length > 0 && (() => {
-                const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                const top3 = (habits||[]).slice(0,3);
-                const r=20, stroke=4, circ=2*Math.PI*r;
-                return (
-                  <div style={{ display:'flex', justifyContent:'center', gap:20, marginBottom:14, paddingBottom:14, borderBottom:`1px solid ${T.border}` }}>
-                    {top3.map((h,i) => {
-                      const done = (habitLogs[h.id]||[]).includes(today());
-                      const streak = getStreak(h.id, habitLogs);
-                      const hc = HCOLORS[i % HCOLORS.length];
-                      // pct: done=100%, else use streak/30 as fill proxy (min 5% if not done)
-                      const pct = done ? 100 : Math.min(90, (streak / 30) * 100);
-                      const dash = (pct/100)*circ;
-                      return (
-                        <button key={h.id} onClick={()=>{ if(!done) actions.logHabit(h.id); }}
-                          style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, background:'none', border:'none', cursor:done?'default':'pointer', padding:0 }}>
-                          <div style={{ position:'relative', width:54, height:54 }}>
-                            <svg width="54" height="54" viewBox="0 0 54 54" style={{ transform:'rotate(-90deg)' }}>
-                              <circle cx="27" cy="27" r={r} fill="none" stroke={`${hc}22`} strokeWidth={stroke} />
-                              <circle cx="27" cy="27" r={r} fill="none" stroke={hc} strokeWidth={stroke}
-                                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
-                                strokeLinecap="round"
-                                style={{ transition:'stroke-dasharray 0.6s cubic-bezier(0.22,1,0.36,1)' }} />
-                            </svg>
-                            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                              {done
-                                ? <span style={{ fontSize:16 }}>✓</span>
-                                : <span style={{ fontSize:13 }}>{h.emoji||'🔥'}</span>
-                              }
-                            </div>
-                          </div>
-                          <div style={{ fontSize:9, fontFamily:T.fM, color:done?hc:T.textSub, textAlign:'center', maxWidth:58, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight:done?700:400 }}>
-                            {h.name.length>8?h.name.slice(0,8)+'…':h.name}
-                          </div>
-                          {streak>0&&<div style={{ fontSize:8, fontFamily:T.fM, color:streak>=7?T.amber:T.textMuted }}>🔥{streak}d</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-              {/* Remaining habits as compact rows */}
               <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {(habits||[]).slice(3,7).map((h,i)=>{
+                {(habits||[]).slice(0,6).map((h,i)=>{
                   const done=((habitLogs[h.id]||[]).includes(today()));
                   const streak=getStreak(h.id,habitLogs);
                   const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                  const hc=HCOLORS[(i+3)%HCOLORS.length];
+                  const hc=HCOLORS[i%HCOLORS.length];
                   return (
                     <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 4px', borderRadius:7, transition:'background 0.15s' }}>
                       <button onClick={()=>{ if(!done) actions.logHabit(h.id); }} style={{ width:22, height:22, borderRadius:6, flexShrink:0, background:done?hc+'22':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.2s' }}
@@ -5357,6 +5278,87 @@ function ExpenseAnomalyBanners({ expenses = [], selectedMonth, cur }) {
           <button onClick={() => setDismissed(d => ({...d, [a.cat]:true}))} style={{ padding:4, borderRadius:6, background:'rgba(255,255,255,0.06)', border:`1px solid ${T.border}`, color:T.textMuted, fontSize:11, minWidth:24, minHeight:24, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── LOS TABLE — Notion-style table, mobile-first ──────────────────────────────
+// Columns: [{ key, label, width?, mono?, color?, align? }]
+// rows: array of objects
+// onEdit / onDelete: optional row action callbacks
+// stickyKey: key of the column to pin left on mobile (default: first col)
+function LOSTable({ columns=[], rows=[], onEdit, onDelete, onExtra, extraIcon, extraTitle, emptyMsg='No data.', sortable=true }) {
+  const [sortKey, setSortKey] = React.useState(null);
+  const [sortDir, setSortDir] = React.useState('asc');
+
+  const sorted = React.useMemo(() => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
+      const av = a[sortKey], bv = b[sortKey];
+      const an = parseFloat(av), bn = parseFloat(bv);
+      const cmp = (!isNaN(an) && !isNaN(bn)) ? an - bn : String(av||'').localeCompare(String(bv||''));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [rows, sortKey, sortDir]);
+
+  const toggleSort = (key) => {
+    if (!sortable) return;
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  };
+
+  const hasActions = onEdit || onDelete || onExtra;
+  const TH = ({ col }) => (
+    <th onClick={() => col.sortable !== false && toggleSort(col.key)}
+      style={{ padding:'8px 10px', textAlign: col.align||'left', fontSize:9, fontFamily:T.fM,
+        letterSpacing:'0.1em', textTransform:'uppercase', color: sortKey===col.key ? T.accent : T.textMuted,
+        fontWeight:500, whiteSpace:'nowrap', borderBottom:`1px solid ${T.border}`,
+        background:T.bg1, cursor:sortable&&col.sortable!==false?'pointer':'default',
+        userSelect:'none', position:'sticky', top:0, zIndex:1 }}>
+      {col.label}{sortKey===col.key ? (sortDir==='asc'?' ↑':' ↓') : ''}
+    </th>
+  );
+
+  if (rows.length === 0) return (
+    <div style={{ padding:'24px 0', textAlign:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{emptyMsg}</div>
+  );
+
+  return (
+    <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch', borderRadius:T.r, border:`1px solid ${T.border}` }}>
+      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+        <thead>
+          <tr>
+            {columns.map(col => <TH key={col.key} col={col} />)}
+            {hasActions && <th style={{ padding:'8px 10px', background:T.bg1, borderBottom:`1px solid ${T.border}`, width:hasActions?72:0, position:'sticky', top:0 }} />}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row, i) => (
+            <tr key={row.id||i}
+              style={{ background: i%2===0 ? 'transparent' : T.surface, transition:'background 0.1s' }}
+              onMouseEnter={e=>e.currentTarget.style.background=T.surfaceHi}
+              onMouseLeave={e=>e.currentTarget.style.background=i%2===0?'transparent':T.surface}>
+              {columns.map(col => (
+                <td key={col.key} style={{ padding:'9px 10px', borderBottom:`1px solid ${T.border}33`,
+                  fontFamily: col.mono ? T.fM : T.fD, color: col.color ? (typeof col.color==='function' ? col.color(row[col.key], row) : col.color) : T.text,
+                  textAlign: col.align||'left', whiteSpace:'nowrap', maxWidth: col.width||200,
+                  overflow:'hidden', textOverflow:'ellipsis', fontSize: col.mono ? 11 : 12 }}>
+                  {col.render ? col.render(row[col.key], row) : (row[col.key] ?? '—')}
+                </td>
+              ))}
+              {hasActions && (
+                <td style={{ padding:'6px 8px', borderBottom:`1px solid ${T.border}33`, textAlign:'right', whiteSpace:'nowrap' }}>
+                  <div style={{ display:'flex', gap:4, justifyContent:'flex-end' }}>
+                    {onExtra && <button onClick={()=>onExtra(row)} title={extraTitle||'Action'} style={{ padding:'3px 6px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', fontSize:10 }}>{extraIcon||'···'}</button>}
+                    {onEdit && <button onClick={()=>onEdit(row)} style={{ padding:'3px 6px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoPencil size={11} stroke={T.sky} /></button>}
+                    {onDelete && <button onClick={()=>onDelete(row)} style={{ padding:'3px 6px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoTrash size={11} stroke={T.rose} /></button>}
+                  </div>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -6042,34 +6044,31 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {tab==='overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {/* ── KPI strip — seamless panel, 1px dividers ── */}
-          {(() => {
-            const nwSparkline = (netWorthHistory||[]).slice(-8).map(h=>h.value);
-            const incSparkline = cashflowMonths.slice(-6).map(m=>m.inc);
-            const expSparkline = cashflowMonths.slice(-6).map(m=>m.exp);
-            const savSparkline = cashflowMonths.slice(-6).map(m=>m.inc>0?((m.inc-m.exp)/m.inc)*100:0);
-            const kpis = [
-              { label:'Net Worth',  val:`${cur}${fmtN(netWorth)}`,       sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent,  sparkline:nwSparkline },
-              { label:'Income',     val:`${cur}${fmtN(monthInc)}`,        sub:'This month total',                                                      color:T.emerald, sparkline:incSparkline },
-              { label:'Spending',   val:`${cur}${fmtN(monthExp)}`,        sub:monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'—',   color:T.rose,    sparkline:expSparkline },
-              { label:'Saved',      val:`${savRate.toFixed(1)}%`,          sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved`,                   color:T.sky,     sparkline:savSparkline },
-            ];
-            return (
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
-                {kpis.map((m,i) => (
-                  <div key={i} style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4, position:'relative', overflow:'hidden' }}>
-                    {m.sparkline.length >= 2 && (
-                      <div style={{ position:'absolute', bottom:8, right:10, opacity:0.65, pointerEvents:'none' }}>
-                        <MiniSparkline data={m.sparkline} color={m.color} width={60} height={24} />
-                      </div>
-                    )}
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
-                    <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:m.color, lineHeight:1.1 }}>{m.val}</div>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
+            {[
+              { label:'Net Worth',    val:`${cur}${fmtN(netWorth)}`,          sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent,   sparkData:[180,210,195,280,320,netWorth].map(v=>v||0)  },
+              { label:'Income',       val:`${cur}${fmtN(monthInc)}`,           sub:'This month',                                                            color:T.emerald,  sparkData:[...Array(5).fill(0), monthInc]              },
+              { label:'Spending',     val:`${cur}${fmtN(monthExp)}`,           sub:monthInc>0?`${((monthExp/monthInc)*100).toFixed(0)}% of income`:'—',    color:T.rose,     sparkData:[...Array(5).fill(0), monthExp]              },
+              { label:'Saved',        val:`${savRate.toFixed(1)}%`,             sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} this month`,               color:T.sky,      sparkData:[...Array(5).fill(0), Math.max(0,savRate)]  },
+            ].map((m,i) => {
+              const sd = m.sparkData.filter(v=>v>0);
+              const mx = Math.max(...sd, 1);
+              const pts = sd.map((v,j)=>`${(j/(sd.length-1||1))*72},${18-(v/mx)*14}`).join(' ');
+              return (
+                <div key={i} style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4, position:'relative', overflow:'hidden' }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
+                  <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1.1 }}>{m.val}</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
+                  {sd.length > 1 && (
+                    <svg width="72" height="20" viewBox="0 0 72 20" style={{ position:'absolute', bottom:8, right:10, opacity:0.45 }}>
+                      <polyline points={pts} fill="none" stroke={m.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <circle cx={(sd.length-1)/(sd.length-1||1)*72} cy={18-(sd[sd.length-1]/mx)*14} r="2" fill={m.color}/>
+                    </svg>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
           {/* ── Ghost action buttons — compact, icon + label ── */}
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -6379,31 +6378,20 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               <GlassCard style={{ padding:'20px 22px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:16 }}>
-                  <SectionLabel>{lang==='fr'?`Répartition — `:`By Category — `}{selectedMonth}</SectionLabel>
-                  <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, fontWeight:600 }}>Total {cur}{fmtN(selMonthExp)}</span>
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {spendByCat.slice(0,7).map((c,i) => {
-                    const pct = selMonthExp > 0 ? (c.value / selMonthExp) * 100 : 0;
-                    return (
-                      <div key={i}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
-                          <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{c.name}</span>
-                          <span style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:c.color }}>{cur}{fmtN(c.value)}</span>
-                        </div>
-                        <div style={{ position:'relative', height:6, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
-                          <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${pct}%`, borderRadius:99, background:`linear-gradient(90deg,${c.color}99,${c.color})`, transition:'width 0.6s cubic-bezier(0.22,1,0.36,1)' }} />
-                        </div>
-                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:3 }}>{pct.toFixed(1)}% of spending{selMonthInc>0?` · ${((c.value/selMonthInc)*100).toFixed(0)}% of income`:''}</div>
-                      </div>
-                    );
-                  })}
-                  {spendByCat.length > 7 && (
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, paddingTop:4, borderTop:`1px solid ${T.border}` }}>
-                      +{spendByCat.length-7} more categories · {cur}{fmtN(spendByCat.slice(7).reduce((s,c)=>s+c.value,0))}
+                <SectionLabel>{lang==='fr'?`Répartition — `:`Breakdown — `}{selectedMonth}</SectionLabel>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart><Pie data={spendByCat} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">{spendByCat.map((e,i)=><Cell key={i} fill={e.color} />)}</Pie><Tooltip content={<ChartTooltip prefix={cur} />} /></PieChart>
+                </ResponsiveContainer>
+                <div style={{ marginTop:10 }}>
+                  {spendByCat.slice(0,5).map((c,i)=>(
+                    <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, fontFamily:T.fM, padding:'3px 0' }}>
+                      <span style={{ color:T.textSub, display:'flex', alignItems:'center', gap:5 }}><span style={{ width:8,height:8,borderRadius:'50%',background:c.color,display:'inline-block' }} />{c.name}</span>
+                      <span style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        {selMonthInc > 0 && <span style={{ color:T.textMuted, fontSize:9 }}>{((c.value/selMonthInc)*100).toFixed(0)}% income</span>}
+                        <span style={{ color:T.text, fontWeight:600 }}>{cur}{fmtN(c.value)}</span>
+                      </span>
                     </div>
-                  )}
+                  ))}
                 </div>
               </GlassCard>
               <GlassCard style={{ padding:'20px 22px' }}>
@@ -6430,37 +6418,36 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               : selMonthExpenses.filter(e => e.category === spendCatFilter);
             const visibleTotal = visibleExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
             return (
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+          <GlassCard style={{ padding:'16px 18px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <SectionLabel>
                 {spendCatFilter === '__all__' ? `All Expenses — ${selectedMonth} (${selMonthExpenses.length})` : `${spendCatFilter} — ${selectedMonth} (${visibleExpenses.length})`}
               </SectionLabel>
               <span style={{ fontSize:12, fontFamily:T.fM, color:T.rose, fontWeight:700 }}>{cur}{fmtN(visibleTotal)}</span>
             </div>
-            {visibleExpenses.length===0 ? (
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:20 }}>
-                {spendCatFilter === '__all__' ? `No expenses for ${selectedMonth}.` : `No "${spendCatFilter}" expenses for ${selectedMonth}.`}
-              </div>
-            ) : visibleExpenses.map((e,i)=>(
-              <div key={e.id||i} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<selMonthExpenses.length-1?`1px solid ${T.border}`:'none' }}>
-                <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
-                  <div style={{ width:8, height:8, borderRadius:'50%', background:getCatColor(e.category), flexShrink:0 }} />
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.note||e.category}</div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{e.category}{e.subcategory?` · ${e.subcategory}`:''} · {e.date}{e.regret&&<span title="Regret" style={{ marginLeft:6 }}>🤦</span>}{e.autoLogged&&<span title="Auto-logged" style={{ marginLeft:4, color:T.sky }}>🔄</span>}</div>
-                  </div>
-                </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                  <span style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.rose }}>-{cur}{fmtN(e.amount)}</span>
-                  <button onClick={()=>setSplitExpense(e)} title="Split expense" style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5, fontSize:10 }}>✂️</button>
-                  <button onClick={()=>setEditExpense(e)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={11} stroke={T.sky} /></button>
-                  <button onClick={()=>actions.removeExpense(e.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
-                </div>
-              </div>
-            ))}
+            <LOSTable
+              columns={[
+                { key:'category', label:'Category', width:130, render:(v,row)=>(
+                  <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ width:7, height:7, borderRadius:'50%', background:getCatColor(v), display:'inline-block', flexShrink:0 }}/>
+                    <span style={{ fontSize:11, color:T.textSub, overflow:'hidden', textOverflow:'ellipsis' }}>{v}</span>
+                  </span>
+                )},
+                { key:'note', label:'Description', render:(v,row)=><span style={{ color:T.text, fontFamily:T.fD }}>{v||row.category}</span> },
+                { key:'date', label:'Date', mono:true, color:T.textSub, width:90 },
+                { key:'amount', label:'Amount', mono:true, align:'right', color:T.rose, width:90, render:(v)=>`-${cur}${fmtN(v)}` },
+              ]}
+              rows={visibleExpenses}
+              onEdit={setEditExpense}
+              onDelete={e=>actions.removeExpense(e.id)}
+              onExtra={setSplitExpense}
+              extraIcon="✂️"
+              extraTitle="Split expense"
+              emptyMsg={spendCatFilter === '__all__' ? `No expenses for ${selectedMonth}.` : `No "${spendCatFilter}" expenses for ${selectedMonth}.`}
+            />
             {visibleExpenses.length>0 && (
-              <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM }}>
-                <span style={{ color:T.textSub }}>{visibleExpenses.length} transaction{visibleExpenses.length!==1?'s':''}{spendCatFilter!=='__all__'?` · ${spendCatFilter}`:''}</span>
+              <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:T.fM }}>
+                <span style={{ color:T.textSub }}>{visibleExpenses.length} transaction{visibleExpenses.length!==1?'s':''}</span>
                 <span style={{ color:T.rose, fontWeight:700 }}>{cur}{fmtN(visibleTotal)} total</span>
               </div>
             )}
@@ -6470,27 +6457,23 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
 
           {/* Income list for selected month */}
           {(() => { const selMonthIncomes = [...incomes].filter(i=>i.date?.startsWith(selectedMonth)).sort((a,b)=>a.date<b.date?1:-1); return selMonthIncomes.length > 0 && (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <GlassCard style={{ padding:'16px 18px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
                 <SectionLabel>Income — {selectedMonth} ({selMonthIncomes.length})</SectionLabel>
                 <span style={{ fontSize:12, fontFamily:T.fM, color:T.emerald, fontWeight:700 }}>{cur}{fmtN(selMonthInc)}</span>
               </div>
-              {selMonthIncomes.map((inc,i)=>(
-                <div key={inc.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'9px 0', borderBottom:i<selMonthIncomes.length-1?`1px solid ${T.border}`:'none' }}>
-                  <div style={{ display:'flex', gap:10, alignItems:'center', flex:1, minWidth:0 }}>
-                    <div style={{ width:8, height:8, borderRadius:'50%', background:T.emerald, flexShrink:0 }} />
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{inc.note||'Income'}</div>
-                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{inc.date}{inc.recurring?` · 🔄 ${inc.frequency}`:''}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                    <span style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.emerald }}>+{cur}{fmtN(inc.amount)}</span>
-                    <button onClick={()=>setEditIncome(inc)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={11} stroke={T.sky} /></button>
-                    <button onClick={()=>actions.removeIncome(inc.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={11} stroke={T.rose} /></button>
-                  </div>
-                </div>
-              ))}
+              <LOSTable
+                columns={[
+                  { key:'note', label:'Description', render:(v)=><span style={{ color:T.text, fontFamily:T.fD }}>{v||'Income'}</span> },
+                  { key:'date', label:'Date', mono:true, color:T.textSub, width:90 },
+                  { key:'frequency', label:'Recurring', width:90, render:(v,row)=>row.recurring?<span style={{ fontSize:9, fontFamily:T.fM, color:T.sky, background:T.skyDim, padding:'2px 6px', borderRadius:4 }}>{v}</span>:'—' },
+                  { key:'amount', label:'Amount', mono:true, align:'right', color:T.emerald, width:90, render:(v)=>`+${cur}${fmtN(v)}` },
+                ]}
+                rows={selMonthIncomes}
+                onEdit={setEditIncome}
+                onDelete={inc=>actions.removeIncome(inc.id)}
+                emptyMsg={`No income for ${selectedMonth}.`}
+              />
             </GlassCard>
           ); })()}
 
@@ -7892,73 +7875,6 @@ function HealthPage({ data, actions }) {
             </GlassCard>
           )}
 
-          {/* ── Sleep Quality Heatmap — 14 days ──────────────────────────── */}
-          {sorted.length > 0 && (() => {
-            const last14 = sorted.slice(0,14).reverse();
-            const getSleepColor = (hrs) => {
-              const h = Number(hrs||0);
-              if (h === 0) return T.surface;
-              if (h >= 8)   return T.emerald;
-              if (h >= 7)   return T.accent;
-              if (h >= 6)   return T.amber;
-              return T.rose;
-            };
-            const getSleepLabel = (hrs) => {
-              const h = Number(hrs||0);
-              if (h === 0) return 'No data';
-              if (h >= 8)  return '≥8h — Great';
-              if (h >= 7)  return '7–8h — Good';
-              if (h >= 6)  return '6–7h — Fair';
-              return '<6h — Poor';
-            };
-            return (
-              <GlassCard style={{ padding:'18px 20px' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                  <div>
-                    <SectionLabel>😴 Sleep Quality · Last 14 Days</SectionLabel>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>hrs / night — color = quality range</div>
-                  </div>
-                  {last14.length>0 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>avg {(last14.filter(v=>v.sleep>0).reduce((s,v)=>s+Number(v.sleep||0),0)/Math.max(1,last14.filter(v=>v.sleep>0).length)).toFixed(1)}h</div>}
-                </div>
-                <div style={{ display:'flex', gap:4, alignItems:'flex-end', marginBottom:10 }}>
-                  {last14.map((v,i) => {
-                    const hrs = Number(v.sleep||0);
-                    const hgt = hrs > 0 ? Math.max(12, Math.min(52, (hrs/10)*52)) : 8;
-                    const color = getSleepColor(hrs);
-                    return (
-                      <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
-                        <div title={`${v.date}: ${hrs>0?hrs+'h':'No data'}`}
-                          style={{ width:'100%', height:hgt, borderRadius:4, background:hrs>0?color:`${T.border}`, opacity:hrs>0?1:0.35, transition:'height 0.4s ease', cursor:'default', position:'relative' }}
-                          className="los-heat">
-                          {hrs > 0 && <div style={{ position:'absolute', bottom:'100%', left:'50%', transform:'translateX(-50%)', fontSize:8, fontFamily:T.fM, color, marginBottom:2, whiteSpace:'nowrap', fontWeight:700 }}>{hrs}h</div>}
-                        </div>
-                        <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>
-                          {new Date(v.date).toLocaleDateString('en',{weekday:'narrow'})}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {/* Pad empty days if fewer than 14 logged */}
-                  {Array.from({length:Math.max(0,14-last14.length)}).map((_,i)=>(
-                    <div key={`pad-${i}`} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
-                      <div style={{ width:'100%', height:8, borderRadius:4, background:T.border, opacity:0.2 }} />
-                      <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted }}>—</div>
-                    </div>
-                  ))}
-                </div>
-                {/* Legend */}
-                <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
-                  {[[T.emerald,'≥8h'],[T.accent,'7–8h'],[T.amber,'6–7h'],[T.rose,'<6h']].map(([c,l])=>(
-                    <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                      <div style={{ width:8, height:8, borderRadius:2, background:c }} />
-                      <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{l}</span>
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            );
-          })()}
-
           {/* ── Sleep Debt tracker ───────────────────────────────────────── */}
           {sleepDebt && (
             <GlassCard style={{ padding:'16px 18px', border:`1px solid ${sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:T.sky}33`, background:`${sleepDebt.status==='severe'?T.rose:sleepDebt.status==='high'?T.amber:T.sky}05` }}>
@@ -8634,38 +8550,42 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
           {(habits||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits yet. Create your first habit to start building streaks.</div></GlassCard>
           ) : (
-            (habits||[]).map((habit,i)=>{ const streak=getStreak(habit.id,habitLogs); const done=(habitLogs[habit.id]||[]).includes(d); const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald]; const hc=HCOLORS[i%HCOLORS.length]; return (
-              <GlassCard key={habit.id||i} style={{ padding:'16px 20px', animation:`fadeUp 0.3s ease ${i*0.06}s both` }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                  <div style={{ width:40, height:40, borderRadius:T.r, flexShrink:0, background:hc+'18', border:`1px solid ${hc}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{habit.emoji||'🔥'}</div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                      <div>
-                        <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text }}>{habit.name}</span>
-                        {habit.frequency && habit.frequency !== 'daily' && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginLeft:8 }}>{habit.frequency}</span>}
-                      </div>
-                      <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                        <span style={{ fontSize:11, fontFamily:T.fM, color:hc }}>🔥 {streak}d</span>
-                        {habit.xp && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>+{habit.xp}xp</span>}
-                        {done ? <Badge color={hc}>✓ Done</Badge> : <Btn onClick={()=>actions.logHabit(habit.id)} color={hc} style={{ padding:'4px 12px' }}>Log</Btn>}
-                        <button onClick={()=>setEditHabit(habit)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoPencil size={11} stroke={T.sky} /></button>
-                        <button onClick={()=>actions.removeHabit(habit.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={11} stroke={T.rose} /></button>
-                      </div>
-                    </div>
-                    <ProgressBar pct={(streak/Math.max(streak,30))*100} color={hc} height={4} />
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>Total logs: {(habitLogs[habit.id]||[]).length}{habit.category && <span style={{ marginLeft:8, background:hc+'22', color:hc, borderRadius:99, padding:'1px 6px', fontSize:8 }}>{habit.category}</span>}</div>
-                    <div style={{ display:'flex', gap:3, marginTop:8, alignItems:'center' }}>
-                      <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginRight:2 }}>7d:</span>
-                      {Array.from({length:7},(_,i)=>{ const d2=new Date(); d2.setDate(d2.getDate()-6+i); const ds=d2.toISOString().slice(0,10); const done2=(habitLogs[habit.id]||[]).includes(ds); return (
-                        <div key={ds} title={ds} style={{ width:14, height:14, borderRadius:3, background:done2?hc+'55':T.surface, border:`1px solid ${done2?hc+'66':T.border}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                          {done2 && <span style={{ fontSize:7, color:hc }}>✓</span>}
-                        </div>
-                      ); })}
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            ); })
+            <GlassCard style={{ padding:'16px 18px' }}>
+              <SectionLabel style={{ marginBottom:12 }}>All Habits</SectionLabel>
+              <LOSTable
+                columns={[
+                  { key:'name', label:'Habit', render:(v,row)=>{
+                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                    const hc=HCOLORS[(habits||[]).findIndex(h=>h.id===row.id)%HCOLORS.length];
+                    return <span style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      <span style={{ fontSize:15 }}>{row.emoji||'🔥'}</span>
+                      <span style={{ fontFamily:T.fD, fontWeight:600, color:T.text }}>{v}</span>
+                      {row.category && <span style={{ fontSize:8, fontFamily:T.fM, color:hc, background:hc+'18', borderRadius:99, padding:'1px 6px' }}>{row.category}</span>}
+                    </span>;
+                  }},
+                  { key:'frequency', label:'Freq', width:70, render:(v)=><span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{v||'daily'}</span> },
+                  { key:'id', label:'Streak', mono:true, width:70, sortable:false, render:(_,row)=>{
+                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                    const hc=HCOLORS[(habits||[]).findIndex(h=>h.id===row.id)%HCOLORS.length];
+                    const s=getStreak(row.id,habitLogs);
+                    return <span style={{ color:s>0?hc:T.textMuted, fontWeight:s>=7?700:400 }}>🔥 {s}d</span>;
+                  }},
+                  { key:'xp', label:'XP', mono:true, width:55, align:'right', render:(v)=><span style={{ color:T.violet }}>+{v||10}</span> },
+                  { key:'id', label:'Today', width:80, sortable:false, align:'center', render:(_,row)=>{
+                    const done=(habitLogs[row.id]||[]).includes(d);
+                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                    const hc=HCOLORS[(habits||[]).findIndex(h=>h.id===row.id)%HCOLORS.length];
+                    return done
+                      ? <Badge color={hc}>✓ Done</Badge>
+                      : <button onClick={()=>actions.logHabit(row.id)} style={{ padding:'3px 10px', borderRadius:6, fontSize:10, fontFamily:T.fD, fontWeight:500, border:`1px solid ${hc}44`, color:hc, background:'transparent', cursor:'pointer' }}>Log</button>;
+                  }},
+                ]}
+                rows={habits||[]}
+                onEdit={setEditHabit}
+                onDelete={h=>actions.removeHabit(h.id)}
+                emptyMsg="No habits yet."
+              />
+            </GlassCard>
           )}
         </div>
       )}
@@ -8690,37 +8610,49 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
           {(goals||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No goals yet. Create your first goal to start tracking progress.</div></GlassCard>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
-              {[...(goals||[])].sort((a,b)=>{
-                const ORDER = { dead:0, stalled:1, new:2, active:3, done:4 };
-                return (ORDER[getGoalMomentum(a).tier]||2) - (ORDER[getGoalMomentum(b).tier]||2);
-              }).map((goal,i)=>{ const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100)); const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.violet; const ms=goal.milestones||[]; const momentum=getGoalMomentum(goal); return (
-                <GlassCard key={goal.id||i} style={{ padding:'18px 20px', border:`1px solid ${momentum.tier==='dead'?T.rose+'33':momentum.tier==='stalled'?T.amber+'22':'rgba(255,255,255,0.07)'}` }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                    <div style={{ fontSize:20, marginBottom:6 }}>{goal.emoji||'🎯'}</div>
-                    <div style={{ display:'flex', gap:5, alignItems:'center' }}>
-                      <span style={{ fontSize:8, fontFamily:T.fM, color:momentum.color, background:`${momentum.color}15`, border:`1px solid ${momentum.color}33`, borderRadius:99, padding:'2px 7px', whiteSpace:'nowrap' }}>
-                        {momentum.label}{momentum.daysSince!=null ? ` · ${momentum.daysSince}d ago` : ''}
-                      </span>
-                      <button onClick={()=>setEditGoal(goal)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.6 }} title="Edit goal"><IcoPencil size={11} stroke={T.sky} /></button>
-                      <button onClick={()=>actions.removeGoal(goal.id)} style={{ padding:4, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.4 }}><IcoTrash size={11} stroke={T.rose} /></button>
-                    </div>
-                  </div>
-                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{goal.name}</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>{cur}{fmtN(goal.current||0)} / {cur}{fmtN(goal.target)} · {pct}%{goal.deadline?` · Due ${goal.deadline}`:''}</div>
-                  <MilestoneProgressBar pct={pct} color={c} height={6} milestones={ms} />
-                  {pct>=100 && <div style={{ marginTop:8, fontSize:11, fontFamily:T.fM, color:T.emerald }}>🎉 Completed!</div>}
-                  {ms.length > 0 && pct < 100 && (() => { const next = ms.find(m => (pct||0) < m.pct); return next ? <div style={{ fontSize:9, fontFamily:T.fM, color:c, marginTop:8 }}>Next milestone: {next.label} at {next.pct}%</div> : null; })()}
-                  {goal.deadline && pct < 100 && (() => {
-                    const remaining = goal.target - (goal.current||0);
-                    const daysLeft = Math.max(1, Math.round((new Date(goal.deadline) - new Date()) / 86400000));
-                    const monthsLeft = Math.max(0.1, daysLeft/30.44);
-                    const perMonth = remaining / monthsLeft;
-                    return <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:6 }}>💡 Need {cur}{fmtN(perMonth)}/mo to hit deadline</div>;
-                  })()}
-                </GlassCard>
-              ); })}
-            </div>
+            <GlassCard style={{ padding:'16px 18px' }}>
+              <LOSTable
+                columns={[
+                  { key:'name', label:'Goal', render:(v,row)=>(
+                    <span style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      <span style={{ fontSize:15 }}>{row.emoji||'🎯'}</span>
+                      <span style={{ fontFamily:T.fD, fontWeight:600, color:T.text }}>{v}</span>
+                    </span>
+                  )},
+                  { key:'cat', label:'Cat', width:70, render:(v)=>{
+                    const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};
+                    const c=catColors[v]||T.violet;
+                    return <span style={{ fontSize:9, fontFamily:T.fM, color:c, background:c+'18', borderRadius:99, padding:'2px 7px' }}>{v||'—'}</span>;
+                  }},
+                  { key:'current', label:'Progress', width:160, sortable:false, render:(v,row)=>{
+                    const pct=Math.min(100,Math.round(((row.current||0)/Math.max(1,row.target))*100));
+                    const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber};
+                    const c=catColors[row.cat]||T.violet;
+                    const momentum=getGoalMomentum(row);
+                    return (
+                      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM }}>
+                          <span style={{ color:T.textSub }}>{pct}%</span>
+                          <span style={{ color:momentum.color }}>{momentum.label.split(' ')[0]}</span>
+                        </div>
+                        <div style={{ height:4, borderRadius:2, background:T.border, overflow:'hidden' }}>
+                          <div style={{ height:'100%', width:`${pct}%`, background:c, borderRadius:2, transition:'width 0.4s' }}/>
+                        </div>
+                      </div>
+                    );
+                  }},
+                  { key:'target', label:'Target', mono:true, align:'right', width:90, render:(v,row)=>`${row.current||0}/${v}` },
+                  { key:'deadline', label:'Deadline', mono:true, width:100, color:T.textSub, render:(v)=>v||'—' },
+                ]}
+                rows={[...(goals||[])].sort((a,b)=>{
+                  const ORDER={dead:0,stalled:1,new:2,active:3,done:4};
+                  return (ORDER[getGoalMomentum(a).tier]||2)-(ORDER[getGoalMomentum(b).tier]||2);
+                })}
+                onEdit={setEditGoal}
+                onDelete={g=>actions.removeGoal(g.id)}
+                emptyMsg="No goals yet."
+              />
+            </GlassCard>
           )}
         </div>
       )}
@@ -16724,7 +16656,7 @@ function AmbientMode({ data, open, onClose }) {
 
         // Value text
         ctx.save(); ctx.globalAlpha = 0.95; ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff'; ctx.font = `700 ${orb.size * 0.34 * pulse}px Cabinet Grotesk, sans-serif`;
+        ctx.fillStyle = '#ffffff'; ctx.font = `700 ${orb.size * 0.34 * pulse}px "Cabinet Grotesk", sans-serif`;
         ctx.fillText(orb.value, orb.x, orb.y + 5);
         ctx.fillStyle = orb.color; ctx.font = `400 ${orb.size * 0.19 * pulse}px "DM Mono", monospace`;
         ctx.fillText(orb.label.toUpperCase(), orb.x, orb.y + orb.size*0.22*pulse + 12);
