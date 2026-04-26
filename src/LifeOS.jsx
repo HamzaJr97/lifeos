@@ -9148,6 +9148,622 @@ function BookCard({ b, onUpdate, onRemove }) {
   );
 }
 
+// ── NOTION-STYLE PROJECTS VIEW ───────────────────────────────────────────────
+function NotionProjectsView({ data, actions }) {
+  const { projects = [] } = data;
+  const lang = useLang();
+  const [view, setView]           = useState('board');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch]       = useState('');
+  const [expandedId, setExpandedId] = useState(null);
+  const [taskInputs, setTaskInputs] = useState({});
+  const [draft, setDraft]         = useState(null);
+  const [draftTask, setDraftTask] = useState('');
+  const draftTaskRef = useRef(null);
+
+  const COLORS = [T.accent, T.violet, T.amber, T.rose, T.emerald, T.sky, '#c084fc'];
+
+  const getStatus = (proj) => {
+    const tasks = proj.tasks||[];
+    if (!tasks.length) return 'planning';
+    if (tasks.every(t=>t.done)) return 'done';
+    if (tasks.some(t=>t.done)) return 'inprogress';
+    return 'todo';
+  };
+
+  const STATUS_META = {
+    planning:   { label:'Planning',     color:T.violet,  bg:`${T.violet}18`,  emoji:'🗂' },
+    todo:       { label:'To Do',        color:T.textSub, bg:T.surface,         emoji:'○' },
+    inprogress: { label:'In Progress',  color:T.amber,   bg:`${T.amber}18`,   emoji:'◑' },
+    done:       { label:'Done',         color:T.emerald, bg:`${T.emerald}18`, emoji:'●' },
+  };
+
+  const filteredProjects = useMemo(() => {
+    const q = search.toLowerCase();
+    return projects.filter(p => {
+      if (statusFilter !== 'all' && getStatus(p) !== statusFilter) return false;
+      if (q && !(p.name||'').toLowerCase().includes(q) && !(p.desc||'').toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [projects, statusFilter, search]);
+
+  const COLUMNS = ['planning','todo','inprogress','done'];
+
+  const startDraft = () => setDraft({ name:'', desc:'', color:T.violet, due:'', tasks:[] });
+  const cancelDraft = () => { setDraft(null); setDraftTask(''); };
+  const addDraftTask = () => {
+    const txt = draftTask.trim(); if (!txt) return;
+    setDraft(d => ({ ...d, tasks:[...d.tasks, { id:Date.now(), text:txt, done:false }] }));
+    setDraftTask(''); setTimeout(()=>draftTaskRef.current?.focus(), 0);
+  };
+  const saveDraft = () => {
+    if (!draft || !draft.name.trim()) return;
+    actions.addProject({ name:draft.name.trim(), desc:draft.desc.trim(), color:draft.color, due:draft.due, tasks:draft.tasks });
+    setDraft(null); setDraftTask('');
+  };
+  const addTask = (projId) => {
+    const txt = (taskInputs[projId]||'').trim(); if (!txt) return;
+    actions.addTask(projId, { text:txt });
+    setTaskInputs(p => ({ ...p, [projId]:'' }));
+  };
+
+  // ── Reusable Project Card ──────────────────────────────────────────────────
+  const ProjectCard = ({ proj, compact }) => {
+    const tasks = proj.tasks||[];
+    const doneCnt = tasks.filter(t=>t.done).length;
+    const pct = tasks.length>0 ? Math.round((doneCnt/tasks.length)*100) : 0;
+    const isExp = expandedId===proj.id;
+    const overdue = proj.due && new Date(proj.due)<new Date() && pct<100;
+    const sm = STATUS_META[getStatus(proj)];
+
+    return (
+      <div style={{ borderRadius:10, background:T.surface, border:`1px solid ${proj.color}33`, overflow:'hidden', transition:'all 0.15s' }}
+        onMouseEnter={e=>e.currentTarget.style.borderColor=`${proj.color}66`}
+        onMouseLeave={e=>e.currentTarget.style.borderColor=`${proj.color}33`}>
+        {/* Color stripe */}
+        <div style={{ height:3, background:`linear-gradient(90deg,${proj.color},${proj.color}44)` }} />
+        <div style={{ padding: compact?'12px 14px':'16px 18px' }}>
+          {/* Header row */}
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:8 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, wordBreak:'break-word' }}>{proj.name}</div>
+              {proj.desc && !compact && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:3, lineHeight:1.5 }}>{proj.desc}</div>}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+              {overdue && <span style={{ fontSize:8, fontFamily:T.fM, color:T.rose, background:T.roseDim, padding:'2px 7px', borderRadius:4 }}>⚠ Overdue</span>}
+              <span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 8px', borderRadius:99, background:sm.bg, color:sm.color }}>{sm.emoji} {sm.label}</span>
+              <button onClick={()=>actions.removeProject(proj.id)} style={{ padding:'2px 5px', borderRadius:5, background:'transparent', border:'none', opacity:0.35, cursor:'pointer' }}><IcoTrash size={10} stroke={T.rose} /></button>
+            </div>
+          </div>
+          {/* Progress bar */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:isExp?12:0 }}>
+            <div style={{ flex:1, height:5, borderRadius:5, background:`${T.border}88`, overflow:'hidden' }}>
+              <div style={{ width:`${pct}%`, height:'100%', background:pct===100?T.emerald:proj.color, borderRadius:5, transition:'width 0.4s ease' }} />
+            </div>
+            <span style={{ fontSize:9, fontFamily:T.fM, color:pct===100?T.emerald:T.textSub, minWidth:30 }}>{pct===100?'✓':pct+'%'}</span>
+            {proj.due && <span style={{ fontSize:9, fontFamily:T.fM, color:overdue?T.rose:T.textMuted }}>📅 {proj.due}</span>}
+            <button onClick={()=>setExpandedId(isExp?null:proj.id)}
+              style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, background:T.bg2, border:`1px solid ${T.border}`, borderRadius:5, cursor:'pointer', padding:'2px 8px', flexShrink:0 }}>
+              {tasks.length} tasks {isExp?'▲':'▼'}
+            </button>
+          </div>
+          {/* Expanded tasks */}
+          {isExp && (
+            <div style={{ animation:'slideDown 0.2s ease' }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
+                {tasks.length===0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, padding:'6px 0' }}>No tasks yet.</div>}
+                {tasks.map(task=>(
+                  <div key={task.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:7, background:task.done?`${proj.color}08`:'transparent', transition:'background 0.15s' }}>
+                    <button onClick={()=>actions.toggleTask(proj.id,task.id)}
+                      style={{ width:16, height:16, borderRadius:4, border:`2px solid ${task.done?proj.color:T.border}`, background:task.done?proj.color:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, cursor:'pointer', transition:'all 0.15s' }}>
+                      {task.done && <span style={{ fontSize:8, color:T.bg, fontWeight:700 }}>✓</span>}
+                    </button>
+                    <span style={{ flex:1, fontSize:12, fontFamily:T.fM, color:task.done?T.textMuted:T.text, textDecoration:task.done?'line-through':'none' }}>{task.text}</span>
+                    <button onClick={()=>actions.removeTask(proj.id,task.id)} style={{ padding:'2px 4px', background:'none', border:'none', opacity:0.35, cursor:'pointer', fontSize:10, color:T.textMuted }}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:7 }}>
+                <input className="los-input" value={taskInputs[proj.id]||''} onChange={e=>setTaskInputs(p=>({...p,[proj.id]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addTask(proj.id)} placeholder="New task… (Enter)"
+                  style={{ flex:1, background:T.bg2, border:`1px solid ${T.border}`, borderRadius:7, padding:'7px 11px', color:T.text, fontSize:12, fontFamily:T.fM }} />
+                <Btn color={proj.color} onClick={()=>addTask(proj.id)} style={{ padding:'7px 13px' }}>+</Btn>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ── Draft form ─────────────────────────────────────────────────────────────
+  const DraftForm = () => (
+    <div style={{ borderRadius:10, background:T.surface, border:`1px solid ${draft.color}55`, padding:'16px 18px', animation:'fadeUp 0.2s ease', gridColumn: view==='board'?'1/-1':undefined }}>
+      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:draft.color, marginBottom:14 }}>✏️ New Project</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:14 }}>
+        <input autoFocus className="los-input" value={draft.name} onChange={e=>setDraft(d=>({...d,name:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&draftTaskRef.current?.focus()} placeholder="Project name…"
+          style={{ background:T.bg2, border:`1px solid ${draft.color}44`, borderRadius:8, padding:'10px 13px', color:T.text, fontSize:14, fontWeight:600, width:'100%' }} />
+        <textarea className="los-textarea" value={draft.desc} onChange={e=>setDraft(d=>({...d,desc:e.target.value}))} placeholder="Description (optional)…" rows={2} />
+        <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+          <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Color:</span>
+          {COLORS.map(c=>(
+            <button key={c} onClick={()=>setDraft(d=>({...d,color:c}))} style={{ width:20, height:20, borderRadius:'50%', background:c, border:draft.color===c?`3px solid ${T.text}`:'3px solid transparent', cursor:'pointer', flexShrink:0, transition:'border 0.12s' }} />
+          ))}
+          <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginLeft:4 }}>Due:</span>
+          <input type="date" value={draft.due} onChange={e=>setDraft(d=>({...d,due:e.target.value}))} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 9px', color:T.text, fontSize:11, fontFamily:T.fM }} />
+        </div>
+      </div>
+      <div style={{ borderTop:`1px solid ${T.border}`, paddingTop:12, marginBottom:12 }}>
+        <div style={{ fontSize:9, fontFamily:T.fM, color:draft.color, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:8 }}>📋 Tasks</div>
+        {draft.tasks.map(t=>(
+          <div key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', borderRadius:6, background:T.bg2, marginBottom:4 }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:draft.color }} />
+            <span style={{ flex:1, fontSize:12, fontFamily:T.fM, color:T.text }}>{t.text}</span>
+            <button onClick={()=>setDraft(d=>({...d,tasks:d.tasks.filter(x=>x.id!==t.id)}))} style={{ fontSize:11, color:T.textMuted, background:'none', border:'none', cursor:'pointer', opacity:0.6 }}>✕</button>
+          </div>
+        ))}
+        <div style={{ display:'flex', gap:7, marginTop:4 }}>
+          <input ref={draftTaskRef} className="los-input" value={draftTask} onChange={e=>setDraftTask(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addDraftTask()} placeholder="Add a task… (Enter)"
+            style={{ flex:1, background:T.bg2, border:`1px solid ${T.border}`, borderRadius:7, padding:'7px 11px', color:T.text, fontSize:12, fontFamily:T.fM }} />
+          <Btn color={draft.color} onClick={addDraftTask} style={{ padding:'7px 12px' }}>+</Btn>
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:8 }}>
+        <Btn color={draft.color} onClick={saveDraft} style={{ opacity:draft.name.trim()?1:0.4, pointerEvents:draft.name.trim()?'auto':'none' }}>
+          ✓ Create{draft.tasks.length>0?` (${draft.tasks.length} tasks)`:''}
+        </Btn>
+        <Btn onClick={cancelDraft} style={{ background:'transparent', border:`1px solid ${T.border}`, color:T.textSub }}>Cancel</Btn>
+      </div>
+    </div>
+  );
+
+  const statusCounts = useMemo(()=>{
+    const c = {all:projects.length, planning:0, todo:0, inprogress:0, done:0};
+    projects.forEach(p=>{ c[getStatus(p)]=(c[getStatus(p)]||0)+1; }); return c;
+  }, [projects]);
+
+  return (
+    <div style={{ display:'flex', gap:0 }}>
+      {/* Sidebar */}
+      {sidebarOpen && (
+        <div style={{ width:185, flexShrink:0, borderRight:`1px solid ${T.border}`, paddingRight:14, marginRight:18 }}>
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>Workspace</div>
+          {[['all','📋','All Projects'],['planning','🗂','Planning'],['todo','○','To Do'],['inprogress','◑','In Progress'],['done','●','Done']].map(([id,icon,label]) => (
+            <button key={id} onClick={()=>setStatusFilter(id)}
+              style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'6px 10px', borderRadius:6, background:statusFilter===id?(id==='all'?T.accentDim:`${STATUS_META[id]?.color||T.accent}18`):'transparent', border:'none', cursor:'pointer', transition:'all 0.12s', marginBottom:2 }}
+              onMouseEnter={e=>{ if(statusFilter!==id) e.currentTarget.style.background=T.surface; }}
+              onMouseLeave={e=>{ if(statusFilter!==id) e.currentTarget.style.background='transparent'; }}>
+              <span style={{ fontSize:id==='all'?14:11, color:id==='all'?T.accent:(STATUS_META[id]?.color||T.textSub) }}>{icon}</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:statusFilter===id?(id==='all'?T.accent:(STATUS_META[id]?.color||T.text)):T.textSub, fontWeight:statusFilter===id?600:400, flex:1, textAlign:'left' }}>{label}</span>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>{statusCounts[id]||0}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Main */}
+      <div style={{ flex:1, minWidth:0 }}>
+        {/* Toolbar */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+          <button onClick={()=>setSidebarOpen(v=>!v)} style={{ padding:'5px 8px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:13, cursor:'pointer' }}>☰</button>
+          <div style={{ flex:1, position:'relative', minWidth:120 }}>
+            <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search projects…"
+              style={{ width:'100%', padding:'7px 12px 7px 30px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:8, fontFamily:T.fM, fontSize:12, color:T.text }} />
+          </div>
+          <div style={{ display:'flex', background:T.surface, borderRadius:8, border:`1px solid ${T.border}`, overflow:'hidden' }}>
+            {[['board','⊞ Board'],['list','≡ List'],['table','⊟ Table']].map(([v,l],vi)=>(
+              <button key={v} onClick={()=>setView(v)} style={{ padding:'6px 12px', background:view===v?`${T.violet}22`:'transparent', color:view===v?T.violet:T.textSub, border:'none', borderRight:vi<2?`1px solid ${T.border}`:'none', cursor:'pointer', fontSize:10, fontFamily:T.fM, fontWeight:view===v?700:400, transition:'all 0.15s' }}>{l}</button>
+            ))}
+          </div>
+          {!draft && <Btn color={T.violet} onClick={startDraft}>+ New Project</Btn>}
+        </div>
+
+        {/* Board view */}
+        {view === 'board' && (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:12 }}>
+            {draft && <DraftForm />}
+            {COLUMNS.map(colId => {
+              const sm = STATUS_META[colId];
+              const colProjects = filteredProjects.filter(p=>getStatus(p)===colId);
+              return (
+                <div key={colId} style={{ background:`${T.surface}88`, borderRadius:10, border:`1px solid ${T.border}`, padding:'12px 10px', minHeight:200 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, padding:'0 2px' }}>
+                    <span style={{ fontSize:13, color:sm.color }}>{sm.emoji}</span>
+                    <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:sm.color }}>{sm.label}</span>
+                    <span style={{ marginLeft:'auto', fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.bg2, padding:'1px 7px', borderRadius:99, border:`1px solid ${T.border}` }}>{colProjects.length}</span>
+                  </div>
+                  {colProjects.length===0 && <div style={{ padding:'20px 12px', textAlign:'center', fontSize:9, fontFamily:T.fM, color:T.textMuted, opacity:0.5 }}>Empty</div>}
+                  {colProjects.map(proj=>(
+                    <div key={proj.id} style={{ marginBottom:8 }}><ProjectCard proj={proj} compact /></div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* List view */}
+        {view === 'list' && (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {draft && <DraftForm />}
+            {filteredProjects.length===0 && !draft && (
+              <div style={{ padding:'60px 20px', textAlign:'center' }}>
+                <div style={{ fontSize:36, marginBottom:12 }}>📋</div>
+                <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No projects</div>
+                <Btn color={T.violet} onClick={startDraft}>+ New Project</Btn>
+              </div>
+            )}
+            {filteredProjects.map(proj=><ProjectCard key={proj.id} proj={proj} />)}
+          </div>
+        )}
+
+        {/* Table view */}
+        {view === 'table' && (
+          <div style={{ border:`1px solid ${T.border}`, borderRadius:10, overflow:'hidden' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 100px 90px 80px 80px 50px', background:T.bg2, padding:'8px 14px', borderBottom:`1px solid ${T.border}` }}>
+              {['Project','Status','Progress','Tasks','Due',''].map((h,hi)=>(
+                <div key={hi} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>{h}</div>
+              ))}
+            </div>
+            {draft && (
+              <div style={{ padding:'14px', borderBottom:`1px solid ${T.border}` }}>
+                <DraftForm />
+              </div>
+            )}
+            {filteredProjects.map((proj,i)=>{
+              const tasks=proj.tasks||[]; const doneCnt=tasks.filter(t=>t.done).length;
+              const pct=tasks.length>0?Math.round((doneCnt/tasks.length)*100):0;
+              const sm=STATUS_META[getStatus(proj)]; const overdue=proj.due&&new Date(proj.due)<new Date()&&pct<100;
+              return (
+                <div key={proj.id}
+                  style={{ display:'grid', gridTemplateColumns:'1fr 100px 90px 80px 80px 50px', padding:'10px 14px', borderBottom:i<filteredProjects.length-1?`1px solid ${T.border}66`:'none', transition:'background 0.12s', cursor:'default' }}
+                  onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                    <div style={{ width:10, height:10, borderRadius:'50%', background:proj.color, flexShrink:0 }} />
+                    <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{proj.name}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center' }}>
+                    <span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:sm.bg, color:sm.color }}>{sm.emoji} {sm.label}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <div style={{ flex:1, height:4, borderRadius:4, background:T.bg2, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background:pct===100?T.emerald:proj.color, borderRadius:4, transition:'width 0.4s' }} />
+                    </div>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:pct===100?T.emerald:T.textSub }}>{pct}%</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{doneCnt}/{tasks.length}</span></div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, color:overdue?T.rose:T.textMuted }}>{proj.due||'—'}</span></div>
+                  <div style={{ display:'flex', alignItems:'center' }}><button onClick={()=>actions.removeProject(proj.id)} style={{ padding:'2px 4px', background:'transparent', border:'none', opacity:0.35, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button></div>
+                </div>
+              );
+            })}
+            {!draft && (
+              <div onClick={startDraft}
+                style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', cursor:'pointer', opacity:0.5, transition:'opacity 0.15s' }}
+                onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='0.5'}>
+                <span style={{ fontSize:14, color:T.textMuted }}>+</span>
+                <span style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>New project</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── NOTION-STYLE BOOKS VIEW ───────────────────────────────────────────────────
+function NotionBooksView({ books, onAdd, onUpdatePages, onRemove }) {
+  const [view, setView]             = useState('gallery');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch]         = useState('');
+  const [showForm, setShowForm]     = useState(false);
+  const [bkTitle, setBkTitle]       = useState('');
+  const [bkAuthor, setBkAuthor]     = useState('');
+  const [bkTotal, setBkTotal]       = useState('');
+  const [bkRead, setBkRead]         = useState('');
+  const [bkStartDate, setBkStartDate] = useState(today());
+  const [editingId, setEditingId]   = useState(null);
+  const [editPages, setEditPages]   = useState({});
+
+  const getStatus = (b) => {
+    if (!b.totalPages) return 'reading';
+    if (b.pagesRead >= b.totalPages) return 'done';
+    if (b.pagesRead > 0) return 'reading';
+    return 'notstarted';
+  };
+
+  const STATUS_META = {
+    notstarted: { label:'Not Started', color:T.textSub,  bg:T.surface,         emoji:'📚' },
+    reading:    { label:'Reading',     color:T.sky,       bg:`${T.sky}18`,      emoji:'📖' },
+    done:       { label:'Finished',    color:T.emerald,   bg:`${T.emerald}18`,  emoji:'✅' },
+  };
+
+  const getBookColor = (b) => {
+    const s = getStatus(b);
+    return s==='done'?T.emerald:s==='reading'?T.sky:T.textSub;
+  };
+  const getPct = (b) => b.totalPages>0 ? Math.round((b.pagesRead/b.totalPages)*100) : 0;
+  const getPace = (b) => {
+    const days = b.startDate ? Math.max(1,Math.ceil((new Date()-new Date(b.startDate))/86400000)) : 1;
+    return b.pagesRead>0 ? (b.pagesRead/days).toFixed(1) : '—';
+  };
+  const getDaysLeft = (b) => {
+    const pace = parseFloat(getPace(b));
+    return b.totalPages>0 && pace>0 && b.pagesRead<b.totalPages ? Math.ceil((b.totalPages-b.pagesRead)/pace) : null;
+  };
+
+  const statusCounts = useMemo(()=>{
+    const c={all:books.length,notstarted:0,reading:0,done:0};
+    books.forEach(b=>{ c[getStatus(b)]=(c[getStatus(b)]||0)+1; }); return c;
+  },[books]);
+
+  const filteredBooks = useMemo(()=>{
+    const q = search.toLowerCase();
+    return books.filter(b=>{
+      if (statusFilter!=='all' && getStatus(b)!==statusFilter) return false;
+      if (q && !(b.title||'').toLowerCase().includes(q) && !(b.author||'').toLowerCase().includes(q)) return false;
+      return true;
+    }).sort((a,z)=>getPct(z)-getPct(a));
+  },[books,statusFilter,search]);
+
+  const handleAddBook = () => {
+    if (!bkTitle.trim()) return;
+    const total=Number(bkTotal)||0; const read=Math.min(Number(bkRead)||0,total);
+    onAdd({ title:bkTitle.trim(), author:bkAuthor.trim(), totalPages:total, pagesRead:read, startDate:bkStartDate, logs:[] });
+    setBkTitle(''); setBkAuthor(''); setBkTotal(''); setBkRead(''); setShowForm(false);
+  };
+
+  const BookGalleryCard = ({ b }) => {
+    const pct=getPct(b); const col=getBookColor(b); const sm=STATUS_META[getStatus(b)];
+    const daysLeft=getDaysLeft(b); const pace=getPace(b);
+    const isEditing=editingId===b.id;
+    return (
+      <div style={{ borderRadius:10, background:T.surface, border:`1px solid ${col}33`, overflow:'hidden', transition:'all 0.15s', display:'flex', flexDirection:'column' }}
+        onMouseEnter={e=>e.currentTarget.style.borderColor=`${col}66`}
+        onMouseLeave={e=>e.currentTarget.style.borderColor=`${col}33`}>
+        {/* Book spine accent */}
+        <div style={{ height:4, background:`linear-gradient(90deg,${col},${col}44)` }} />
+        <div style={{ padding:'14px 16px', flex:1, display:'flex', flexDirection:'column', gap:10 }}>
+          {/* Title + status */}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, lineHeight:1.3 }}>{b.title}</div>
+              {b.author && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>by {b.author}</div>}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+              <span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:sm.bg, color:sm.color, flexShrink:0 }}>{sm.emoji} {sm.label}</span>
+              <button onClick={()=>onRemove(b.id)} style={{ padding:'2px 4px', background:'transparent', border:'none', opacity:0.35, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button>
+            </div>
+          </div>
+          {/* Progress ring area — horizontal bar */}
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5, fontSize:10, fontFamily:T.fM }}>
+              <span style={{ color:T.textSub }}>{b.pagesRead}/{b.totalPages||'?'} pages</span>
+              <span style={{ color:col, fontWeight:600 }}>{pct}%</span>
+            </div>
+            <div style={{ height:6, borderRadius:6, background:`${col}18`, overflow:'hidden' }}>
+              <div style={{ width:`${pct}%`, height:'100%', background:`linear-gradient(90deg,${col},${col}99)`, borderRadius:6, transition:'width 0.4s ease' }} />
+            </div>
+          </div>
+          {/* Stats row */}
+          <div style={{ display:'flex', gap:8 }}>
+            <div style={{ flex:1, padding:'7px 9px', borderRadius:7, background:T.bg2, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.08em' }}>Pace</div>
+              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.sky }}>{pace} pg/d</div>
+            </div>
+            <div style={{ flex:1, padding:'7px 9px', borderRadius:7, background:T.bg2, border:`1px solid ${T.border}` }}>
+              <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.08em' }}>Est. finish</div>
+              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:pct>=100?T.emerald:T.violet }}>{pct>=100?'Done 🎉':daysLeft?`~${daysLeft}d`:'—'}</div>
+            </div>
+          </div>
+          {/* Update pages */}
+          {pct<100 && (
+            isEditing ? (
+              <div style={{ display:'flex', gap:6 }}>
+                <input type="number" value={editPages[b.id]??b.pagesRead} onChange={e=>setEditPages(p=>({...p,[b.id]:Number(e.target.value)}))} min={0} max={b.totalPages||99999}
+                  style={{ flex:1, padding:'6px 10px', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:7, color:T.text, fontSize:12, fontFamily:T.fM }} placeholder="Pages read" />
+                <button onClick={()=>{onUpdatePages(b.id,editPages[b.id]??b.pagesRead);setEditingId(null);}}
+                  style={{ padding:'6px 12px', borderRadius:7, background:`${col}22`, border:`1px solid ${col}44`, color:col, fontFamily:T.fM, fontSize:11, fontWeight:600, cursor:'pointer' }}>Save →</button>
+                <button onClick={()=>setEditingId(null)} style={{ padding:'6px 8px', borderRadius:7, background:'transparent', border:`1px solid ${T.border}`, color:T.textSub, cursor:'pointer', fontSize:11 }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={()=>{setEditingId(b.id);setEditPages(p=>({...p,[b.id]:b.pagesRead}));}}
+                style={{ width:'100%', padding:'7px', borderRadius:7, background:'transparent', border:`1px dashed ${T.border}`, color:T.textMuted, fontSize:10, fontFamily:T.fM, cursor:'pointer', transition:'all 0.15s' }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}55`;e.currentTarget.style.color=col;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMuted;}}>
+                ✏️ Update progress
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const AddForm = () => (
+    <div style={{ borderRadius:10, background:T.surface, border:`1px solid ${T.amber}44`, padding:'16px 18px', animation:'fadeUp 0.2s ease' }}>
+      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.amber, marginBottom:14 }}>📚 Add Book</div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+        <Input autoFocus value={bkTitle} onChange={e=>setBkTitle(e.target.value)} placeholder="Book title" />
+        <Input value={bkAuthor} onChange={e=>setBkAuthor(e.target.value)} placeholder="Author (optional)" />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:12 }}>
+        <Input type="number" value={bkTotal} onChange={e=>setBkTotal(e.target.value)} placeholder="Total pages" />
+        <Input type="number" value={bkRead} onChange={e=>setBkRead(e.target.value)} placeholder="Pages read" />
+        <Input type="date" value={bkStartDate} onChange={e=>setBkStartDate(e.target.value)} />
+      </div>
+      <div style={{ display:'flex', gap:8 }}>
+        <Btn onClick={handleAddBook} color={T.amber} style={{ flex:1, opacity:bkTitle.trim()?1:0.4, pointerEvents:bkTitle.trim()?'auto':'none' }}>Add Book</Btn>
+        <BtnCancel onClick={()=>setShowForm(false)} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display:'flex', gap:0 }}>
+      {/* Sidebar */}
+      {sidebarOpen && (
+        <div style={{ width:185, flexShrink:0, borderRight:`1px solid ${T.border}`, paddingRight:14, marginRight:18 }}>
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>Library</div>
+          {[['all','📚','All Books'],['reading','📖','Reading'],['notstarted','🔖','Not Started'],['done','✅','Finished']].map(([id,icon,label])=>(
+            <button key={id} onClick={()=>setStatusFilter(id)}
+              style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'6px 10px', borderRadius:6, background:statusFilter===id?(id==='all'?T.accentDim:`${STATUS_META[id]?.color||T.accent}18`):'transparent', border:'none', cursor:'pointer', transition:'all 0.12s', marginBottom:2 }}
+              onMouseEnter={e=>{ if(statusFilter!==id) e.currentTarget.style.background=T.surface; }}
+              onMouseLeave={e=>{ if(statusFilter!==id) e.currentTarget.style.background='transparent'; }}>
+              <span style={{ fontSize:13 }}>{icon}</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:statusFilter===id?(id==='all'?T.accent:(STATUS_META[id]?.color||T.text)):T.textSub, fontWeight:statusFilter===id?600:400, flex:1, textAlign:'left' }}>{label}</span>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>{statusCounts[id]||0}</span>
+            </button>
+          ))}
+          <div style={{ height:1, background:T.border, margin:'10px 4px' }} />
+          <div style={{ padding:'6px 10px' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 }}>Stats</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{books.reduce((s,b)=>s+(b.pagesRead||0),0).toLocaleString()} pages read</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>{statusCounts.done} book{statusCounts.done!==1?'s':''} finished</div>
+          </div>
+        </div>
+      )}
+
+      {/* Main */}
+      <div style={{ flex:1, minWidth:0 }}>
+        {/* Toolbar */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+          <button onClick={()=>setSidebarOpen(v=>!v)} style={{ padding:'5px 8px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:13, cursor:'pointer' }}>☰</button>
+          <div style={{ flex:1, position:'relative', minWidth:120 }}>
+            <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search books…"
+              style={{ width:'100%', padding:'7px 12px 7px 30px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:8, fontFamily:T.fM, fontSize:12, color:T.text }} />
+          </div>
+          <div style={{ display:'flex', background:T.surface, borderRadius:8, border:`1px solid ${T.border}`, overflow:'hidden' }}>
+            {[['gallery','⊞'],['list','≡'],['table','⊟']].map(([v,icon],vi)=>(
+              <button key={v} onClick={()=>setView(v)} title={v} style={{ padding:'6px 12px', background:view===v?T.amberDim:'transparent', color:view===v?T.amber:T.textSub, border:'none', borderRight:vi<2?`1px solid ${T.border}`:'none', cursor:'pointer', fontSize:14, transition:'all 0.15s' }}>{icon}</button>
+            ))}
+          </div>
+          <Btn onClick={()=>setShowForm(v=>!v)} color={T.amber}>+ Add Book</Btn>
+        </div>
+
+        {/* Add form */}
+        {showForm && <div style={{ marginBottom:14 }}><AddForm /></div>}
+
+        {/* Empty */}
+        {filteredBooks.length===0 && !showForm && (
+          <div style={{ padding:'60px 20px', textAlign:'center' }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>📚</div>
+            <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No books yet</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, marginBottom:18 }}>Start tracking your reading list.</div>
+            <Btn onClick={()=>setShowForm(true)} color={T.amber}>+ Add Book</Btn>
+          </div>
+        )}
+
+        {/* Gallery */}
+        {view==='gallery' && filteredBooks.length>0 && (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))', gap:12 }}>
+            {filteredBooks.map((b,i)=>(
+              <div key={b.id} style={{ animation:`fadeUp 0.25s ease ${i*0.05}s both` }}>
+                <BookGalleryCard b={b} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* List */}
+        {view==='list' && filteredBooks.length>0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {filteredBooks.map((b,i)=>{
+              const pct=getPct(b); const col=getBookColor(b); const sm=STATUS_META[getStatus(b)];
+              const isEditing=editingId===b.id;
+              return (
+                <div key={b.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:9, background:T.surface, border:`1px solid ${T.border}`, animation:`fadeUp 0.15s ease ${i*0.03}s both`, transition:'border-color 0.15s' }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=`${col}44`}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                  {/* Spine dot */}
+                  <div style={{ width:4, height:40, borderRadius:4, background:`linear-gradient(180deg,${col},${col}44)`, flexShrink:0 }} />
+                  {/* Info */}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.title}</div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{b.author||'—'}</div>
+                  </div>
+                  {/* Progress bar */}
+                  <div style={{ width:100, flexShrink:0 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                      <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{b.pagesRead}/{b.totalPages||'?'}</span>
+                      <span style={{ fontSize:9, fontFamily:T.fM, color:col, fontWeight:600 }}>{pct}%</span>
+                    </div>
+                    <div style={{ height:5, borderRadius:5, background:`${col}18`, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:5, transition:'width 0.4s' }} />
+                    </div>
+                  </div>
+                  <span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:sm.bg, color:sm.color, flexShrink:0 }}>{sm.emoji} {sm.label}</span>
+                  {pct<100 && (
+                    isEditing ? (
+                      <div style={{ display:'flex', gap:5, flexShrink:0 }}>
+                        <input type="number" value={editPages[b.id]??b.pagesRead} onChange={e=>setEditPages(p=>({...p,[b.id]:Number(e.target.value)}))} style={{ width:70, padding:'4px 7px', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:11 }} />
+                        <button onClick={()=>{onUpdatePages(b.id,editPages[b.id]??b.pagesRead);setEditingId(null);}} style={{ padding:'4px 9px', borderRadius:6, background:`${col}22`, border:`1px solid ${col}44`, color:col, fontSize:10, cursor:'pointer', fontWeight:600 }}>✓</button>
+                        <button onClick={()=>setEditingId(null)} style={{ padding:'4px 6px', borderRadius:6, background:'transparent', border:`1px solid ${T.border}`, color:T.textSub, cursor:'pointer', fontSize:10 }}>✕</button>
+                      </div>
+                    ) : (
+                      <button onClick={()=>{setEditingId(b.id);setEditPages(p=>({...p,[b.id]:b.pagesRead}));}} style={{ padding:'4px 10px', borderRadius:6, background:T.bg2, border:`1px solid ${T.border}`, color:T.textSub, fontSize:10, fontFamily:T.fM, cursor:'pointer', flexShrink:0 }}>Update</button>
+                    )
+                  )}
+                  <button onClick={()=>onRemove(b.id)} style={{ padding:'2px 4px', background:'transparent', border:'none', opacity:0.35, cursor:'pointer', flexShrink:0 }}><IcoTrash size={9} stroke={T.rose} /></button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Table */}
+        {view==='table' && filteredBooks.length>0 && (
+          <div style={{ border:`1px solid ${T.border}`, borderRadius:10, overflow:'hidden' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 100px 120px 70px 80px 80px 40px', background:T.bg2, padding:'8px 14px', borderBottom:`1px solid ${T.border}` }}>
+              {['Title','Author','Progress','Pages','Pace','Status',''].map((h,hi)=>(
+                <div key={hi} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>{h}</div>
+              ))}
+            </div>
+            {filteredBooks.map((b,i)=>{
+              const pct=getPct(b); const col=getBookColor(b); const sm=STATUS_META[getStatus(b)]; const pace=getPace(b);
+              return (
+                <div key={b.id}
+                  style={{ display:'grid', gridTemplateColumns:'1fr 100px 120px 70px 80px 80px 40px', padding:'10px 14px', borderBottom:i<filteredBooks.length-1?`1px solid ${T.border}66`:'none', transition:'background 0.12s' }}
+                  onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                    <span style={{ fontSize:14 }}>📖</span>
+                    <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.title}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{b.author||'—'}</span></div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <div style={{ flex:1, height:5, borderRadius:5, background:`${col}18`, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:5 }} />
+                    </div>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:col, fontWeight:600 }}>{pct}%</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{b.pagesRead}/{b.totalPages||'?'}</span></div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:10, fontFamily:T.fM, color:T.sky }}>{pace} pg/d</span></div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:sm.bg, color:sm.color }}>{sm.emoji} {sm.label}</span></div>
+                  <div style={{ display:'flex', alignItems:'center' }}><button onClick={()=>onRemove(b.id)} style={{ padding:'2px 4px', background:'transparent', border:'none', opacity:0.35, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button></div>
+                </div>
+              );
+            })}
+            {!showForm && (
+              <div onClick={()=>setShowForm(true)}
+                style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', cursor:'pointer', opacity:0.5, transition:'opacity 0.15s' }}
+                onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='0.5'}>
+                <span style={{ fontSize:14, color:T.textMuted }}>+</span>
+                <span style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>Add book</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── NOTION-STYLE NOTES VIEW ───────────────────────────────────────────────────
 function NotionNotesView({ notes, actions, quickNotes }) {
   const [view, setView] = useState('gallery');
@@ -9781,54 +10397,15 @@ function KnowledgePage({ data, actions }) {
         <NotionTasksView notes={notes} actions={actions} />
       )}
 
-      {tab==='projects' && <ProjectsPage data={data} actions={actions} embedded />}
+      {tab==='projects' && <NotionProjectsView data={data} actions={actions} />}
 
       {tab==='books' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          {/* Stats row */}
-          {books.length>0 && (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10 }}>
-              {[
-                { label:'Books tracked', val: books.length, color:T.amber },
-                { label:'Completed', val: books.filter(b=>b.pagesRead>=b.totalPages&&b.totalPages>0).length, color:T.emerald },
-                { label:'In progress', val: books.filter(b=>b.pagesRead>0&&b.pagesRead<b.totalPages).length, color:T.sky },
-                { label:'Total pages read', val: books.reduce((s,b)=>s+(b.pagesRead||0),0), color:T.violet },
-              ].map((s,i)=>(
-                <GlassCard key={i} style={{ padding:'12px 14px' }}>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{s.label}</div>
-                  <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
-                </GlassCard>
-              ))}
-            </div>
-          )}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Track books with pages read, progress, and reading pace.</div>
-            <Btn onClick={()=>setBookModal(true)} color={T.amber}>+ Add Book</Btn>
-          </div>
-          {bookModal && (
-            <GlassCard style={{ padding:'16px 18px' }}>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                  <Input value={bkTitle} onChange={e=>setBkTitle(e.target.value)} placeholder="Book title" autoFocus />
-                  <Input value={bkAuthor} onChange={e=>setBkAuthor(e.target.value)} placeholder="Author (optional)" />
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
-                  <Input type="number" value={bkTotal} onChange={e=>setBkTotal(e.target.value)} placeholder="Total pages" />
-                  <Input type="number" value={bkRead} onChange={e=>setBkRead(e.target.value)} placeholder="Pages read" />
-                  <Input type="date" value={bkStartDate} onChange={e=>setBkStartDate(e.target.value)} />
-                </div>
-                <div style={{ display:'flex', gap:8 }}>
-                  <Btn onClick={addBook} color={T.amber} style={{ flex:1 }}>Add Book</Btn>
-                  <BtnCancel onClick={()=>setBookModal(false)} />
-                </div>
-              </div>
-            </GlassCard>
-          )}
-          {books.length===0&&!bookModal && <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No books yet. Add one to start tracking your reading!</div></GlassCard>}
-          {[...books].sort((a,b)=>{ const pa=a.totalPages>0?a.pagesRead/a.totalPages:0; const pb=b.totalPages>0?b.pagesRead/b.totalPages:0; return pb-pa; }).map(b=>(
-            <BookCard key={b.id} b={b} onUpdate={updateBookPages} onRemove={removeBook} />
-          ))}
-        </div>
+        <NotionBooksView
+          books={books}
+          onAdd={(bookData) => setBooks(prev => [...prev, { id:Date.now(), logs:[], ...bookData }])}
+          onUpdatePages={updateBookPages}
+          onRemove={removeBook}
+        />
       )}
 
       {/* ── Review Queue tab ─────────────────────────────────────────────── */}
