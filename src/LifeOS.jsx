@@ -6125,7 +6125,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 <SectionLabel>Debts Overview</SectionLabel>
                 <button onClick={()=>setTab('debts')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, display:'flex', alignItems:'center', gap:2 }}>Manage <IcoChevR size={9} stroke={T.accent} /></button>
               </div>
-              {(debts||[]).map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
+              {(debts||[]).filter(d=>Number(d.balance||0)>0).map((d,i)=>{ const origBal=Number(d.originalBalance||d.balance||0); const curBal=Number(d.balance||0); const paidPct=origBal>0?((origBal-curBal)/origBal)*100:0; return (
                 <div key={d.id||i} style={{ marginBottom:14 }}>
                   <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><span style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{d.name||d.creditor}</span><span style={{ fontSize:11, fontFamily:T.fM, color:T.rose }}>{cur}{fmtN(curBal)} remaining</span></div>
                   <ProgressBar pct={paidPct} color={T.emerald} height={5} />
@@ -6477,6 +6477,110 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             </GlassCard>
           ); })()}
 
+          {/* ── 3-Month Category Spending Comparison ─────────────────────────── */}
+          {(() => {
+            // Build the 3 months prior to selectedMonth
+            const [sy, sm] = selectedMonth.split('-').map(Number);
+            const prior3 = [3,2,1].map(offset => {
+              let m = sm - offset; let y = sy;
+              if (m <= 0) { m += 12; y -= 1; }
+              return `${y}-${String(m).padStart(2,'0')}`;
+            });
+            const allMonths = [...prior3, selectedMonth];
+            // Collect all categories across these 4 months
+            const allCats = [...new Set(
+              (expenses||[])
+                .filter(e => allMonths.some(mo => e.date?.startsWith(mo)))
+                .map(e => e.category)
+                .filter(Boolean)
+            )].sort();
+            if (allCats.length === 0) return null;
+            // Build chart data: one row per category
+            const chartData = allCats.map(cat => {
+              const row = { cat };
+              allMonths.forEach(mo => {
+                row[mo] = (expenses||[])
+                  .filter(e => e.date?.startsWith(mo) && e.category === cat)
+                  .reduce((s,e) => s + Number(e.amount||0), 0);
+              });
+              return row;
+            }).filter(row => allMonths.some(mo => row[mo] > 0));
+            if (chartData.length === 0) return null;
+            const monthLabel = mo => {
+              const [y,m] = mo.split('-');
+              return new Date(Number(y), Number(m)-1, 1).toLocaleString('default',{month:'short'}) + (mo === selectedMonth ? ' ●' : '');
+            };
+            const MONTH_COLORS = [
+              `${T.textMuted}99`, `${T.textSub}cc`, `${T.sky}bb`, T.accent
+            ];
+            const cur2 = cur;
+            return (
+              <GlassCard style={{ padding:'20px 22px', border:`1px solid ${T.accent}22` }}>
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:3 }}>📊 3-Month Category Comparison</div>
+                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>How each category shifted vs the last 3 months</div>
+                </div>
+                {/* Legend */}
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:14 }}>
+                  {allMonths.map((mo,i) => (
+                    <div key={mo} style={{ display:'flex', alignItems:'center', gap:5 }}>
+                      <div style={{ width:10, height:10, borderRadius:3, background:MONTH_COLORS[i], flexShrink:0 }} />
+                      <span style={{ fontSize:9, fontFamily:T.fM, color: mo===selectedMonth ? T.accent : T.textSub, fontWeight: mo===selectedMonth ? 700 : 400 }}>{monthLabel(mo)}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Per-category rows with bar mini-chart */}
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  {chartData.map((row, ri) => {
+                    const maxVal = Math.max(1, ...allMonths.map(mo => row[mo]||0));
+                    const currVal = row[selectedMonth]||0;
+                    const prevVal = row[prior3[2]]||0;
+                    const delta = prevVal > 0 ? ((currVal - prevVal)/prevVal)*100 : null;
+                    const up = delta !== null && delta > 5;
+                    const down = delta !== null && delta < -5;
+                    return (
+                      <div key={row.cat} style={{ padding:'10px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                          <span style={{ fontSize:11, fontFamily:T.fM, color:T.text, fontWeight:600 }}>{row.cat}</span>
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            {delta !== null && (
+                              <span style={{ fontSize:9, fontFamily:T.fM, fontWeight:700, color: up ? T.rose : down ? T.emerald : T.textSub }}>
+                                {up ? '▲' : down ? '▼' : '→'} {Math.abs(delta).toFixed(0)}% vs last mo
+                              </span>
+                            )}
+                            <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{cur2}{fmtN(currVal)}</span>
+                          </div>
+                        </div>
+                        {/* Mini bar chart — 4 bars side by side */}
+                        <div style={{ display:'flex', alignItems:'flex-end', gap:4, height:36 }}>
+                          {allMonths.map((mo, mi) => {
+                            const val = row[mo]||0;
+                            const pct = maxVal > 0 ? (val/maxVal)*100 : 0;
+                            const isNow = mo === selectedMonth;
+                            return (
+                              <div key={mo} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2, height:'100%', justifyContent:'flex-end' }} title={`${monthLabel(mo)}: ${cur2}${fmtN(val)}`}>
+                                <div style={{ width:'100%', borderRadius:'3px 3px 0 0', background: MONTH_COLORS[mi], height:`${Math.max(pct,2)}%`, transition:'height 0.4s ease', boxShadow: isNow ? `0 0 6px ${T.accent}66` : 'none', minHeight: val > 0 ? 3 : 0 }} />
+                                <span style={{ fontSize:7, fontFamily:T.fM, color: isNow ? T.accent : T.textMuted, fontWeight: isNow ? 700 : 400, whiteSpace:'nowrap' }}>{monthLabel(mo).replace(' ●','')}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Row of values */}
+                        <div style={{ display:'flex', gap:4, marginTop:4 }}>
+                          {allMonths.map((mo,mi) => (
+                            <div key={mo} style={{ flex:1, textAlign:'center', fontSize:8, fontFamily:T.fM, color: mo===selectedMonth ? T.accent : T.textMuted, fontWeight: mo===selectedMonth ? 700 : 400 }}>
+                              {row[mo]>0 ? `${cur2}${fmtN(row[mo])}` : '—'}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </GlassCard>
+            );
+          })()}
+
           {/* ── Task Spending — shown compactly here, full planner is in Tasks tab ── */}
           {(() => {
             const spendTasks = (data.notes||[]).filter(n => n.type === 'task' && n.estimatedCost > 0);
@@ -6753,6 +6857,13 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
 
       {tab==='investments' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {(() => {
+            const costBasis = (investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0);
+            const totalPnl  = invVal - costBasis;
+            const pnlColor  = totalPnl >= 0 ? T.emerald : T.rose;
+            const pnlSign   = totalPnl >= 0 ? '+' : '';
+            return (
+          <>
           <div style={{ display:'flex', gap:10 }}>
             <Btn onClick={()=>setModal('investment')} color={T.violet}>+ Add Position</Btn>
           </div>
@@ -6760,7 +6871,11 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
-              {[{ label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`, color:T.violet }, { label:'Total Invested', val:`${cur}${fmtN((investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:T.text }, { label:'Total P&L', val:`${invVal-(investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)>=0?'+':''}${cur}${fmtN(invVal-(investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0))}`, color:invVal>=(investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0)?T.emerald:T.rose }].map((m,i)=>(
+              {[
+                { label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`,   color:T.violet },
+                { label:'Total Invested',  val:`${cur}${fmtN(costBasis)}`, color:T.text },
+                { label:'Total P&L',       val:`${pnlSign}${cur}${fmtN(totalPnl)}`, color:pnlColor },
+              ].map((m,i)=>(
                 <GlassCard key={i} style={{ padding:'16px 18px' }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
                   <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
@@ -6796,6 +6911,9 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               <WatchlistTab />
             </InvestmentsSubSection>
           </>)}
+          </>
+            );
+          })()}
         </div>
       )}
 
@@ -13272,27 +13390,44 @@ const CRYPTO_IDS = { BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binanceco
 // Stock tickers that can be fetched via Yahoo Finance public endpoint
 const STOCK_TYPES = ['Stock', 'ETF', 'Index', 'Fund'];
 
-function LivePricesPanel({ investments, onUpdatePrice }) {
-  const [cryptoPrices, setCryptoPrices] = useState({});
-  const [stockPrices,  setStockPrices ] = useState({});
+const PRICE_CACHE_KEY = 'los_price_cache_v1';
+const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function readPriceCache() {
+  try {
+    const raw = localStorage.getItem(PRICE_CACHE_KEY);
+    if (!raw) return { crypto:{}, stocks:{}, ts:0 };
+    return JSON.parse(raw);
+  } catch { return { crypto:{}, stocks:{}, ts:0 }; }
+}
+function writePriceCache(crypto, stocks) {
+  try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({ crypto, stocks, ts: Date.now() })); } catch {}
+}
+
+const LivePricesPanel = memo(function LivePricesPanel({ investments, onUpdatePrice }) {
+  const cached = useMemo(() => readPriceCache(), []);
+  const cacheValid = Date.now() - cached.ts < PRICE_CACHE_TTL;
+
+  const [cryptoPrices, setCryptoPrices] = useState(cacheValid ? cached.crypto : {});
+  const [stockPrices,  setStockPrices ] = useState(cacheValid ? cached.stocks : {});
   const [loading,      setLoading     ] = useState(false);
-  const [lastFetched,  setLastFetched ] = useState(null);
+  const [lastFetched,  setLastFetched ] = useState(cacheValid ? new Date(cached.ts).toLocaleTimeString() : null);
   const [errors,       setErrors      ] = useState([]);
+  const fetchingRef = useRef(false);
 
-  const cryptoInvs = (investments||[]).filter(i => i.type === 'Crypto' && CRYPTO_IDS[i.symbol?.toUpperCase()]);
-  const stockInvs  = (investments||[]).filter(i => STOCK_TYPES.includes(i.type) && i.symbol);
-  const cryptoIds  = [...new Set(cryptoInvs.map(i => CRYPTO_IDS[i.symbol.toUpperCase()]))];
-  const stockSyms  = [...new Set(stockInvs.map(i => i.symbol.toUpperCase()))];
+  const cryptoInvs = useMemo(() => (investments||[]).filter(i => i.type === 'Crypto' && CRYPTO_IDS[i.symbol?.toUpperCase()]), [investments]);
+  const stockInvs  = useMemo(() => (investments||[]).filter(i => STOCK_TYPES.includes(i.type) && i.symbol), [investments]);
+  const cryptoIds  = useMemo(() => [...new Set(cryptoInvs.map(i => CRYPTO_IDS[i.symbol.toUpperCase()]))], [cryptoInvs]);
+  const stockSyms  = useMemo(() => [...new Set(stockInvs.map(i => i.symbol.toUpperCase()))], [stockInvs]);
 
-  const fetchCrypto = async () => {
+  const fetchCrypto = useCallback(async () => {
     if (!cryptoIds.length) return null;
     const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true`);
     if (!res.ok) throw new Error('Crypto API error');
     return await res.json();
-  };
+  }, [cryptoIds]);
 
-  // Yahoo Finance v8 — no API key needed, browser fetch (CORS varies by env)
-  const fetchStock = async (symbol) => {
+  const fetchStock = useCallback(async (symbol) => {
     const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`)}`);
     if (!res.ok) throw new Error(`${symbol} fetch failed`);
     const j = await res.json();
@@ -13302,16 +13437,24 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
     const prev  = meta.chartPreviousClose || meta.previousClose;
     const chg   = prev > 0 ? ((price - prev) / prev) * 100 : null;
     return { price, chg };
-  };
+  }, []);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async (force = false) => {
+    if (fetchingRef.current) return;
+    // Skip if cache is still valid and not forced
+    if (!force) {
+      const c = readPriceCache();
+      if (Date.now() - c.ts < PRICE_CACHE_TTL) return;
+    }
+    fetchingRef.current = true;
     setLoading(true); setErrors([]);
     const errs = [];
+    let newCrypto = cryptoPrices, newStocks = stockPrices;
     try {
-      // Crypto
       if (cryptoIds.length) {
         try {
           const data = await fetchCrypto();
+          newCrypto = data;
           setCryptoPrices(data);
           cryptoInvs.forEach(inv => {
             const cid = CRYPTO_IDS[inv.symbol.toUpperCase()];
@@ -13319,34 +13462,39 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
           });
         } catch (e) { errs.push('Crypto: ' + e.message); }
       }
-      // Stocks — parallel requests
       if (stockSyms.length) {
         const results = await Promise.allSettled(stockSyms.map(s => fetchStock(s).then(d => ({ sym:s, ...d }))));
-        const newStocks = {};
+        const fresh = {};
         results.forEach((r, i) => {
           if (r.status === 'fulfilled') {
-            newStocks[stockSyms[i]] = r.value;
+            fresh[stockSyms[i]] = r.value;
             stockInvs.filter(inv => inv.symbol.toUpperCase() === stockSyms[i]).forEach(inv => onUpdatePrice(inv.id, r.value.price));
           } else {
             errs.push(`${stockSyms[i]}: ${r.reason?.message||'fetch failed'}`);
           }
         });
-        setStockPrices(p => ({ ...p, ...newStocks }));
+        newStocks = { ...stockPrices, ...fresh };
+        setStockPrices(newStocks);
       }
+      writePriceCache(newCrypto, newStocks);
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setLastFetched(new Date().toLocaleTimeString());
       if (errs.length) setErrors(errs);
     }
-  };
+  }, [cryptoIds, stockSyms, cryptoInvs, stockInvs, fetchCrypto, fetchStock, onUpdatePrice, cryptoPrices, stockPrices]);
 
+  // Auto-refresh every 5 min + on window focus (rate-limited by cache check)
   useEffect(() => {
-    const handler = () => fetchAll();
-    window.addEventListener('focus', handler);
-    return () => window.removeEventListener('focus', handler);
+    fetchAll(false); // initial load — uses cache if fresh
+    const interval = setInterval(() => fetchAll(false), PRICE_CACHE_TTL);
+    const onFocus = () => fetchAll(false);
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
   }, []);
 
-  const allInvs = [...cryptoInvs, ...stockInvs];
+  const allInvs = useMemo(() => [...cryptoInvs, ...stockInvs], [cryptoInvs, stockInvs]);
   if (!allInvs.length) return (
     <GlassCard style={{ padding:'18px 20px' }}>
       <SectionLabel>📡 Live Prices</SectionLabel>
@@ -13360,7 +13508,7 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
         <SectionLabel>📡 Live Prices (Crypto + Stocks)</SectionLabel>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {lastFetched && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Updated {lastFetched}</span>}
-          <button onClick={fetchAll} disabled={loading} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:10, fontFamily:T.fM, cursor:'pointer', opacity:loading?0.5:1 }}>
+          <button onClick={()=>fetchAll(true)} disabled={loading} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:10, fontFamily:T.fM, cursor:'pointer', opacity:loading?0.5:1 }}>
             <IcoRefresh size={11} stroke={T.accent} style={loading?{animation:'spin 1s linear infinite'}:{}} /> {loading?'Fetching…':'Refresh'}
           </button>
         </div>
@@ -13404,7 +13552,7 @@ function LivePricesPanel({ investments, onUpdatePrice }) {
       </div>
     </GlassCard>
   );
-}
+}); // end memo(LivePricesPanel)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BATCH 3 & 4 COMPONENTS
@@ -14200,7 +14348,7 @@ function TradeJournalTab() {
 }
 
 // ── WATCHLIST & PRICE ALERTS ──────────────────────────────────────────────────
-function WatchlistTab() {
+const WatchlistTab = memo(function WatchlistTab() {
   const lang = useLang();
   const [watchlist, setWatchlist] = useLocalStorage('los_watchlist', []);
   const [prices, setPrices] = useState({});
@@ -14619,7 +14767,7 @@ function WatchlistTab() {
       )}
     </div>
   );
-}
+}); // end memo(WatchlistTab)
 
 // ── INVESTOR PROFILE ──────────────────────────────────────────────────────────
 const TYPE_COLORS = {Stock:T.emerald,ETF:T.sky,Crypto:T.violet,Bond:T.amber,REIT:T.accent,Other:T.rose};
@@ -14651,7 +14799,7 @@ function ScoreRing({ score, color, size=72, label }) {
   );
 }
 
-function InvestorProfileTab({ data }) {
+const InvestorProfileTab = memo(function InvestorProfileTab({ data }) {
   const {investments=[],settings={},assets=[],debts=[]}=data;
   const cur=settings.currency||'$';
   const [profile,setProfile]=useLocalStorage('los_investor_profile',{risk:'moderate',horizon:'long',style:'passive',target_return:8,notes:''});
@@ -15006,7 +15154,7 @@ Notes: ${profile.notes||'none'}`}]
       )}
     </div>
   );
-}
+}); // end memo(InvestorProfileTab)
 
 // ── ASSET DEPRECIATION ────────────────────────────────────────────────────────
 function AssetDepreciationTab({ data }) {
@@ -17831,7 +17979,7 @@ export default function LifeOS() {
       <XPPopContainer pops={xpPops} />
 
       {/* Quick Capture FAB — S2 */}
-      <QuickCaptureFAB onAction={handleGlobalModal} isMobile={isMobile} />
+      {/* QuickCaptureFAB removed */}
 
       {/* Bottom Nav — S2 mobile */}
       <BottomNav active={page} onNav={setPage} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
