@@ -9148,6 +9148,455 @@ function BookCard({ b, onUpdate, onRemove }) {
   );
 }
 
+// ── NOTION-STYLE NOTES VIEW ───────────────────────────────────────────────────
+function NotionNotesView({ notes, actions, quickNotes }) {
+  const [view, setView] = useState('gallery');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [selectedTag, setSelectedTag] = useState(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [showArchived, setShowArchived] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [modal, setModal] = useState(null);
+
+  const TAG_ICONS = { Finance:'💰', Health:'❤️', Career:'💼', Growth:'🌱', Ideas:'💡', General:'📄', Review:'🔁', Personal:'👤' };
+  const TAG_COLORS = { Finance:T.violet, Health:T.sky, Career:T.amber, Growth:T.emerald, Ideas:'#c084fc', General:T.textSub };
+  const tc = (tag) => TAG_COLORS[tag] || T.textSub;
+  const PRIO_COLOR = { 1: T.rose, 2: T.amber, 3: T.sky };
+
+  const tagMap = useMemo(() => {
+    const m = {};
+    (notes||[]).forEach(n => {
+      if (!n.archived && (n.type||'note') !== 'task') {
+        const tag = n.tag || 'General';
+        m[tag] = (m[tag]||0)+1;
+      }
+    });
+    return m;
+  }, [notes]);
+
+  const filteredNotes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return [...(notes||[])].filter(n => {
+      if (Boolean(n.archived) !== showArchived) return false;
+      if (typeFilter === 'all' && (n.type||'note') === 'task') return false;
+      if (typeFilter !== 'all' && (n.type||'note') !== typeFilter) return false;
+      if (priorityFilter !== 'all' && (n.priority||2) !== priorityFilter) return false;
+      if (selectedTag && (n.tag||'General') !== selectedTag) return false;
+      if (q && !(n.title||'').toLowerCase().includes(q) && !(n.body||'').toLowerCase().includes(q)) return false;
+      return true;
+    }).sort((a,b) => ((a.priority||2)-(b.priority||2)) || (a.date<b.date?1:-1));
+  }, [notes, search, typeFilter, priorityFilter, selectedTag, showArchived]);
+
+  return (
+    <div style={{ display:'flex', gap:0 }}>
+      {/* Notion sidebar */}
+      {sidebarOpen && (
+        <div style={{ width:190, flexShrink:0, borderRight:`1px solid ${T.border}`, paddingRight:14, marginRight:18 }}>
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10, paddingTop:2 }}>Workspace</div>
+          <button onClick={()=>setSelectedTag(null)} style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'6px 10px', borderRadius:6, background:selectedTag===null?T.accentDim:'transparent', border:'none', cursor:'pointer', transition:'all 0.12s', marginBottom:2 }}
+            onMouseEnter={e=>{ if(selectedTag!==null) e.currentTarget.style.background=T.surface; }}
+            onMouseLeave={e=>{ if(selectedTag!==null) e.currentTarget.style.background='transparent'; }}>
+            <span style={{ fontSize:14 }}>📋</span>
+            <span style={{ fontSize:12, fontFamily:T.fM, color:selectedTag===null?T.accent:T.text, fontWeight:selectedTag===null?600:400, flex:1, textAlign:'left' }}>All Notes</span>
+            <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>{(notes||[]).filter(n=>!n.archived&&(n.type||'note')!=='task').length}</span>
+          </button>
+
+          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', margin:'14px 0 6px 10px' }}>By Tag</div>
+          {Object.entries(tagMap).sort((a,b)=>b[1]-a[1]).map(([tag,cnt]) => (
+            <button key={tag} onClick={()=>setSelectedTag(selectedTag===tag?null:tag)}
+              style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'6px 10px', borderRadius:6, background:selectedTag===tag?`${tc(tag)}18`:'transparent', border:'none', cursor:'pointer', transition:'all 0.12s', marginBottom:1 }}
+              onMouseEnter={e=>{ if(selectedTag!==tag) e.currentTarget.style.background=T.surface; }}
+              onMouseLeave={e=>{ if(selectedTag!==tag) e.currentTarget.style.background='transparent'; }}>
+              <span style={{ fontSize:12 }}>{TAG_ICONS[tag]||'📄'}</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:selectedTag===tag?tc(tag):T.textSub, fontWeight:selectedTag===tag?600:400, flex:1, textAlign:'left' }}>{tag}</span>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>{cnt}</span>
+            </button>
+          ))}
+
+          <div style={{ height:1, background:T.border, margin:'12px 4px' }} />
+          <button onClick={()=>setShowArchived(a=>!a)} style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'6px 10px', borderRadius:6, background:showArchived?T.surface:'transparent', border:'none', cursor:'pointer' }}>
+            <span style={{ fontSize:12 }}>📦</span>
+            <span style={{ fontSize:12, fontFamily:T.fM, color:T.textSub }}>Archived</span>
+          </button>
+        </div>
+      )}
+
+      {/* Main content */}
+      <div style={{ flex:1, minWidth:0 }}>
+        {/* Toolbar */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+          <button onClick={()=>setSidebarOpen(v=>!v)} title="Toggle sidebar" style={{ padding:'5px 8px', borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontSize:13, cursor:'pointer', lineHeight:1 }}>☰</button>
+          <div style={{ flex:1, position:'relative', minWidth:120 }}>
+            <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pages…" style={{ width:'100%', padding:'7px 12px 7px 30px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:8, fontFamily:T.fM, fontSize:12, color:T.text }} />
+          </div>
+          {/* View switcher */}
+          <div style={{ display:'flex', background:T.surface, borderRadius:8, border:`1px solid ${T.border}`, overflow:'hidden', flexShrink:0 }}>
+            {[['gallery','⊞'],['list','≡'],['table','⊟']].map(([v,icon],vi) => (
+              <button key={v} onClick={()=>setView(v)} title={v}
+                style={{ padding:'6px 12px', background:view===v?T.accentDim:'transparent', color:view===v?T.accent:T.textSub, border:'none', borderRight:vi<2?`1px solid ${T.border}`:'none', cursor:'pointer', fontSize:14, transition:'all 0.15s' }}>
+                {icon}
+              </button>
+            ))}
+          </div>
+          <Btn onClick={()=>setModal('note')} color={T.amber} style={{ flexShrink:0 }}>+ New</Btn>
+        </div>
+
+        {/* Filter chips */}
+        <div style={{ display:'flex', gap:5, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
+          {['all','note','idea','bookmark'].map(type => (
+            <button key={type} onClick={()=>setTypeFilter(type)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:typeFilter===type?T.amber+'33':'transparent', color:typeFilter===type?T.amber:T.textSub, border:`1px solid ${typeFilter===type?T.amber+'44':T.border}`, cursor:'pointer' }}>
+              {type==='all'?'All types':type}
+            </button>
+          ))}
+          <div style={{ width:1, height:14, background:T.border, margin:'0 3px' }}/>
+          {['all',1,2,3].map(p => (
+            <button key={p} onClick={()=>setPriorityFilter(p)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:priorityFilter===p?T.violet+'33':'transparent', color:priorityFilter===p?T.violet:T.textSub, border:`1px solid ${priorityFilter===p?T.violet+'44':T.border}`, cursor:'pointer' }}>
+              {p==='all'?'All':p===1?'🔴 High':p===2?'🟡 Med':'🔵 Low'}
+            </button>
+          ))}
+          <div style={{ flex:1 }}/>
+          <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{filteredNotes.length} pages</span>
+        </div>
+
+        {/* Empty state */}
+        {filteredNotes.length === 0 && (
+          <div style={{ padding:'60px 20px', textAlign:'center' }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>📝</div>
+            <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No pages found</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, marginBottom:18 }}>{search?`No results for "${search}"`:'Create your first note to build your knowledge base.'}</div>
+            <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Page</Btn>
+          </div>
+        )}
+
+        {/* Gallery view */}
+        {view === 'gallery' && filteredNotes.length > 0 && (
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))', gap:10 }}>
+            {filteredNotes.map((note,i) => {
+              const color = tc(note.tag);
+              const prioColor = PRIO_COLOR[note.priority||2]||T.textSub;
+              return (
+                <div key={note.id||i} onClick={()=>setEditingNote(note)}
+                  style={{ padding:'16px', borderRadius:10, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', animation:`fadeUp 0.25s ease ${i*0.05}s both`, transition:'all 0.15s', position:'relative', overflow:'hidden' }}
+                  onMouseEnter={e=>{ e.currentTarget.style.border=`1px solid ${color}55`; e.currentTarget.style.background=`${color}08`; }}
+                  onMouseLeave={e=>{ e.currentTarget.style.border=`1px solid ${T.border}`; e.currentTarget.style.background=T.surface; }}>
+                  <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${color},${color}44)` }} />
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:10, marginTop:4 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ fontSize:16 }}>{TAG_ICONS[note.tag]||'📄'}</span>
+                      <span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 8px', borderRadius:99, background:`${color}18`, color, border:`1px solid ${color}33` }}>{note.tag||'General'}</span>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                      <span style={{ width:7, height:7, borderRadius:'50%', background:prioColor }} />
+                      <button onClick={e=>{e.stopPropagation();actions.removeNote(note.id);}} style={{ padding:3, borderRadius:4, background:'transparent', border:'none', opacity:0.35, cursor:'pointer' }}><IcoTrash size={10} stroke={T.rose} /></button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6, lineHeight:1.3, textDecoration:note.done?'line-through':'' }}>{note.title||'Untitled'}</div>
+                  {note.body && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.55, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body}</div>}
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt||''}</span>
+                    {note.dueDate && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>📅 {note.dueDate}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* List view */}
+        {view === 'list' && filteredNotes.length > 0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+            {filteredNotes.map((note,i) => {
+              const color = tc(note.tag);
+              const prioColor = PRIO_COLOR[note.priority||2]||T.textSub;
+              return (
+                <div key={note.id||i} onClick={()=>setEditingNote(note)}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', animation:`fadeUp 0.12s ease ${i*0.03}s both`, transition:'all 0.12s' }}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor=`${color}44`}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                  <span style={{ fontSize:14, flexShrink:0 }}>{TAG_ICONS[note.tag]||'📄'}</span>
+                  <span style={{ width:6, height:6, borderRadius:'50%', background:prioColor, flexShrink:0 }} />
+                  <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:600, color:T.text, flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:note.done?'line-through':'' }}>{note.title||'Untitled'}</span>
+                  <span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 8px', borderRadius:99, background:`${color}18`, color, border:`1px solid ${color}22`, flexShrink:0 }}>{note.tag||'General'}</span>
+                  {note.dueDate && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber, flexShrink:0 }}>📅 {note.dueDate}</span>}
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, flexShrink:0 }}>{note.date||''}</span>
+                  <button onClick={e=>{e.stopPropagation();setEditingNote(note);}} style={{ padding:'3px 5px', borderRadius:5, background:'transparent', border:`1px solid ${T.border}`, opacity:0.6, cursor:'pointer', flexShrink:0 }}><IcoPencil size={9} stroke={T.accent} /></button>
+                  <button onClick={e=>{e.stopPropagation();actions.removeNote(note.id);}} style={{ padding:'3px 5px', borderRadius:5, background:'transparent', border:'none', opacity:0.35, cursor:'pointer', flexShrink:0 }}><IcoTrash size={9} stroke={T.rose} /></button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Table view */}
+        {view === 'table' && filteredNotes.length > 0 && (
+          <div style={{ border:`1px solid ${T.border}`, borderRadius:10, overflow:'hidden' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 70px 80px 80px 96px 60px', background:T.bg2, padding:'8px 14px', borderBottom:`1px solid ${T.border}` }}>
+              {['Title','Type','Tag','Priority','Date',''].map((h,hi) => (
+                <div key={hi} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>{h}</div>
+              ))}
+            </div>
+            {filteredNotes.map((note,i) => {
+              const color = tc(note.tag);
+              const prioColor = PRIO_COLOR[note.priority||2]||T.textSub;
+              const prioLabel = {1:'High',2:'Med',3:'Low'}[note.priority||2]||'Med';
+              return (
+                <div key={note.id||i}
+                  style={{ display:'grid', gridTemplateColumns:'1fr 70px 80px 80px 96px 60px', padding:'10px 14px', borderBottom:i<filteredNotes.length-1?`1px solid ${T.border}66`:'none', cursor:'pointer', transition:'background 0.12s', animation:`fadeUp 0.12s ease ${i*0.03}s both` }}
+                  onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div onClick={()=>setEditingNote(note)} style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                    <span style={{ fontSize:13 }}>{TAG_ICONS[note.tag]||'📄'}</span>
+                    <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration:note.done?'line-through':'' }}>{note.title||'Untitled'}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:T.surface, color:T.textSub, border:`1px solid ${T.border}` }}>{note.type||'note'}</span></div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:`${color}18`, color, border:`1px solid ${color}22` }}>{note.tag||'General'}</span></div>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <span style={{ width:6, height:6, borderRadius:'50%', background:prioColor }} />
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:prioColor }}>{prioLabel}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||''}</span></div>
+                  <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <button onClick={e=>{e.stopPropagation();setEditingNote(note);}} style={{ padding:'3px 5px', borderRadius:4, background:T.surface, border:`1px solid ${T.border}`, opacity:0.7, cursor:'pointer' }}><IcoPencil size={9} stroke={T.accent} /></button>
+                    <button onClick={e=>{e.stopPropagation();actions.removeNote(note.id);}} style={{ padding:'3px 5px', borderRadius:4, background:'transparent', border:'none', opacity:0.4, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button>
+                  </div>
+                </div>
+              );
+            })}
+            <div onClick={()=>setModal('note')}
+              style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', cursor:'pointer', opacity:0.5, transition:'opacity 0.15s' }}
+              onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='0.5'}>
+              <span style={{ fontSize:14, color:T.textMuted }}>+</span>
+              <span style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>New page</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} defaultType='note' />
+      <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
+    </div>
+  );
+}
+
+// ── NOTION-STYLE TASKS VIEW ───────────────────────────────────────────────────
+function NotionTasksView({ notes, actions }) {
+  const [view, setView] = useState('board');
+  const [taskSort, setTaskSort] = useState('priority');
+  const [modal, setModal] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [search, setSearch] = useState('');
+  const [showDone, setShowDone] = useState(false);
+  const todayStr = today();
+
+  const PRIO_META = {
+    1: { label:'High',   color:T.rose,    bg:T.roseDim },
+    2: { label:'Medium', color:T.amber,   bg:T.amberDim },
+    3: { label:'Low',    color:T.sky,     bg:T.skyDim },
+  };
+
+  const allTasks = useMemo(() => [...(notes||[])].filter(n => (n.type||'note') === 'task' && !n.archived), [notes]);
+
+  const sortFn = useCallback((a, b) => {
+    if (taskSort === 'priority') return (a.priority||2) - (b.priority||2);
+    if (taskSort === 'due') {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1; if (!b.dueDate) return -1;
+      return a.dueDate < b.dueDate ? -1 : 1;
+    }
+    return (b.date||'') > (a.date||'') ? 1 : -1;
+  }, [taskSort]);
+
+  const filteredTasks = useMemo(() => {
+    const q = search.toLowerCase();
+    return allTasks.filter(n => !q || (n.title||'').toLowerCase().includes(q) || (n.body||'').toLowerCase().includes(q));
+  }, [allTasks, search]);
+
+  const activeTasks = useMemo(() => filteredTasks.filter(n => !n.done).sort(sortFn), [filteredTasks, sortFn]);
+  const doneTasks   = useMemo(() => filteredTasks.filter(n =>  n.done), [filteredTasks]);
+
+  const COLUMNS = [
+    { id:'todo',       label:'To Do',       color:T.textSub, emoji:'○', tasks: activeTasks.filter(n=>!n.inProgress) },
+    { id:'inprogress', label:'In Progress',  color:T.amber,   emoji:'◑', tasks: activeTasks.filter(n=>!!n.inProgress) },
+    { id:'done',       label:'Done',         color:T.emerald, emoji:'●', tasks: doneTasks.slice(0,12) },
+  ];
+
+  const TaskCard = ({ n, compact }) => {
+    const pm = PRIO_META[n.priority||2];
+    const isOverdue = !n.done && n.dueDate && n.dueDate < todayStr;
+    return (
+      <div onClick={()=>setEditingNote(n)}
+        style={{ padding: compact?'9px 12px':'12px 14px', borderRadius:8, background:T.surface, border:`1px solid ${isOverdue?T.rose+'44':T.border}`, cursor:'pointer', transition:'all 0.15s', marginBottom:6 }}
+        onMouseEnter={e=>e.currentTarget.style.borderColor=pm.color+'44'}
+        onMouseLeave={e=>e.currentTarget.style.borderColor=isOverdue?T.rose+'44':T.border}>
+        <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+          <button onClick={e=>{e.stopPropagation();actions.updateNote(n.id,{done:!n.done});}}
+            style={{ width:16, height:16, borderRadius:'50%', flexShrink:0, marginTop:1, background:n.done?T.emerald:'transparent', border:`2px solid ${n.done?T.emerald:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.15s' }}>
+            {n.done && <span style={{ fontSize:8, color:T.bg, fontWeight:900, lineHeight:1 }}>✓</span>}
+          </button>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:n.done?T.textSub:T.text, textDecoration:n.done?'line-through':'none', wordBreak:'break-word', lineHeight:1.35 }}>{n.title}</div>
+            {!compact && n.body && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:4, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{n.body}</div>}
+            <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:5, flexWrap:'wrap' }}>
+              <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 6px', borderRadius:99, fontSize:8, fontFamily:T.fM, background:pm.bg, color:pm.color }}>
+                <span style={{ width:4, height:4, borderRadius:'50%', background:pm.color }} />{pm.label}
+              </span>
+              {n.tag && n.tag!=='General' && <span style={{ fontSize:8, fontFamily:T.fM, padding:'1px 6px', borderRadius:99, background:T.bg2, color:T.textSub, border:`1px solid ${T.border}` }}>{n.tag}</span>}
+              {n.dueDate && <span style={{ fontSize:8, fontFamily:T.fM, color:isOverdue?T.rose:T.textMuted }}>📅 {n.dueDate}</span>}
+            </div>
+          </div>
+          <button onClick={e=>{e.stopPropagation();actions.removeNote(n.id);}} style={{ padding:2, borderRadius:4, background:'transparent', border:'none', opacity:0.3, cursor:'pointer', flexShrink:0 }}><IcoTrash size={9} stroke={T.rose} /></button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <AddNoteModal open={modal} onClose={()=>setModal(false)} onSave={e=>{actions.addNote(e);setModal(false);}} defaultType='task' />
+      <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
+
+      {/* Toolbar */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+        <div style={{ flex:1, position:'relative', minWidth:120 }}>
+          <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Filter tasks…" style={{ width:'100%', padding:'7px 12px 7px 30px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:8, fontFamily:T.fM, fontSize:12, color:T.text }} />
+        </div>
+        {/* View switcher */}
+        <div style={{ display:'flex', background:T.surface, borderRadius:8, border:`1px solid ${T.border}`, overflow:'hidden', flexShrink:0 }}>
+          {[['board','⊞ Board'],['list','≡ List'],['table','⊟ Table']].map(([v,l],vi) => (
+            <button key={v} onClick={()=>setView(v)}
+              style={{ padding:'6px 12px', background:view===v?T.amberDim:'transparent', color:view===v?T.amber:T.textSub, border:'none', borderRight:vi<2?`1px solid ${T.border}`:'none', cursor:'pointer', fontSize:10, fontFamily:T.fM, fontWeight:view===v?700:400, transition:'all 0.15s' }}>
+              {l}
+            </button>
+          ))}
+        </div>
+        {view !== 'board' && (
+          <select value={taskSort} onChange={e=>setTaskSort(e.target.value)}
+            style={{ padding:'6px 10px', background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, fontFamily:T.fM, fontSize:10, color:T.textSub, cursor:'pointer' }}>
+            <option value='priority'>Priority</option>
+            <option value='due'>Due Date</option>
+            <option value='created'>Created</option>
+          </select>
+        )}
+        <span style={{ fontSize:9, fontFamily:T.fM, padding:'3px 9px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, flexShrink:0 }}>{activeTasks.length} active</span>
+        <span style={{ fontSize:9, fontFamily:T.fM, padding:'3px 9px', borderRadius:99, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, color:T.emerald, flexShrink:0 }}>✓ {doneTasks.length}</span>
+        <Btn onClick={()=>setModal(true)} color={T.amber} style={{ flexShrink:0 }}>+ New Task</Btn>
+      </div>
+
+      {/* Board view */}
+      {view === 'board' && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+          {COLUMNS.map(col => (
+            <div key={col.id} style={{ background:`${T.surface}88`, borderRadius:10, border:`1px solid ${T.border}`, padding:'12px 10px', minHeight:220 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'0 2px' }}>
+                <span style={{ fontSize:14, color:col.color }}>{col.emoji}</span>
+                <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:col.color }}>{col.label}</span>
+                <span style={{ marginLeft:'auto', fontSize:9, fontFamily:T.fM, color:T.textMuted, background:T.bg2, padding:'1px 7px', borderRadius:99, border:`1px solid ${T.border}` }}>{col.tasks.length}</span>
+              </div>
+              {col.tasks.length === 0 && (
+                <div style={{ padding:'20px 12px', textAlign:'center' }}>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, opacity:0.5 }}>Empty</div>
+                </div>
+              )}
+              {col.tasks.map(n => <TaskCard key={n.id} n={n} compact />)}
+              {col.id === 'todo' && (
+                <button onClick={()=>setModal(true)}
+                  style={{ width:'100%', padding:'8px', borderRadius:7, background:'transparent', border:`1px dashed ${T.border}`, color:T.textMuted, fontSize:10, fontFamily:T.fM, cursor:'pointer', transition:'all 0.15s', marginTop:4 }}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.amber+'44';e.currentTarget.style.color=T.amber;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMuted;}}>
+                  + Add task
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* List view */}
+      {view === 'list' && (
+        <div>
+          {activeTasks.length === 0 && doneTasks.length === 0 && (
+            <div style={{ padding:'60px 20px', textAlign:'center' }}>
+              <div style={{ fontSize:36, marginBottom:12 }}>🎯</div>
+              <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>No tasks yet</div>
+              <Btn onClick={()=>setModal(true)} color={T.amber}>+ New Task</Btn>
+            </div>
+          )}
+          {activeTasks.length > 0 && (
+            <div style={{ marginBottom:24 }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8, padding:'0 2px' }}>Active ({activeTasks.length})</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                {activeTasks.map(n => <TaskCard key={n.id} n={n} />)}
+              </div>
+            </div>
+          )}
+          {doneTasks.length > 0 && (
+            <div>
+              <button onClick={()=>setShowDone(v=>!v)}
+                style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px', borderRadius:T.r, background:`${T.emerald}08`, border:`1px solid ${T.emerald}22`, cursor:'pointer', transition:'background 0.15s', marginBottom:showDone?10:0 }}
+                onMouseEnter={e=>e.currentTarget.style.background=`${T.emerald}14`}
+                onMouseLeave={e=>e.currentTarget.style.background=`${T.emerald}08`}>
+                <span style={{ fontSize:12 }}>✅</span>
+                <span style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.emerald, flex:1, textAlign:'left' }}>Completed — {doneTasks.length}</span>
+                <span style={{ fontSize:10, color:T.textMuted, transform:showDone?'rotate(0deg)':'rotate(-90deg)', transition:'transform 0.2s' }}>▼</span>
+              </button>
+              {showDone && (
+                <div style={{ display:'flex', flexDirection:'column', gap:0, animation:'slideDown 0.2s ease' }}>
+                  {doneTasks.map(n => <TaskCard key={n.id} n={n} compact />)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Table view */}
+      {view === 'table' && (
+        <div style={{ border:`1px solid ${T.border}`, borderRadius:10, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 96px 100px 80px 50px', background:T.bg2, padding:'8px 14px', borderBottom:`1px solid ${T.border}` }}>
+            {['Task','Priority','Status','Due Date','Tag',''].map((h,hi) => (
+              <div key={hi} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>{h}</div>
+            ))}
+          </div>
+          {[...activeTasks,...doneTasks].map((n,i) => {
+            const pm = PRIO_META[n.priority||2];
+            const isOverdue = !n.done && n.dueDate && n.dueDate < todayStr;
+            const allRows = [...activeTasks,...doneTasks];
+            return (
+              <div key={n.id||i} onClick={()=>setEditingNote(n)}
+                style={{ display:'grid', gridTemplateColumns:'1fr 80px 96px 100px 80px 50px', padding:'10px 14px', borderBottom:i<allRows.length-1?`1px solid ${T.border}66`:'none', cursor:'pointer', transition:'background 0.12s', animation:`fadeUp 0.12s ease ${i*0.03}s both` }}
+                onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+                onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                  <button onClick={e=>{e.stopPropagation();actions.updateNote(n.id,{done:!n.done});}}
+                    style={{ width:14, height:14, borderRadius:'50%', flexShrink:0, background:n.done?T.emerald:'transparent', border:`2px solid ${n.done?T.emerald:T.border}`, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {n.done && <span style={{ fontSize:7, color:T.bg, fontWeight:900 }}>✓</span>}
+                  </button>
+                  <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:n.done?T.textSub:T.text, textDecoration:n.done?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{n.title}</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:pm.bg, color:pm.color }}>{pm.label}</span></div>
+                <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, padding:'2px 7px', borderRadius:99, background:n.done?T.emeraldDim:n.inProgress?T.amberDim:T.surface, color:n.done?T.emerald:n.inProgress?T.amber:T.textSub, border:`1px solid ${n.done?T.emerald+'33':n.inProgress?T.amber+'33':T.border}` }}>{n.done?'Done':n.inProgress?'In Progress':'To Do'}</span></div>
+                <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, color:isOverdue?T.rose:T.textMuted }}>{n.dueDate||'—'}</span></div>
+                <div style={{ display:'flex', alignItems:'center' }}><span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{n.tag||'—'}</span></div>
+                <div style={{ display:'flex', alignItems:'center' }}><button onClick={e=>{e.stopPropagation();actions.removeNote(n.id);}} style={{ padding:'2px 4px', borderRadius:4, background:'transparent', border:'none', opacity:0.35, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button></div>
+              </div>
+            );
+          })}
+          <div onClick={()=>setModal(true)}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', cursor:'pointer', opacity:0.5, transition:'opacity 0.15s' }}
+            onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='0.5'}>
+            <span style={{ fontSize:14, color:T.textMuted }}>+</span>
+            <span style={{ fontSize:12, fontFamily:T.fM, color:T.textMuted }}>New task</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── KNOWLEDGE PAGE ────────────────────────────────────────────────────────────
 function KnowledgePage({ data, actions }) {
   const lang = useLang();
@@ -9326,315 +9775,11 @@ function KnowledgePage({ data, actions }) {
         accentColor={T.amber}
       />
       {tab==='notes' && (
-        <div>
-          {/* ── Note Insights Panel ──────────────────────────────────────── */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10, marginBottom:14 }}>
-            {[
-              { label:'Notes this month', val: noteStats.monthNotes, color: T.amber, icon:'📝' },
-              { label:'Avg words/note',   val: noteStats.avgWords,   color: T.sky,   icon:'✍️' },
-              { label:'Writing streak',   val: `🔥 ${noteStats.streak}d`, color: T.accent, icon:'📅' },
-              { label:'Total notes',      val: noteStats.total,      color: T.violet, icon:'🗂' },
-            ].map((s,i)=>(
-              <GlassCard key={i} style={{ padding:'12px 14px' }}>
-                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>{s.label}</div>
-                <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:s.color }}>{s.val}</div>
-              </GlassCard>
-            ))}
-          </div>
-          {noteStats.topTags.length>0 && (
-            <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
-              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em' }}>TOP TAGS:</span>
-              {noteStats.topTags.map(([tag,cnt])=>(
-                <button key={tag} onClick={()=>{}} style={{ padding:'2px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:T.amber+'18', border:`1px solid ${T.amber}33`, color:T.amber, cursor:'default' }}>{tag} · {cnt}</button>
-              ))}
-              <div style={{ flex:1 }}/>
-              <button onClick={()=>setShowKnowledgeGraph(true)} style={{ padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:600, background:'rgba(139,92,246,0.12)', border:'1px solid rgba(139,92,246,0.35)', color:'#c084fc', cursor:'pointer' }}>🕸️ Knowledge Graph</button>
-            </div>
-          )}
-          {/* SR due-today badge */}
-          {srDueToday.length>0 && (
-            <div onClick={()=>setTab('review queue')} style={{ padding:'8px 14px', borderRadius:T.r, background:`${T.sky}10`, border:`1px solid ${T.sky}33`, marginBottom:12, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:14 }}>🔁</span>
-              <span style={{ fontSize:11, fontFamily:T.fM, color:T.sky, fontWeight:600 }}>{srDueToday.length} note{srDueToday.length>1?'s':''} due for review today</span>
-              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Open queue →</span>
-            </div>
-          )}
-          <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center' }}>
-            <div style={{ flex:1, position:'relative' }}>
-              <IcoSearch size={12} stroke={T.textSub} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none' }} />
-              <input value={noteSearch} onChange={e=>setNoteSearch(e.target.value)} placeholder="Search notes…" style={{ width:'100%', padding:'8px 12px 8px 30px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-            </div>
-            <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Note</Btn>
-          </div>
-          <div style={{ display:'flex', gap:6, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
-            {['all','note','idea','bookmark'].map(type=>(<button key={type} onClick={()=>setNoteTypeFilter(type)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:noteTypeFilter===type?T.amber+'33':'transparent', color:noteTypeFilter===type?T.amber:T.textSub, border:`1px solid ${noteTypeFilter===type?T.amber+'44':T.border}` }}>{type==='all'?'All types':type}</button>))}
-            <div style={{ flex:1 }} />
-            {['all',1,2,3].map(p=>(<button key={p} onClick={()=>setNotePriorityFilter(p)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:notePriorityFilter===p?T.violet+'33':'transparent', color:notePriorityFilter===p?T.violet:T.textSub, border:`1px solid ${notePriorityFilter===p?T.violet+'44':T.border}` }}>{p==='all'?'All priority':['🔴 High','🟡 Med','🔵 Low'][p-1]}</button>))}
-            <button onClick={()=>setShowArchived(a=>!a)} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:showArchived?T.surface:'transparent', color:showArchived?T.text:T.textSub, border:`1px solid ${T.border}` }}>{showArchived?'📦 Archived':'Active'}</button>
-          </div>
-          {filteredNotes.length===0 ? (
-            <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{noteSearch?`No notes match "${noteSearch}"` :'No notes yet. Create your first note to build your knowledge base.'}</div></GlassCard>
-          ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
-              {filteredNotes.map((note,i)=>{ const tc=TAG_COLORS[note.tag]||T.textSub; const isSelected = selectedNoteId===note.id; const related = isSelected ? getRelatedNotes(note, notes) : []; return (
-                <GlassCard key={note.id||i} onClick={()=>setSelectedNoteId(isSelected?null:note.id)} style={{ padding:'18px', cursor:'pointer', borderLeft:`3px solid ${note.priority===1?T.rose:note.priority===2?T.amber:tc}88`, animation:`fadeUp 0.3s ease ${i*0.08}s both`, opacity:note.done?0.65:1, border:isSelected?`1px solid ${T.amber}55`:undefined, background:isSelected?`${T.amber}06`:undefined }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                    <div style={{ display:'flex', gap:5, alignItems:'center', flexWrap:'wrap' }}>
-                      <Badge color={tc}>{note.tag||'General'}</Badge>
-                      {note.type && note.type!=='note' && <Badge color={note.type==='task'?T.sky:note.type==='idea'?T.violet:T.amber}>{note.type}</Badge>}
-                      {note.priority === 1 && <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 7px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.roseDim, border:`1px solid ${T.rose}44`, color:T.rose }}>🔴 High</span>}
-                      {note.priority === 2 && <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 7px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:T.amberDim, border:`1px solid ${T.amber}33`, color:T.amber }}>🟡 Med</span>}
-                      {note.dueDate && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>📅 {note.dueDate}</span>}
-                      {note.done && <Badge color={T.emerald}>✅ Done</Badge>}
-                    </div>
-                    <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{note.date||note.createdAt}</span>
-                      {note.type==='task' && (
-                        <button onClick={e=>{e.stopPropagation();actions.updateNote(note.id,{done:!note.done});}} title={note.done?'Mark undone':'Mark done'} style={{ padding:'2px 8px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:note.done?T.emeraldDim:T.surface, border:`1px solid ${note.done?T.emerald+'44':T.border}`, color:note.done?T.emerald:T.textSub }}>
-                          {note.done?'✓ Done':'Mark done'}
-                        </button>
-                      )}
-                      <button onClick={e=>{e.stopPropagation();setEditingNote(note);}} title="Edit" style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.7 }}><IcoPencil size={10} stroke={T.accent} /></button>
-                      <button onClick={e=>{e.stopPropagation();actions.updateNote?actions.updateNote(note.id,{archived:!note.archived}):null;}} title={note.archived?'Unarchive':'Archive'} style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5, fontSize:10 }}>{note.archived?'📤':'📦'}</button>
-                      <button onClick={e=>{e.stopPropagation();actions.removeNote(note.id);}} style={{ padding:3, borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={10} stroke={T.rose} /></button>
-                    </div>
-                  </div>
-                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:7, textDecoration:note.done?'line-through':'' }}>{note.title}</div>
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical' }}>{note.body||note.content||note.text||''}</div>
-                  {/* ── Related notes panel ──────────────────────────────── */}
-                  {isSelected && related.length>0 && (
-                    <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, animation:'slideDown 0.2s ease' }}>
-                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:8 }}>🔗 Related Notes</div>
-                      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                        {related.map((rn,ri)=>(
-                          <div key={ri} onClick={e=>{e.stopPropagation();setSelectedNoteId(rn.id);}} style={{ padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}
-                            onMouseEnter={e=>e.currentTarget.style.borderColor=T.amber+'44'}
-                            onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-                            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, marginBottom:2 }}>{rn.title}</div>
-                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{(rn.body||'').slice(0,80)}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {isSelected && related.length===0 && (
-                    <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted }}>No similar notes found — add more notes with overlapping topics.</div>
-                  )}
-                </GlassCard>
-              ); })}
-            </div>
-          )}
-          {/* ── Quick Notes — merged from separate tab ───────────────────── */}
-          {qn.length > 0 && (
-            <div style={{ marginTop:24 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase' }}>📌 Quick Notes ({qn.length})</div>
-                <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ New</Btn>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:10 }}>
-                {[...qn].sort((a,b)=>a.date<b.date?1:-1).slice(0,8).map((n,i)=>(
-                  <div key={n.id||i} style={{ padding:'14px', borderRadius:T.r, background:`${n.color||T.amber}10`, border:`1px solid ${n.color||T.amber}33`, animation:`fadeUp 0.25s ease ${i*0.05}s both` }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                      <div style={{ width:8, height:8, borderRadius:'50%', background:n.color||T.amber, flexShrink:0, marginTop:3 }} />
-                      <button onClick={()=>actions.removeQuickNote(n.id)} style={{ padding:2, borderRadius:4, background:'rgba(255,255,255,0.06)', border:'none', opacity:0.5, cursor:'pointer' }}><IcoTrash size={9} stroke={T.rose} /></button>
-                    </div>
-                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.6, wordBreak:'break-word' }}>{n.text}</div>
-                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:8 }}>{n.date}</div>
-                  </div>
-                ))}
-              </div>
-              {qn.length > 8 && <div style={{ marginTop:8, fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{qn.length-8} more quick notes</div>}
-            </div>
-          )}
-          {qn.length === 0 && (
-            <div style={{ marginTop:24, display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-              <span style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>📌 No quick notes yet — capture a fleeting thought</span>
-              <Btn onClick={()=>setModal('qnote')} color={T.amber} style={{ padding:'4px 12px', fontSize:9 }}>+ Quick Note</Btn>
-            </div>
-          )}
-          {/* ── Spending Planner ─────────────────────────────────────────── */}
-          <SpendingPlannerSection notes={notes} />
-        </div>
+        <NotionNotesView notes={notes} actions={actions} quickNotes={quickNotes} />
       )}
-      {tab==='tasks' && (() => {
-        // ── Partition: active vs done ──────────────────────────────────────
-        const allTasks = [...notes].filter(n => (n.type||'note') === 'task' && !n.archived);
-        const todayStr = today();
-
-        const sortFn = (a, b) => {
-          if (taskSort === 'priority') return (a.priority||2) - (b.priority||2);
-          if (taskSort === 'due') {
-            if (!a.dueDate && !b.dueDate) return 0;
-            if (!a.dueDate) return 1;
-            if (!b.dueDate) return -1;
-            return a.dueDate < b.dueDate ? -1 : 1;
-          }
-          return (b.date||'') > (a.date||'') ? 1 : -1; // created desc
-        };
-
-        const activeTasks = allTasks.filter(n => !n.done).sort(sortFn);
-        const doneTasks   = allTasks.filter(n =>  n.done).sort((a,b) => (b.date||'') > (a.date||'') ? 1 : -1);
-
-        const PRIO_META = {
-          1: { label:'High',   dot:T.rose,    badge:`${T.roseDim}` },
-          2: { label:'Medium', dot:T.amber,   badge:`${T.amberDim}` },
-          3: { label:'Low',    dot:T.sky,     badge:`${T.skyDim}` },
-        };
-
-        const TaskRow = ({ n, dimmed }) => {
-          const pm = PRIO_META[n.priority||2] || PRIO_META[2];
-          const isOverdue = !n.done && n.dueDate && n.dueDate < todayStr;
-          const isDueToday = !n.done && n.dueDate === todayStr;
-          const dueMeta = isOverdue
-            ? { label:`Overdue — ${n.dueDate}`, color:T.rose }
-            : isDueToday
-            ? { label:'Due today', color:T.amber }
-            : n.dueDate
-            ? { label:`Due ${n.dueDate}`, color:T.textSub }
-            : null;
-          return (
-            <div className="los-row" style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${isOverdue?T.rose+'33':T.border}`, opacity:dimmed?0.55:1, transition:'all 0.18s' }}>
-              {/* Check button */}
-              <button
-                onClick={() => actions.updateNote(n.id, { done: !n.done })}
-                title={n.done ? 'Mark undone' : 'Mark done'}
-                style={{ width:20, height:20, borderRadius:'50%', flexShrink:0, marginTop:1,
-                  background: n.done ? T.emerald : 'transparent',
-                  border: `2px solid ${n.done ? T.emerald : T.border}`,
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  cursor:'pointer', transition:'all 0.15s' }}>
-                {n.done && <span style={{ fontSize:10, color:T.bg, fontWeight:900, lineHeight:1 }}>✓</span>}
-              </button>
-              {/* Content */}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:7, flexWrap:'wrap', marginBottom:4 }}>
-                  <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:n.done?T.textSub:T.text,
-                    textDecoration:n.done?'line-through':'none', wordBreak:'break-word' }}>{n.title}</span>
-                  {/* Priority pill */}
-                  <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'1px 7px',
-                    borderRadius:99, fontSize:9, fontFamily:T.fM,
-                    background:pm.badge, border:`1px solid ${pm.dot}33`, color:pm.dot, flexShrink:0 }}>
-                    <span style={{ width:5, height:5, borderRadius:'50%', background:pm.dot, display:'inline-block' }} />
-                    {pm.label}
-                  </span>
-                  {n.tag && n.tag !== 'General' && (
-                    <span style={{ padding:'1px 7px', borderRadius:99, fontSize:9, fontFamily:T.fM,
-                      background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}>{n.tag}</span>
-                  )}
-                </div>
-                {n.body && (
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.55,
-                    overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical',
-                    marginBottom:dueMeta||n.estimatedCost?5:0 }}>{n.body}</div>
-                )}
-                {/* Meta row: due date + cost */}
-                <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-                  {dueMeta && (
-                    <span style={{ fontSize:9, fontFamily:T.fM, color:dueMeta.color, display:'flex', alignItems:'center', gap:3 }}>
-                      📅 {dueMeta.label}
-                    </span>
-                  )}
-                  {n.estimatedCost > 0 && (
-                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>
-                      💰 ${fmtN(n.estimatedCost)}
-                    </span>
-                  )}
-                  {n.done && n.date && (
-                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>completed {n.date}</span>
-                  )}
-                </div>
-              </div>
-              {/* Actions */}
-              <div style={{ display:'flex', gap:4, flexShrink:0, marginTop:1 }}>
-                <button onClick={e=>{e.stopPropagation();setEditingNote(n);}}
-                  title="Edit"
-                  style={{ padding:'3px 5px', borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.7 }}>
-                  <IcoPencil size={10} stroke={T.accent} />
-                </button>
-                <button onClick={e=>{e.stopPropagation();actions.removeNote(n.id);}}
-                  title="Delete"
-                  style={{ padding:'3px 5px', borderRadius:5, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}>
-                  <IcoTrash size={10} stroke={T.rose} />
-                </button>
-              </div>
-            </div>
-          );
-        };
-
-        return (
-          <div>
-            {/* ── Toolbar ──────────────────────────────────────────────── */}
-            <div style={{ display:'flex', gap:10, marginBottom:14, alignItems:'center', flexWrap:'wrap' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em' }}>SORT</span>
-                {[['due','Due Date'],['priority','Priority'],['created','Created']].map(([v,l])=>(
-                  <button key={v} onClick={()=>setTaskSort(v)}
-                    style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM,
-                      background:taskSort===v?T.amberDim:'transparent',
-                      color:taskSort===v?T.amber:T.textSub,
-                      border:`1px solid ${taskSort===v?T.amber+'44':T.border}` }}>{l}</button>
-                ))}
-              </div>
-              <div style={{ flex:1 }} />
-              {/* Stats pills */}
-              <span style={{ fontSize:9, fontFamily:T.fM, padding:'3px 10px', borderRadius:99,
-                background:T.surface, border:`1px solid ${T.border}`, color:T.textSub }}>
-                {activeTasks.length} active
-              </span>
-              <span style={{ fontSize:9, fontFamily:T.fM, padding:'3px 10px', borderRadius:99,
-                background:T.emeraldDim, border:`1px solid ${T.emerald}33`, color:T.emerald }}>
-                ✓ {doneTasks.length} done
-              </span>
-              <Btn onClick={()=>setModal('note')} color={T.amber}>+ New Task</Btn>
-            </div>
-
-            {/* ── Active tasks ──────────────────────────────────────────── */}
-            {activeTasks.length === 0 ? (
-              <GlassCard style={{ padding:36, textAlign:'center' }}>
-                <div style={{ fontSize:28, marginBottom:8 }}>🎯</div>
-                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:5 }}>All clear!</div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>No active tasks. Add one to get started.</div>
-              </GlassCard>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                {activeTasks.map((n,i)=>(
-                  <div key={n.id||i} style={{ animation:`fadeUp 0.25s ease ${i*0.04}s both` }}>
-                    <TaskRow n={n} dimmed={false} />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── Completed section ─────────────────────────────────────── */}
-            {doneTasks.length > 0 && (
-              <div style={{ marginTop:28 }}>
-                <button onClick={()=>setShowDone(v=>!v)}
-                  style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'10px 14px',
-                    borderRadius:T.r, background:`${T.emerald}08`, border:`1px solid ${T.emerald}22`,
-                    cursor:'pointer', transition:'all 0.15s', marginBottom:showDone?10:0 }}
-                  onMouseEnter={e=>e.currentTarget.style.background=`${T.emerald}14`}
-                  onMouseLeave={e=>e.currentTarget.style.background=`${T.emerald}08`}>
-                  <span style={{ fontSize:12 }}>✅</span>
-                  <span style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.emerald, flex:1, textAlign:'left' }}>
-                    Completed — {doneTasks.length} task{doneTasks.length!==1?'s':''}
-                  </span>
-                  <span style={{ fontSize:10, color:T.textMuted, fontFamily:T.fM,
-                    transform:showDone?'rotate(0deg)':'rotate(-90deg)', transition:'transform 0.2s' }}>▼</span>
-                </button>
-                {showDone && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:6, animation:'slideDown 0.2s ease' }}>
-                    {doneTasks.map((n,i)=>(
-                      <div key={n.id||i} style={{ animation:`fadeUp 0.2s ease ${i*0.03}s both` }}>
-                        <TaskRow n={n} dimmed={true} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {tab==='tasks' && (
+        <NotionTasksView notes={notes} actions={actions} />
+      )}
 
       {tab==='projects' && <ProjectsPage data={data} actions={actions} embedded />}
 
@@ -17981,8 +18126,7 @@ export default function LifeOS() {
       {/* Quick Capture FAB — S2 */}
       {/* QuickCaptureFAB removed */}
 
-      {/* Bottom Nav — S2 mobile */}
-      <BottomNav active={page} onNav={setPage} onAI={()=>setShowAIPanel(v=>!v)} showAI={showAIPanel} />
+      {/* Bottom Nav removed — navigation via sidebar only */}
       <MobileNavDrawer open={drawerOpen} onClose={()=>setDrawerOpen(false)} active={page} onNav={setPage} onSearch={()=>setCmdOpen(true)} />
 
       {/* Global modals triggered from Command Palette / FAB */}
@@ -18099,7 +18243,7 @@ export default function LifeOS() {
         </div>
 
         {/* Page — key triggers fade-in on every navigation */}
-        <div key={page} className="los-page-enter" style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(72px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
+        <div key={page} className="los-page-enter" style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(18px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
           {VIEW[page]}
         </div>
 
