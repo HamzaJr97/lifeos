@@ -71,6 +71,17 @@ import {
         .catch(err => console.warn('[LifeOS SW] registration failed:', err));
     });
   }
+  // ── visualViewport: track visible height so modals shrink when keyboard opens ──
+  const updateVVH = () => {
+    const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    document.documentElement.style.setProperty('--vvh', `${h}px`);
+  };
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateVVH);
+    window.visualViewport.addEventListener('scroll', updateVVH);
+  }
+  window.addEventListener('resize', updateVVH);
+  updateVVH();
 
   const link = document.createElement('link');
   link.rel = 'stylesheet';
@@ -153,7 +164,7 @@ import {
     body.los-modal-open { overflow:hidden; }
     /* Bottom sheet inner scroll — touch-action:pan-y re-enables vertical
        swipe gestures inside the sheet on Android despite body overflow:hidden */
-    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; max-height: calc(92vh - 120px); flex: 1; min-height: 0; }
+    .los-sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; max-height: calc(var(--vvh, 92vh) - 140px); flex: 1; min-height: 0; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
     /* TabNav: horizontal scroll on mobile, no wrapping */
     .los-tabnav { overflow-x:auto; -ms-overflow-style:none; scrollbar-width:none; }
     .los-tabnav::-webkit-scrollbar { display:none; }
@@ -1281,13 +1292,13 @@ function Modal({ open, onClose, title, children, wide=false }) {
   if (isMobile) {
     return (
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:999, display:'flex', alignItems:'flex-end', backdropFilter:'blur(4px)' }}>
-        <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:'22px 22px 0 0', padding:`20px 20px 0`, width:'100%', animation:'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)', maxHeight:'92vh', display:'flex', flexDirection:'column' }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:'22px 22px 0 0', padding:`20px 20px 0`, width:'100%', animation:'slideUp 0.3s cubic-bezier(0.32,0.72,0,1)', maxHeight:'calc(var(--vvh, 92vh) - 10px)', display:'flex', flexDirection:'column' }}>
           {/* Drag handle */}
           <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:'0 auto 18px', flexShrink:0 }} />
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexShrink:0 }}>
             <h2 style={{ fontSize:17, fontFamily:T.fD, fontWeight:700, color:T.text }}>{title}</h2>
             <BtnClose onClick={onClose} />          </div>
-          <div className="los-sheet-body" style={{ paddingBottom:`calc(20px + var(--sab))`, flex:1, minHeight:0 }}>
+          <div className="los-sheet-body" style={{ flex:1, minHeight:0 }}>
             {children}
           </div>
         </div>
@@ -4272,7 +4283,7 @@ function SmartAlertsButton({ alerts, onNav, onModal }) {
       {open && (
         <>
           <div onClick={()=>setOpen(false)} style={{ position:'fixed', inset:0, zIndex:498 }} />
-          <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, width:340, background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:14, boxShadow:`0 16px 48px rgba(0,0,0,0.55)`, zIndex:499, animation:'slideDown 0.18s ease', overflow:'hidden' }}>
+          <div style={{ position:'fixed', top:'calc(var(--topbar-height, 56px) + 8px)', right:8, width:'min(340px, calc(100vw - 16px))', background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:14, boxShadow:`0 16px 48px rgba(0,0,0,0.55)`, zIndex:499, animation:'slideDown 0.18s ease', overflow:'hidden' }}>
             <div style={{ padding:'10px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
               <span style={{ fontSize:9, fontFamily:T.fM, color:T.text, letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700 }}>
                 {urgent.length > 0 ? `⚠️ ${urgent.length} action${urgent.length>1?'s':''} needed` : `✅ All clear · ${positive.length} positive`}
@@ -12432,15 +12443,29 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
   })();
   // ── END GIST SYNC (now managed by useGistAutoSync in root) ────────────────
 
+  const [settingsTab, setSettingsTab] = useLocalStorage('los_settings_tab', 'profile');
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
       <PageHeader
         domain="System"
         title="Settings"
-        subtitle="Profile · Preferences · AI · Data"
+        subtitle="Profile · Appearance · AI · Data · Notifications"
       />
+      {/* Tab navigation */}
+      <div className="los-tabnav" style={{ display:'flex', gap:6, marginBottom:16, padding:'2px 0' }}>
+        {[
+          { id:'profile',       label:'👤 Profile'        },
+          { id:'appearance',    label:'🎨 Appearance & AI' },
+          { id:'data',          label:'💾 Data'            },
+          { id:'notifications', label:'🔔 Reminders'       },
+        ].map(tab => (
+          <button key={tab.id} onClick={()=>setSettingsTab(tab.id)} style={{ flexShrink:0, padding:'7px 14px', borderRadius:T.r, background:settingsTab===tab.id?T.accentDim:T.surface, border:`1px solid ${settingsTab===tab.id?T.accent+'55':T.border}`, fontSize:11, fontFamily:T.fM, fontWeight:settingsTab===tab.id?700:400, color:settingsTab===tab.id?T.accent:T.textSub, cursor:'pointer', transition:'all 0.15s', whiteSpace:'nowrap' }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
-        <GlassCard style={{ padding:'24px' }}>
+        {settingsTab === 'profile' && <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>Profile</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" />
@@ -12499,10 +12524,9 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             </div>
           </div>
           </div>
-        </GlassCard>
+        </GlassCard>}
 
-        {/* S5: Theme selector */}
-        <GlassCard style={{ padding:'24px' }}>
+        {settingsTab === 'appearance' && <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>{lang==='fr'?'🎨 Apparence':'🎨 Appearance'}</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>{lang==='fr'?'Thème':'Theme'}</div>
@@ -12528,11 +12552,11 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
               ))}
             </div>
           </div>
-        </GlassCard>
+        </GlassCard>}
 
-        {/* S5: AI Provider */}
-        <GlassCard style={{ padding:'24px' }}>
-          <SectionLabel>🤖 AI Provider — S5</SectionLabel>
+        {/* AI Provider — same 'appearance' tab */}
+        {settingsTab === 'appearance' && <GlassCard style={{ padding:'24px' }}>
+          <SectionLabel>🤖 AI Provider</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Select your AI backend for all AI features</div>
             {[
@@ -12642,9 +12666,9 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             )}
             <Btn full onClick={save} color={T.violet}>Save AI Settings</Btn>
           </div>
-        </GlassCard>
+        </GlassCard>}
 
-        <GlassCard style={{ padding:'24px' }}>
+        {settingsTab === 'data' && <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>Data Management</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {[{ label:'Expenses logged', val:data.expenses.length, color:T.rose }, { label:'Habits tracked', val:data.habits.length, color:T.accent }, { label:'Goals set', val:data.goals.length, color:T.amber }, { label:'Debts tracked', val:data.debts.length, color:T.rose }, { label:'Investments', val:data.investments.length, color:T.violet }].map((item,i)=>(
@@ -12731,9 +12755,9 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
               <Btn full onClick={()=>{ actions.updateSettings({...settings, onboarded:false, name:''}); window.location.reload(); }} color={T.amber}>🧭 Restart Onboarding Wizard</Btn>
             </div>
           </div>
-        </GlassCard>
+        </GlassCard>}
 
-        <GlassCard style={{ padding:'24px' }}>
+        {settingsTab === 'notifications' && <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>🔔 Smart Reminders</SectionLabel>
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:12 }}>Configure daily nudges (uses browser Notification API when available).</div>
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -12767,9 +12791,9 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
               </div>
             )}
           </div>
-        </GlassCard>
+        </GlassCard>}
 
-        <GlassCard style={{ padding:'24px', gridColumn:'span 2' }}>
+        {settingsTab === 'notifications' && <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>System Status</SectionLabel>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:10 }}>
             {['Finance Engine','Health Sync','AI Coach','Timeline','Intelligence'].map((sys,i)=>(
@@ -12780,10 +12804,10 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             ))}
           </div>
           <div style={{ marginTop:14, padding:'14px', borderRadius:T.r, background:`${T.accent}08`, border:`1px solid ${T.accent}22` }}>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ Enhanced LifeOS v61 — S4 + S5 + S6 + S7 Upgrades Active</div>
-            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub (Kanban + REX), Calendar view, What-If Simulator, Live Crypto Prices, Global Undo. S5: 4 Themes, AI Provider selection, i18n (EN/FR). S6: Smart Alerts Widget, AI Coach, AI Advisor, Meal Planner, Sleep Coach, Note Analysis, Social Challenges, Bond Tracker, Thesis Notes, Regret Tags, Recurring Detection, Subcategories, Category Filter, Clipboard, Smart Reminders, Auto-Log. S7: Split Expenses, Custom Health Metrics, Gmail MCP, Google Calendar MCP, Badge Fix (no more spam).</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.accent, fontWeight:600, marginBottom:4 }}>✓ LifeOS v108</div>
+            <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>S4: Career Hub. S5: Themes, AI Provider, i18n. S6: Smart Alerts, AI Coach, Meal Planner, Sleep Coach, Recurring Detection, Subcategories. S7: Split Expenses, Custom Health Metrics, MCP integration. v108: Mobile save fix, bill recurring, notifications panel, settings tabs.</div>
           </div>
-        </GlassCard>
+        </GlassCard>}
       </div>
     </div>
   );
@@ -18425,10 +18449,20 @@ export default function LifeOS() {
   const markBillPaid = useCallback((billId) => {
     setBills(p => p.map(b => {
       if (b.id !== billId) return b;
-      const next = new Date(b.nextDate); next.setMonth(next.getMonth()+1);
-      return { ...b, paid:true, lastPaid:today(), nextDate:next.toISOString().slice(0,10) };
+      // Advance nextDate based on dueDay (if set) or +1 month from current nextDate
+      let next;
+      if (b.dueDay) {
+        next = new Date(b.nextDate || new Date());
+        next.setMonth(next.getMonth() + 1);
+        next.setDate(Number(b.dueDay));
+      } else {
+        next = new Date(b.nextDate || new Date());
+        next.setMonth(next.getMonth() + 1);
+      }
+      // paid:false so the bill re-appears as due next month (recurring behavior)
+      return { ...b, paid:false, lastPaid:today(), nextDate:next.toISOString().slice(0,10) };
     }));
-    addToast('Bill marked as paid ✓', null, 3);
+    addToast('Bill marked as paid ✓ — reset for next month', null, 3);
   }, [addToast]);
 
   const addQuickNote = useCallback((qn) => {
