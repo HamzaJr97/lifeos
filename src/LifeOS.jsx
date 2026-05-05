@@ -12452,7 +12452,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
         subtitle="Profile · Appearance · AI · Data · Notifications"
       />
       {/* Tab navigation */}
-      <div className="los-tabnav" style={{ display:'flex', gap:6, marginBottom:16, padding:'2px 0' }}>
+      <div className="los-tabnav" style={{ display:'flex', gap:6, marginBottom:16, padding:'2px 0', overflowX:'auto', WebkitOverflowScrolling:'touch', scrollbarWidth:'none' }}>
         {[
           { id:'profile',       label:'👤 Profile'        },
           { id:'appearance',    label:'🎨 Appearance & AI' },
@@ -12464,7 +12464,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
           </button>
         ))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', maxHeight:'calc(var(--vvh, 100vh) - 180px)', paddingBottom:'calc(env(safe-area-inset-bottom, 0px) + 72px)' }}>
         {settingsTab === 'profile' && <GlassCard style={{ padding:'24px' }}>
           <SectionLabel>Profile</SectionLabel>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
