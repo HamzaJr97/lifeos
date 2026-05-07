@@ -1664,7 +1664,6 @@ const NAV_DEFS = [
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
   { id:'lifehub',   Icon:IcoBriefcase,  tKey:'lifehub'     },
   { id:'calendar',  Icon:IcoCalendar,   tKey:'calendar'    },
-  { id:'intel',     Icon:IcoBrain,      tKey:'intel'       },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
 function Sidebar({ active, onNav, userName, onAI, showAI }) {
@@ -2921,7 +2920,7 @@ function CommandPalette({ open, onClose, data, onNav, onModal }) {
     { id:'home', label:'Dashboard', icon:'🏠' }, { id:'timeline', label:'Timeline', icon:'📅' },
     { id:'money', label:'Money Hub', icon:'💰' }, { id:'health', label:'Health & Vitals', icon:'❤️' },
     { id:'growth', label:'Habits & Goals', icon:'📈' }, { id:'knowledge', label:'Knowledge Base', icon:'📚' },
-    { id:'intel', label:'Intelligence', icon:'🧠' }, { id:'archive', label:'Archive', icon:'🗃️' },
+    { id:'archive', label:'Archive', icon:'🗃️' },
     { id:'settings', label:'Settings', icon:'⚙️' },
   ];
   const ACTIONS = [
@@ -3611,7 +3610,7 @@ function computeDailyBrief({ expenses=[], incomes=[], habits=[], habitLogs={}, v
         signal: `Savings pace above average`,
         detail: `Projected to save ${cur}${fmtN(Math.round(projSave))} this month — ${cur}${fmtN(Math.abs(Math.round(saveDelta)))} more than your usual ${cur}${fmtN(Math.round(avgSave))}.`,
         projection: `Best savings month in ${trailing.length}+ months`,
-        action: 'View forecast', actionNav: 'intel',
+        action: 'View forecast', actionNav: 'home',
       };
     } else {
       financial = {
@@ -4079,7 +4078,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
       id: `savrate-low-${thisMonth}`, type:'savings', severity:'warn',
       title: `Savings rate at ${savRate.toFixed(0)}%`,
       body: `Less than 5% saved this month. At this rate you'll save ${T.amber} less than your average.`,
-      action: 'See forecast', actionNav: 'intel',
+      action: 'See forecast', actionNav: 'home',
       dismissKey: `savrate-low-${thisMonth}`,
       color: T.amber,
     });
@@ -4197,7 +4196,7 @@ function computeSmartAlerts({ bills=[], budgets={}, expenses=[], habits=[], habi
         id: `savrate-high-${thisMonth}`, type:'positive', severity:'positive',
         title: `On track for best savings month`,
         body: `${savRate.toFixed(1)}% savings rate vs your ${avgSR.toFixed(1)}% average. Adding just a bit more this week could make it a personal record.`,
-        action: 'See forecast', actionNav: 'intel',
+        action: 'See forecast', actionNav: 'home',
         dismissKey: `savrate-high-${thisMonth}`,
         color: T.emerald,
       });
@@ -4381,7 +4380,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function HomePage({ data, actions, onNav }) {
+function HomePage({ data, actions, onNav, onOpenPatterns=()=>{}, onOpenGraph=()=>{}, onOpenParallel=()=>{}, onOpenAmbient=()=>{} }) {
   const lang = useLang();
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
   const [modal, setModal] = useState(null);
@@ -4705,6 +4704,41 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
     const pct=Math.min(100,Math.round((Number(nearest.current||0)/Number(nearest.target||1))*100));
     return { ...nearest, daysLeft:days, pct };
   },[goals]);
+
+  // ── Intel memos (absorbed from IntelligencePage) ─────────────────────────
+  const avgSleep7Intel = useMemo(()=>{ const v=(vitals||[]).slice(-7); return v.length?(v.reduce((s,x)=>s+Number(x.sleep||0),0)/v.length).toFixed(1):'?'; },[vitals]);
+  const streakCacheIntel = useMemo(()=>{ const c={}; (habits||[]).forEach(h=>{c[h.id]=getStreak(h.id,habitLogs);}); return c; },[habits,habitLogs]);
+  const bestStreakIntel = useMemo(()=>Object.values(streakCacheIntel).reduce((mx,s)=>s>mx?s:mx,0),[streakCacheIntel]);
+  const { monthExp: mExp, monthInc: mInc, nw: nwI, savRate: srI, topCatEntry: topCatI } = data.computed;
+  const cur_i = settings.currency||'$';
+  const intelInsights = useMemo(()=>[
+    mInc>0&&srI<20&&{title:'Low Savings Rate',body:`Saving ${srI.toFixed(0)}% this month. Target 20-35% to build wealth.`,color:T.amber,icon:'⚠️',type:'warning'},
+    mInc>0&&srI>=35&&{title:'Excellent Savings Rate',body:`${srI.toFixed(0)}% savings rate — outperforming most savers.`,color:T.emerald,icon:'📈',type:'positive'},
+    topCatI&&{title:`Top Spend: ${topCatI[0]}`,body:`${cur_i}${fmtN(topCatI[1])} this month (${mInc>0?((topCatI[1]/mInc)*100).toFixed(0):0}% of income).`,color:T.violet,icon:'💳',type:'insight'},
+    Number(avgSleep7Intel)>0&&Number(avgSleep7Intel)<7&&{title:'Sleep Deficit',body:`${avgSleep7Intel}h avg sleep — below optimal 7-8h. Impacts productivity and decisions.`,color:T.sky,icon:'😴',type:'insight'},
+    Number(avgSleep7Intel)>=7&&{title:'Sleep Health Strong',body:`${avgSleep7Intel}h avg sleep — within optimal range.`,color:T.sky,icon:'🌙',type:'positive'},
+    bestStreakIntel>=7&&{title:`${bestStreakIntel}-Day Streak`,body:`Best active streak. Habits compound like investments.`,color:T.accent,icon:'🔥',type:'positive'},
+    (habits||[]).length>0&&todayDone===0&&{title:'No Habits Logged Today',body:`${(habits||[]).length} habit${(habits||[]).length>1?'s':''} pending. Consistency drives your Life Score.`,color:T.amber,icon:'🎯',type:'warning'},
+    (goals||[]).length>0&&{title:'Goal Progress',body:`${(goals||[]).filter(g=>(g.current||0)>=g.target).length}/${(goals||[]).length} goals completed. Avg ${Math.round((goals||[]).reduce((s,g)=>s+((g.current||0)/Math.max(1,g.target))*100,0)/Math.max(1,(goals||[]).length))}%.`,color:T.amber,icon:'🏆',type:'positive'},
+  ].filter(Boolean).slice(0,5),[mInc,srI,topCatI,avgSleep7Intel,bestStreakIntel,habits,todayDone,goals,cur_i]);
+
+  const detectedRecurringIntel = useMemo(()=>{
+    const byNote={};
+    (expenses||[]).forEach(e=>{const k=(e.note||e.category||'').toLowerCase().trim().slice(0,30);if(!k)return;if(!byNote[k])byNote[k]=[];byNote[k].push(e);});
+    return Object.entries(byNote).filter(([,list])=>{if(list.length<2)return false;const months=[...new Set(list.map(e=>e.date?.slice(0,7)))];if(months.length<2)return false;const amounts=list.map(e=>Number(e.amount||0));const avg=amounts.reduce((s,a)=>s+a,0)/amounts.length;return amounts.every(a=>Math.abs(a-avg)/Math.max(avg,1)<0.15);})
+      .map(([key,list])=>({name:list[0].note||list[0].category||key,category:list[0].category,avgAmount:list.reduce((s,e)=>s+Number(e.amount||0),0)/list.length,count:list.length}))
+      .sort((a,b)=>b.avgAmount-a.avgAmount).slice(0,5);
+  },[expenses]);
+
+  const habitAnalyticsIntel = useMemo(()=>{
+    const weeks=Array.from({length:8},(_,i)=>{const start=new Date();start.setDate(start.getDate()-start.getDay()-7*(7-i));return Array.from({length:7},(_,j)=>{const d=new Date(start);d.setDate(d.getDate()+j);return d.toISOString().slice(0,10);});});
+    return weeks.map(days=>{const total=(habits||[]).length*7;const done=(habits||[]).reduce((s,h)=>s+days.filter(d=>(habitLogs[h.id]||[]).includes(d)).length,0);return{week:days[0].slice(5),pct:total>0?Math.round((done/total)*100):0};});
+  },[habits,habitLogs]);
+
+  const [intelOpen,setIntelOpen]=useLocalStorage('los_intel_widget_open',true);
+  const [habitAnalOpen,setHabitAnalOpen]=useLocalStorage('los_habitanal_widget_open',true);
+  const [digestCopied2,setDigestCopied2]=useState(false);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // ── Spaced repetition queue for Home card ─────────────────────────────
   const [homeSrQueue] = useLocalStorage('los_sr_queue', {});
@@ -5165,12 +5199,169 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
           )}
         </div>
 
+        {/* ── INTELLIGENCE WIDGET ────────────────────────────────────── */}
+        <div style={{ animation:'fadeUp 0.35s ease 0.3s both' }}>
+          <button onClick={()=>setIntelOpen(v=>!v)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', background:'none', border:'none', cursor:'pointer', padding:'4px 0', marginBottom:intelOpen?10:0 }}>
+            <TierLabel color='#c084fc' style={{ marginBottom:0 }}>🧠 Life Intelligence</TierLabel>
+            <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, transition:'transform 0.2s', display:'inline-block', transform:intelOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
+          </button>
+          {intelOpen && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {/* Insight cards */}
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {intelInsights.map((ins,i)=>(
+                  <div key={i} style={{ display:'flex', gap:12, padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${ins.color}22`, borderLeft:`3px solid ${ins.color}` }}>
+                    <span style={{ fontSize:16, flexShrink:0 }}>{ins.icon}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{ins.title}</div>
+                      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{ins.body}</div>
+                    </div>
+                    <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:700, letterSpacing:'0.08em', padding:'2px 6px', borderRadius:99, background:ins.color+'18', color:ins.color, flexShrink:0, alignSelf:'flex-start' }}>
+                      {ins.type?.toUpperCase()}
+                    </span>
+                  </div>
+                ))}
+                {intelInsights.length===0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Log expenses, vitals & habits to unlock insights.</div>}
+              </div>
+              {/* Pattern Engine preview */}
+              <GlassCard style={{ padding:'16px 18px', border:`1px solid rgba(192,132,252,0.25)`, background:'rgba(192,132,252,0.04)' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:detectedRecurringIntel.length>0?10:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:16 }}>📡</span>
+                    <div>
+                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:'#c084fc' }}>Pattern Engine</div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{detectedRecurringIntel.length>0?`${detectedRecurringIntel.length} recurring patterns detected`:'Finds hidden correlations in your data'}</div>
+                    </div>
+                  </div>
+                  <button onClick={onOpenPatterns} style={{ padding:'4px 10px', borderRadius:99, background:'rgba(192,132,252,0.12)', border:'1px solid rgba(192,132,252,0.35)', color:'#c084fc', fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>Expand ↗</button>
+                </div>
+                {detectedRecurringIntel.length>0 && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                    {detectedRecurringIntel.slice(0,3).map((r,i)=>(
+                      <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 10px', borderRadius:T.r, background:T.bg1, border:`1px solid ${T.border}` }}>
+                        <div style={{ display:'flex', gap:7, alignItems:'center' }}>
+                          <span style={{ fontSize:13 }}>🔄</span>
+                          <div>
+                            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{r.name}</div>
+                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{r.count}× · {r.category}</div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize:11, fontFamily:T.fM, fontWeight:600, color:T.rose }}>{cur_i}{fmtN(r.avgAmount)}/mo</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </GlassCard>
+              {/* Life Graph + immersive launchers row */}
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                <GlassCard style={{ flex:1, minWidth:160, padding:'14px 16px', border:`1px solid ${T.accent}33`, background:T.accentLo }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:16 }}>🕸️</span>
+                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.accent }}>Life Graph</div>
+                    </div>
+                    <button onClick={onOpenGraph} style={{ padding:'4px 10px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}55`, color:T.accent, fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>↗</button>
+                  </div>
+                </GlassCard>
+                {[
+                  {icon:'🔀',title:'Parallel You',color:T.sky,bg:'rgba(56,189,248,0.08)',border:'rgba(56,189,248,0.25)',action:onOpenParallel},
+                  {icon:'🌊',title:'Ambient',color:T.amber,bg:T.amberDim,border:T.amber+'33',action:onOpenAmbient},
+                ].map((f,i)=>(
+                  <button key={i} onClick={f.action} style={{ flex:1, minWidth:90, padding:'12px 14px', borderRadius:12, background:f.bg, border:`1px solid ${f.border}`, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:18 }}>{f.icon}</span>
+                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:f.color }}>{f.title}</div>
+                  </button>
+                ))}
+              </div>
+              {/* Weekly Digest button */}
+              <button onClick={()=>{
+                const weekAgo=new Date();weekAgo.setDate(weekAgo.getDate()-7);const wStr=weekAgo.toISOString().slice(0,10);
+                const wkExp=(expenses||[]).filter(e=>e.date>=wStr).reduce((s,e)=>s+Number(e.amount||0),0);
+                const wkInc=(incomes||[]).filter(i=>i.date>=wStr).reduce((s,i)=>s+Number(i.amount||0),0);
+                const habitPct=(habits||[]).length>0?Math.round((Object.values(habitLogs).flat().filter(d=>d>=wStr).length/((habits||[]).length*7))*100):0;
+                const topCatW=(()=>{const m={};(expenses||[]).filter(e=>e.date>=wStr).forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1])[0];})();
+                const dl=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+                const txt=[`📊 LIFE OS — WEEKLY DIGEST`,`Week ending ${dl}`,`${'─'.repeat(36)}`,``,`💰 FINANCES`,`  Spent:      ${cur_i}${fmtN(wkExp)}`,`  Income:     ${cur_i}${fmtN(wkInc)}`,`  Net:        ${cur_i}${fmtN(wkInc-wkExp)}`,topCatW?`  Top cat:    ${topCatW[0]} (${cur_i}${fmtN(topCatW[1])})`:null,`  Month save: ${srI.toFixed(1)}%  NW: ${cur_i}${fmtN(nwI)}`,``,`🔥 HABITS`,`  Completion: ${habitPct}%  Streak: ${bestStreakIntel}d`,``,intelInsights.length>0?`🧠 TOP INSIGHTS`:null,...intelInsights.slice(0,3).map(ins=>`  · ${ins.title}`),``,`${'─'.repeat(36)}`,`Generated by LifeOS · ${dl}`].filter(v=>v!==null).join('\n');
+                navigator.clipboard.writeText(txt).then(()=>{setDigestCopied2(true);setTimeout(()=>setDigestCopied2(false),2500);});
+              }} style={{ padding:'8px 16px', borderRadius:99, background:digestCopied2?'rgba(52,211,153,0.12)':T.surface, border:`1px solid ${digestCopied2?T.emerald+'55':T.border}`, color:digestCopied2?T.emerald:T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:6, alignSelf:'flex-start' }}>
+                {digestCopied2?'✅ Copied!':'📋 Copy Weekly Digest'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── HABIT ANALYTICS WIDGET ─────────────────────────────────── */}
+        {(habits||[]).length > 0 && (
+          <div style={{ animation:'fadeUp 0.35s ease 0.35s both' }}>
+            <button onClick={()=>setHabitAnalOpen(v=>!v)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', background:'none', border:'none', cursor:'pointer', padding:'4px 0', marginBottom:habitAnalOpen?10:0 }}>
+              <TierLabel color={T.accent} style={{ marginBottom:0 }}>🔥 Habit Analytics</TierLabel>
+              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, transition:'transform 0.2s', display:'inline-block', transform:habitAnalOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
+            </button>
+            {habitAnalOpen && (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {/* Stats row */}
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10 }}>
+                  {[
+                    {label:'Active Habits',val:(habits||[]).length,color:T.accent},
+                    {label:'Done Today',val:`${todayDone}/${(habits||[]).length}`,color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.amber},
+                    {label:'Best Streak',val:`🔥 ${bestStreakIntel}d`,color:T.amber},
+                    {label:'Total Logs',val:Object.values(habitLogs).flat().length,color:T.violet},
+                  ].map((m,i)=>(
+                    <GlassCard key={i} style={{ padding:'12px 14px' }}>
+                      <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{m.label}</div>
+                      <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+                    </GlassCard>
+                  ))}
+                </div>
+                {/* Weekly bar chart */}
+                <GlassCard style={{ padding:'16px 18px' }}>
+                  <SectionLabel>Weekly Consistency — Last 8 Weeks</SectionLabel>
+                  {habitAnalyticsIntel.some(w=>w.pct>0) ? (
+                    <ResponsiveContainer width="100%" height={140}>
+                      <BarChart data={habitAnalyticsIntel} barSize={20} margin={{top:4,right:0,left:0,bottom:0}}>
+                        <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false}/>
+                        <XAxis dataKey="week" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false}/>
+                        <YAxis domain={[0,100]} hide/>
+                        <Tooltip formatter={v=>`${v}%`} contentStyle={{background:T.surfaceHi,border:`1px solid ${T.border}`,borderRadius:8,fontSize:11,fontFamily:T.fM}}/>
+                        <Bar dataKey="pct" name="Consistency %" fill={T.accent} opacity={0.85} radius={[4,4,0,0]}/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : <div style={{height:60,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Log habits to see trends.</div>}
+                </GlassCard>
+                {/* Per-habit rows */}
+                <GlassCard style={{ padding:'16px 18px' }}>
+                  <SectionLabel>Per-Habit Performance</SectionLabel>
+                  {(habits||[]).map((h,i)=>{
+                    const streak=streakCacheIntel[h.id]??0;
+                    const total=(habitLogs[h.id]||[]).length;
+                    const last30=Array.from({length:30},(_,j)=>{const d=new Date();d.setDate(d.getDate()-29+j);return d.toISOString().slice(0,10);}).filter(d=>(habitLogs[h.id]||[]).includes(d)).length;
+                    const cons30=Math.round((last30/30)*100);
+                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
+                    const hc=HCOLORS[i%HCOLORS.length];
+                    return (
+                      <div key={h.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:i<(habits||[]).length-1?`1px solid ${T.border}`:'none'}}>
+                        <div style={{fontSize:16,flexShrink:0}}>{h.emoji||'🔥'}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                            <span style={{fontSize:11,fontFamily:T.fD,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h.name}</span>
+                            <span style={{fontSize:9,fontFamily:T.fM,color:hc,flexShrink:0,marginLeft:8}}>🔥{streak}d · {cons30}%</span>
+                          </div>
+                          <ProgressBar pct={cons30} color={hc} height={4}/>
+                          <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{total} total · {last30}/30 this month</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </GlassCard>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
-
-// ── TIMELINE PAGE ─────────────────────────────────────────────────────────────
 function TimelinePage({ data, embedded }) {
   const lang = useLang();
   const { expenses=[], incomes=[], habits=[], habitLogs={}, vitals=[], goals=[], investments=[], debts=[], settings={} } = data;
@@ -18667,7 +18858,7 @@ export default function LifeOS() {
   // ── S2: Mobile state ────────────────────────────────────────────────────────
   const eb = (child) => <ErrorBoundary key={page}>{child}</ErrorBoundary>;
   const VIEW = {
-    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onNav={setPage} />),
+    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onNav={setPage} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} />),
     timeline:  eb(<TimelinePage  data={data} />),
     money:     eb(<MoneyPage     data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenMonthlyReview={()=>setShowMonthlyReview(true)} />),
     health:    eb(<HealthPage    data={data} actions={{...actions, addVitals:addVitalsWithPop}} />),
@@ -18675,7 +18866,7 @@ export default function LifeOS() {
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
     career:    eb(<CareerPage    data={data} actions={actions} />),
     calendar:  eb(<CalendarPage  data={data} />),
-    intel:     eb(<IntelligencePage data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} onNav={setPage} />),
+    // intel page absorbed into Home dashboard
     archive:   eb(<ArchivePage   data={data} />),
     projects:  eb(<ProjectsPage  data={data} actions={actions} />),
     groceries: eb(<GroceriesPage data={data} actions={actions} />),
