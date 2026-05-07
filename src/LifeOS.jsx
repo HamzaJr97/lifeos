@@ -6173,20 +6173,20 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const monthlySubTotal = useMemo(()=>(subscriptions||[]).reduce((s,sub)=>{ const n=Number(sub.amount||0); return s+(sub.cycle==='yearly'?n/12:sub.cycle==='weekly'?n*4.33:n); },0),[subscriptions]);
   const billsArr = bills || [];
   const upcomingBills = useMemo(()=>[...billsArr].filter(b=>!b.paid).sort((a,b)=>a.nextDate<b.nextDate?-1:1),[billsArr]);
-  const TABS = ['overview','spending','debts','investments','goals','tools','groceries','more'];
+  const [showGroceries, setShowGroceries] = useState(false);
+  const TABS = ['overview','spending','debts','investments','goals','more'];
   const TAB_LABELS = {
     overview:    lang==='fr'?'Vue':'Overview',
     spending:    lang==='fr'?'Dépenses':'Spending',
     debts:       lang==='fr'?'Dettes':'Debts',
     investments: lang==='fr'?'Invest':'Invest',
     goals:       lang==='fr'?'Objectifs':'Goals',
-    tools:       lang==='fr'?'Outils':'Tools',
-    groceries:   lang==='fr'?'🛒 Courses':'🛒 Groceries',
     more:        '··· More',
     recurring:   lang==='fr'?'Récurrent':'Recurring',
     assets:      lang==='fr'?'Actifs':'Assets',
     simulator:   lang==='fr'?'Simulateur':'Simulator',
     forecast:    lang==='fr'?'Prévisions':'Forecast',
+    tools:       lang==='fr'?'Outils':'Tools',
   };
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
@@ -6208,6 +6208,13 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       <SplitExpenseModal open={!!splitExpense} onClose={()=>setSplitExpense(null)} expense={splitExpense} cur={cur} onSave={parts=>{ actions.removeExpense(splitExpense.id); parts.forEach(p=>actions.addExpense(p)); setSplitExpense(null); }} />
       <EditDebtModal open={!!editDebt} onClose={()=>setEditDebt(null)} debt={editDebt} onSave={(id,patch)=>{actions.updateDebt(id,patch);setEditDebt(null);}} />
       <EditGoalModal open={!!editGoalMoney} onClose={()=>setEditGoalMoney(null)} goal={editGoalMoney} onSave={(id,patch)=>{actions.updateGoal(id,patch);setEditGoalMoney(null);}} />
+      {showGroceries && (
+        <Modal open={showGroceries} onClose={()=>setShowGroceries(false)} title="🛒 Groceries" wide>
+          <div className="los-sheet-body">
+            <GroceriesPage data={data} actions={actions} embedded />
+          </div>
+        </Modal>
+      )}
       <PageHeader
         domain={lang==='fr'?'Domaine Financier':'Financial Domain'}
         title={lang==='fr'?'Finance':'Money Hub'}
@@ -6281,6 +6288,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               { label:'Asset',                                color:T.accent,  onClick:()=>setModal('asset'),            icon:<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></> },
               { label:'Debt',                                 color:T.rose,    onClick:()=>setModal('debt'),             icon:<><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></> },
               { label:'Review',                               color:T.violet,  onClick:()=>onOpenMonthlyReview?.(),     icon:<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></> },
+              { label:'🛒 Groceries',                          color:T.emerald, onClick:()=>setShowGroceries(true),      icon:<><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></> },
             ].map((btn, i) => (
               <button key={i} onClick={btn.onClick} style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 13px', borderRadius:8, fontSize:11, fontFamily:T.fD, fontWeight:500, border:`1px solid ${btn.color}33`, color:btn.color, background:'transparent', cursor:'pointer', transition:'all 0.15s', minHeight:36 }}
                 onMouseEnter={e=>{ e.currentTarget.style.background=`${btn.color}12`; e.currentTarget.style.borderColor=`${btn.color}66`; }}
@@ -6336,6 +6344,13 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               ); })}
             </GlassCard>
           )}
+          {/* ── Tools — collapsed into Overview ──────────────────────────── */}
+          <InvestmentsSubSection title="🛠️ Financial Tools" storageKey="los_tools_section_open">
+            <MoneyToolsTab data={data} cur={cur} />
+          </InvestmentsSubSection>
+          <InvestmentsSubSection title="📥 Import Data (CSV)" storageKey="los_tools_ingest_open">
+            <DataIngestTab data={data} actions={actions} />
+          </InvestmentsSubSection>
         </div>
       )}
 
@@ -7422,30 +7437,20 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {/* S4: What-If Financial Simulator tab */}
       {tab === 'simulator' && <WhatIfSimulator data={data} />}
 
-      {tab==='tools' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-          <MoneyToolsTab data={data} cur={cur} />
-          {/* Data Import — moved from standalone Ingest tab */}
-          <InvestmentsSubSection title="📥 Import Data (CSV)" storageKey="los_tools_ingest_open">
-            <DataIngestTab data={data} actions={actions} />
-          </InvestmentsSubSection>
-        </div>
-      )}
-
       {/* Forecast moved from Intelligence — belongs here with financial data */}
       {tab==='forecast' && <LifeForecastTab data={data} />}
 
-      {/* More panel — gateway to advanced tabs */}
-      {tab==='groceries' && <GroceriesPage data={data} actions={actions} embedded />}
+      {/* More panel — gateway to advanced tabs + tools */}
       {tab==='more' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>ADVANCED TOOLS</div>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>ADVANCED</div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
             {[
-              { id:'recurring',    emoji:'🔄', label:'Recurring',       sub:'Subscriptions & bills',  color:T.sky },
-              { id:'assets',       emoji:'🏠', label:'Assets',          sub:'Property & valuables',   color:T.amber },
-              { id:'simulator',    emoji:'🔮', label:'Simulator',       sub:'What-if scenarios',      color:T.accent },
-              { id:'forecast',     emoji:'📡', label:'Forecast',        sub:'Net worth projection',   color:T.emerald },
+              { id:'recurring', emoji:'🔄', label:'Recurring',  sub:'Subscriptions & bills',  color:T.sky },
+              { id:'assets',    emoji:'🏠', label:'Assets',     sub:'Property & valuables',   color:T.amber },
+              { id:'simulator', emoji:'🔮', label:'Simulator',  sub:'What-if scenarios',      color:T.accent },
+              { id:'forecast',  emoji:'📡', label:'Forecast',   sub:'Net worth projection',   color:T.emerald },
+              { id:'tools',     emoji:'🛠️', label:'Tools',      sub:'DTI, compound, import',  color:T.violet },
             ].map(item => (
               <button key={item.id} onClick={()=>setTab(item.id)}
                 style={{ display:'flex', flexDirection:'column', gap:6, padding:'16px 14px', borderRadius:T.r,
@@ -7461,8 +7466,18 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             ))}
           </div>
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>
-            💡 These sections were moved here to keep the main tab bar usable on mobile.
+            💡 Tools & Forecast are also accessible at the bottom of the Overview tab.
           </div>
+        </div>
+      )}
+
+      {/* Tools as standalone tab when navigated from More panel */}
+      {tab==='tools' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <MoneyToolsTab data={data} cur={cur} />
+          <InvestmentsSubSection title="📥 Import Data (CSV)" storageKey="los_tools_ingest_open">
+            <DataIngestTab data={data} actions={actions} />
+          </InvestmentsSubSection>
         </div>
       )}
     </div>
