@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v99
+// LifeOS — Personal Life Operating System  |  v112
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -1543,7 +1543,6 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
   const ALL_NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   const EXTRA = [
     { id:'lifehub',   label: lang==='fr'?'Hub Vie':'Life Hub',          emoji:'💼' },
-    { id:'calendar',  label: lang==='fr'?'Calendrier':'Calendar',        emoji:'📆' },
   ];
   const handleNav = (id) => { onNav(id); onClose(); };
   return (
@@ -1663,7 +1662,6 @@ const NAV_DEFS = [
   { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
   { id:'lifehub',   Icon:IcoBriefcase,  tKey:'lifehub'     },
-  { id:'calendar',  Icon:IcoCalendar,   tKey:'calendar'    },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
 function Sidebar({ active, onNav, userName, onAI, showAI }) {
@@ -6181,7 +6179,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
     debts:       lang==='fr'?'Dettes':'Debts',
     investments: lang==='fr'?'Invest':'Invest',
     goals:       lang==='fr'?'Objectifs':'Goals',
-    more:        '··· More',
+    more:        '🧭 Explore',
     recurring:   lang==='fr'?'Récurrent':'Recurring',
     assets:      lang==='fr'?'Actifs':'Assets',
     simulator:   lang==='fr'?'Simulateur':'Simulator',
@@ -8769,7 +8767,7 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
       <TabNav
         tabs={['character','habits','goals','achievements','more-growth'].map(t=>({
           id:t,
-          label:t==='character'?GROWTH_TAB_LABELS['character']:t==='habits'?GROWTH_TAB_LABELS['habits']:t==='goals'?GROWTH_TAB_LABELS['goals']:t==='achievements'?GROWTH_TAB_LABELS['achievements']:'··· More',
+          label:t==='character'?GROWTH_TAB_LABELS['character']:t==='habits'?GROWTH_TAB_LABELS['habits']:t==='goals'?GROWTH_TAB_LABELS['goals']:t==='achievements'?GROWTH_TAB_LABELS['achievements']:'🧭 Explore',
           badge:t==='achievements'?unlockedAchievements.length:null
         }))}
         active={tab==='chronicles'||tab==='challenges'||tab==='social'||tab==='vision'||tab==='lifemap'?'more-growth':tab}
@@ -9178,7 +9176,7 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
 
       {tab==='more-growth' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>MORE GROWTH TOOLS</div>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>EXPLORE</div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:10 }}>
             {[
               { id:'chronicles',  emoji:'📖', label:'Chronicles',  sub:'Life diary & entries',       color:T.amber },
@@ -10599,10 +10597,10 @@ function KnowledgePage({ data, actions }) {
       <PageHeader
         domain="Knowledge Domain"
         title={lang==='fr'?'Base de Connaissances':'Knowledge Base'}
-        infoIcon={<PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes. Use the AI Analysis button to extract key themes and insights from all your notes.</p><p style={{marginTop:8}}><b>📚 Courses</b> — Track books, courses, or learning goals with progress bars.</p><p style={{marginTop:8}}><b>🔮 Time Capsule</b> — Write messages to your future self, set a reveal date, and open them later.</p><p style={{marginTop:8}}><b>🌅 Chronicles</b> — Daily journal entries for long-form reflection.</p></div>} />}
+        infoIcon={<PageInfoIcon content={<div><p><b>📝 Notes</b> — Capture free-form notes with tags, priorities, and AI-powered related suggestions.</p><p style={{marginTop:8}}><b>✅ Tasks</b> — Manage actionable items with due dates, priorities, and spending plans.</p><p style={{marginTop:8}}><b>📚 Books</b> — Track reading progress, log pages, and maintain your reading list.</p></div>} />}
       />
       <TabNav
-        tabs={['notes','tasks','projects','books','courses','capsule','note analysis','gmail'].map(t=>({ id:t, label:t==='books'?'📚 Books':t==='note analysis'?'🧠 Analysis':t==='projects'?'📋 Projects':t }))}
+        tabs={['notes','tasks','books'].map(t=>({ id:t, label:t==='books'?'📚 Books':t==='tasks'?'✅ Tasks':'📝 Notes' }))}
         active={tab}
         onChange={setTab}
         accentColor={T.amber}
@@ -10614,7 +10612,6 @@ function KnowledgePage({ data, actions }) {
         <NotionTasksView notes={notes} actions={actions} />
       )}
 
-      {tab==='projects' && <NotionProjectsView data={data} actions={actions} />}
 
       {tab==='books' && (
         <NotionBooksView
@@ -10788,20 +10785,6 @@ function KnowledgePage({ data, actions }) {
         );
       })()}
 
-      {tab==='courses' && (
-        <CourseTrackerTab data={data} actions={actions} />
-      )}
-
-      {tab==='capsule' && (
-        <TimeCapsuleTab data={data} actions={actions} />
-      )}
-
-      {tab==='note analysis' && (
-        <AINotesAnalysisCard notes={notes} settings={data.settings} noteAnalysis={noteAnalysis} setNoteAnalysis={setNoteAnalysis} noteAnalysisLoading={noteAnalysisLoading} setNoteAnalysisLoading={setNoteAnalysisLoading} />
-      )}
-      {tab==='gmail' && (
-        <GmailIntegrationTab data={data} />
-      )}
     </div>
   );
 }
@@ -13363,21 +13346,25 @@ function LifeHubPage({ data, actions }) {
         domain={lang==='fr'?'Hub Vie':'Life Hub'}
         domainColor={T.amber}
         title={lang==='fr'?'Hub Vie':'Life Hub'}
-        subtitle={lang==='fr'?'Carrière · Journal · Archives':'Career · Timeline · Archive'}
+        subtitle={lang==='fr'?'Carrière · Calendrier · Journal · Archives · Projets':'Career · Calendar · Timeline · Archive · Projects'}
       />
       <TabNav
         tabs={[
           { id:'career',   label:`💼 ${lang==='fr'?'Carrière':'Career'}` },
-          { id:'timeline', label:`📅 ${lang==='fr'?'Chronologie':'Timeline'}` },
+          { id:'calendar', label:`📅 ${lang==='fr'?'Calendrier':'Calendar'}` },
+          { id:'timeline', label:`🕐 ${lang==='fr'?'Chronologie':'Timeline'}` },
           { id:'archive',  label:`🗃️ ${lang==='fr'?'Archives':'Archive'}` },
+          { id:'projects', label:`📋 ${lang==='fr'?'Projets':'Projects'}` },
         ]}
         active={tab}
         onChange={setTab}
         accentColor={T.amber}
       />
       {tab==='career'   && <CareerPage   data={data} actions={actions} embedded />}
+      {tab==='calendar' && <CalendarPage data={data} />}
       {tab==='timeline' && <TimelinePage data={data} embedded />}
       {tab==='archive'  && <ArchivePage  data={data} embedded />}
+      {tab==='projects' && <NotionProjectsView data={data} actions={actions} />}
     </div>
   );
 }
