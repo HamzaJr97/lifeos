@@ -4751,8 +4751,49 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
     return e.nextReview<=today();
   }), [homeReviewNotes, homeSrQueue]);
 
+  // ── NEURAL CORE: derived state ─────────────────────────────────────────
+  const orbState = briefLoading ? 'analyzing'
+    : riskAlerts.some(a => a.severity === 'urgent') ? 'warning'
+    : riskAlerts.length > 0 ? 'listening'
+    : 'idle';
+
+  const primaryIssue = useMemo(() => {
+    if (riskAlerts.length > 0) return riskAlerts[0].title;
+    if (dailyBrief?.bullets?.[0]) return dailyBrief.bullets[0];
+    return 'All systems nominal. No critical issues detected.';
+  }, [riskAlerts, dailyBrief]);
+
+  const threats = useMemo(() => {
+    const t = riskAlerts.slice(0, 3).map(a => ({
+      label: a.title,
+      severity: a.severity,
+      color: a.severity === 'urgent' ? T.rose : a.severity === 'info' ? T.sky : T.amber,
+    }));
+    const warnIns = intelInsights.filter(i => i.type === 'warning');
+    let wi = 0;
+    while (t.length < 3 && wi < warnIns.length) { t.push({ label: warnIns[wi].title, severity: 'warn', color: T.amber }); wi++; }
+    const placeholders = [
+      { label: 'No active spending alerts', severity: 'ok', color: T.textMuted },
+      { label: 'Sleep data not logged today', severity: 'ok', color: T.textMuted },
+      { label: 'Habit consistency stable', severity: 'ok', color: T.textMuted },
+    ];
+    while (t.length < 3) t.push(placeholders[t.length]);
+    return t.slice(0, 3);
+  }, [riskAlerts, intelInsights]);
+
+  const projection = useMemo(() => {
+    const proj30 = Math.round(monthInc - monthExp);
+    const sleepAvg = Number(avgSleep7Intel);
+    const fatigueRisk = sleepAvg > 0 && sleepAvg < 7;
+    const weekAgoS = (() => { const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })();
+    const habitRisk = (habits||[]).length > 0
+      && (Object.values(habitLogs).flat().filter(d => d >= weekAgoS).length / Math.max(1,(habits||[]).length*7)) < 0.5;
+    return { proj30, fatigueRisk, habitRisk, sleepAvg };
+  }, [monthInc, monthExp, avgSleep7Intel, habits, habitLogs]);
+
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
+      {/* ── Modals ── */}
       <LogExpenseModal open={modal==='expense'} onClose={()=>setModal(null)} onSave={e=>{actions.addExpense(e);setModal(null);}} goals={goals} onGoalProgress={actions.updateGoalProgress} settings={settings} />
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <LogHabitModal open={modal==='habit'} onClose={()=>setModal(null)} habits={habits} habitLogs={habitLogs} onLog={actions.logHabit} onAddHabit={actions.addHabit} />
@@ -4761,600 +4802,354 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
       <LogDecisionModal open={showDecision} onClose={()=>setShowDecision(false)} onSave={d=>{actions.addDecision(d);setShowDecision(false);}} />
       <SimulateDecisionModal open={simulateOpen} onClose={()=>setSimulateOpen(false)} data={data} />
-      {/* ── COMMAND CENTER LAYOUT ─────────────────────────────────────── */}
-      <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-        {/* Header */}
-        <PageHeader
-          title="Command Center"
-          subtitle={
-            <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-              <span style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>{greeting} · {todayGregorian}</span>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.03em' }}>☪ {hijriDate}</span>
-            </div>
-          }
-          action={
-            <div style={{ display:'flex', gap:6 }}>
-              <button onClick={()=>setSimulateOpen(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.violetDim, border:`1px solid ${T.violet}33`, color:T.violet, cursor:'pointer' }}>⚡ Simulate</button>
-              <button onClick={()=>setShowDecision(true)} style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, cursor:'pointer' }}>+ Decision</button>
-            </div>
-          }
-        />
+      <style>{`
+        @keyframes ncOrbRotate { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        @keyframes ncOrbRotateRev { from { transform:rotate(0deg); } to { transform:rotate(-360deg); } }
+        @keyframes ncOrbScanner { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        @keyframes ncCoreGlow { 0%,100% { filter:drop-shadow(0 0 14px rgba(0,245,212,0.3)); } 50% { filter:drop-shadow(0 0 32px rgba(0,245,212,0.7)); } }
+        @keyframes ncCoreGlowWarn { 0%,100% { filter:drop-shadow(0 0 14px rgba(251,113,133,0.3)); } 50% { filter:drop-shadow(0 0 40px rgba(251,113,133,0.8)); } }
+        @keyframes ncCoreGlowAnalyze { 0%,100% { filter:drop-shadow(0 0 14px rgba(139,92,246,0.3)); } 50% { filter:drop-shadow(0 0 36px rgba(139,92,246,0.75)); } }
+        @keyframes ncThreatIn { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes ncProjIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes ncIssueIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes ncRingPulse { 0%,100% { opacity:0.4; } 50% { opacity:0.9; } }
+        .nc-grid { display:grid; grid-template-columns:1fr 1.55fr 1fr; gap:18px; align-items:start; }
+        @media (max-width:767px) {
+          .nc-grid { grid-template-columns:1fr; gap:14px; }
+          .nc-orb-col { order:-1; }
+          .nc-threats-col, .nc-proj-col { display:flex; flex-direction:column; gap:8px; }
+        }
+      `}</style>
 
-        {/* ── IDENTITY BAND ─────────────────────────────────────────────── */}
-        <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.rL, padding:'16px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, animation:'fadeUp 0.35s ease' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-            <div style={{ width:40, height:40, borderRadius:'50%', background:T.violetDim, border:`1.5px solid ${T.violet}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, color:T.violet, flexShrink:0, fontFamily:T.fD }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+
+        {/* ─── TOP BAR ─────────────────────────────────────────────────── */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, paddingBottom:16, marginBottom:18, borderBottom:`1px solid ${T.border}` }}>
+
+          {/* Logo */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+            <div style={{ width:30, height:30, borderRadius:9, background:`linear-gradient(135deg,rgba(0,245,212,0.12),rgba(139,92,246,0.12))`, border:`1.5px solid rgba(0,245,212,0.3)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <svg width="15" height="15" viewBox="-8 -8 16 16">
+                <polygon points="0,-7 6.06,-3.5 6.06,3.5 0,7 -6.06,3.5 -6.06,-3.5" fill="none" stroke="#00f5d4" strokeWidth="1.5"/>
+                <circle r="3" fill="#00f5d4" opacity="0.85"/>
+              </svg>
+            </div>
+            <span style={{ fontFamily:T.fD, fontWeight:800, fontSize:15, color:T.text, letterSpacing:'-0.025em' }}>LifeOS</span>
+          </div>
+
+          {/* Search bar */}
+          <div style={{ flex:1, maxWidth:280, position:'relative' }}>
+            <input
+              placeholder="Search anything…"
+              style={{ width:'100%', padding:'6px 12px 6px 30px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.text, outline:'none' }}
+              onFocus={e=>{ e.target.style.borderColor=`rgba(0,245,212,0.4)`; }}
+              onBlur={e=>{ e.target.style.borderColor=T.border; }}
+            />
+            <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:11, opacity:0.4 }}>🔍</span>
+          </div>
+
+          <div style={{ flex:1 }}/>
+
+          {/* AI Status pill */}
+          <div style={{
+            display:'flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:99,
+            background: orbState==='warning'?`rgba(251,113,133,0.08)`:orbState==='analyzing'?`rgba(139,92,246,0.08)`:`rgba(0,245,212,0.06)`,
+            border:`1px solid ${orbState==='warning'?'rgba(251,113,133,0.25)':orbState==='analyzing'?'rgba(139,92,246,0.25)':'rgba(0,245,212,0.18)'}`,
+            flexShrink:0,
+          }}>
+            <div style={{ width:5, height:5, borderRadius:'50%', background:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, animation:`dotPulse ${orbState==='warning'?'0.9s':orbState==='analyzing'?'0.6s':'2s'} infinite` }}/>
+            <span style={{ fontFamily:T.fM, fontSize:8, fontWeight:700, letterSpacing:'0.12em', color:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, textTransform:'uppercase' }}>
+              {orbState==='analyzing'?'Analyzing':orbState==='warning'?'Alert Active':orbState==='listening'?'Monitoring':'Neural Core'}
+            </span>
+          </div>
+
+          {/* Profile */}
+          <button onClick={()=>onNav('settings')} style={{ display:'flex', alignItems:'center', gap:7, padding:'5px 12px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', transition:'all 0.18s', flexShrink:0 }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor=`rgba(139,92,246,0.4)`; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; }}>
+            <div style={{ width:20, height:20, borderRadius:'50%', background:`rgba(139,92,246,0.12)`, border:`1.5px solid rgba(139,92,246,0.35)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:T.violet, fontFamily:T.fD }}>
               {(settings.name||'U').slice(0,2).toUpperCase()}
             </div>
-            <div>
-              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text }}>{settings.name||'You'} <span style={{ color:T.violet, fontSize:13 }}>· Level {level}</span></div>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{personaLabel} &nbsp;·&nbsp; {bestStreak > 0 ? `🔥 ${bestStreak}-day streak` : 'Start your streak today'}</div>
-            </div>
-          </div>
-          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
-            {ringData.map((d,i)=>{
-              const R=20, circ=2*Math.PI*R, dash=circ*(d.score/100), gap=circ-dash;
-              const delta=d.score-d.prev;
-              return (
-                <button key={i} onClick={()=>onNav(d.nav)} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3, minWidth:54, background:'none', border:'none', cursor:'pointer', padding:'2px 4px', borderRadius:8, transition:'background 0.15s' }}
-                  onMouseEnter={e=>e.currentTarget.style.background=d.color+'14'}
-                  onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                  <svg width={48} height={48} viewBox="0 0 48 48">
-                    <circle cx={24} cy={24} r={R} fill="none" stroke={T.surfaceHi} strokeWidth={4}/>
-                    <circle cx={24} cy={24} r={R} fill="none" stroke={d.color} strokeWidth={4}
-                      strokeDasharray={`${dash} ${gap}`} strokeLinecap="round"
-                      transform="rotate(-90 24 24)" style={{ transition:'stroke-dasharray 0.8s cubic-bezier(0.34,1.56,0.64,1)' }}/>
-                    <text x={24} y={27} textAnchor="middle" fontSize={10} fontWeight={700} fontFamily="system-ui" fill={d.color}>{d.score}</text>
-                  </svg>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>{d.label}</div>
-                  <div style={{ fontSize:8, fontFamily:T.fM, color:delta>0?T.emerald:delta<0?T.rose:T.textMuted, lineHeight:1 }}>{delta>0?`↑${delta}`:delta<0?`↓${Math.abs(delta)}`:'─'}</div>
-                </button>
-              );
-            })}
-            <div style={{ width:1, height:48, background:T.border, flexShrink:0 }} />
-            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
-              {(() => {
-                const R=22, circ=2*Math.PI*R, dash=circ*(lifeScore/100), gap=circ-dash;
-                return (
-                  <svg width={54} height={54} viewBox="0 0 54 54">
-                    <defs><linearGradient id="lifeRingGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={T.violet}/><stop offset="100%" stopColor={T.accent}/></linearGradient></defs>
-                    <circle cx={27} cy={27} r={R} fill="none" stroke={T.surfaceHi} strokeWidth={5}/>
-                    <circle cx={27} cy={27} r={R} fill="none" stroke="url(#lifeRingGrad)" strokeWidth={5}
-                      strokeDasharray={`${dash} ${gap}`} strokeLinecap="round"
-                      transform="rotate(-90 27 27)" style={{ transition:'stroke-dasharray 0.9s cubic-bezier(0.34,1.56,0.64,1)' }}/>
-                    <text x={27} y={29} textAnchor="middle" fontSize={11} fontWeight={800} fontFamily="system-ui" fill={T.violet}>{lifeScore}</text>
-                  </svg>
-                );
-              })()}
-              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.06em', textTransform:'uppercase' }}>Life Score</div>
-            </div>
-          </div>
+            <span style={{ fontFamily:T.fM, fontSize:9, color:T.textSub }}>{settings.name||'You'}&thinsp;<span style={{ color:T.violet }}>·&thinsp;Lv{level}</span></span>
+          </button>
         </div>
 
-        {/* ── DAILY BRIEFING ─────────────────────────────────────────────── */}
-        <GlassCard style={{ padding:'14px 18px', border:`1px solid rgba(139,92,246,0.25)`, background:'rgba(139,92,246,0.04)', animation:'fadeUp 0.35s ease 0.04s both' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:briefIsToday&&(dailyBrief?.bullets||[]).length>0?10:0 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:16 }}>📰</span>
-              <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.violet }}>Today's Briefing</div>
-              {briefIsToday && <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, padding:'1px 6px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}` }}>cached today</div>}
-            </div>
-            <button onClick={()=>{ setDailyBrief({date:'',bullets:[]}); generateDailyBrief(); }}
-              disabled={briefLoading}
-              style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:briefLoading?T.surface:T.violetDim, border:`1px solid ${T.violet}33`, color:briefLoading?T.textMuted:T.violet, cursor:briefLoading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:4 }}>
-              {briefLoading ? <><div style={{ width:8,height:8,borderRadius:'50%',border:`2px solid ${T.violet}33`,borderTopColor:T.violet,animation:'spin 0.8s linear infinite' }}/> Generating…</> : '↻ Refresh'}
-            </button>
-          </div>
-          {briefLoading && (
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {[1,2,3].map(i=><div key={i} style={{ height:10, borderRadius:99, background:T.surfaceHi, animation:'glowPulse 1.5s infinite', width:['85%','70%','60%'][i-1] }}/>)}
-            </div>
-          )}
-          {!briefLoading && (dailyBrief?.bullets||[]).length>0 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {(dailyBrief.bullets||[]).map((b,i)=>(
-                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, animation:`fadeUp 0.3s ease ${i*0.08}s both` }}>
-                  <div style={{ width:4, height:4, borderRadius:'50%', background:T.violet, flexShrink:0, marginTop:5 }}/>
-                  <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, lineHeight:1.5 }}>{b}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {!briefLoading && !(dailyBrief?.bullets||[]).length && (
-            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>Add expenses, vitals, and goals to generate your daily briefing.</div>
-          )}
-        </GlassCard>
+        {/* ─── THREE-PANEL ────────────────────────────────────────────── */}
+        <div className="nc-grid">
 
-        {/* ── MOOD SPARKLINE + NEXT MILESTONE ─────────────────────────────── */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, animation:'fadeUp 0.35s ease 0.06s both' }}>
-          {/* 7-day mood sparkline */}
-          <GlassCard style={{ padding:'14px 16px', cursor:'pointer' }} onClick={()=>onNav('health')}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-              <div style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.sky }}>7-Day Mood</div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:moodTrend>0?T.emerald:moodTrend<0?T.rose:T.textMuted, fontWeight:600 }}>
-                {moodTrend>0?`↑ ${moodTrend.toFixed(1)} trending up`:moodTrend<0?`↓ ${Math.abs(moodTrend).toFixed(1)} declining`:'→ stable'}
-              </div>
+          {/* LEFT: THREATS */}
+          <div className="nc-threats-col" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:2 }}>
+              <div style={{
+                width:6, height:6, borderRadius:'50%', flexShrink:0,
+                background: threats.some(t=>t.severity==='urgent')?T.rose:threats.some(t=>t.severity==='warn')?T.amber:T.textMuted,
+                animation: threats.some(t=>['urgent','warn'].includes(t.severity))?`dotPulse ${threats.some(t=>t.severity==='urgent')?'0.9s':'1.8s'} infinite`:'none',
+              }}/>
+              <span style={{ fontFamily:T.fM, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:threats.some(t=>t.severity==='urgent')?T.rose:threats.some(t=>t.severity==='warn')?T.amber:T.textMuted }}>
+                {threats.filter(t=>t.severity!=='ok').length > 0 ? `${threats.filter(t=>t.severity!=='ok').length} Threat${threats.filter(t=>t.severity!=='ok').length!==1?'s':''}` : 'No Threats'}
+              </span>
             </div>
-            {mood7.some(d=>d.mood!==null) ? (
-              <>
-                <svg viewBox="0 0 160 44" style={{ width:'100%', overflow:'visible', display:'block', marginBottom:4 }}>
-                  {(() => {
-                    const pts=mood7; const vals=pts.map(d=>d.mood??null);
-                    const defined=vals.filter(v=>v!==null); if(!defined.length) return null;
-                    const minV=Math.min(...defined), maxV=Math.max(...defined)||1;
-                    const range=maxV-minV||1;
-                    const xs=pts.map((_,i)=>10+i*(140/6));
-                    const ys=pts.map(p=>p.mood!=null?36-((p.mood-minV)/range)*28:null);
-                    // Area fill
-                    const areaPts=xs.map((x,i)=>ys[i]!=null?`${x},${ys[i]}`:null).filter(Boolean);
-                    if(areaPts.length<2) return null;
-                    const linePath=areaPts.map((p,i)=>(i===0?'M':'L')+p).join(' ');
-                    const areaPath=linePath+` L${xs[pts.map((_,i)=>ys[i]).lastIndexOf(pts.map((_,i)=>ys[i]).filter(y=>y!=null).slice(-1)[0])].toFixed(1)},42 L${xs[pts.findIndex((_,i)=>ys[i]!=null)].toFixed(1)},42 Z`;
-                    const trendColor=moodTrend>0?T.emerald:moodTrend<0?T.rose:T.sky;
-                    return (
-                      <>
-                        <defs><linearGradient id="moodAreaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={trendColor} stopOpacity="0.2"/><stop offset="100%" stopColor={trendColor} stopOpacity="0"/></linearGradient></defs>
-                        <path d={areaPath} fill="url(#moodAreaGrad)"/>
-                        <path d={linePath} fill="none" stroke={trendColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-                        {pts.map((p,i)=>p.mood!=null&&(
-                          <circle key={i} cx={xs[i]} cy={ys[i]} r={3} fill={trendColor} opacity={0.9}>
-                            <title>{p.day}: {p.mood}/10</title>
-                          </circle>
-                        ))}
-                      </>
-                    );
-                  })()}
-                </svg>
-                <div style={{ display:'flex', justifyContent:'space-between' }}>
-                  {mood7.map((d,i)=>(
-                    <div key={i} style={{ textAlign:'center', flex:1 }}>
-                      <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted }}>{d.day}</div>
-                      {d.mood!=null && <div style={{ fontSize:8, fontFamily:T.fM, color:T.sky, fontWeight:600 }}>{d.mood}</div>}
-                      {d.mood==null && <div style={{ fontSize:8, color:T.surfaceHi }}>·</div>}
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div style={{ height:50, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
-                <div style={{ fontSize:20 }}>😶</div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see mood trend</div>
-              </div>
-            )}
-          </GlassCard>
 
-          {/* Next milestone */}
-          <GlassCard style={{ padding:'14px 16px', cursor:'pointer' }} onClick={()=>onNav('money')}>
-            <div style={{ fontSize:10, fontFamily:T.fD, fontWeight:700, color:T.amber, marginBottom:8 }}>🎯 Next Milestone</div>
-            {nextMilestone ? (
-              <>
-                <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{nextMilestone.name}</div>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6, fontSize:10, fontFamily:T.fM }}>
-                  <span style={{ color:nextMilestone.daysLeft<=7?T.rose:nextMilestone.daysLeft<=30?T.amber:T.textSub }}>
-                    {nextMilestone.daysLeft<=0?'Due today!':nextMilestone.daysLeft===1?'1 day left':`${nextMilestone.daysLeft} days left`}
+            {threats.map((threat, i) => (
+              <div key={i} style={{
+                padding:'12px 14px', borderRadius:10,
+                background: threat.severity==='ok' ? T.surface : `${threat.color}09`,
+                border: `1px solid ${threat.severity==='ok' ? T.border : threat.color+'28'}`,
+                borderLeft: `3px solid ${threat.severity==='ok' ? T.border : threat.color+'77'}`,
+                animation: `ncThreatIn 0.45s ease ${i*0.1}s both`,
+                opacity: threat.severity==='ok' ? 0.45 : 1,
+                transition:'all 0.18s',
+                cursor: threat.severity!=='ok' ? 'pointer' : 'default',
+              }}
+              onClick={() => { if(threat.severity!=='ok') onNav('money'); }}
+              onMouseEnter={e=>{ if(threat.severity!=='ok'){ e.currentTarget.style.background=`${threat.color}15`; } }}
+              onMouseLeave={e=>{ e.currentTarget.style.background=threat.severity==='ok'?T.surface:`${threat.color}09`; }}>
+                <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                  <span style={{ fontSize:14, flexShrink:0, lineHeight:1.3 }}>
+                    {threat.severity==='urgent'?'🚨':threat.severity==='warn'?'⚠️':threat.severity==='info'?'ℹ️':'✓'}
                   </span>
-                  <span style={{ color:nextMilestone.pct>=75?T.emerald:T.amber, fontWeight:600 }}>{nextMilestone.pct}%</span>
+                  <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color: threat.severity==='ok'?T.textMuted:T.text, lineHeight:1.4 }}>{threat.label}</div>
                 </div>
-                <ProgressBar pct={nextMilestone.pct} color={nextMilestone.pct>=75?T.emerald:nextMilestone.daysLeft<=7?T.rose:T.amber} height={6} />
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:6 }}>
-                  Deadline: {nextMilestone.deadline}
-                </div>
-              </>
-            ) : (
-              <div style={{ height:60, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:6 }}>
-                <div style={{ fontSize:20 }}>🏁</div>
-                <button onClick={e=>{e.stopPropagation();setModal('goal');}} style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:T.amberDim, border:`1px solid ${T.amber}33`, borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>+ Set a goal deadline</button>
               </div>
-            )}
-          </GlassCard>
-        </div>
+            ))}
 
-        {/* ── DAILY PRIORITY ────────────────────────────────────────────── */}
-        <TierLabel color={dailyPriority.color}>Priority</TierLabel>
-        <GlassCard style={{ padding:'18px 22px', border:`1px solid ${dailyPriority.color}44`, background:`${dailyPriority.color}06`, animation:'fadeUp 0.35s ease 0.05s both' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:dailyPriority.color, animation:'dotPulse 2.5s infinite', flexShrink:0 }} />
-              <div style={{ fontSize:9, fontFamily:T.fM, color:dailyPriority.color, letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700 }}>Today's Priority</div>
-            </div>
-            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'2px 8px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}` }}>1 focus</div>
-          </div>
-          <div style={{ display:'flex', gap:12, alignItems:'flex-start', marginBottom:12 }}>
-            <span style={{ fontSize:22, flexShrink:0 }}>{dailyPriority.icon}</span>
-            <div>
-              <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:4 }}>{dailyPriority.title}</div>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>{dailyPriority.body}</div>
+            {/* Life score capsule */}
+            <div style={{ marginTop:'auto', padding:'14px 16px', borderRadius:12, background:T.surface, border:`1px solid ${T.border}`, animation:'ncThreatIn 0.45s ease 0.35s both' }}>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Life Score</div>
+              <div style={{ display:'flex', alignItems:'flex-end', gap:6, marginBottom:8 }}>
+                <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:28, color: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, lineHeight:1 }}>{lifeScore}</div>
+                <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, paddingBottom:4 }}>/ 100</div>
+              </div>
+              <div style={{ height:3, borderRadius:99, background:T.border, overflow:'hidden', marginBottom:6 }}>
+                <div style={{ height:'100%', width:`${lifeScore}%`, borderRadius:99, background: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, transition:'width 0.8s ease' }}/>
+              </div>
+              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub }}>{personaLabel}</div>
             </div>
           </div>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            <button onClick={()=>{ if(dailyPriority.modal) setModal(dailyPriority.modal); else if(dailyPriority.nav) onNav(dailyPriority.nav); }}
-              style={{ padding:'7px 16px', borderRadius:T.r, background:dailyPriority.color, color:'#fff', border:'none', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:'pointer', transition:'all 0.15s' }}
-              onMouseEnter={e=>e.currentTarget.style.filter='brightness(1.1)'}
-              onMouseLeave={e=>e.currentTarget.style.filter='none'}>
-              {dailyPriority.action} →
-            </button>
-            <button onClick={()=>setModal('vitals')} style={{ padding:'7px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Log vitals</button>
-            <button onClick={()=>setModal('expense')} style={{ padding:'7px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.textSub, cursor:'pointer' }}>Log expense</button>
-          </div>
-        </GlassCard>
 
-        {/* ── RISK ALERTS — tiered severity ─────────────────────────────── */}
-        {riskAlerts.length > 0 && (
-          <div style={{ animation:'fadeUp 0.35s ease 0.1s both' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-              <TierLabel color={riskAlerts.some(a=>a.severity==='urgent')?T.rose:T.amber}>
-                {riskAlerts.some(a=>a.severity==='urgent')?'🚨 Critical Alerts':'⚠️ Alerts'}
-              </TierLabel>
-              {riskAlerts.length > 1 && (
-                <button onClick={()=>dismissAllAlerts(riskAlerts)} style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, background:'none', border:'none', cursor:'pointer' }}>
-                  Dismiss all ×
+          {/* CENTER: AI ORB */}
+          <div className="nc-orb-col" style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
+
+            {/* The Orb */}
+            <div style={{
+              position:'relative', width:210, height:210, flexShrink:0,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              animation: orbState==='warning' ? 'ncCoreGlowWarn 1s ease infinite'
+                : orbState==='analyzing' ? 'ncCoreGlowAnalyze 0.8s ease infinite'
+                : 'ncCoreGlow 3.5s ease infinite',
+            }}>
+              <svg viewBox="-105 -105 210 210" width="210" height="210" style={{ overflow:'visible' }}>
+                <defs>
+                  <radialGradient id="ncOrbFill" cx="50%" cy="50%">
+                    <stop offset="0%" stopColor={orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent} stopOpacity="0.95"/>
+                    <stop offset="55%" stopColor={orbState==='warning'?T.rose:T.accent} stopOpacity="0.2"/>
+                    <stop offset="100%" stopColor={orbState==='warning'?T.rose:T.accent} stopOpacity="0"/>
+                  </radialGradient>
+                  <radialGradient id="ncOrbAmbient" cx="50%" cy="50%">
+                    <stop offset="0%" stopColor={orbState==='warning'?T.rose:T.accent} stopOpacity="0.12"/>
+                    <stop offset="100%" stopColor={orbState==='warning'?T.rose:T.accent} stopOpacity="0"/>
+                  </radialGradient>
+                </defs>
+
+                {/* Ambient glow disk */}
+                <circle r="95" fill="url(#ncOrbAmbient)"/>
+
+                {/* Ring 3 — outermost, slow rotation */}
+                <g style={{ animation:`ncOrbRotate ${orbState==='analyzing'?'2.5s':'14s'} linear infinite`, transformOrigin:'0 0' }}>
+                  <circle r="78" fill="none" stroke={orbState==='warning'?T.rose:T.accent}
+                    strokeWidth="0.6" strokeOpacity="0.12"/>
+                  <circle r="78" fill="none" stroke={orbState==='warning'?T.rose:T.accent}
+                    strokeWidth="1.5"
+                    strokeDasharray={orbState==='analyzing'?'22 12':'40 18'}
+                    strokeOpacity={orbState==='warning'?'0.7':'0.3'} strokeLinecap="round"/>
+                  {[0,72,144,216,288].map(a=>{
+                    const rad=a*Math.PI/180;
+                    return <circle key={a} cx={Math.cos(rad)*78} cy={Math.sin(rad)*78} r="2.5"
+                      fill={orbState==='warning'?T.rose:T.accent}
+                      opacity={orbState==='warning'?0.9:0.45}/>;
+                  })}
+                </g>
+
+                {/* Ring 2 — counter-rotation, data arcs */}
+                <g style={{ animation:`ncOrbRotateRev ${orbState==='analyzing'?'3.5s':'20s'} linear infinite`, transformOrigin:'0 0' }}>
+                  <circle r="60" fill="none"
+                    stroke={orbState==='warning'?T.amber:orbState==='analyzing'?T.violet:T.sky}
+                    strokeWidth="1" strokeDasharray="20 30" strokeOpacity="0.35" strokeLinecap="round"/>
+                  {/* Score arcs */}
+                  {[
+                    { val: Math.max(0.02, fhs/100), color: T.emerald },
+                    { val: Math.max(0.02, healthScore/100), color: T.sky },
+                    { val: Math.max(0.02, growthScore/100), color: T.accent },
+                  ].map((seg, si) => {
+                    const arcSpan = (Math.PI * 2 / 3) - 0.2;
+                    const startA = si * (Math.PI*2/3) - Math.PI/2 + 0.1;
+                    const endA = startA + arcSpan * seg.val;
+                    if (endA <= startA + 0.05) return null;
+                    const x1=Math.cos(startA)*60, y1=Math.sin(startA)*60;
+                    const x2=Math.cos(endA)*60, y2=Math.sin(endA)*60;
+                    const largeArc = (endA-startA) > Math.PI ? 1 : 0;
+                    return (
+                      <path key={si} d={`M ${x1.toFixed(2)} ${y1.toFixed(2)} A 60 60 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`}
+                        fill="none" stroke={seg.color} strokeWidth="3" strokeLinecap="round" opacity="0.65"/>
+                    );
+                  })}
+                </g>
+
+                {/* Ring 1 — inner scanner sweep */}
+                <g style={{ animation:`ncOrbScanner ${orbState==='analyzing'?'0.9s':orbState==='listening'?'2.5s':'7s'} linear infinite`, transformOrigin:'0 0' }}>
+                  <path d={`M 0 -44 A 44 44 0 0 1 ${Math.cos(Math.PI*0.7)*44} ${Math.sin(Math.PI*0.7-Math.PI/2)*44}`}
+                    fill="none" stroke={orbState==='warning'?T.rose:T.accent}
+                    strokeWidth="2" strokeLinecap="round"
+                    opacity={orbState==='analyzing'?0.9:0.5}/>
+                </g>
+                <circle r="44" fill="none" stroke={orbState==='warning'?T.rose:T.accent} strokeWidth="0.5" strokeOpacity="0.15"/>
+
+                {/* Core glow fill */}
+                <circle r="26" fill="url(#ncOrbFill)"/>
+
+                {/* Core ring */}
+                <circle r="22" fill="none"
+                  stroke={orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent}
+                  strokeWidth="1.5" strokeOpacity="0.55"/>
+
+                {/* Core dot */}
+                <circle r="9" fill={orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent} opacity="0.92"/>
+
+                {/* Inner cross hairs */}
+                <line x1="-9" y1="0" x2="-5" y2="0" stroke={orbState==='warning'?T.rose:T.accent} strokeWidth="1" opacity="0.5"/>
+                <line x1="5" y1="0" x2="9" y2="0" stroke={orbState==='warning'?T.rose:T.accent} strokeWidth="1" opacity="0.5"/>
+                <line x1="0" y1="-9" x2="0" y2="-5" stroke={orbState==='warning'?T.rose:T.accent} strokeWidth="1" opacity="0.5"/>
+                <line x1="0" y1="5" x2="0" y2="9" stroke={orbState==='warning'?T.rose:T.accent} strokeWidth="1" opacity="0.5"/>
+              </svg>
+            </div>
+
+            {/* State label */}
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <div style={{ width:4, height:4, borderRadius:'50%', background:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, animation:`dotPulse ${orbState==='warning'?'0.8s':orbState==='analyzing'?'0.6s':'2s'} infinite` }}/>
+              <span style={{ fontFamily:T.fM, fontSize:9, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', color:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent }}>
+                {orbState==='analyzing'?'Analyzing data':orbState==='warning'?'Threat detected':orbState==='listening'?'Monitoring patterns':'System idle'}
+              </span>
+            </div>
+
+            {/* Primary issue card */}
+            <div style={{
+              width:'100%', maxWidth:280, textAlign:'center',
+              padding:'16px 20px', borderRadius:14,
+              background:T.surface, border:`1px solid ${T.border}`,
+              animation:'ncIssueIn 0.6s ease 0.4s both',
+            }}>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>
+                Primary issue detected
+              </div>
+              <div style={{ fontFamily:T.fD, fontWeight:600, fontSize:13, color:T.text, lineHeight:1.55 }}>
+                {briefLoading
+                  ? <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:7, color:T.textSub }}>
+                      <div style={{ width:8,height:8,borderRadius:'50%',border:`2px solid ${T.accent}33`,borderTopColor:T.accent,animation:'spin 0.7s linear infinite',flexShrink:0 }}/>
+                      Scanning your data…
+                    </span>
+                  : primaryIssue
+                }
+              </div>
+              {!briefLoading && !briefIsToday && (
+                <button onClick={generateDailyBrief} style={{ marginTop:10, padding:'4px 12px', borderRadius:99, background:`rgba(139,92,246,0.1)`, border:`1px solid rgba(139,92,246,0.25)`, color:T.violet, fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
+                  ↻ Refresh analysis
                 </button>
               )}
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              {riskAlerts.map((a, i) => {
-                const sev=a.severity||'warn';
-                const SEV_CONFIG = {
-                  urgent: { border:T.rose, bg:`${T.rose}10`, badge:'CRITICAL', badgeBg:`${T.rose}20`, badgeColor:T.rose, ctaLabel:'Fix now', ctaBg:T.rose, ctaColor:'#fff' },
-                  warn:   { border:T.amber, bg:`${T.amber}08`, badge:'WARNING', badgeBg:`${T.amber}18`, badgeColor:T.amber, ctaLabel:'Review', ctaBg:`${T.amber}22`, ctaColor:T.amber },
-                  info:   { border:T.sky, bg:`${T.sky}06`, badge:'INFO', badgeBg:`${T.sky}15`, badgeColor:T.sky, ctaLabel:'View', ctaBg:`${T.sky}15`, ctaColor:T.sky },
-                  positive:{ border:T.emerald, bg:`${T.emerald}06`, badge:'GOOD', badgeBg:`${T.emerald}15`, badgeColor:T.emerald, ctaLabel:'See more', ctaBg:`${T.emerald}15`, ctaColor:T.emerald },
-                };
-                const cfg=SEV_CONFIG[sev]||SEV_CONFIG.warn;
-                return (
-                  <div key={a.id} style={{ padding:'13px 16px', borderRadius:T.rL, background:cfg.bg, border:`1px solid ${cfg.border}33`, borderLeft:`3px solid ${cfg.border}`, display:'flex', alignItems:'flex-start', gap:12, animation:`fadeUp 0.25s ease ${i*0.06}s both` }}>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                        <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:700, letterSpacing:'0.1em', padding:'2px 7px', borderRadius:99, background:cfg.badgeBg, color:cfg.badgeColor, flexShrink:0 }}>{cfg.badge}</span>
-                        <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.title}</div>
-                      </div>
-                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{a.body}</div>
-                    </div>
-                    <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
-                      {a.action && (
-                        <button onClick={()=>{ if(a.actionModal) setModal(a.actionModal); else if(a.actionNav) onNav(a.actionNav); }}
-                          style={{ padding:'6px 12px', borderRadius:T.r, background:cfg.ctaBg, border:`1px solid ${cfg.border}44`, fontSize:10, fontFamily:T.fM, color:cfg.ctaColor, cursor:'pointer', fontWeight:700, whiteSpace:'nowrap', transition:'all 0.15s' }}
-                          onMouseEnter={e=>e.currentTarget.style.filter='brightness(1.1)'}
-                          onMouseLeave={e=>e.currentTarget.style.filter='none'}>
-                          {cfg.ctaLabel} →
-                        </button>
-                      )}
-                      <button onClick={()=>setDismissed(p=>({...p,[a.dismissKey]:today()}))}
-                        style={{ padding:'4px 7px', borderRadius:99, background:'transparent', border:`1px solid ${T.border}`, fontSize:11, color:T.textMuted, cursor:'pointer', fontFamily:T.fM, lineHeight:1 }}>×</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* ── ONBOARDING STRIP (empty state) ────────────────────────────── */}
-        {(()=>{
-          const steps=[
-            { done:(expenses||[]).length>0||(incomes||[]).length>0, label:'Log first expense or income', modal:'expense', color:T.rose },
-            { done:(habits||[]).length>0, label:'Create a habit to track', modal:'habit', color:T.accent },
-            { done:(vitals||[]).some(v=>v.date===today()), label:"Log today's vitals", modal:'vitals', color:T.sky },
-            { done:(assets||[]).length>0||(investments||[]).length>0, label:'Add an asset or investment', nav:'money', color:T.violet },
-          ];
-          const remaining=steps.filter(s=>!s.done);
-          if(!remaining.length) return null;
-          return (
-            <div style={{ padding:'12px 16px', borderRadius:T.rL, background:`${T.accent}06`, border:`1px solid ${T.accent}22`, animation:'fadeUp 0.35s ease' }}>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Get started · {remaining.length} step{remaining.length>1?'s':''} remaining</div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                {remaining.map((s,i)=>(
-                  <button key={i} onClick={()=>s.modal?setModal(s.modal):onNav(s.nav||'money')}
-                    style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:99, background:`${s.color}10`, border:`1px solid ${s.color}33`, fontSize:11, fontFamily:T.fM, color:s.color, cursor:'pointer', whiteSpace:'nowrap', transition:'all 0.15s' }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=`${s.color}20`;e.currentTarget.style.transform='translateY(-1px)';}}
-                    onMouseLeave={e=>{e.currentTarget.style.background=`${s.color}10`;e.currentTarget.style.transform='none';}}>
-                    {s.label} →
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── SPACED REPETITION QUEUE CARD ──────────────────────────────── */}
-        {homeSrDue.length > 0 && (
-          <div style={{ animation:'fadeUp 0.35s ease 0.12s both' }}>
-            <TierLabel color={T.sky}>Review Queue</TierLabel>
-            <GlassCard style={{ padding:'16px 20px', border:`1px solid ${T.sky}33`, background:`${T.sky}05` }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <span style={{ fontSize:18 }}>🔁</span>
-                  <div>
-                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.sky }}>Spaced Repetition — {homeSrDue.length} note{homeSrDue.length>1?'s':''} due</div>
-                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Notes tagged #review on their scheduled return</div>
-                  </div>
+            {/* Score strip */}
+            <div style={{ display:'flex', gap:16, alignItems:'center', animation:'ncIssueIn 0.5s ease 0.55s both' }}>
+              {[
+                { label:'Finance', val:fhs, color:T.emerald },
+                { label:'Health', val:healthScore, color:T.sky },
+                { label:'Growth', val:growthScore, color:T.accent },
+              ].map((s,i)=>(
+                <div key={i} style={{ textAlign:'center', cursor:'pointer' }} onClick={()=>onNav(i===0?'money':i===1?'health':'growth')}>
+                  <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:18, color:s.color, lineHeight:1 }}>{s.val}</div>
+                  <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, marginTop:3, letterSpacing:'0.06em', textTransform:'uppercase' }}>{s.label}</div>
                 </div>
-                <button onClick={()=>onNav('knowledge')} style={{ padding:'5px 12px', borderRadius:99, background:`${T.sky}15`, border:`1px solid ${T.sky}33`, color:T.sky, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>Open queue →</button>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                {homeSrDue.slice(0,3).map((n,i)=>{
-                  const e=homeSrQueue[n.id]; const stage=e?.stage??0;
-                  return (
-                    <div key={n.id||i} style={{ padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:10 }}>
-                      <span style={{ fontSize:14 }}>📖</span>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{n.title}</div>
-                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Stage {stage+1}/4 · {SR_INTERVALS_HOME[Math.min(stage,3)]}d interval</div>
-                      </div>
-                      <div style={{ display:'flex', gap:3, flexShrink:0 }}>
-                        {[0,1,2,3].map(s=><div key={s} style={{ width:14,height:4,borderRadius:99,background:s<=stage?T.sky:T.surface,border:`1px solid ${s<=stage?T.sky+'55':T.border}` }}/>)}
-                      </div>
-                    </div>
-                  );
-                })}
-                {homeSrDue.length>3 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>+{homeSrDue.length-3} more due today</div>}
-              </div>
-            </GlassCard>
-          </div>
-        )}
-
-        {/* ── LIFE TRAJECTORY ───────────────────────────────────────────── */}
-        <TierLabel color={T.violet}>Trajectory</TierLabel>
-        <GlassCard style={{ padding:'18px 22px', animation:'fadeUp 0.35s ease 0.15s both' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
-            <div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>Life Trajectory</div>
-              <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text }}>Where are you heading?</div>
-            </div>
-            <div style={{ padding:'3px 12px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:700, background:fiYearsEst<=15?T.emeraldDim:fiYearsEst<=25?T.amberDim:T.roseDim, color:fiYearsEst<=15?T.emerald:fiYearsEst<=25?T.amber:T.rose, border:`1px solid ${fiYearsEst<=15?T.emerald:fiYearsEst<=25?T.amber:T.rose}33` }}>
-              {fiYearsEst<=15?'On track':fiYearsEst<=25?'Steady pace':'Needs acceleration'}
+              ))}
             </div>
           </div>
-          {nwHist.length >= 3 ? (() => {
-            const pts=nwHist.slice(-8); const vals=pts.map(p=>p.value);
-            const min=Math.min(...vals); const max=Math.max(...vals); const range=max-min||1;
-            const W=500; const H=56; const pad=4;
-            const xs=pts.map((_,i)=>pad+(i/(pts.length-1))*(W-pad*2));
-            const ys=pts.map(p=>(H-pad)-((p.value-min)/range)*(H-pad*2));
-            const d=xs.map((x,i)=>`${i===0?'M':'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
-            const rising=vals[vals.length-1]>=vals[0];
-            const areaD=d+` L${xs[xs.length-1].toFixed(1)},${H} L${pad},${H} Z`;
-            return (
-              <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display:'block', marginBottom:14 }}>
-                <defs><linearGradient id="trajGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={rising?T.emerald:T.rose} stopOpacity="0.2"/><stop offset="100%" stopColor={rising?T.emerald:T.rose} stopOpacity="0"/></linearGradient></defs>
-                <path d={areaD} fill="url(#trajGrad)"/>
-                <path d={d} fill="none" stroke={rising?T.emerald:T.rose} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r={4} fill={rising?T.emerald:T.rose}/>
-                <circle cx={xs[xs.length-1]} cy={ys[ys.length-1]} r={8} fill="none" stroke={rising?T.emerald:T.rose} strokeWidth={1} opacity={0.4}/>
-              </svg>
-            );
-          })() : (
-            <div style={{ height:40, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:T.r, background:T.surface, marginBottom:14 }}>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted }}>Log net worth snapshots over time to see your trajectory</span>
+
+          {/* RIGHT: FUTURE PROJECTION */}
+          <div className="nc-proj-col" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:2 }}>
+              <span style={{ fontFamily:T.fM, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:T.violet }}>◈ 30-Day Forecast</span>
             </div>
-          )}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10 }}>
-            {[
-              { label:'Net Worth',       val:`${cur}${fmtN(netWorth)}`,         sub:nwDelta!=null?`${nwDelta>=0?'↑':'↓'} ${cur}${fmtN(Math.abs(Math.round(nwDelta)))}/mo`:'Track over time', color:T.accent },
-              { label:'FI Date',         val:fiYearsEst>=99?'Add data':String(fiYear), sub:`in ${fiYearsEst>=99?'?':fiYearsEst} years at current pace`, color:T.violet },
-              { label:'Savings Rate',    val:`${savRate.toFixed(1)}%`,           sub:`${cur}${fmtN(Math.max(0,monthInc-monthExp))} saved this month`, color:savRate>=20?T.emerald:T.amber },
-              { label:'Financial Health',val:`${fhs}/100`,                       sub:fhs>=70?'Strong':fhs>=40?'Room to improve':'Needs attention', color:fhs>=70?T.emerald:fhs>=40?T.amber:T.rose },
-            ].map((m,i)=>(
-              <StatCard key={i} label={m.label} val={m.val} sub={m.sub} color={m.color} />
-            ))}
+
+            {/* Savings projection */}
+            <div style={{ padding:'12px 14px', borderRadius:10, background:`rgba(139,92,246,0.07)`, border:`1px solid rgba(139,92,246,0.2)`, animation:'ncProjIn 0.45s ease 0.1s both', cursor:'pointer' }} onClick={()=>onNav('money')}>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>Savings Delta</div>
+              <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:22, color:projection.proj30>=0?T.emerald:T.rose, lineHeight:1, marginBottom:4 }}>
+                {projection.proj30>=0?'+':''}{cur}{fmtN(Math.abs(projection.proj30))}
+              </div>
+              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, lineHeight:1.4 }}>
+                {projection.proj30>=0?'projected savings this month':'projected deficit — action needed'}
+              </div>
+            </div>
+
+            {/* Fatigue risk */}
+            <div style={{ padding:'12px 14px', borderRadius:10, background:projection.fatigueRisk?`${T.amber}08`:T.surface, border:`1px solid ${projection.fatigueRisk?T.amber+'22':T.border}`, animation:'ncProjIn 0.45s ease 0.2s both', cursor:'pointer' }} onClick={()=>onNav('health')}>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>Fatigue Risk</div>
+              <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:18, color:projection.fatigueRisk?T.amber:T.emerald, lineHeight:1, marginBottom:4 }}>
+                {projection.fatigueRisk ? '⚠ HIGH' : '✓ LOW'}
+              </div>
+              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, lineHeight:1.4 }}>
+                {projection.sleepAvg > 0 ? `${projection.sleepAvg}h avg — ${projection.fatigueRisk?'below 7h optimal':'within healthy range'}` : 'Log vitals to assess'}
+              </div>
+            </div>
+
+            {/* Habit trajectory */}
+            <div style={{ padding:'12px 14px', borderRadius:10, background:projection.habitRisk?`${T.rose}07`:T.surface, border:`1px solid ${projection.habitRisk?T.rose+'22':T.border}`, animation:'ncProjIn 0.45s ease 0.3s both', cursor:'pointer' }} onClick={()=>setModal('habit')}>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>Habit Trajectory</div>
+              <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:18, color:projection.habitRisk?T.rose:T.emerald, lineHeight:1, marginBottom:4 }}>
+                {projection.habitRisk ? '↓ DECLINING' : '↑ STABLE'}
+              </div>
+              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, lineHeight:1.4 }}>
+                {(habits||[]).length>0 ? `${todayDone}/${(habits||[]).length} done today · ${bestStreak>0?`${bestStreak}d streak`:'no streak yet'}` : 'No habits configured'}
+              </div>
+            </div>
+
+            {/* FI date */}
+            <div style={{ marginTop:'auto', padding:'12px 14px', borderRadius:10, background:T.surface, border:`1px solid ${T.border}`, animation:'ncProjIn 0.45s ease 0.4s both', cursor:'pointer' }} onClick={()=>onNav('money')}>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>FI Target Year</div>
+              <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:22, color: fiYearsEst>=99?T.textMuted:fiYearsEst<=15?T.emerald:fiYearsEst<=25?T.amber:T.rose, lineHeight:1, marginBottom:4 }}>
+                {fiYearsEst>=99 ? '—' : fiYear}
+              </div>
+              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, lineHeight:1.4 }}>
+                {fiYearsEst>=99 ? 'Add income + expenses to project' : fiYearsEst===0 ? 'Financial independence achieved!' : `in ${fiYearsEst} year${fiYearsEst!==1?'s':''} at current pace`}
+              </div>
+            </div>
           </div>
-        </GlassCard>
 
-        {/* ── PATTERN INSIGHTS removed — see Intelligence page for full analysis ── */}
-
-        {/* ── DAILY ACTIONS + HABITS ───────────────────────────────────────── */}
-        <TierLabel color={T.accent}>Today</TierLabel>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(340px,100%),1fr))', gap:14 }}>
-
-          {/* Habits strip — primary action widget */}
-          {(habits||[]).length > 0 ? (
-            <GlassCard style={{ padding:'16px 20px', animation:'fadeUp 0.35s ease 0.25s both' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase' }}>Today's Habits &nbsp;<span style={{ color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent }}>({todayDone}/{(habits||[]).length})</span></div>
-                <button onClick={()=>onNav('growth')} style={{ fontSize:9, fontFamily:T.fM, color:T.accent, background:'none', border:'none', cursor:'pointer' }}>All →</button>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-                {(habits||[]).slice(0,6).map((h,i)=>{
-                  const done=((habitLogs[h.id]||[]).includes(today()));
-                  const streak=getStreak(h.id,habitLogs);
-                  const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                  const hc=HCOLORS[i%HCOLORS.length];
-                  return (
-                    <div key={h.id} className="los-row" style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 4px', borderRadius:7, transition:'background 0.15s' }}>
-                      <button onClick={()=>{ if(!done) actions.logHabit(h.id); }} style={{ width:22, height:22, borderRadius:6, flexShrink:0, background:done?hc+'22':T.surface, border:`1.5px solid ${done?hc:T.border}`, display:'flex', alignItems:'center', justifyContent:'center', cursor:done?'default':'pointer', transition:'all 0.2s' }}
-                        onMouseEnter={e=>{ if(!done) e.currentTarget.style.borderColor=hc; }}
-                        onMouseLeave={e=>{ if(!done) e.currentTarget.style.borderColor=T.border; }}>
-                        {done && <span style={{ fontSize:11, color:hc }}>✓</span>}
-                      </button>
-                      <div style={{ flex:1, fontSize:11, fontFamily:T.fD, fontWeight:600, color:done?T.textSub:T.text, textDecoration:done?'line-through':'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.emoji||'🔥'} {h.name}</div>
-                      {streak>0 && <span style={{ fontSize:9, fontFamily:T.fM, color:streak>=7?T.amber:hc, flexShrink:0 }}>🔥{streak}d</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop:10 }}>
-                <ProgressBar pct={(habits||[]).length>0?(todayDone/(habits||[]).length)*100:0} color={todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.accent} height={4} />
-              </div>
-              {todayDone===(habits||[]).length&&(habits||[]).length>0&&<div style={{ textAlign:'center', fontSize:10, fontFamily:T.fM, color:T.emerald, marginTop:6 }}>🎉 All done today!</div>}
-              {/* Quick log actions inline */}
-              <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.border}`, display:'flex', gap:6, flexWrap:'wrap' }}>
-                {[{ label:'Expense', emoji:'💳', action:()=>setModal('expense'), color:T.rose },{ label:'Income', emoji:'💰', action:()=>setModal('income'), color:T.emerald },{ label:'Vitals', emoji:'❤️', action:()=>setModal('vitals'), color:T.sky },{ label:'Note', emoji:'📝', action:()=>setModal('note'), color:T.amber }].map((a,i)=>(
-                  <button key={i} onClick={a.action} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', transition:'all 0.15s', fontSize:9, fontFamily:T.fM, color:T.textSub }}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=a.color+'55';e.currentTarget.style.color=a.color;}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textSub;}}>
-                    <span>{a.emoji}</span><span>{a.label}</span>
-                  </button>
-                ))}
-              </div>
-            </GlassCard>
-          ) : (
-            <GlassCard style={{ padding:'16px 20px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, animation:'fadeUp 0.35s ease 0.25s both' }}>
-              <div style={{ fontSize:24 }}>🔥</div>
-              <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>No habits tracked yet</div>
-              <button onClick={()=>setModal('habit')} style={{ padding:'6px 16px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}33`, color:T.accent, fontSize:11, fontFamily:T.fM, cursor:'pointer' }}>+ Add your first habit</button>
-            </GlassCard>
-          )}
         </div>
 
-        {/* ── INTELLIGENCE WIDGET ────────────────────────────────────── */}
-        <div style={{ animation:'fadeUp 0.35s ease 0.3s both' }}>
-          <button onClick={()=>setIntelOpen(v=>!v)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', background:'none', border:'none', cursor:'pointer', padding:'4px 0', marginBottom:intelOpen?10:0 }}>
-            <TierLabel color='#c084fc' style={{ marginBottom:0 }}>🧠 Life Intelligence</TierLabel>
-            <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, transition:'transform 0.2s', display:'inline-block', transform:intelOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
-          </button>
-          {intelOpen && (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {/* Insight cards */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {intelInsights.map((ins,i)=>(
-                  <div key={i} style={{ display:'flex', gap:12, padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${ins.color}22`, borderLeft:`3px solid ${ins.color}` }}>
-                    <span style={{ fontSize:16, flexShrink:0 }}>{ins.icon}</span>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:3 }}>{ins.title}</div>
-                      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{ins.body}</div>
-                    </div>
-                    <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:700, letterSpacing:'0.08em', padding:'2px 6px', borderRadius:99, background:ins.color+'18', color:ins.color, flexShrink:0, alignSelf:'flex-start' }}>
-                      {ins.type?.toUpperCase()}
-                    </span>
-                  </div>
-                ))}
-                {intelInsights.length===0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Log expenses, vitals & habits to unlock insights.</div>}
-              </div>
-              {/* Pattern Engine preview */}
-              <GlassCard style={{ padding:'16px 18px', border:`1px solid rgba(192,132,252,0.25)`, background:'rgba(192,132,252,0.04)' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:detectedRecurringIntel.length>0?10:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:16 }}>📡</span>
-                    <div>
-                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:'#c084fc' }}>Pattern Engine</div>
-                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{detectedRecurringIntel.length>0?`${detectedRecurringIntel.length} recurring patterns detected`:'Finds hidden correlations in your data'}</div>
-                    </div>
-                  </div>
-                  <button onClick={onOpenPatterns} style={{ padding:'4px 10px', borderRadius:99, background:'rgba(192,132,252,0.12)', border:'1px solid rgba(192,132,252,0.35)', color:'#c084fc', fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>Expand ↗</button>
-                </div>
-                {detectedRecurringIntel.length>0 && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                    {detectedRecurringIntel.slice(0,3).map((r,i)=>(
-                      <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 10px', borderRadius:T.r, background:T.bg1, border:`1px solid ${T.border}` }}>
-                        <div style={{ display:'flex', gap:7, alignItems:'center' }}>
-                          <span style={{ fontSize:13 }}>🔄</span>
-                          <div>
-                            <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text }}>{r.name}</div>
-                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{r.count}× · {r.category}</div>
-                          </div>
-                        </div>
-                        <div style={{ fontSize:11, fontFamily:T.fM, fontWeight:600, color:T.rose }}>{cur_i}{fmtN(r.avgAmount)}/mo</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </GlassCard>
-              {/* Life Graph + immersive launchers row */}
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <GlassCard style={{ flex:1, minWidth:160, padding:'14px 16px', border:`1px solid ${T.accent}33`, background:T.accentLo }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ fontSize:16 }}>🕸️</span>
-                      <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.accent }}>Life Graph</div>
-                    </div>
-                    <button onClick={onOpenGraph} style={{ padding:'4px 10px', borderRadius:99, background:T.accentDim, border:`1px solid ${T.accent}55`, color:T.accent, fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>↗</button>
-                  </div>
-                </GlassCard>
-                {[
-                  {icon:'🔀',title:'Parallel You',color:T.sky,bg:'rgba(56,189,248,0.08)',border:'rgba(56,189,248,0.25)',action:onOpenParallel},
-                  {icon:'🌊',title:'Ambient',color:T.amber,bg:T.amberDim,border:T.amber+'33',action:onOpenAmbient},
-                ].map((f,i)=>(
-                  <button key={i} onClick={f.action} style={{ flex:1, minWidth:90, padding:'12px 14px', borderRadius:12, background:f.bg, border:`1px solid ${f.border}`, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:18 }}>{f.icon}</span>
-                    <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:f.color }}>{f.title}</div>
-                  </button>
-                ))}
-              </div>
-              {/* Weekly Digest button */}
-              <button onClick={()=>{
-                const weekAgo=new Date();weekAgo.setDate(weekAgo.getDate()-7);const wStr=weekAgo.toISOString().slice(0,10);
-                const wkExp=(expenses||[]).filter(e=>e.date>=wStr).reduce((s,e)=>s+Number(e.amount||0),0);
-                const wkInc=(incomes||[]).filter(i=>i.date>=wStr).reduce((s,i)=>s+Number(i.amount||0),0);
-                const habitPct=(habits||[]).length>0?Math.round((Object.values(habitLogs).flat().filter(d=>d>=wStr).length/((habits||[]).length*7))*100):0;
-                const topCatW=(()=>{const m={};(expenses||[]).filter(e=>e.date>=wStr).forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1])[0];})();
-                const dl=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-                const txt=[`📊 LIFE OS — WEEKLY DIGEST`,`Week ending ${dl}`,`${'─'.repeat(36)}`,``,`💰 FINANCES`,`  Spent:      ${cur_i}${fmtN(wkExp)}`,`  Income:     ${cur_i}${fmtN(wkInc)}`,`  Net:        ${cur_i}${fmtN(wkInc-wkExp)}`,topCatW?`  Top cat:    ${topCatW[0]} (${cur_i}${fmtN(topCatW[1])})`:null,`  Month save: ${srI.toFixed(1)}%  NW: ${cur_i}${fmtN(nwI)}`,``,`🔥 HABITS`,`  Completion: ${habitPct}%  Streak: ${bestStreakIntel}d`,``,intelInsights.length>0?`🧠 TOP INSIGHTS`:null,...intelInsights.slice(0,3).map(ins=>`  · ${ins.title}`),``,`${'─'.repeat(36)}`,`Generated by LifeOS · ${dl}`].filter(v=>v!==null).join('\n');
-                navigator.clipboard.writeText(txt).then(()=>{setDigestCopied2(true);setTimeout(()=>setDigestCopied2(false),2500);});
-              }} style={{ padding:'8px 16px', borderRadius:99, background:digestCopied2?'rgba(52,211,153,0.12)':T.surface, border:`1px solid ${digestCopied2?T.emerald+'55':T.border}`, color:digestCopied2?T.emerald:T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:6, alignSelf:'flex-start' }}>
-                {digestCopied2?'✅ Copied!':'📋 Copy Weekly Digest'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* ── HABIT ANALYTICS WIDGET ─────────────────────────────────── */}
-        {(habits||[]).length > 0 && (
-          <div style={{ animation:'fadeUp 0.35s ease 0.35s both' }}>
-            <button onClick={()=>setHabitAnalOpen(v=>!v)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', background:'none', border:'none', cursor:'pointer', padding:'4px 0', marginBottom:habitAnalOpen?10:0 }}>
-              <TierLabel color={T.accent} style={{ marginBottom:0 }}>🔥 Habit Analytics</TierLabel>
-              <span style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, transition:'transform 0.2s', display:'inline-block', transform:habitAnalOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
+        {/* ─── BOTTOM ACTIONS ─────────────────────────────────────────── */}
+        <div style={{ marginTop:22, paddingTop:18, borderTop:`1px solid ${T.border}`, display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+          {[
+            { label:'Analyze Day', icon:'🧠', color:T.violet, sub:briefIsToday?'refreshed today':'tap to generate', action:()=>{ if(!briefIsToday && !briefLoading) generateDailyBrief(); } },
+            { label:'Focus Mode', icon:'🎯', color:T.accent, sub:focusMode?'active — tap to exit':'off', action:()=>setFocusMode(v=>!v) },
+            { label:'Repair Habits', icon:'🔥', color:T.amber, sub:`${todayDone}/${(habits||[]).length} done`, action:()=>setModal('habit') },
+            { label:'Optimize Week', icon:'📊', color:T.sky, sub:'view intelligence', action:()=>onNav('intel') },
+          ].map((act, i) => (
+            <button key={i} onClick={act.action}
+              style={{
+                padding:'15px 10px', borderRadius:13, cursor:'pointer',
+                background:`${act.color}08`, border:`1px solid ${act.color}1e`,
+                display:'flex', flexDirection:'column', alignItems:'center', gap:7,
+                transition:'all 0.18s ease', fontFamily:T.fD,
+                animation:`fadeUp 0.4s ease ${0.05+i*0.08}s both`,
+              }}
+              onMouseEnter={e=>{ e.currentTarget.style.background=`${act.color}18`; e.currentTarget.style.borderColor=`${act.color}44`; e.currentTarget.style.transform='translateY(-3px)'; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background=`${act.color}08`; e.currentTarget.style.borderColor=`${act.color}1e`; e.currentTarget.style.transform='translateY(0)'; }}>
+              <span style={{ fontSize:22, lineHeight:1 }}>{act.icon}</span>
+              <span style={{ fontSize:11, fontWeight:700, color:act.color, lineHeight:1.2, textAlign:'center' }}>{act.label}</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>{act.sub}</span>
             </button>
-            {habitAnalOpen && (
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {/* Stats row */}
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:10 }}>
-                  {[
-                    {label:'Active Habits',val:(habits||[]).length,color:T.accent},
-                    {label:'Done Today',val:`${todayDone}/${(habits||[]).length}`,color:todayDone===(habits||[]).length&&(habits||[]).length>0?T.emerald:T.amber},
-                    {label:'Best Streak',val:`🔥 ${bestStreakIntel}d`,color:T.amber},
-                    {label:'Total Logs',val:Object.values(habitLogs).flat().length,color:T.violet},
-                  ].map((m,i)=>(
-                    <GlassCard key={i} style={{ padding:'12px 14px' }}>
-                      <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>{m.label}</div>
-                      <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
-                    </GlassCard>
-                  ))}
-                </div>
-                {/* Weekly bar chart */}
-                <GlassCard style={{ padding:'16px 18px' }}>
-                  <SectionLabel>Weekly Consistency — Last 8 Weeks</SectionLabel>
-                  {habitAnalyticsIntel.some(w=>w.pct>0) ? (
-                    <ResponsiveContainer width="100%" height={140}>
-                      <BarChart data={habitAnalyticsIntel} barSize={20} margin={{top:4,right:0,left:0,bottom:0}}>
-                        <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false}/>
-                        <XAxis dataKey="week" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false}/>
-                        <YAxis domain={[0,100]} hide/>
-                        <Tooltip formatter={v=>`${v}%`} contentStyle={{background:T.surfaceHi,border:`1px solid ${T.border}`,borderRadius:8,fontSize:11,fontFamily:T.fM}}/>
-                        <Bar dataKey="pct" name="Consistency %" fill={T.accent} opacity={0.85} radius={[4,4,0,0]}/>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : <div style={{height:60,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontFamily:T.fM,color:T.textMuted}}>Log habits to see trends.</div>}
-                </GlassCard>
-                {/* Per-habit rows */}
-                <GlassCard style={{ padding:'16px 18px' }}>
-                  <SectionLabel>Per-Habit Performance</SectionLabel>
-                  {(habits||[]).map((h,i)=>{
-                    const streak=streakCacheIntel[h.id]??0;
-                    const total=(habitLogs[h.id]||[]).length;
-                    const last30=Array.from({length:30},(_,j)=>{const d=new Date();d.setDate(d.getDate()-29+j);return d.toISOString().slice(0,10);}).filter(d=>(habitLogs[h.id]||[]).includes(d)).length;
-                    const cons30=Math.round((last30/30)*100);
-                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                    const hc=HCOLORS[i%HCOLORS.length];
-                    return (
-                      <div key={h.id} style={{display:'flex',alignItems:'center',gap:12,padding:'9px 0',borderBottom:i<(habits||[]).length-1?`1px solid ${T.border}`:'none'}}>
-                        <div style={{fontSize:16,flexShrink:0}}>{h.emoji||'🔥'}</div>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                            <span style={{fontSize:11,fontFamily:T.fD,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h.name}</span>
-                            <span style={{fontSize:9,fontFamily:T.fM,color:hc,flexShrink:0,marginLeft:8}}>🔥{streak}d · {cons30}%</span>
-                          </div>
-                          <ProgressBar pct={cons30} color={hc} height={4}/>
-                          <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{total} total · {last30}/30 this month</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </GlassCard>
-              </div>
-            )}
-          </div>
-        )}
+          ))}
+        </div>
 
       </div>
     </div>
