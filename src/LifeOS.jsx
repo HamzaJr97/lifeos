@@ -491,7 +491,7 @@ const LOCALES = {
   en: {
     // Navigation
     home:'Home', timeline:'Timeline', money:'Money', health:'Health',
-    growth:'Growth', knowledge:'Knowledge', intel:'Intelligence',
+    growth:'Growth', knowledge:'Knowledge', intel:'Intelligence', memory:'Memory',
     archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar', research:'Research',
     projects:'Projects', groceries:'Groceries', lifehub:'Life Hub',
     // Finance
@@ -530,7 +530,7 @@ const LOCALES = {
   fr: {
     // Navigation
     home:'Accueil', timeline:'Journal', money:'Finance', health:'Santé',
-    growth:'Croissance', knowledge:'Savoir', intel:'Intelligence',
+    growth:'Croissance', knowledge:'Savoir', intel:'Intelligence', memory:'Mémoire',
     archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier', research:'Recherche',
     projects:'Projets', groceries:'Courses', lifehub:'Hub Vie',
     // Finance
@@ -783,6 +783,7 @@ const IcoBriefcase = (p) => <Ico {...p} d={<><rect x="2" y="7" width="20" height
 const IcoCalendar  = (p) => <Ico {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>} />;
 const IcoGlobe     = (p) => <Ico {...p} d={<><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></>} />;
 const IcoRefresh   = (p) => <Ico {...p} d={<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />;
+const IcoMemory    = (p) => <Ico {...p} d={<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></>} />;
 const IcoChevLeft  = (p) => <Ico {...p} d={<polyline points="15 18 9 12 15 6"/>} />;
 const IcoTrendUp   = (p) => <Ico {...p} d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />;
 const IcoKanban    = (p) => <Ico {...p} d={<><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></>} />;
@@ -805,7 +806,7 @@ const GIST_SYNC_KNOWN_KEYS = [
   'los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp',
   'los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills',
   'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions',
-  'los_projects','los_groceries'
+  'los_projects','los_groceries','los_memory_logs'
 ];
 
 // Keys inside los_settings that must NEVER leave the device.
@@ -1661,6 +1662,7 @@ const NAV_DEFS = [
   { id:'health',    Icon:IcoHealth,     tKey:'health'      },
   { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
+  { id:'memory',    Icon:IcoMemory,     tKey:'memory'      },
   { id:'lifehub',   Icon:IcoBriefcase,  tKey:'lifehub'     },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
@@ -17858,6 +17860,471 @@ function ParallelYou({ data, open, onClose }) {
 
 function clamp(min, val, max) { return Math.max(min, Math.min(max, val)); }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── MEMORY PAGE — AI-powered daily behavioral memory analyzer ────────────────
+// Logs mood / sleep / spending / focus each day, then the AI reads the history
+// and surfaces patterns, early warnings, and personalised recommendations.
+// ══════════════════════════════════════════════════════════════════════════════
+function MemoryPage({ data }) {
+  const settings = data.settings || {};
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  // ── Persistent log storage ─────────────────────────────────────────────────
+  const [memoryLogs, setMemoryLogs] = useLocalStorage('los_memory_logs', []);
+  const [analysis,   setAnalysis  ] = useLocalStorage('los_memory_analysis', null);
+
+  // ── Form state ─────────────────────────────────────────────────────────────
+  const [form, setForm] = useState({ date: today(), sleep: '', spending: '', mood: '', focus: 'ok', note: '' });
+  const [jsonInput, setJsonInput] = useState('');
+  const [jsonErr,   setJsonErr  ] = useState('');
+  const [running,   setRunning  ] = useState(false);
+  const [activeTab, setActiveTab] = useState('log');  // 'log' | 'history' | 'analysis'
+  const [editId, setEditId] = useState(null);
+
+  // ── Cross-reference with existing vitals & expenses ────────────────────────
+  const todayStr = today();
+  const recentVitals   = (data.vitals   || []).slice(-14);
+  const recentExpenses = (data.expenses || []).slice(-30);
+
+  // ── Save a new log entry ───────────────────────────────────────────────────
+  const saveEntry = (entry) => {
+    const clean = {
+      id:       entry.id       || Date.now(),
+      date:     entry.date     || todayStr,
+      sleep:    Number(entry.sleep)    || 0,
+      spending: Number(entry.spending) || 0,
+      mood:     Number(entry.mood)     || 0,
+      focus:    entry.focus    || 'ok',
+      note:     entry.note     || '',
+    };
+    setMemoryLogs(prev => {
+      const without = prev.filter(l => l.id !== clean.id);
+      return [...without, clean].sort((a, b) => a.date < b.date ? -1 : 1);
+    });
+    return clean;
+  };
+
+  const handleLogSubmit = () => {
+    if (!form.sleep && !form.mood && !form.spending) return;
+    saveEntry({ ...form, id: editId || Date.now() });
+    setForm({ date: today(), sleep: '', spending: '', mood: '', focus: 'ok', note: '' });
+    setEditId(null);
+    setActiveTab('history');
+  };
+
+  // ── JSON import ────────────────────────────────────────────────────────────
+  const handleJsonImport = () => {
+    setJsonErr('');
+    try {
+      const raw = JSON.parse(jsonInput.trim());
+      // normalize focus: accept string "bad"/"ok"/"great" or number 1-3
+      const focusMap = { bad:'bad', ok:'ok', great:'great', 1:'bad', 2:'ok', 3:'great' };
+      const entry = {
+        date:     raw.date     || todayStr,
+        sleep:    raw.sleep    ?? raw.sleepHours ?? 0,
+        spending: raw.spending ?? raw.spend      ?? 0,
+        mood:     raw.mood     ?? raw.moodScore  ?? 0,
+        focus:    focusMap[raw.focus] || focusMap[raw.productivity] || 'ok',
+        note:     raw.note     || raw.notes || '',
+      };
+      saveEntry(entry);
+      setJsonInput('');
+      setActiveTab('history');
+    } catch {
+      setJsonErr('Invalid JSON — check your syntax.');
+    }
+  };
+
+  // ── AI analysis ────────────────────────────────────────────────────────────
+  const runAnalysis = async () => {
+    if (!settings.aiApiKey && settings.aiProvider !== 'ollama') return;
+    setRunning(true);
+    try {
+      const logs14 = memoryLogs.slice(-14);
+      const vitalSummary = recentVitals.map(v =>
+        `${v.date}: sleep=${v.sleep}h mood=${v.mood}/10 energy=${v.energy}/10`
+      ).join('\n');
+      const spendSummary = recentExpenses.slice(-20).map(e =>
+        `${e.date}: $${e.amount} (${e.category || 'misc'})`
+      ).join('\n');
+      const logSummary = logs14.map(l =>
+        `${l.date}: sleep=${l.sleep}h spending=$${l.spending} mood=${l.mood}/10 focus=${l.focus}${l.note ? ` note="${l.note}"` : ''}`
+      ).join('\n');
+
+      const prompt = `You are a behavioral analytics AI. Analyze this person's daily memory logs and cross-reference with their vitals and spending data.
+
+MEMORY LOGS (last 14 days):
+${logSummary || '(no logs yet)'}
+
+VITALS FROM HEALTH TRACKER (last 14 days):
+${vitalSummary || '(none)'}
+
+SPENDING FROM FINANCE TRACKER (last 20 transactions):
+${spendSummary || '(none)'}
+
+Identify meaningful patterns, early warning signs, and actionable recommendations. Look for:
+- Correlations (e.g. low sleep → high spending, bad focus → mood decline)
+- Streaks or trends (improving, declining, volatile)
+- Days where multiple bad signals co-occur
+- Specific actionable improvements
+
+Respond ONLY with a JSON object (no markdown, no backticks) with exactly these keys:
+{
+  "patterns": ["string", ...],   // 2-4 observed correlations/trends
+  "warnings": ["string", ...],   // 1-3 risk signals that need attention
+  "recommendations": ["string", ...],  // 2-4 specific, actionable steps
+  "summary": "string"            // one sentence overall assessment
+}`;
+
+      const text = await callAI(settings, {
+        max_tokens: 800,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+      setAnalysis({ ...parsed, generatedAt: new Date().toISOString(), logsAnalyzed: logs14.length });
+      setActiveTab('analysis');
+    } catch (e) {
+      setAnalysis({ error: String(e), generatedAt: new Date().toISOString() });
+    }
+    setRunning(false);
+  };
+
+  // ── Auto-analyze after each new log (debounced, only if API key set) ───────
+  const prevLen = useRef(memoryLogs.length);
+  useEffect(() => {
+    if (memoryLogs.length > prevLen.current && memoryLogs.length >= 3 &&
+        (settings.aiApiKey || settings.aiProvider === 'ollama')) {
+      const timer = setTimeout(runAnalysis, 800);
+      prevLen.current = memoryLogs.length;
+      return () => clearTimeout(timer);
+    }
+    prevLen.current = memoryLogs.length;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memoryLogs.length]);
+
+  // ── Focus color helper ─────────────────────────────────────────────────────
+  const focusColor = (f) => f === 'great' ? T.emerald : f === 'bad' ? T.rose : T.amber;
+  const moodColor  = (m) => m >= 7 ? T.emerald : m >= 4 ? T.amber : T.rose;
+
+  // ── Sparkline for last 7 sleep values ─────────────────────────────────────
+  const last7 = memoryLogs.slice(-7);
+  const hasLogs = memoryLogs.length > 0;
+
+  // ── Stat cards ─────────────────────────────────────────────────────────────
+  const avgSleep    = last7.length ? (last7.reduce((s, l) => s + l.sleep,    0) / last7.length).toFixed(1) : '—';
+  const avgMood     = last7.length ? (last7.reduce((s, l) => s + l.mood,     0) / last7.length).toFixed(1) : '—';
+  const avgSpending = last7.length ? (last7.reduce((s, l) => s + l.spending, 0) / last7.length).toFixed(0) : '—';
+  const focusDist   = last7.reduce((acc, l) => { acc[l.focus] = (acc[l.focus] || 0) + 1; return acc; }, {});
+  const topFocus    = Object.entries(focusDist).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+  const TABS = [
+    { id: 'log',      label: '✏️ Log Today' },
+    { id: 'history',  label: `📋 History (${memoryLogs.length})` },
+    { id: 'analysis', label: '🧠 AI Analysis' },
+  ];
+
+  return (
+    <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontFamily: T.fD, fontWeight: 800, color: T.text, margin: 0 }}>
+            <IcoMemory size={18} stroke={T.accent} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+            Memory Analyzer
+          </h2>
+          <p style={{ fontSize: 11, fontFamily: T.fM, color: T.textSub, margin: '4px 0 0' }}>
+            Daily behavioral logs → AI surfaces patterns, warnings &amp; recommendations
+          </p>
+        </div>
+        <button
+          onClick={runAnalysis}
+          disabled={running || memoryLogs.length < 2 || (!settings.aiApiKey && settings.aiProvider !== 'ollama')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: T.r, background: running ? T.surface : T.accentDim, border: `1px solid ${T.accent}44`, color: running ? T.textSub : T.accent, fontFamily: T.fM, fontSize: 11, fontWeight: 700, cursor: running || memoryLogs.length < 2 ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+        >
+          {running
+            ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${T.accent}33`, borderTopColor: T.accent, animation: 'spin 0.8s linear infinite' }} /> Analyzing…</>
+            : <><IcoBrain size={12} stroke={T.accent} /> Analyze Now</>
+          }
+        </button>
+      </div>
+
+      {/* Stat strip */}
+      {hasLogs && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          {[
+            { label: 'Avg Sleep', val: `${avgSleep}h`, color: avgSleep >= 7 ? T.emerald : T.rose, icon: '🌙' },
+            { label: 'Avg Mood',  val: `${avgMood}/10`, color: moodColor(Number(avgMood)), icon: '😊' },
+            { label: 'Avg Spend', val: `$${avgSpending}`, color: T.sky, icon: '💸' },
+            { label: 'Top Focus', val: topFocus, color: focusColor(topFocus), icon: '🎯' },
+          ].map(s => (
+            <div key={s.label} style={{ padding: '12px 14px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 16, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: s.color }}>{s.val}</div>
+              <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.08em', marginTop: 2 }}>{s.label.toUpperCase()} · 7D</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sleep sparkline */}
+      {last7.length >= 3 && (
+        <div style={{ padding: '12px 16px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 8 }}>7-DAY SLEEP TREND</div>
+          <ResponsiveContainer width="100%" height={52}>
+            <AreaChart data={last7} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="memSleep" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={T.accent} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={T.accent} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey="sleep" stroke={T.accent} strokeWidth={2} fill="url(#memSleep)" dot={false} />
+              <Tooltip formatter={v => [`${v}h`, 'Sleep']} contentStyle={{ background: T.bg2, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 10, fontFamily: T.fM }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${T.border}`, paddingBottom: 2 }}>
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{ padding: '6px 14px', borderRadius: `${T.r} ${T.r} 0 0`, background: activeTab === tab.id ? T.accentDim : 'transparent', border: `1px solid ${activeTab === tab.id ? T.accent + '44' : 'transparent'}`, borderBottom: 'none', color: activeTab === tab.id ? T.accent : T.textSub, fontFamily: T.fM, fontSize: 11, fontWeight: activeTab === tab.id ? 700 : 400, cursor: 'pointer', transition: 'all 0.15s' }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB: Log Today ─────────────────────────────────────────────────── */}
+      {activeTab === 'log' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Manual form */}
+          <div style={{ padding: '20px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 11, fontFamily: T.fM, fontWeight: 700, color: T.text, marginBottom: 4 }}>
+              {editId ? '✏️ Edit Entry' : '📝 Log Today\'s Data'}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>DATE</label>
+                <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>🌙 SLEEP (hours)</label>
+                <input type="number" step="0.5" min="0" max="24" value={form.sleep} onChange={e => setForm(f => ({ ...f, sleep: e.target.value }))}
+                  placeholder="e.g. 7.5"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>💸 SPENDING ($)</label>
+                <input type="number" min="0" value={form.spending} onChange={e => setForm(f => ({ ...f, spending: e.target.value }))}
+                  placeholder="e.g. 45"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>😊 MOOD (1–10)</label>
+                <input type="number" min="1" max="10" value={form.mood} onChange={e => setForm(f => ({ ...f, mood: e.target.value }))}
+                  placeholder="e.g. 7"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>🎯 FOCUS / PRODUCTIVITY</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['bad', 'ok', 'great'].map(f => (
+                  <button key={f} onClick={() => setForm(p => ({ ...p, focus: f }))}
+                    style={{ flex: 1, padding: '8px 0', borderRadius: 8, background: form.focus === f ? `${focusColor(f)}22` : 'transparent', border: `1.5px solid ${form.focus === f ? focusColor(f) : T.border}`, color: form.focus === f ? focusColor(f) : T.textSub, fontFamily: T.fM, fontSize: 11, fontWeight: form.focus === f ? 700 : 400, cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s' }}
+                  >
+                    {f === 'bad' ? '😩 Bad' : f === 'ok' ? '😐 Ok' : '🔥 Great'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>NOTE (optional)</label>
+              <input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="What happened today? Any context…"
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
+            </div>
+            <button onClick={handleLogSubmit}
+              style={{ alignSelf: 'flex-start', padding: '9px 22px', borderRadius: T.r, background: T.accentDim, border: `1px solid ${T.accent}44`, color: T.accent, fontFamily: T.fM, fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}>
+              {editId ? 'Save Changes' : '+ Save Log Entry'}
+            </button>
+          </div>
+
+          {/* JSON import */}
+          <div style={{ padding: '20px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontFamily: T.fM, fontWeight: 700, color: T.text }}>⚡ Raw JSON Import</span>
+              <span style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub }}>paste a JSON object to log it instantly</span>
+            </div>
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, fontSize: 10, fontFamily: 'DM Mono, monospace', color: T.textMuted, lineHeight: 1.7 }}>
+              {'{ "sleep": 5, "spending": 120, "mood": 4, "focus": "bad", "note": "rough day" }'}
+            </div>
+            <textarea
+              rows={4}
+              value={jsonInput}
+              onChange={e => { setJsonInput(e.target.value); setJsonErr(''); }}
+              placeholder={'{\n  "sleep": 7,\n  "spending": 45,\n  "mood": 8,\n  "focus": "great"\n}'}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, background: T.bg2, border: `1px solid ${jsonErr ? T.rose : T.border}`, color: T.text, fontFamily: 'DM Mono, monospace', fontSize: 11, resize: 'vertical', lineHeight: 1.6 }}
+            />
+            {jsonErr && <div style={{ fontSize: 10, fontFamily: T.fM, color: T.rose }}>{jsonErr}</div>}
+            <button onClick={handleJsonImport} disabled={!jsonInput.trim()}
+              style={{ alignSelf: 'flex-start', padding: '8px 18px', borderRadius: T.r, background: jsonInput.trim() ? `${T.violet}22` : T.surface, border: `1px solid ${jsonInput.trim() ? T.violet + '44' : T.border}`, color: jsonInput.trim() ? '#c084fc' : T.textSub, fontFamily: T.fM, fontSize: 11, fontWeight: 700, cursor: jsonInput.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
+              ⚡ Import JSON
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB: History ──────────────────────────────────────────────────── */}
+      {activeTab === 'history' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {memoryLogs.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: T.textSub, fontFamily: T.fM, fontSize: 12 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🧠</div>
+              No logs yet — start by logging today's data in the Log tab.
+            </div>
+          ) : (
+            [...memoryLogs].reverse().map(log => (
+              <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, minWidth: 72 }}>{log.date}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: T.fM }}>
+                  <span style={{ color: T.textSub }}>🌙</span>
+                  <span style={{ color: log.sleep >= 7 ? T.emerald : log.sleep >= 5 ? T.amber : T.rose, fontWeight: 700 }}>{log.sleep}h</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: T.fM }}>
+                  <span style={{ color: T.textSub }}>😊</span>
+                  <span style={{ color: moodColor(log.mood), fontWeight: 700 }}>{log.mood}/10</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: T.fM }}>
+                  <span style={{ color: T.textSub }}>💸</span>
+                  <span style={{ color: T.sky, fontWeight: 700 }}>${log.spending}</span>
+                </div>
+                <div style={{ padding: '2px 8px', borderRadius: 20, background: `${focusColor(log.focus)}18`, border: `1px solid ${focusColor(log.focus)}44`, fontSize: 9, fontFamily: T.fM, fontWeight: 700, color: focusColor(log.focus), textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  {log.focus === 'bad' ? '😩' : log.focus === 'ok' ? '😐' : '🔥'} {log.focus}
+                </div>
+                {log.note && (
+                  <div style={{ flex: 1, fontSize: 10, fontFamily: T.fM, color: T.textSub, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 80 }}>
+                    "{log.note}"
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                  <button onClick={() => { setForm({ date: log.date, sleep: String(log.sleep), spending: String(log.spending), mood: String(log.mood), focus: log.focus, note: log.note }); setEditId(log.id); setActiveTab('log'); }}
+                    style={{ padding: '4px 8px', borderRadius: 6, background: 'transparent', border: `1px solid ${T.border}`, color: T.textSub, fontSize: 10, fontFamily: T.fM, cursor: 'pointer' }}>
+                    Edit
+                  </button>
+                  <button onClick={() => setMemoryLogs(prev => prev.filter(l => l.id !== log.id))}
+                    style={{ padding: '4px 8px', borderRadius: 6, background: 'transparent', border: `1px solid ${T.rose}33`, color: T.rose, fontSize: 10, fontFamily: T.fM, cursor: 'pointer' }}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* ── TAB: AI Analysis ──────────────────────────────────────────────── */}
+      {activeTab === 'analysis' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && (
+            <div style={{ padding: '14px 18px', borderRadius: T.r, background: `${T.amber}10`, border: `1px solid ${T.amber}44`, fontSize: 11, fontFamily: T.fM, color: T.amber }}>
+              ⚠️ Add your AI API key in Settings to enable Memory Analysis.
+            </div>
+          )}
+          {!analysis ? (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: T.textSub, fontFamily: T.fM, fontSize: 12 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🧬</div>
+              {memoryLogs.length < 2
+                ? 'Log at least 2 days of data to run analysis.'
+                : 'Click "Analyze Now" to generate your behavioral report.'}
+            </div>
+          ) : analysis.error ? (
+            <div style={{ padding: '16px', borderRadius: T.r, background: `${T.rose}10`, border: `1px solid ${T.rose}33`, fontSize: 11, fontFamily: T.fM, color: T.rose }}>
+              ⚠️ Analysis failed: {analysis.error}
+            </div>
+          ) : (
+            <>
+              {/* Summary banner */}
+              {analysis.summary && (
+                <div style={{ padding: '16px 20px', borderRadius: T.r, background: `linear-gradient(135deg, ${T.accent}10, ${T.violet}08)`, border: `1px solid ${T.accent}33`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 20 }}>🧠</span>
+                  <div>
+                    <div style={{ fontSize: 9, fontFamily: T.fM, color: T.accent, letterSpacing: '0.1em', marginBottom: 4 }}>OVERALL ASSESSMENT</div>
+                    <div style={{ fontSize: 12, fontFamily: T.fM, color: T.text, lineHeight: 1.6 }}>{analysis.summary}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Patterns */}
+              {analysis.patterns?.length > 0 && (
+                <div style={{ padding: '18px 20px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 9, fontFamily: T.fM, color: T.sky, letterSpacing: '0.1em', marginBottom: 12 }}>📊 PATTERNS DETECTED</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {analysis.patterns.map((p, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 14px', borderRadius: 8, background: `${T.sky}08`, border: `1px solid ${T.sky}22` }}>
+                        <span style={{ color: T.sky, fontSize: 14, lineHeight: 1.2, flexShrink: 0 }}>↗</span>
+                        <span style={{ fontSize: 11, fontFamily: T.fM, color: T.text, lineHeight: 1.6 }}>{p}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {analysis.warnings?.length > 0 && (
+                <div style={{ padding: '18px 20px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 9, fontFamily: T.fM, color: T.rose, letterSpacing: '0.1em', marginBottom: 12 }}>⚠️ WARNINGS</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {analysis.warnings.map((w, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 14px', borderRadius: 8, background: `${T.rose}08`, border: `1px solid ${T.rose}22` }}>
+                        <span style={{ color: T.rose, fontSize: 14, lineHeight: 1.2, flexShrink: 0 }}>!</span>
+                        <span style={{ fontSize: 11, fontFamily: T.fM, color: T.text, lineHeight: 1.6 }}>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {analysis.recommendations?.length > 0 && (
+                <div style={{ padding: '18px 20px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 9, fontFamily: T.fM, color: T.emerald, letterSpacing: '0.1em', marginBottom: 12 }}>✅ RECOMMENDATIONS</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {analysis.recommendations.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 14px', borderRadius: 8, background: `${T.emerald}08`, border: `1px solid ${T.emerald}22` }}>
+                        <span style={{ color: T.emerald, fontSize: 12, lineHeight: 1.4, flexShrink: 0, fontWeight: 700 }}>{i + 1}.</span>
+                        <span style={{ fontSize: 11, fontFamily: T.fM, color: T.text, lineHeight: 1.6 }}>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Meta */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                <span style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted }}>
+                  Analyzed {analysis.logsAnalyzed || '?'} logs · {analysis.generatedAt ? new Date(analysis.generatedAt).toLocaleString() : ''}
+                </span>
+                <button onClick={runAnalysis} disabled={running}
+                  style={{ padding: '4px 12px', borderRadius: 6, background: 'transparent', border: `1px solid ${T.border}`, color: T.textSub, fontFamily: T.fM, fontSize: 9, cursor: 'pointer' }}>
+                  Refresh
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export default function LifeOS() {
   const [page, setPage] = useState('home');
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -18665,6 +19132,7 @@ export default function LifeOS() {
     calendar:  eb(<CalendarPage  data={data} />),
     // intel page absorbed into Home dashboard
     archive:   eb(<ArchivePage   data={data} />),
+    memory:    eb(<MemoryPage    data={data} />),
     projects:  eb(<ProjectsPage  data={data} actions={actions} />),
     groceries: eb(<GroceriesPage data={data} actions={actions} />),
     lifehub:   eb(<LifeHubPage   data={data} actions={actions} />),
