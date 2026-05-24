@@ -115,6 +115,8 @@ import {
     @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
     @keyframes float { 0%,100% { transform:translateY(0px) scale(1); opacity:0.7; } 50% { transform:translateY(-18px) scale(1.08); opacity:1; } }
     @keyframes floatSlow { 0%,100% { transform:translateY(0px) translateX(0px); } 33% { transform:translateY(-12px) translateX(8px); } 66% { transform:translateY(6px) translateX(-6px); } }
+    @keyframes vcPulse { 0% { transform:scale(1); opacity:0.8; } 100% { transform:scale(1.7); opacity:0; } }
+    @keyframes slideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
     @keyframes pulseGlow { 0%,100% { opacity:0.4; transform:scale(1); } 50% { opacity:0.9; transform:scale(1.15); } }
     @keyframes ambientDrift { 0% { transform:translate(0,0) scale(1); } 25% { transform:translate(60px,-40px) scale(1.12); } 50% { transform:translate(20px,60px) scale(0.95); } 75% { transform:translate(-50px,10px) scale(1.06); } 100% { transform:translate(0,0) scale(1); } }
     @keyframes graphEdge { from { stroke-dashoffset:200; opacity:0; } to { stroke-dashoffset:0; opacity:1; } }
@@ -812,7 +814,7 @@ const GIST_SYNC_KNOWN_KEYS = [
 // Keys inside los_settings that must NEVER leave the device.
 // These are credentials — pushing them to a Gist (even a private one)
 // triggers GitHub's secret-scanning bot which auto-revokes the token.
-const SETTINGS_SECRETS = ['aiApiKey', 'gistToken', 'ollamaHost'];
+const SETTINGS_SECRETS = ['aiApiKey', 'gistToken', 'ollamaHost', 'whisperKey', 'elevenLabsKey'];
 
 function buildGistSnapshot() {
   const snap = {};
@@ -12344,12 +12346,14 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
   const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
   const [aiApiKey, setAiApiKey] = useState(settings.aiApiKey||'');
+  const [whisperKey, setWhisperKey] = useState(settings.whisperKey||'');
+  const [elevenLabsKey, setElevenLabsKey] = useState(settings.elevenLabsKey||'');
   const [keyTestStatus, setKeyTestStatus] = useState(null); // null | 'testing' | 'ok' | 'empty' | 'error:...'
   // UX fix: weightUnit persisted in settings so Health charts use the correct label
   const [weightUnit, setWeightUnit] = useState(settings.weightUnit||'lbs');
 
   const save = () => {
-    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, pin:'', weightUnit });
+    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, whisperKey, elevenLabsKey, pin:'', weightUnit });
     // Mutate T and bump themeVersion via callback so all inline-style references re-render
     onThemeChange(theme);
     // Note: currentLang global removed (Bug 5 fix) — language flows via LangContext
@@ -12651,6 +12655,32 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
               </div>
             )}
             <Btn full onClick={save} color={T.violet}>Save AI Settings</Btn>
+          </div>
+
+          {/* ── Voice Settings ──────────────────────────────────────────── */}
+          <div style={{ marginTop:24, display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ fontSize:11, fontFamily:T.fM, fontWeight:700, color:T.text, display:'flex', alignItems:'center', gap:8 }}>🎤 Voice Coach</div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+              Enables push-to-talk voice commands. Requires an OpenAI key for transcription (Whisper) and optionally ElevenLabs for natural speech output.
+            </div>
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:5 }}>OPENAI KEY (Whisper transcription)</div>
+              <Input value={whisperKey} onChange={e=>setWhisperKey(e.target.value)} placeholder="sk-… OpenAI key" type="password" />
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4, lineHeight:1.5 }}>
+                Used only for Whisper audio transcription. Get one at <code style={{ color:T.accent }}>platform.openai.com</code>.
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', marginBottom:5 }}>ELEVENLABS KEY (natural speech — optional)</div>
+              <Input value={elevenLabsKey} onChange={e=>setElevenLabsKey(e.target.value)} placeholder="ElevenLabs API key" type="password" />
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:4, lineHeight:1.5 }}>
+                Without this, browser text-to-speech is used as fallback. Get one at <code style={{ color:T.accent }}>elevenlabs.io</code>.
+              </div>
+            </div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'7px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, lineHeight:1.5 }}>
+              🔑 Keys stored locally — never synced to cloud. Use low-budget keys.
+            </div>
+            <Btn full onClick={save} color={T.sky}>Save Voice Settings</Btn>
           </div>
         </GlassCard>}
 
@@ -17861,7 +17891,299 @@ function ParallelYou({ data, open, onClose }) {
 function clamp(min, val, max) { return Math.max(min, Math.min(max, val)); }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── MEMORY PAGE — AI-powered daily behavioral memory analyzer ────────────────
+// ── VOICE COACH — Push-to-talk AI voice interface ─────────────────────────────
+// Flow: User holds mic → Whisper transcribes → Claude analyzes → ElevenLabs speaks
+// Commands: "Analyze my week" | "What should I focus on?" | "Why am I tired?"
+// ══════════════════════════════════════════════════════════════════════════════
+function VoiceCoach({ data, open, onClose }) {
+  const settings = data.settings || {};
+  // status: idle | recording | transcribing | thinking | speaking | error | done
+  const [status,     setStatus    ] = useState('idle');
+  const [transcript, setTranscript] = useState('');
+  const [reply,      setReply     ] = useState('');
+  const [errMsg,     setErrMsg    ] = useState('');
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef   = useRef([]);
+  const audioRef         = useRef(null);
+  const isRecording      = status === 'recording';
+
+  // Reset when panel opens
+  useEffect(() => {
+    if (open) { setStatus('idle'); setTranscript(''); setReply(''); setErrMsg(''); }
+    else {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      window.speechSynthesis?.cancel();
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+      }
+    }
+  }, [open]);
+
+  // ── start recording ────────────────────────────────────────────────────────
+  const startRecording = async () => {
+    if (status !== 'idle' && status !== 'done' && status !== 'error') return;
+    setErrMsg(''); setTranscript(''); setReply('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      const mr = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.start(100);
+      mediaRecorderRef.current = mr;
+      setStatus('recording');
+    } catch(e) {
+      setErrMsg('Microphone access denied. Allow mic permissions and try again.');
+      setStatus('error');
+    }
+  };
+
+  // ── stop recording → kick off pipeline ────────────────────────────────────
+  const stopRecording = () => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
+    mediaRecorderRef.current.onstop = handleAudioReady;
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+    setStatus('transcribing');
+  };
+
+  const handleAudioReady = async () => {
+    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    if (blob.size < 1000) { setErrMsg('Too short — hold longer and speak clearly.'); setStatus('error'); return; }
+
+    // ── 1. Transcribe with Whisper ──────────────────────────────────────────
+    let text = '';
+    if (settings.whisperKey) {
+      try {
+        const form = new FormData();
+        form.append('file', blob, 'audio.webm');
+        form.append('model', 'whisper-1');
+        const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${settings.whisperKey}` },
+          body: form,
+        });
+        const d = await res.json();
+        if (d.error) throw new Error(d.error.message);
+        text = d.text?.trim() || '';
+      } catch(e) {
+        setErrMsg('Whisper error: ' + e.message);
+        setStatus('error');
+        return;
+      }
+    } else {
+      setErrMsg('Add an OpenAI key (Settings → Voice Coach) to enable transcription.');
+      setStatus('error');
+      return;
+    }
+
+    if (!text) { setErrMsg('No speech detected — try again.'); setStatus('error'); return; }
+    setTranscript(text);
+
+    // ── 2. Detect intent ────────────────────────────────────────────────────
+    const t = text.toLowerCase();
+    let intent = null;
+    if      (/week|analyz|summary|review|how.*(i|my).*(do|doing)|report/i.test(t))               intent = 'analyze_week';
+    else if (/focus|priorit|should i|what (to|should)|most important|do (today|now)/i.test(t))   intent = 'focus';
+    else if (/tired|fatigue|exhaust|energy|sleep.*why|why.*sleep|low energy/i.test(t))            intent = 'tired';
+
+    if (!intent) {
+      const msg = "I only know three commands: 'Analyze my week', 'What should I focus on?', and 'Why am I tired?'";
+      setReply(msg); speak(msg); return;
+    }
+
+    // ── 3. Build context from live data ────────────────────────────────────
+    setStatus('thinking');
+    const now    = new Date();
+    const day7   = d => (now - new Date(d)) / 86400000 <= 7;
+    const v7     = (data.vitals   || []).filter(v => day7(v.date));
+    const e7     = (data.expenses || []).filter(e => day7(e.date));
+    const avgSlp = v7.length ? (v7.reduce((s,v)=>s+Number(v.sleep||0),0)/v7.length).toFixed(1) : null;
+    const avgMod = v7.length ? (v7.reduce((s,v)=>s+Number(v.mood||0),0)/v7.length).toFixed(1) : null;
+    const spend7 = e7.reduce((s,e)=>s+Number(e.amount||0),0).toFixed(0);
+    const goals  = (data.goals||[]).filter(g=>!g.completed).slice(0,3).map(g=>g.title).join(', ') || 'none';
+    const habits = (data.habits||[]).slice(0,5).map(h=>h.name).join(', ') || 'none';
+
+    // Cross-ref with memory logs
+    const memLogs7 = (() => {
+      try { return JSON.parse(localStorage.getItem('los_memory_logs')||'[]').filter(l=>day7(l.date)); } catch { return []; }
+    })();
+    const memAvgSleep = memLogs7.length ? (memLogs7.reduce((s,l)=>s+l.sleep,0)/memLogs7.length).toFixed(1) : null;
+
+    const ctx = `Sleep avg: ${memAvgSleep || avgSlp || '?'}h | Mood avg: ${avgMod || '?'}/10 | 7-day spending: $${spend7} | Goals: ${goals} | Habits tracked: ${habits}`;
+
+    const PROMPTS = {
+      analyze_week: `You are a personal life coach giving a spoken weekly recap (2–3 concise sentences). Be specific, warm, and name one key improvement. Data: ${ctx}`,
+      focus:        `You are a life coach. In 2 sentences, tell this person exactly what to focus on today based on: ${ctx}. Be direct and practical.`,
+      tired:        `You are a wellness coach. In 2–3 sentences, explain the most likely reason this person is tired: ${ctx}. Be empathetic and name the top cause.`,
+    };
+
+    // ── 4. Call Claude ──────────────────────────────────────────────────────
+    let aiReply = '';
+    try {
+      aiReply = await callAI(settings, {
+        max_tokens: 120,
+        messages: [{ role: 'user', content: PROMPTS[intent] }],
+      });
+    } catch(e) {
+      setErrMsg('AI error: ' + e.message);
+      setStatus('error');
+      return;
+    }
+    setReply(aiReply);
+
+    // ── 5. Speak the reply ─────────────────────────────────────────────────
+    speak(aiReply);
+  };
+
+  const speak = async (text) => {
+    setStatus('speaking');
+    // Try ElevenLabs first
+    if (settings.elevenLabsKey) {
+      try {
+        const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB', {
+          method: 'POST',
+          headers: { 'xi-api-key': settings.elevenLabsKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          }),
+        });
+        if (!res.ok) throw new Error(`ElevenLabs ${res.status}`);
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => { setStatus('done'); URL.revokeObjectURL(url); };
+        audio.play();
+        return;
+      } catch { /* fall through to browser TTS */ }
+    }
+    // Browser TTS fallback
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95;
+    utter.onend = () => setStatus('done');
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  };
+
+  // ── Pointer events: hold = record, release = stop ─────────────────────────
+  const handlePressStart = (e) => { e.preventDefault(); if (status === 'idle' || status === 'done' || status === 'error') startRecording(); };
+  const handlePressEnd   = (e) => { e.preventDefault(); if (isRecording) stopRecording(); };
+
+  // ── Status display ─────────────────────────────────────────────────────────
+  const STATUS_LABEL = {
+    idle:         'Hold to speak',
+    recording:    'Listening…',
+    transcribing: 'Transcribing…',
+    thinking:     'Thinking…',
+    speaking:     'Speaking…',
+    error:        'Error',
+    done:         'Done — hold to speak again',
+  };
+  const STATUS_COLOR = {
+    idle: T.textSub, recording: T.rose, transcribing: T.amber,
+    thinking: T.violet, speaking: T.emerald, error: T.rose, done: T.accent,
+  };
+  const micColor = isRecording ? T.rose : status === 'speaking' ? T.emerald : T.accent;
+
+  if (!open) return null;
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:9005, display:'flex', alignItems:'flex-end', justifyContent:'center', paddingBottom:'calc(20px + var(--sab))', background:'rgba(0,0,0,0.55)', backdropFilter:'blur(12px)', animation:'fadeIn 0.2s ease' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ width:'min(480px,95vw)', background:T.bg1, border:`1px solid ${T.border}`, borderRadius:20, padding:'28px 24px 24px', boxShadow:'0 32px 80px rgba(0,0,0,0.6)', display:'flex', flexDirection:'column', alignItems:'center', gap:20, animation:'slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)' }}>
+
+        {/* Header */}
+        <div style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:T.text, display:'flex', alignItems:'center', gap:8 }}>
+            🎤 <span>Voice Coach</span>
+          </div>
+          <button onClick={onClose} style={{ padding:4, background:'none', borderRadius:6, color:T.textSub, display:'flex' }}><IcoX size={14} stroke={T.textSub} /></button>
+        </div>
+
+        {/* Waveform / mic orb */}
+        <div style={{ position:'relative', width:96, height:96, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          {/* Pulse rings when recording/speaking */}
+          {(isRecording || status === 'speaking') && (
+            <>
+              <div style={{ position:'absolute', width:'100%', height:'100%', borderRadius:'50%', border:`2px solid ${micColor}33`, animation:'vcPulse 1.4s ease-out infinite' }} />
+              <div style={{ position:'absolute', width:'78%', height:'78%', borderRadius:'50%', border:`2px solid ${micColor}55`, animation:'vcPulse 1.4s ease-out infinite 0.35s' }} />
+            </>
+          )}
+          {/* Spinner for transcribing/thinking */}
+          {(status === 'transcribing' || status === 'thinking') && (
+            <div style={{ position:'absolute', width:'100%', height:'100%', borderRadius:'50%', border:`2px solid ${T.border}`, borderTopColor: status === 'thinking' ? '#c084fc' : T.amber, animation:'spin 0.8s linear infinite' }} />
+          )}
+          {/* Core button */}
+          <button
+            onMouseDown={handlePressStart} onMouseUp={handlePressEnd}
+            onTouchStart={handlePressStart} onTouchEnd={handlePressEnd}
+            style={{ width:68, height:68, borderRadius:'50%', background: isRecording ? `${T.rose}22` : status === 'speaking' ? `${T.emerald}18` : T.accentDim, border:`2px solid ${micColor}55`, display:'flex', alignItems:'center', justifyContent:'center', cursor: (status === 'transcribing' || status === 'thinking') ? 'not-allowed' : 'pointer', transition:'all 0.2s', WebkitUserSelect:'none', userSelect:'none', WebkitTouchCallout:'none' }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={micColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Status label */}
+        <div style={{ fontSize:11, fontFamily:T.fM, color:STATUS_COLOR[status], letterSpacing:'0.05em', textAlign:'center', minHeight:18, transition:'color 0.3s' }}>
+          {STATUS_LABEL[status]}
+        </div>
+
+        {/* Transcript */}
+        {transcript && (
+          <div style={{ width:'100%', padding:'10px 14px', borderRadius:10, background:T.surface, border:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', marginBottom:5 }}>YOU SAID</div>
+            <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.6, fontStyle:'italic' }}>"{transcript}"</div>
+          </div>
+        )}
+
+        {/* Reply */}
+        {reply && (
+          <div style={{ width:'100%', padding:'12px 16px', borderRadius:12, background:`linear-gradient(135deg,${T.accent}0a,${T.violet}08)`, border:`1px solid ${T.accent}33` }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.1em', marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
+              <IcoBrain size={10} stroke={T.accent} /> COACH REPLY
+            </div>
+            <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7 }}>{reply}</div>
+          </div>
+        )}
+
+        {/* Error */}
+        {errMsg && (
+          <div style={{ width:'100%', padding:'10px 14px', borderRadius:10, background:`${T.rose}10`, border:`1px solid ${T.rose}33`, fontSize:11, fontFamily:T.fM, color:T.rose, lineHeight:1.5 }}>
+            ⚠️ {errMsg}
+          </div>
+        )}
+
+        {/* Command hints */}
+        {(status === 'idle' || status === 'done') && !transcript && (
+          <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:5 }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em', marginBottom:2 }}>AVAILABLE COMMANDS</div>
+            {['"Analyze my week"', '"What should I focus on?"', '"Why am I tired?"'].map(cmd => (
+              <div key={cmd} style={{ padding:'7px 12px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, fontSize:11, fontFamily:T.fM, color:T.textSub }}>{cmd}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Setup prompt if no whisper key */}
+        {!settings.whisperKey && (
+          <div style={{ width:'100%', padding:'9px 12px', borderRadius:10, background:T.amberDim, border:`1px solid ${T.amber}44`, fontSize:10, fontFamily:T.fM, color:T.amber, lineHeight:1.5, textAlign:'center' }}>
+            ⚠️ Add an OpenAI key in Settings → Voice Coach to enable transcription.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Logs mood / sleep / spending / focus each day, then the AI reads the history
 // and surfaces patterns, early warnings, and personalised recommendations.
 // ══════════════════════════════════════════════════════════════════════════════
@@ -18335,6 +18657,7 @@ export default function LifeOS() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [pinUnlocked, setPinUnlocked] = useState(true); // PIN disabled — always unlocked
   const [showAIPanel, setShowAIPanel] = useState(false);
+  const [showVoice,   setShowVoice  ] = useState(false);
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
   const [showWeeklyReview,  setShowWeeklyReview ] = useState(false);
   const [showSyncModal,     setShowSyncModal    ] = useState(false);
@@ -19156,6 +19479,7 @@ export default function LifeOS() {
     {/* PIN LOCK DISABLED */}
     {showOnboarding && <OnboardingWizard onComplete={()=>setShowOnboarding(false)} onSkip={()=>{ setShowOnboarding(false); actions.updateSettings({...settings, onboarded:true}); }} actions={actions} settings={settings} />}
     <GlobalAIPanel open={showAIPanel} onClose={()=>setShowAIPanel(false)} data={data} />
+    <VoiceCoach    open={showVoice}   onClose={()=>setShowVoice(false)}   data={data} />
     <MonthlyReviewModal open={showMonthlyReview} onClose={()=>setShowMonthlyReview(false)} data={data} actions={actions} />
     <WeeklyReviewModal  open={showWeeklyReview}  onClose={()=>setShowWeeklyReview(false)}  data={data} actions={actions} />
     <SyncModal
@@ -19295,6 +19619,17 @@ export default function LifeOS() {
               onMouseLeave={e=>{if(!showAIPanel){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}}>
               <IcoBrain size={15} stroke="currentColor" />
               {!showAIPanel && <span style={{ position:'absolute', top:-2, right:-2, width:6, height:6, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+            </button>
+            {/* Voice Coach button */}
+            <button onClick={()=>setShowVoice(v=>!v)} title="Voice Coach (V)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showVoice?`${T.rose}22`:'transparent', border:`1px solid ${showVoice?T.rose+'55':'transparent'}`, color:showVoice?T.rose:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', minWidth:36, minHeight:36 }}
+              onMouseEnter={e=>{if(!showVoice){e.currentTarget.style.background=`${T.rose}12`;e.currentTarget.style.borderColor=T.rose+'33';e.currentTarget.style.color=T.rose;}}}
+              onMouseLeave={e=>{if(!showVoice){e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
             </button>
             {isMobile && (
               <button onClick={()=>setShowSyncModal(true)} style={{ padding:'5px 7px', borderRadius:7, background:'transparent', border:`1px solid transparent`, display:'flex', alignItems:'center', justifyContent:'center', minWidth:36, minHeight:36 }}>
