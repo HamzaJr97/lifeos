@@ -121,6 +121,14 @@ import {
     @keyframes ambientDrift { 0% { transform:translate(0,0) scale(1); } 25% { transform:translate(60px,-40px) scale(1.12); } 50% { transform:translate(20px,60px) scale(0.95); } 75% { transform:translate(-50px,10px) scale(1.06); } 100% { transform:translate(0,0) scale(1); } }
     @keyframes graphEdge { from { stroke-dashoffset:200; opacity:0; } to { stroke-dashoffset:0; opacity:1; } }
     @keyframes nodeFloat { 0%,100% { transform:translate(0,0); } 50% { transform:translate(0,-4px); } }
+    /* ── AMBIENT INTELLIGENCE — state-reactive overlays ──────────────────── */
+    @keyframes ambientBadDay { 0%,100% { opacity:0.4; transform:scale(1); } 50% { opacity:0.75; transform:scale(1.04); } }
+    @keyframes ambientStreak { 0% { transform:translate(0,0) scale(1); opacity:0.35; } 33% { transform:translate(30px,-20px) scale(1.1); opacity:0.55; } 66% { transform:translate(-20px,15px) scale(0.94); opacity:0.4; } 100% { transform:translate(0,0) scale(1); opacity:0.35; } }
+    @keyframes ambientFocusEdge { 0%,100% { opacity:0.5; } 50% { opacity:1; } }
+    @keyframes ambientFocusDarken { from { opacity:0; } to { opacity:1; } }
+    @keyframes ambientPill { from { opacity:0; transform:translateY(-4px) scale(0.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @keyframes ambientStreakParticle { 0% { transform:translateY(0) scale(1); opacity:0.6; } 100% { transform:translateY(-80px) scale(0); opacity:0; } }
+    .ambient-transition { transition: background 1.2s ease, border-color 0.8s ease !important; }
     @media (max-width:767px) {
       .los-desktop-only { display:none !important; }
       .los-mobile-only { display:flex !important; }
@@ -693,6 +701,131 @@ function useDebouncedLocalStorage(key, defaultVal, delay = 600) {
     }
   }, [key]);
   return [val, setter];
+}
+
+// ── AMBIENT INTELLIGENCE HOOK ─────────────────────────────────────────────────
+// Reads real LifeOS data and returns the current "life state" that drives
+// the ambient visual layer. Five states: neutral · bad_day · focus · streak · recovery
+function useAmbientIntelligence(data) {
+  const {
+    vitals = [], habits = [], habitLogs = {},
+    focusSessions = [], expenses = [],
+  } = data || {};
+
+  return useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // ── Today's vitals snapshot ────────────────────────────────────────────
+    const todayVitals = [...vitals]
+      .filter(v => v.date === todayStr)
+      .slice(-1)[0] || null;
+    const recentVitals = vitals.slice(-5);
+    const avgMood = recentVitals.length > 0
+      ? recentVitals.reduce((s, v) => s + Number(v.mood || 5), 0) / recentVitals.length
+      : 5;
+    const todayMood  = Number(todayVitals?.mood  || 0);
+    const todaySleep = Number(todayVitals?.sleep || 0);
+    const todayFocus = todayVitals?.focus || null; // 'bad' | 'ok' | 'great'
+
+    // ── Focus session ──────────────────────────────────────────────────────
+    const activeFocusSession = (focusSessions || []).some(
+      s => s.date === todayStr && s.active
+    );
+
+    // ── Habit data ─────────────────────────────────────────────────────────
+    const getStreakLocal = (habitId) => {
+      const logs = ((habitLogs || {})[habitId] || []).slice().sort();
+      if (!logs.length) return 0;
+      let streak = 0;
+      const d = new Date(); d.setHours(0, 0, 0, 0);
+      for (let i = 0; i < 90; i++) {
+        const ds = d.toISOString().slice(0, 10);
+        if (logs.includes(ds)) { streak++; d.setDate(d.getDate() - 1); }
+        else { if (i === 0) { d.setDate(d.getDate() - 1); continue; } break; }
+      }
+      return streak;
+    };
+    const bestStreak = (habits || []).reduce(
+      (mx, h) => { const s = getStreakLocal(h.id); return s > mx ? s : mx; }, 0
+    );
+    const habitsCompletedToday = (habits || []).filter(
+      h => ((habitLogs || {})[h.id] || []).includes(todayStr)
+    ).length;
+    const habitCompletionRate = habits.length > 0
+      ? habitsCompletedToday / habits.length : 0;
+
+    // ── State resolution (priority order) ─────────────────────────────────
+
+    // 1. FOCUS MODE — active session, or logged 'great' focus + high mood today
+    if (activeFocusSession || (todayFocus === 'great' && todayMood >= 7)) {
+      return {
+        state: 'focus',
+        intensity: activeFocusSession ? 1.0 : 0.65,
+        label: activeFocusSession ? '⚡ Focus Session' : '🎯 Peak Focus',
+        description: "Minimal mode. You're locked in.",
+        glowColor: '#00f5d4',
+        pillBg: 'rgba(0,245,212,0.10)',
+        pillBorder: 'rgba(0,245,212,0.30)',
+      };
+    }
+
+    // 2. PRODUCTIVE STREAK — long habit streak + high daily completion
+    if (bestStreak >= 5 && habitCompletionRate >= 0.5) {
+      const intensity = Math.min(1, (bestStreak / 21) + habitCompletionRate * 0.4);
+      return {
+        state: 'streak',
+        intensity,
+        label: `🔥 ${bestStreak}d Streak`,
+        description: `Momentum is real. ${habitsCompletedToday}/${habits.length} habits done.`,
+        glowColor: '#38bdf8',
+        pillBg: 'rgba(56,189,248,0.10)',
+        pillBorder: 'rgba(56,189,248,0.30)',
+      };
+    }
+
+    // 3. BAD DAY — low mood, bad focus logged, poor sleep
+    const isBadMood   = todayMood > 0 && todayMood <= 4;
+    const isBadFocus  = todayFocus === 'bad';
+    const isLowSleep  = todaySleep > 0 && todaySleep < 5;
+    const isBadRecent = avgMood <= 4 && recentVitals.length >= 3;
+    if (isBadMood || isBadFocus || isLowSleep || isBadRecent) {
+      const severity = isBadMood ? (5 - todayMood) / 5 : 0.45;
+      return {
+        state: 'bad_day',
+        intensity: Math.max(0.3, Math.min(1, severity)),
+        label: isBadFocus ? '😩 Rough Focus' : isLowSleep ? '😴 Sleep Debt' : '🌧 Rough Day',
+        description: 'Take it easy. Recovery is progress too.',
+        glowColor: '#fb7185',
+        pillBg: 'rgba(251,113,133,0.10)',
+        pillBorder: 'rgba(251,113,133,0.30)',
+      };
+    }
+
+    // 4. GOOD DAY — high mood or high habit completion
+    if (todayMood >= 7 || habitCompletionRate >= 0.8) {
+      return {
+        state: 'good',
+        intensity: 0.35,
+        label: todayMood >= 8 ? '✨ Great Day' : '💚 On Track',
+        description: 'Things are going well.',
+        glowColor: '#34d399',
+        pillBg: 'rgba(52,211,153,0.10)',
+        pillBorder: 'rgba(52,211,153,0.30)',
+      };
+    }
+
+    // Default — neutral
+    return {
+      state: 'neutral',
+      intensity: 0,
+      label: null,
+      description: null,
+      glowColor: '#00f5d4',
+      pillBg: 'transparent',
+      pillBorder: 'transparent',
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vitals, habits, habitLogs, focusSessions, expenses]);
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -18814,6 +18947,150 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
 }
 
 
+// ── AMBIENT INTELLIGENCE LAYER ────────────────────────────────────────────────
+// Full-screen fixed overlay that reacts to the computed ambient state.
+// Rendered behind all UI (zIndex:1) with pointer-events:none — purely visual.
+function AmbientIntelligenceLayer({ ambientState }) {
+  const [visible, setVisible] = useState(false);
+  const [prevState, setPrevState] = useState('neutral');
+
+  // Fade-in when state changes
+  useEffect(() => {
+    if (!ambientState || ambientState.state === prevState) return;
+    setVisible(false);
+    const t = setTimeout(() => { setVisible(true); setPrevState(ambientState.state); }, 80);
+    return () => clearTimeout(t);
+  }, [ambientState?.state]);
+
+  // Initial mount
+  useEffect(() => {
+    if (ambientState?.state && ambientState.state !== 'neutral') {
+      const t = setTimeout(() => setVisible(true), 400);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  if (!ambientState || ambientState.state === 'neutral') return null;
+
+  const { state, intensity } = ambientState;
+  const baseOpacity = visible ? 1 : 0;
+  const transStyle = { transition: 'opacity 1.4s ease', opacity: baseOpacity };
+
+  // ── BAD DAY — warm red-orange vignette, edges close in ──────────────────
+  if (state === 'bad_day') {
+    const r = `rgba(251,113,133,`;
+    const o = `rgba(251,100,68,`;
+    return (
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
+        {/* Top vignette */}
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:220,
+          background:`radial-gradient(ellipse at 50% 0%, ${r}${0.14*intensity}) 0%, transparent 70%)`,
+          animation:'ambientBadDay 5s ease-in-out infinite' }} />
+        {/* Left edge warm bleed */}
+        <div style={{ position:'absolute', top:0, bottom:0, left:0, width:180,
+          background:`linear-gradient(90deg, ${r}${0.09*intensity}) 0%, transparent 100%)` }} />
+        {/* Right edge */}
+        <div style={{ position:'absolute', top:0, bottom:0, right:0, width:140,
+          background:`linear-gradient(270deg, ${r}${0.06*intensity}) 0%, transparent 100%)` }} />
+        {/* Bottom warmth */}
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:160,
+          background:`radial-gradient(ellipse at 30% 100%, ${o}${0.10*intensity}) 0%, transparent 65%)`,
+          animation:'ambientBadDay 7s ease-in-out infinite 2s' }} />
+        {/* Subtle desaturation overlay */}
+        <div style={{ position:'absolute', inset:0,
+          background:`rgba(20,5,5,${0.08*intensity})`,
+          mixBlendMode:'multiply' }} />
+      </div>
+    );
+  }
+
+  // ── FOCUS MODE — near-black shroud + cyan HUD borders ──────────────────
+  if (state === 'focus') {
+    const c = `rgba(0,245,212,`;
+    return (
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
+        {/* Darkening overlay */}
+        <div style={{ position:'absolute', inset:0,
+          background:`rgba(0,0,0,${0.20*intensity})`,
+          animation:'ambientFocusDarken 1.5s ease both' }} />
+        {/* Top edge line */}
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:1,
+          background:`linear-gradient(90deg, transparent 0%, ${c}${0.8*intensity}) 50%, transparent 100%)`,
+          animation:'ambientFocusEdge 3s ease-in-out infinite' }} />
+        {/* Bottom edge line */}
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:1,
+          background:`linear-gradient(90deg, transparent 0%, ${c}${0.4*intensity}) 50%, transparent 100%)`,
+          animation:'ambientFocusEdge 3s ease-in-out infinite 1.5s' }} />
+        {/* Top glow */}
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:100,
+          background:`radial-gradient(ellipse at 50% 0%, ${c}${0.07*intensity}) 0%, transparent 70%)` }} />
+        {/* HUD corners — top left */}
+        <div style={{ position:'absolute', top:6, left:6, width:22, height:22,
+          borderTop:`1.5px solid ${c}${0.55*intensity})`,
+          borderLeft:`1.5px solid ${c}${0.55*intensity})`,
+          animation:'ambientFocusEdge 4s ease-in-out infinite' }} />
+        {/* HUD corners — top right */}
+        <div style={{ position:'absolute', top:6, right:6, width:22, height:22,
+          borderTop:`1.5px solid ${c}${0.55*intensity})`,
+          borderRight:`1.5px solid ${c}${0.55*intensity})`,
+          animation:'ambientFocusEdge 4s ease-in-out infinite 1s' }} />
+        {/* HUD corners — bottom left */}
+        <div style={{ position:'absolute', bottom:6, left:6, width:22, height:22,
+          borderBottom:`1.5px solid ${c}${0.4*intensity})`,
+          borderLeft:`1.5px solid ${c}${0.4*intensity})`,
+          animation:'ambientFocusEdge 4s ease-in-out infinite 2s' }} />
+        {/* HUD corners — bottom right */}
+        <div style={{ position:'absolute', bottom:6, right:6, width:22, height:22,
+          borderBottom:`1.5px solid ${c}${0.4*intensity})`,
+          borderRight:`1.5px solid ${c}${0.4*intensity})`,
+          animation:'ambientFocusEdge 4s ease-in-out infinite 3s' }} />
+      </div>
+    );
+  }
+
+  // ── PRODUCTIVE STREAK — electric blue energy, rising particles ──────────
+  if (state === 'streak') {
+    const b = `rgba(56,189,248,`;
+    return (
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
+        {/* Energy rising from bottom */}
+        <div style={{ position:'absolute', bottom:0, left:0, right:0, height:320,
+          background:`radial-gradient(ellipse at 50% 100%, ${b}${0.13*intensity}) 0%, transparent 65%)`,
+          animation:'ambientStreak 9s ease-in-out infinite' }} />
+        {/* Top-right floating orb */}
+        <div style={{ position:'absolute', top:-80, right:-80, width:360, height:360, borderRadius:'50%',
+          background:`radial-gradient(circle, ${b}${0.08*intensity}) 0%, transparent 70%)`,
+          animation:'floatSlow 12s ease-in-out infinite' }} />
+        {/* Left accent */}
+        <div style={{ position:'absolute', top:'20%', left:0, width:3, height:'60%',
+          background:`linear-gradient(180deg, transparent 0%, ${b}${0.5*intensity}) 30%, ${b}${0.5*intensity}) 70%, transparent 100%)`,
+          borderRadius:2,
+          animation:'ambientFocusEdge 2.5s ease-in-out infinite' }} />
+        {/* Outer border pulse */}
+        <div style={{ position:'absolute', inset:0,
+          border:`1px solid ${b}${0.07*intensity})`,
+          animation:'ambientBadDay 6s ease-in-out infinite' }} />
+      </div>
+    );
+  }
+
+  // ── GOOD DAY — soft emerald halo ─────────────────────────────────────────
+  if (state === 'good') {
+    const g = `rgba(52,211,153,`;
+    return (
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
+        <div style={{ position:'absolute', bottom:0, right:0, width:400, height:400, borderRadius:'50%',
+          background:`radial-gradient(circle, ${g}${0.07*intensity}) 0%, transparent 70%)`,
+          animation:'floatSlow 14s ease-in-out infinite' }} />
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:80,
+          background:`radial-gradient(ellipse at 30% 0%, ${g}${0.05*intensity}) 0%, transparent 70%)` }} />
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export default function LifeOS() {
   const [page, setPage] = useState('home');
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -19477,7 +19754,6 @@ export default function LifeOS() {
   }, [_incomes, _expenses, _investments, _assets, _debts, _thisMonth, totalXP]);
 
   const actions = {
-    addExpense, addIncome, removeIncome, updateIncome, addHabit, logHabit, removeHabit,
     addVitals, removeVitals, updateVitals, addNote, addGoal, removeGoal, updateGoal, addAsset,
     updateGoalProgress, updateSettings,
     addDebt, payDebt, removeDebt,
@@ -19528,6 +19804,11 @@ export default function LifeOS() {
   const bestStreak = _habits.reduce((mx,h)=>{const s=getStreak(h.id,_habitLogs);return s>mx?s:mx;},0);
   const cur = settings.currency||'$';
   const { monthInc, monthExp, invVal, nw, savRate, thisMonth } = computed;
+
+  // ── AMBIENT INTELLIGENCE ─────────────────────────────────────────────────────
+  // Reads real data (vitals, habits, focus) to drive the living UI overlay.
+  // Computed after `data` is assembled so it has access to all live values.
+  const ambientState = useAmbientIntelligence(data);
 
   // ── Auto-sync across devices ─────────────────────────────────────────────────
   const gistSync = useGistAutoSync(data);
@@ -19665,6 +19946,8 @@ export default function LifeOS() {
     <LifeGraph     data={data} open={showLifeGraph}     onClose={()=>setShowLifeGraph(false)} />
     <AmbientMode   data={data} open={showAmbient}       onClose={()=>setShowAmbient(false)} />
     <ParallelYou   data={data} open={showParallelYou}   onClose={()=>setShowParallelYou(false)} />
+    {/* ── AMBIENT INTELLIGENCE LAYER — reactive to real life data ── */}
+    <AmbientIntelligenceLayer ambientState={ambientState} />
     <div style={{ height:'100dvh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex', overflow:'hidden' }}>
       {/* Ambient glow */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
@@ -19724,6 +20007,26 @@ export default function LifeOS() {
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, display:'flex', alignItems:'center', gap:5 }}>
                 <div style={{ width:4, height:4, borderRadius:'50%', background:T.emerald, animation:'dotPulse 2.5s infinite' }} />
                 All Systems Online
+              </div>
+            )}
+            {/* ── Ambient Intelligence Pill — shows current life state ── */}
+            {!isMobile && ambientState?.label && (
+              <div
+                title={ambientState.description || ''}
+                style={{
+                  display:'flex', alignItems:'center', gap:5,
+                  padding:'3px 10px', borderRadius:20,
+                  background: ambientState.pillBg,
+                  border: `1px solid ${ambientState.pillBorder}`,
+                  fontSize:9, fontFamily:T.fM, color: ambientState.glowColor,
+                  animation:'ambientPill 0.5s ease both',
+                  transition:'all 0.8s ease',
+                  cursor:'default', userSelect:'none',
+                  letterSpacing:'0.04em',
+                  boxShadow:`0 0 12px ${ambientState.glowColor}20`,
+                }}
+              >
+                {ambientState.label}
               </div>
             )}
             <SmartAlertsButton alerts={smartAlerts} onNav={setPage} onModal={setGlobalModal} />
@@ -19818,7 +20121,15 @@ export default function LifeOS() {
 
         {/* Status bar — desktop only */}
         {!isMobile && (
-          <div style={{ height:26, borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', gap:18, background:T.bg }}>
+          <div style={{ height:26, borderTop:`1px solid ${T.border}`, display:'flex', alignItems:'center', padding:'0 28px', gap:18, background:T.bg, transition:'border-color 1s ease' }}>
+            {/* Ambient state indicator — leftmost */}
+            {ambientState?.label && (
+              <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:8, fontFamily:T.fM, color: ambientState.glowColor, opacity:0.85, letterSpacing:'0.06em', animation:'ambientPill 0.6s ease both' }}>
+                <div style={{ width:5, height:5, borderRadius:'50%', background: ambientState.glowColor, boxShadow:`0 0 6px ${ambientState.glowColor}`, animation:'dotPulse 2s infinite' }} />
+                {ambientState.label}
+              </div>
+            )}
+            {ambientState?.label && <span style={{ color:T.textMuted }}>·</span>}
             {[
               { label:'NW',      val:`${cur}${fmtN(nw)}`,           color:T.accent  },
               { label:'LV',      val:`${level}`,                     color:T.violet  },
