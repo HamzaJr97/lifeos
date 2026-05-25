@@ -213,7 +213,60 @@ import {
       *[style*="glowPulse"], *[style*="dotPulse"] { animation: none !important; }
     }
     /* Page skeleton — shimmer bars shown while async content loads */
-    @keyframes shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
+    @keyframes cyberScan { 0% { transform:translateY(-100%); opacity:0.8; } 100% { transform:translateY(800%); opacity:0; } }
+    @keyframes borderGlow { 0%,100% { box-shadow:0 0 6px rgba(0,245,212,0.12),inset 0 0 6px rgba(0,245,212,0.04); border-color:rgba(0,245,212,0.18); } 50% { box-shadow:0 0 22px rgba(0,245,212,0.32),0 0 44px rgba(0,245,212,0.08),inset 0 0 12px rgba(0,245,212,0.06); border-color:rgba(0,245,212,0.42); } }
+    @keyframes cornerTrace { 0%,100% { opacity:0.35; } 50% { opacity:0.85; } }
+    @keyframes dataStream { 0% { background-position:0 0; } 100% { background-position:0 -60px; } }
+    @keyframes cyberPulseRing { 0% { transform:scale(1); opacity:0.7; } 100% { transform:scale(2.2); opacity:0; } }
+    @keyframes textGlitch { 0%,94%,100% { text-shadow:0 0 10px rgba(0,245,212,0.45); clip-path:none; } 95% { text-shadow:-2px 0 rgba(251,113,133,0.6),2px 0 rgba(139,92,246,0.6),0 0 10px rgba(0,245,212,0.45); } 97% { text-shadow:1px 0 rgba(251,113,133,0.4),-1px 0 rgba(139,92,246,0.4),0 0 10px rgba(0,245,212,0.45); } }
+    @keyframes holoBars { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.25) saturate(1.3); } }
+    /* ── Cyber utility classes ──────────────────────────────────────── */
+    .cyber-border { animation: borderGlow 4s ease-in-out infinite; }
+    .cyber-border-fast { animation: borderGlow 2s ease-in-out infinite; }
+    .cyber-glow-text { animation: textGlitch 10s ease-in-out infinite; }
+    /* Scan-line overlay — apply to position:relative containers */
+    .cyber-scan { position:relative; overflow:hidden; }
+    .cyber-scan::after {
+      content:''; position:absolute; left:0; right:0; height:2px; top:0; pointer-events:none; z-index:2;
+      background:linear-gradient(90deg,transparent 0%,rgba(0,245,212,0.35) 30%,rgba(0,245,212,0.7) 50%,rgba(0,245,212,0.35) 70%,transparent 100%);
+      animation: cyberScan 5s cubic-bezier(0.4,0,0.6,1) infinite;
+    }
+    .cyber-scan-slow::after { animation-duration: 8s; }
+    /* Corner bracket marks — decorative HUD corners */
+    .cyber-corner { position:relative; }
+    .cyber-corner::before,.cyber-corner::after {
+      content:''; position:absolute; width:10px; height:10px; pointer-events:none; z-index:3;
+      animation: cornerTrace 3s ease-in-out infinite;
+    }
+    .cyber-corner::before { top:5px; left:5px; border-top:1.5px solid rgba(0,245,212,0.6); border-left:1.5px solid rgba(0,245,212,0.6); border-radius:1px 0 0 0; }
+    .cyber-corner::after  { bottom:5px; right:5px; border-bottom:1.5px solid rgba(0,245,212,0.6); border-right:1.5px solid rgba(0,245,212,0.6); border-radius:0 0 1px 0; }
+    /* Live pulse ring — for status dots */
+    .cyber-ring { position:relative; display:inline-flex; align-items:center; justify-content:center; }
+    .cyber-ring::before {
+      content:''; position:absolute; inset:-4px; border-radius:50%;
+      border:1.5px solid rgba(0,245,212,0.5);
+      animation: cyberPulseRing 2s ease-out infinite;
+    }
+    /* Holographic chart shimmer */
+    .cyber-chart { filter:drop-shadow(0 0 8px rgba(0,245,212,0.18)); animation: holoBars 6s ease-in-out infinite; }
+    /* Grid-dot background pattern */
+    .cyber-grid-bg {
+      background-image: radial-gradient(circle, rgba(0,245,212,0.08) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    /* Data stream — animated dotted left border */
+    .cyber-stream {
+      border-left: 2px solid transparent;
+      background-image: repeating-linear-gradient(to bottom, rgba(0,245,212,0.5) 0px, rgba(0,245,212,0.5) 4px, transparent 4px, transparent 10px);
+      background-size: 2px 10px;
+      background-repeat: repeat-y;
+      background-position: 0 0;
+      animation: dataStream 1.2s linear infinite;
+      padding-left: 12px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cyber-border,.cyber-border-fast,.cyber-scan::after,.cyber-corner::before,.cyber-corner::after,.cyber-ring::before,.cyber-chart,.cyber-glow-text { animation:none !important; }
+    }
     .los-skeleton {
       border-radius: 6px;
       background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
@@ -1681,8 +1734,8 @@ function Sidebar({ active, onNav, userName, onAI, showAI }) {
         return (
           <div key={id} style={{ position:'relative', width:'100%' }} onMouseEnter={()=>setHov(id)} onMouseLeave={()=>setHov(null)}>
             <button className="los-nav" onClick={()=>onNav(id)} style={{ width:'100%', height:42, display:'flex', alignItems:'center', justifyContent:'center', background:isA?T.accentDim:'transparent', color:isA?T.accent:T.textSub, borderLeft:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', position:'relative' }}>
-              {isA && <div style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)', width:2, height:18, background:T.accent, boxShadow:`0 0 8px ${T.accent}`, borderRadius:'0 2px 2px 0' }} />}
-              <Icon size={15} stroke={isA?T.accent:T.textSub} />
+              {isA && <div style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)', width:2, height:18, background:T.accent, boxShadow:`0 0 12px ${T.accent}, 0 0 24px ${T.accent}55`, borderRadius:'0 2px 2px 0' }} />}
+              <Icon size={15} stroke={isA?T.accent:T.textSub} style={isA?{filter:`drop-shadow(0 0 6px ${T.accent}99)`}:{}} />
             </button>
             {hov===id && (
               <div style={{ position:'absolute', left:'100%', top:'50%', transform:'translateY(-50%)', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', zIndex:200, fontSize:10, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', marginLeft:6, pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>{label}</div>
@@ -4382,7 +4435,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-function HomePage({ data, actions, onNav, onOpenPatterns=()=>{}, onOpenGraph=()=>{}, onOpenParallel=()=>{}, onOpenAmbient=()=>{} }) {
+function HomePage({ data, actions, onNav, onOpenPatterns=()=>{}, onOpenGraph=()=>{}, onOpenParallel=()=>{}, onOpenAmbient=()=>{}, onOpenWeeklyReview=()=>{} }) {
   const lang = useLang();
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
   const [modal, setModal] = useState(null);
@@ -4819,6 +4872,9 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         @keyframes ncIssueIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         @keyframes ncRingPulse { 0%,100% { opacity:0.4; } 50% { opacity:0.9; } }
         .nc-grid { display:grid; grid-template-columns:1fr 1.55fr 1fr; gap:18px; align-items:start; }
+        .nc-panel { position:relative; }
+        .nc-panel::before { content:''; position:absolute; top:6px; left:6px; width:8px; height:8px; border-top:1.5px solid rgba(0,245,212,0.5); border-left:1.5px solid rgba(0,245,212,0.5); pointer-events:none; z-index:2; border-radius:1px 0 0 0; animation:cornerTrace 3s ease-in-out infinite; }
+        .nc-panel::after  { content:''; position:absolute; bottom:6px; right:6px; width:8px; height:8px; border-bottom:1.5px solid rgba(0,245,212,0.5); border-right:1.5px solid rgba(0,245,212,0.5); pointer-events:none; z-index:2; border-radius:0 0 1px 0; animation:cornerTrace 3s ease-in-out infinite 1.5s; }
         @media (max-width:767px) {
           .nc-grid { grid-template-columns:1fr; gap:14px; }
           .nc-orb-col { order:-1; }
@@ -4862,7 +4918,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
             border:`1px solid ${orbState==='warning'?'rgba(251,113,133,0.25)':orbState==='analyzing'?'rgba(139,92,246,0.25)':'rgba(0,245,212,0.18)'}`,
             flexShrink:0,
           }}>
-            <div style={{ width:5, height:5, borderRadius:'50%', background:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, animation:`dotPulse ${orbState==='warning'?'0.9s':orbState==='analyzing'?'0.6s':'2s'} infinite` }}/>
+            <div className="cyber-ring" style={{ width:5, height:5, borderRadius:'50%', background:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, animation:`dotPulse ${orbState==='warning'?'0.9s':orbState==='analyzing'?'0.6s':'2s'} infinite` }}/>
             <span style={{ fontFamily:T.fM, fontSize:8, fontWeight:700, letterSpacing:'0.12em', color:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, textTransform:'uppercase' }}>
               {orbState==='analyzing'?'Analyzing':orbState==='warning'?'Alert Active':orbState==='listening'?'Monitoring':'Neural Core'}
             </span>
@@ -4883,7 +4939,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         <div className="nc-grid">
 
           {/* LEFT: THREATS */}
-          <div className="nc-threats-col" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div className="nc-threats-col nc-panel" style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:2 }}>
               <div style={{
                 width:6, height:6, borderRadius:'50%', flexShrink:0,
@@ -5078,7 +5134,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
           </div>
 
           {/* RIGHT: FUTURE PROJECTION */}
-          <div className="nc-proj-col" style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          <div className="nc-proj-col nc-panel" style={{ display:'flex', flexDirection:'column', gap:10 }}>
             <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:2 }}>
               <span style={{ fontFamily:T.fM, fontSize:8, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:T.violet }}>◈ 30-Day Forecast</span>
             </div>
@@ -5136,18 +5192,20 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
             { label:'Analyze Day', icon:'🧠', color:T.violet, sub:briefIsToday?'refreshed today':'tap to generate', action:()=>{ if(!briefIsToday && !briefLoading) generateDailyBrief(); } },
             { label:'Focus Mode', icon:'🎯', color:T.accent, sub:focusMode?'active — tap to exit':'off', action:()=>setFocusMode(v=>!v) },
             { label:'Repair Habits', icon:'🔥', color:T.amber, sub:`${todayDone}/${(habits||[]).length} done`, action:()=>setModal('habit') },
-            { label:'Optimize Week', icon:'📊', color:T.sky, sub:'view intelligence', action:()=>onNav('intel') },
+            { label:'Optimize Week', icon:'📊', color:T.sky, sub:'weekly review', action: onOpenWeeklyReview },
           ].map((act, i) => (
             <button key={i} onClick={act.action}
+              className="cyber-scan"
               style={{
                 padding:'15px 10px', borderRadius:13, cursor:'pointer',
-                background:`${act.color}08`, border:`1px solid ${act.color}1e`,
+                background:`${act.color}08`, border:`1px solid ${act.color}30`,
                 display:'flex', flexDirection:'column', alignItems:'center', gap:7,
                 transition:'all 0.18s ease', fontFamily:T.fD,
                 animation:`fadeUp 0.4s ease ${0.05+i*0.08}s both`,
+                boxShadow:`0 0 0 rgba(0,0,0,0)`,
               }}
-              onMouseEnter={e=>{ e.currentTarget.style.background=`${act.color}18`; e.currentTarget.style.borderColor=`${act.color}44`; e.currentTarget.style.transform='translateY(-3px)'; }}
-              onMouseLeave={e=>{ e.currentTarget.style.background=`${act.color}08`; e.currentTarget.style.borderColor=`${act.color}1e`; e.currentTarget.style.transform='translateY(0)'; }}>
+              onMouseEnter={e=>{ e.currentTarget.style.background=`${act.color}18`; e.currentTarget.style.borderColor=`${act.color}55`; e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 0 18px ${act.color}22`; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background=`${act.color}08`; e.currentTarget.style.borderColor=`${act.color}30`; e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=`0 0 0 rgba(0,0,0,0)`; }}>
               <span style={{ fontSize:22, lineHeight:1 }}>{act.icon}</span>
               <span style={{ fontSize:11, fontWeight:700, color:act.color, lineHeight:1.2, textAlign:'center' }}>{act.label}</span>
               <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>{act.sub}</span>
@@ -6050,7 +6108,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {tab==='overview' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {/* ── KPI strip — seamless panel, 1px dividers ── */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
+          <div className="cyber-border" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1px', background:T.border, borderRadius:T.rL, overflow:'hidden', border:`1px solid ${T.border}` }}>
             {[
               { label:'Net Worth',    val:`${cur}${fmtN(netWorth)}`,          sub:`Assets ${cur}${fmtN(assetVal+invVal)} · Debts ${cur}${fmtN(debtVal)}`, color:T.accent,   sparkData:[180,210,195,280,320,netWorth].map(v=>v||0)  },
               { label:'Income',       val:`${cur}${fmtN(monthInc)}`,           sub:'This month',                                                            color:T.emerald,  sparkData:[...Array(5).fill(0), monthInc]              },
@@ -6061,7 +6119,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               const mx = Math.max(...sd, 1);
               const pts = sd.map((v,j)=>`${(j/(sd.length-1||1))*72},${18-(v/mx)*14}`).join(' ');
               return (
-                <div key={i} style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4, position:'relative', overflow:'hidden' }}>
+                <div key={i} className="cyber-scan" style={{ background:T.bg1, padding:'14px 16px', display:'flex', flexDirection:'column', gap:4, position:'relative', overflow:'hidden' }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase' }}>{m.label}</div>
                   <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:700, color:m.color, lineHeight:1.1 }}>{m.val}</div>
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{m.sub}</div>
@@ -18462,9 +18520,9 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
             { label: 'Avg Spend', val: `$${avgSpending}`, color: T.sky, icon: '💸' },
             { label: 'Avg Steps', val: avgSteps, color: T.amber, icon: '👣' },
           ].map(s => (
-            <div key={s.label} style={{ padding: '12px 14px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+            <div key={s.label} className="cyber-corner cyber-scan-slow" style={{ padding: '12px 14px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, position: 'relative', overflow: 'hidden' }}>
               <div style={{ fontSize: 16, marginBottom: 4 }}>{s.icon}</div>
-              <div style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: s.color }}>{s.val}</div>
+              <div className="cyber-glow-text" style={{ fontSize: 18, fontFamily: T.fD, fontWeight: 800, color: s.color }}>{s.val}</div>
               <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.08em', marginTop: 2 }}>{s.label.toUpperCase()} · 7D</div>
             </div>
           ))}
@@ -18473,7 +18531,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
 
       {/* Sleep sparkline */}
       {last7.length >= 3 && (
-        <div style={{ padding: '12px 16px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
+        <div className="cyber-border cyber-scan" style={{ padding: '12px 16px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, position: 'relative', overflow: 'hidden' }}>
           <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, letterSpacing: '0.1em', marginBottom: 8 }}>7-DAY SLEEP TREND</div>
           <ResponsiveContainer width="100%" height={52}>
             <AreaChart data={last7} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
@@ -18683,7 +18741,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
             <>
               {/* Summary banner */}
               {analysis.summary && (
-                <div style={{ padding: '16px 20px', borderRadius: T.r, background: `linear-gradient(135deg, ${T.accent}10, ${T.violet}08)`, border: `1px solid ${T.accent}33`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="cyber-border cyber-scan cyber-corner" style={{ padding: '16px 20px', borderRadius: T.r, background: `linear-gradient(135deg, ${T.accent}10, ${T.violet}08)`, border: `1px solid ${T.accent}33`, display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden' }}>
                   <span style={{ fontSize: 20 }}>🧠</span>
                   <div>
                     <div style={{ fontSize: 9, fontFamily: T.fM, color: T.accent, letterSpacing: '0.1em', marginBottom: 4 }}>OVERALL ASSESSMENT</div>
@@ -19554,7 +19612,7 @@ export default function LifeOS() {
   // ── S2: Mobile state ────────────────────────────────────────────────────────
   const eb = (child) => <ErrorBoundary key={page}>{child}</ErrorBoundary>;
   const VIEW = {
-    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onNav={setPage} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} />),
+    home:      eb(<HomePage      data={data} actions={{...actions, logHabit:logHabitWithPop, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onNav={setPage} onOpenPatterns={()=>setShowPatternEngine(true)} onOpenGraph={()=>setShowLifeGraph(true)} onOpenParallel={()=>setShowParallelYou(true)} onOpenAmbient={()=>setShowAmbient(true)} onOpenWeeklyReview={()=>setShowWeeklyReview(true)} />),
     timeline:  eb(<TimelinePage  data={data} />),
     money:     eb(<MoneyPage     data={data} actions={{...actions, addExpense:addExpenseWithPop, addIncome:addIncomeWithPop}} onOpenMonthlyReview={()=>setShowMonthlyReview(true)} />),
     health:    eb(<HealthPage    data={data} actions={{...actions, addVitals:addVitalsWithPop}} />),
@@ -19754,7 +19812,7 @@ export default function LifeOS() {
         </div>
 
         {/* Page — key triggers fade-in on every navigation */}
-        <div key={page} className="los-page-enter" style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(18px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
+        <div key={page} className="los-page-enter cyber-grid-bg" style={{ flex:1, minHeight:0, padding:isMobile?`18px 14px calc(18px + var(--sab))`:'26px 30px', overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch', maxWidth:1180, width:'100%', margin:'0 auto' }}>
           {VIEW[page]}
         </div>
 
