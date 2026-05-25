@@ -18196,7 +18196,7 @@ function MemoryPage({ data }) {
   const [analysis,   setAnalysis  ] = useLocalStorage('los_memory_analysis', null);
 
   // ── Form state ─────────────────────────────────────────────────────────────
-  const [form, setForm] = useState({ date: today(), sleep: '', spending: '', mood: '', focus: 'ok', note: '' });
+  const [form, setForm] = useState({ date: today(), sleep: '', spending: '', mood: '', focus: 'ok', note: '', steps: '' });
   const [jsonInput, setJsonInput] = useState('');
   const [jsonErr,   setJsonErr  ] = useState('');
   const [running,   setRunning  ] = useState(false);
@@ -18208,6 +18208,68 @@ function MemoryPage({ data }) {
   const recentVitals   = (data.vitals   || []).slice(-14);
   const recentExpenses = (data.expenses || []).slice(-30);
 
+  // ── Build a date-keyed lookup from existing vitals & expenses ─────────────
+  const vitalsMap  = useMemo(() => Object.fromEntries((data.vitals   || []).map(v => [v.date, v])), [data.vitals]);
+  const spendByDay = useMemo(() => {
+    const map = {};
+    (data.expenses || []).forEach(e => {
+      if (!e.date) return;
+      map[e.date] = (map[e.date] || 0) + Number(e.amount || 0);
+    });
+    return map;
+  }, [data.expenses]);
+
+  // ── Auto-populate form from vitals/expenses when date changes ─────────────
+  useEffect(() => {
+    if (editId) return; // don't override while editing
+    const v = vitalsMap[form.date];
+    const s = spendByDay[form.date] || 0;
+    setForm(f => ({
+      ...f,
+      sleep:    v && v.sleep   ? String(v.sleep)   : f.sleep,
+      mood:     v && v.mood    ? String(v.mood)     : f.mood,
+      steps:    v && v.steps   ? String(v.steps)    : f.steps,
+      spending: s > 0 && !f.spending ? String(Math.round(s)) : f.spending,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.date]);
+
+  // ── Bulk sync from vitals + expenses into memory logs ─────────────────────
+  const [syncMsg, setSyncMsg] = useState('');
+  const syncFromData = useCallback(() => {
+    const allDates = new Set([
+      ...(data.vitals   || []).map(v => v.date),
+      ...Object.keys(spendByDay),
+    ]);
+    let added = 0;
+    setMemoryLogs(prev => {
+      const existing = new Set(prev.map(l => l.date));
+      const newEntries = [];
+      allDates.forEach(date => {
+        if (existing.has(date)) return; // don't overwrite manual logs
+        const v = vitalsMap[date] || {};
+        const spend = spendByDay[date] || 0;
+        if (!v.sleep && !v.mood && !spend) return;
+        newEntries.push({
+          id:       Date.now() + Math.random(),
+          date,
+          sleep:    Number(v.sleep)   || 0,
+          mood:     Number(v.mood)    || 0,
+          steps:    Number(v.steps)   || 0,
+          spending: Math.round(spend),
+          focus:    'ok',
+          note:     '',
+          source:   'synced',
+        });
+        added++;
+      });
+      if (newEntries.length === 0) return prev;
+      return [...prev, ...newEntries].sort((a, b) => a.date < b.date ? -1 : 1);
+    });
+    setSyncMsg(added === 0 ? 'All dates already logged.' : `Synced ${added} new day${added !== 1 ? 's' : ''} from Health & Finance.`);
+    setTimeout(() => setSyncMsg(''), 4000);
+  }, [data.vitals, data.expenses, vitalsMap, spendByDay, setMemoryLogs]);
+
   // ── Save a new log entry ───────────────────────────────────────────────────
   const saveEntry = (entry) => {
     const clean = {
@@ -18216,8 +18278,10 @@ function MemoryPage({ data }) {
       sleep:    Number(entry.sleep)    || 0,
       spending: Number(entry.spending) || 0,
       mood:     Number(entry.mood)     || 0,
+      steps:    Number(entry.steps)    || 0,
       focus:    entry.focus    || 'ok',
       note:     entry.note     || '',
+      source:   entry.source   || 'manual',
     };
     setMemoryLogs(prev => {
       const without = prev.filter(l => l.id !== clean.id);
@@ -18229,7 +18293,7 @@ function MemoryPage({ data }) {
   const handleLogSubmit = () => {
     if (!form.sleep && !form.mood && !form.spending) return;
     saveEntry({ ...form, id: editId || Date.now() });
-    setForm({ date: today(), sleep: '', spending: '', mood: '', focus: 'ok', note: '' });
+    setForm({ date: today(), sleep: '', spending: '', mood: '', focus: 'ok', note: '', steps: '' });
     setEditId(null);
     setActiveTab('history');
   };
@@ -18246,6 +18310,7 @@ function MemoryPage({ data }) {
         sleep:    raw.sleep    ?? raw.sleepHours ?? 0,
         spending: raw.spending ?? raw.spend      ?? 0,
         mood:     raw.mood     ?? raw.moodScore  ?? 0,
+        steps:    raw.steps    ?? raw.stepCount  ?? 0,
         focus:    focusMap[raw.focus] || focusMap[raw.productivity] || 'ok',
         note:     raw.note     || raw.notes || '',
       };
@@ -18264,13 +18329,13 @@ function MemoryPage({ data }) {
     try {
       const logs14 = memoryLogs.slice(-14);
       const vitalSummary = recentVitals.map(v =>
-        `${v.date}: sleep=${v.sleep}h mood=${v.mood}/10 energy=${v.energy}/10`
+        `${v.date}: sleep=${v.sleep}h mood=${v.mood}/10 energy=${v.energy}/10${v.steps ? ` steps=${v.steps}` : ''}`
       ).join('\n');
       const spendSummary = recentExpenses.slice(-20).map(e =>
         `${e.date}: $${e.amount} (${e.category || 'misc'})`
       ).join('\n');
       const logSummary = logs14.map(l =>
-        `${l.date}: sleep=${l.sleep}h spending=$${l.spending} mood=${l.mood}/10 focus=${l.focus}${l.note ? ` note="${l.note}"` : ''}`
+        `${l.date}: sleep=${l.sleep}h spending=$${l.spending} mood=${l.mood}/10 focus=${l.focus}${l.steps ? ` steps=${l.steps}` : ''}${l.note ? ` note="${l.note}"` : ''}`
       ).join('\n');
 
       const prompt = `You are a behavioral analytics AI. Analyze this person's daily memory logs and cross-reference with their vitals and spending data.
@@ -18285,9 +18350,10 @@ SPENDING FROM FINANCE TRACKER (last 20 transactions):
 ${spendSummary || '(none)'}
 
 Identify meaningful patterns, early warning signs, and actionable recommendations. Look for:
-- Correlations (e.g. low sleep → high spending, bad focus → mood decline)
+- Correlations (e.g. low sleep → high spending, bad focus → mood decline, low steps → worse mood)
 - Streaks or trends (improving, declining, volatile)
 - Days where multiple bad signals co-occur
+- Step count impact on mood, energy and sleep quality
 - Specific actionable improvements
 
 Respond ONLY with a JSON object (no markdown, no backticks) with exactly these keys:
@@ -18337,6 +18403,8 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
   const avgSleep    = last7.length ? (last7.reduce((s, l) => s + l.sleep,    0) / last7.length).toFixed(1) : '—';
   const avgMood     = last7.length ? (last7.reduce((s, l) => s + l.mood,     0) / last7.length).toFixed(1) : '—';
   const avgSpending = last7.length ? (last7.reduce((s, l) => s + l.spending, 0) / last7.length).toFixed(0) : '—';
+  const stepsLogs   = last7.filter(l => l.steps > 0);
+  const avgSteps    = stepsLogs.length ? Math.round(stepsLogs.reduce((s, l) => s + l.steps, 0) / stepsLogs.length).toLocaleString() : '—';
   const focusDist   = last7.reduce((acc, l) => { acc[l.focus] = (acc[l.focus] || 0) + 1; return acc; }, {});
   const topFocus    = Object.entries(focusDist).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
@@ -18359,16 +18427,30 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
             Daily behavioral logs → AI surfaces patterns, warnings &amp; recommendations
           </p>
         </div>
-        <button
-          onClick={runAnalysis}
-          disabled={running || memoryLogs.length < 2 || (!settings.aiApiKey && settings.aiProvider !== 'ollama')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: T.r, background: running ? T.surface : T.accentDim, border: `1px solid ${T.accent}44`, color: running ? T.textSub : T.accent, fontFamily: T.fM, fontSize: 11, fontWeight: 700, cursor: running || memoryLogs.length < 2 ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
-        >
-          {running
-            ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${T.accent}33`, borderTopColor: T.accent, animation: 'spin 0.8s linear infinite' }} /> Analyzing…</>
-            : <><IcoBrain size={12} stroke={T.accent} /> Analyze Now</>
-          }
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {syncMsg && (
+            <div style={{ fontSize: 10, fontFamily: T.fM, color: T.emerald, padding: '6px 12px', borderRadius: T.r, background: `${T.emerald}12`, border: `1px solid ${T.emerald}33` }}>
+              ✓ {syncMsg}
+            </div>
+          )}
+          <button
+            onClick={syncFromData}
+            title="Pull sleep, mood, steps and spending from Health & Finance pages"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: T.r, background: `${T.emerald}15`, border: `1px solid ${T.emerald}44`, color: T.emerald, fontFamily: T.fM, fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+          >
+            ⬇️ Sync from Health &amp; Finance
+          </button>
+          <button
+            onClick={runAnalysis}
+            disabled={running || memoryLogs.length < 2 || (!settings.aiApiKey && settings.aiProvider !== 'ollama')}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: T.r, background: running ? T.surface : T.accentDim, border: `1px solid ${T.accent}44`, color: running ? T.textSub : T.accent, fontFamily: T.fM, fontSize: 11, fontWeight: 700, cursor: running || memoryLogs.length < 2 ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
+          >
+            {running
+              ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${T.accent}33`, borderTopColor: T.accent, animation: 'spin 0.8s linear infinite' }} /> Analyzing…</>
+              : <><IcoBrain size={12} stroke={T.accent} /> Analyze Now</>
+            }
+          </button>
+        </div>
       </div>
 
       {/* Stat strip */}
@@ -18378,7 +18460,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
             { label: 'Avg Sleep', val: `${avgSleep}h`, color: avgSleep >= 7 ? T.emerald : T.rose, icon: '🌙' },
             { label: 'Avg Mood',  val: `${avgMood}/10`, color: moodColor(Number(avgMood)), icon: '😊' },
             { label: 'Avg Spend', val: `$${avgSpending}`, color: T.sky, icon: '💸' },
-            { label: 'Top Focus', val: topFocus, color: focusColor(topFocus), icon: '🎯' },
+            { label: 'Avg Steps', val: avgSteps, color: T.amber, icon: '👣' },
           ].map(s => (
             <div key={s.label} style={{ padding: '12px 14px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}` }}>
               <div style={{ fontSize: 16, marginBottom: 4 }}>{s.icon}</div>
@@ -18426,10 +18508,22 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Manual form */}
           <div style={{ padding: '20px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ fontSize: 11, fontFamily: T.fM, fontWeight: 700, color: T.text, marginBottom: 4 }}>
-              {editId ? '✏️ Edit Entry' : '📝 Log Today\'s Data'}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: 11, fontFamily: T.fM, fontWeight: 700, color: T.text }}>
+                {editId ? '✏️ Edit Entry' : '📝 Log Today\'s Data'}
+              </div>
+              {!editId && vitalsMap[form.date] && (
+                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.accent, padding: '3px 10px', borderRadius: 20, background: `${T.accent}12`, border: `1px solid ${T.accent}33` }}>
+                  ✦ Pre-filled from Health page
+                </div>
+              )}
+              {!editId && !vitalsMap[form.date] && spendByDay[form.date] > 0 && (
+                <div style={{ fontSize: 9, fontFamily: T.fM, color: T.sky, padding: '3px 10px', borderRadius: 20, background: `${T.sky}12`, border: `1px solid ${T.sky}33` }}>
+                  ✦ Spending pre-filled from Finance
+                </div>
+              )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>DATE</label>
                 <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
@@ -18451,6 +18545,12 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
                 <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>😊 MOOD (1–10)</label>
                 <input type="number" min="1" max="10" value={form.mood} onChange={e => setForm(f => ({ ...f, mood: e.target.value }))}
                   placeholder="e.g. 7"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 9, fontFamily: T.fM, color: T.textSub, letterSpacing: '0.1em', display: 'block', marginBottom: 5 }}>👣 STEPS</label>
+                <input type="number" min="0" value={form.steps} onChange={e => setForm(f => ({ ...f, steps: e.target.value }))}
+                  placeholder="e.g. 8500"
                   style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: T.bg2, border: `1px solid ${T.border}`, color: T.text, fontFamily: T.fM, fontSize: 11 }} />
               </div>
             </div>
@@ -18515,6 +18615,9 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
             [...memoryLogs].reverse().map(log => (
               <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 9, fontFamily: T.fM, color: T.textMuted, minWidth: 72 }}>{log.date}</div>
+                {log.source === 'synced' && (
+                  <div style={{ padding: '1px 7px', borderRadius: 20, background: `${T.accent}12`, border: `1px solid ${T.accent}22`, fontSize: 8, fontFamily: T.fM, fontWeight: 700, color: T.accent, letterSpacing: '0.06em' }}>SYNCED</div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: T.fM }}>
                   <span style={{ color: T.textSub }}>🌙</span>
                   <span style={{ color: log.sleep >= 7 ? T.emerald : log.sleep >= 5 ? T.amber : T.rose, fontWeight: 700 }}>{log.sleep}h</span>
@@ -18527,6 +18630,12 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
                   <span style={{ color: T.textSub }}>💸</span>
                   <span style={{ color: T.sky, fontWeight: 700 }}>${log.spending}</span>
                 </div>
+                {log.steps > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontFamily: T.fM }}>
+                    <span style={{ color: T.textSub }}>👣</span>
+                    <span style={{ color: log.steps >= 10000 ? T.emerald : T.amber, fontWeight: 700 }}>{Number(log.steps).toLocaleString()}</span>
+                  </div>
+                )}
                 <div style={{ padding: '2px 8px', borderRadius: 20, background: `${focusColor(log.focus)}18`, border: `1px solid ${focusColor(log.focus)}44`, fontSize: 9, fontFamily: T.fM, fontWeight: 700, color: focusColor(log.focus), textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   {log.focus === 'bad' ? '😩' : log.focus === 'ok' ? '😐' : '🔥'} {log.focus}
                 </div>
@@ -18536,7 +18645,7 @@ Respond ONLY with a JSON object (no markdown, no backticks) with exactly these k
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
-                  <button onClick={() => { setForm({ date: log.date, sleep: String(log.sleep), spending: String(log.spending), mood: String(log.mood), focus: log.focus, note: log.note }); setEditId(log.id); setActiveTab('log'); }}
+                  <button onClick={() => { setForm({ date: log.date, sleep: String(log.sleep), spending: String(log.spending), mood: String(log.mood), steps: String(log.steps || ''), focus: log.focus, note: log.note }); setEditId(log.id); setActiveTab('log'); }}
                     style={{ padding: '4px 8px', borderRadius: 6, background: 'transparent', border: `1px solid ${T.border}`, color: T.textSub, fontSize: 10, fontFamily: T.fM, cursor: 'pointer' }}>
                     Edit
                   </button>
