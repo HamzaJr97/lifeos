@@ -556,7 +556,7 @@ const LOCALES = {
     home:'Home', timeline:'Timeline', money:'Money', health:'Health',
     growth:'Growth', knowledge:'Knowledge', intel:'Intelligence', memory:'Memory',
     archive:'Archive', settings:'Settings', career:'Career', calendar:'Calendar', research:'Research',
-    projects:'Projects', groceries:'Groceries', lifehub:'Life Hub',
+    projects:'Projects', groceries:'Groceries', lifehub:'Life Hub', future:'Future',
     // Finance
     netWorth:'Net Worth', savingsRate:'Savings Rate', expenses:'Expenses', income:'Income',
     spent:'Spent', remaining:'Remaining', budgetLeft:'Budget Left',
@@ -595,7 +595,7 @@ const LOCALES = {
     home:'Accueil', timeline:'Journal', money:'Finance', health:'Santé',
     growth:'Croissance', knowledge:'Savoir', intel:'Intelligence', memory:'Mémoire',
     archive:'Archive', settings:'Réglages', career:'Carrière', calendar:'Calendrier', research:'Recherche',
-    projects:'Projets', groceries:'Courses', lifehub:'Hub Vie',
+    projects:'Projets', groceries:'Courses', lifehub:'Hub Vie', future:'Futur',
     // Finance
     netWorth:'Patrimoine Net', savingsRate:'Taux d\'épargne', expenses:'Dépenses', income:'Revenus',
     spent:'Dépensé', remaining:'Restant', budgetLeft:'Budget restant',
@@ -972,6 +972,7 @@ const IcoCalendar  = (p) => <Ico {...p} d={<><rect x="3" y="4" width="18" height
 const IcoGlobe     = (p) => <Ico {...p} d={<><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></>} />;
 const IcoRefresh   = (p) => <Ico {...p} d={<><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />;
 const IcoMemory    = (p) => <Ico {...p} d={<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></>} />;
+const IcoFuture    = (p) => <Ico {...p} d={<><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></>} />;
 const IcoChevLeft  = (p) => <Ico {...p} d={<polyline points="15 18 9 12 15 6"/>} />;
 const IcoTrendUp   = (p) => <Ico {...p} d={<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>} />;
 const IcoKanban    = (p) => <Ico {...p} d={<><rect x="3" y="3" width="5" height="18" rx="1"/><rect x="10" y="3" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="15" rx="1"/></>} />;
@@ -1731,7 +1732,8 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
   const lang = useLang();
   const ALL_NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   const EXTRA = [
-    { id:'lifehub',   label: lang==='fr'?'Hub Vie':'Life Hub',          emoji:'💼' },
+    { id:'future',    label: lang==='fr'?'Futur':'Future',                emoji:'🚀' },
+    { id:'lifehub',   label: lang==='fr'?'Hub Vie':'Life Hub',            emoji:'💼' },
   ];
   const handleNav = (id) => { onNav(id); onClose(); };
   return (
@@ -1851,6 +1853,7 @@ const NAV_DEFS = [
   { id:'growth',    Icon:IcoGrowth,     tKey:'growth'      },
   { id:'knowledge', Icon:IcoBook,       tKey:'knowledge'   },
   { id:'memory',    Icon:IcoMemory,     tKey:'memory'      },
+  { id:'future',    Icon:IcoFuture,     tKey:'future'      },
   { id:'lifehub',   Icon:IcoBriefcase,  tKey:'lifehub'     },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
@@ -12524,6 +12527,482 @@ function CustomCatInput({ onAdd }) {
   );
 }
 
+
+// ── FUTURE TRAJECTORY ENGINE ───────────────────────────────────────────────────
+// Predicts the user's life trajectory from real data, shows branching scenarios,
+// AI-generated 30/90-day predictions, risk alerts, and opportunity cards.
+function FuturePage({ data }) {
+  const { vitals=[], habits=[], habitLogs={}, expenses=[], incomes=[], debts=[],
+          goals=[], focusSessions=[], settings={} } = data;
+  const isMobile = useMobile();
+  const [tab, setTab] = useState('trajectory');
+  const [aiInsights, setAiInsights] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [whatIf, setWhatIf] = useState({ sleep:0, savings:0, habits:0 }); // delta sliders
+  const [showWhatIf, setShowWhatIf] = useState(false);
+
+  // ── Raw metric computation ───────────────────────────────────────────────────
+  const now        = useMemo(()=>new Date(),[]);
+  const cur        = now.toISOString().slice(0,7);
+  const prevMonth  = new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
+  const last30days = new Date(now - 30*86400000);
+
+  const curIncome   = incomes.filter(i=>i.date?.startsWith(cur)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const curExpenses = expenses.filter(e=>e.date?.startsWith(cur)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const prevIncome  = incomes.filter(i=>i.date?.startsWith(prevMonth)).reduce((s,i)=>s+Number(i.amount||0),0);
+  const prevExp     = expenses.filter(e=>e.date?.startsWith(prevMonth)).reduce((s,e)=>s+Number(e.amount||0),0);
+  const savingsRate = curIncome>0 ? Math.round((curIncome-curExpenses)/curIncome*100) : 0;
+  const prevSavRate = prevIncome>0 ? Math.round((prevIncome-prevExp)/prevIncome*100) : 0;
+  const totalDebt   = debts.reduce((s,d)=>s+Number(d.balance||0),0);
+  const cur$        = settings.currency||'$';
+
+  const recentVit   = vitals.filter(v=>new Date(v.date)>=last30days);
+  const avgSleep    = recentVit.length ? recentVit.reduce((s,v)=>s+Number(v.sleep||0),0)/recentVit.length : 0;
+  const avgMood     = recentVit.length ? recentVit.reduce((s,v)=>s+Number(v.mood||0),0)/recentVit.length : 0;
+  const avgEnergy   = recentVit.length ? recentVit.reduce((s,v)=>s+Number(v.energy||0),0)/recentVit.length : 0;
+
+  const today       = now.toISOString().slice(0,10);
+  const weekAgo     = new Date(now-7*86400000).toISOString().slice(0,10);
+  const weekLogs    = Object.values(habitLogs).flat().filter(d=>d>=weekAgo&&d<=today).length;
+  const totalPoss   = habits.length*7;
+  const habitPct    = totalPoss>0 ? weekLogs/totalPoss : 0;
+
+  // ── Life Score formula (0-100) ────────────────────────────────────────────────
+  const lifeScore = (sl, sv, hb, md) => {
+    const s = (sl/8)*25;   // sleep 0-25
+    const f = Math.min(Math.max((sv+20)/60,0),1)*25; // savings -20→40 → 0-25
+    const h = hb*25;        // habits 0-25
+    const m = md>0 ? (md/10)*25 : 12.5; // mood 0-25
+    return Math.min(100, Math.max(0, Math.round(s+f+h+m)));
+  };
+
+  const baseScore = lifeScore(avgSleep||7, savingsRate, habitPct, avgMood||7);
+
+  // ── Trajectory data (13 months: -2 past + now + 10 future) ──────────────────
+  const trajectoryData = useMemo(()=>{
+    const rows=[];
+    for(let i=-2;i<=10;i++){
+      const d   = new Date(now.getFullYear(),now.getMonth()+i,1);
+      const lbl = d.toLocaleDateString('en',{month:'short',year:'2-digit'});
+      const iP  = i<0, iC = i===0;
+
+      // Current path — gentle drift if nothing changes
+      const sl_c = avgSleep>0 ? Math.max(avgSleep - i*0.04, 4.5) : 6.8;
+      const sv_c = Math.max(savingsRate - i*0.9, -25);
+      const hb_c = Math.max(habitPct - i*0.015, 0.05);
+      const md_c = avgMood>0 ? Math.max(avgMood - i*0.05, 3) : 6.5;
+      const cur_score = lifeScore(sl_c,sv_c,hb_c,md_c);
+
+      // Optimized path — +whatIf deltas applied
+      const sl_o = Math.min((avgSleep||7)+whatIf.sleep+i*0.08,9);
+      const sv_o = Math.min(savingsRate+whatIf.savings+i*0.7,50);
+      const hb_o = Math.min(habitPct+(whatIf.habits/100)+i*0.025,1);
+      const opt_score = lifeScore(sl_o,sv_o,hb_o,(avgMood||7)+i*0.06);
+
+      // Risk path — if things deteriorate
+      const risk_score = Math.max(cur_score*(1-i*0.03),8);
+
+      rows.push({
+        lbl, i, iP, iC,
+        current:  iP ? cur_score+2 : cur_score,
+        optimized: iP ? null : opt_score,
+        risk:      iP ? null : risk_score,
+      });
+    }
+    return rows;
+  },[avgSleep,savingsRate,habitPct,avgMood,whatIf,now]);
+
+  // ── Risk cards ────────────────────────────────────────────────────────────────
+  const risks = useMemo(()=>{
+    const r=[];
+    if(avgSleep>0&&avgSleep<6.5) r.push({ id:'sleep', sev:'high', col:T.rose, em:'😴',
+      title:'Sleep Debt Compounding',
+      impact:`Averaging ${avgSleep.toFixed(1)}h — ${(7-avgSleep).toFixed(1)}h below optimal. Cognitive output degrades ~13% per hour of sleep debt.`,
+      proj:'If unchanged: mood -15%, productivity -20%, burnout risk HIGH within 60 days.',
+      trend:`${(7-avgSleep).toFixed(1)}h deficit · ${recentVit.length} nights tracked`
+    });
+    if(savingsRate<10) r.push({ id:'savings', sev:savingsRate<0?'high':'medium', col:T.amber, em:'💸',
+      title:`Savings Rate ${savingsRate<0?'Negative':'Below 10%'}`,
+      impact:`Saving ${savingsRate}% of income. Emergency fund not building${savingsRate<0?' — net worth declining':''}. ${savingsRate<prevSavRate?`↓ ${prevSavRate-savingsRate}pp vs last month`:''}`,
+      proj:`At current rate: ${savingsRate<0?`${cur$}${Math.abs(Math.round((curExpenses-curIncome)*3)).toLocaleString()} new debt in 90 days`:'6-month emergency fund takes 8+ years to build'}.`,
+      trend:`${cur$}${Math.round(curIncome-curExpenses).toLocaleString()} monthly surplus`
+    });
+    if(habitPct<0.5&&habits.length>0) r.push({ id:'habits', sev:habitPct<0.3?'high':'medium', col:T.violet, em:'🔄',
+      title:'Habit Consistency Slipping',
+      impact:`Only ${Math.round(habitPct*100)}% completion this week (${weekLogs}/${totalPoss}). Research shows habits abandoned after 2 weeks of <40% consistency.`,
+      proj:`Without course correction: ${Math.floor((1-habitPct)*habits.length)} habit(s) likely to collapse within 30 days.`,
+      trend:`${weekLogs} of ${totalPoss} completions this week`
+    });
+    if(avgMood>0&&avgMood<5) r.push({ id:'mood', sev:'high', col:T.rose, em:'🧠',
+      title:'Mood Baseline Critically Low',
+      impact:`Average mood ${avgMood.toFixed(1)}/10. Below 5/10 correlates with 30% reduction in decision quality and motivation.`,
+      proj:'Continued low mood accelerates habit collapse and reduces savings behavior. Intervention recommended.',
+      trend:`${avgMood.toFixed(1)}/10 avg · ${recentVit.length} entries`
+    });
+    if(totalDebt>0&&curIncome>0&&totalDebt>curIncome*18) r.push({ id:'debt', sev:'high', col:T.rose, em:'🏦',
+      title:'Debt Load Structurally High',
+      impact:`Debt-to-annual-income ratio: ${Math.round(totalDebt/(curIncome*12)*100)}%. Financial stress compounds psychological load.`,
+      proj:'High debt-to-income limits financial options, increases anxiety, and reduces savings capacity.',
+      trend:`${cur$}${totalDebt.toLocaleString()} total outstanding`
+    });
+    if(r.length===0) r.push({ id:'ok', sev:'low', col:T.emerald, em:'✅',
+      title:'All Dimensions Healthy',
+      impact:'No critical risks detected across sleep, savings, habits, or mood.',
+      proj:'Continued positive trajectory expected. Focus on growth opportunities.',
+      trend:'All signals green'
+    });
+    return r;
+  },[avgSleep,savingsRate,habitPct,avgMood,totalDebt,curIncome,weekLogs,totalPoss]);
+
+  // ── Opportunity cards ─────────────────────────────────────────────────────────
+  const opportunities = useMemo(()=>{
+    const ops=[];
+    const sleepGap = Math.max(0, 8-(avgSleep||0));
+    if(sleepGap>0.3) ops.push({ id:'sleep', col:T.sky, em:'🌙',
+      title:`Add ${sleepGap.toFixed(1)}h of sleep`,
+      headline:`+${Math.round(sleepGap*18)}% productivity`,
+      detail:`Sleep is the single highest-leverage health intervention. Each hour of additional sleep improves working memory by 14%, mood by 20%, and metabolic health markers. Current gap: ${sleepGap.toFixed(1)}h/night.`,
+      effort:'Low',impact:'High',timeToSee:'1 week',
+      scoreUplift: Math.round(sleepGap*3.5),
+    });
+    if(savingsRate<20) ops.push({ id:'savings', col:T.emerald, em:'💰',
+      title:`Raise savings rate to 20%`,
+      headline:`${cur$}${Math.round((curIncome*0.2-(curIncome-curExpenses))).toLocaleString()}/mo redirected`,
+      detail:`A 20% savings rate builds a 6-month emergency buffer in ~2.5 years and compounds into financial independence. The gap is ${20-savingsRate}pp — often achievable by auditing subscriptions and discretionary spending.`,
+      effort:'Medium',impact:'Very High',timeToSee:'1 month',
+      scoreUplift: Math.round((20-savingsRate)*0.4),
+    });
+    if(habitPct<0.7&&habits.length>0) ops.push({ id:'habits', col:T.violet, em:'⚡',
+      title:'Hit 80% habit consistency',
+      headline:`+${Math.round((0.8-habitPct)*35)}pts life score`,
+      detail:`Consistency compounds. Getting from ${Math.round(habitPct*100)}% to 80% unlocks measurable gains across energy, focus, and goal progress. Strategy: reduce habits to your top 3 and protect morning time.`,
+      effort:'Medium',impact:'High',timeToSee:'2 weeks',
+      scoreUplift: Math.round((0.8-habitPct)*20),
+    });
+    if(avgEnergy>0&&avgEnergy<6.5) ops.push({ id:'energy', col:T.amber, em:'⚡',
+      title:'Raise average energy to 7/10',
+      headline:`+${Math.round((7-avgEnergy)*12)}% daily output`,
+      detail:`Energy is the multiplier on everything else. Core levers: consistent wake time (±30min), 20-min post-lunch walk, front-loading hard work to morning. Current baseline: ${avgEnergy.toFixed(1)}/10.`,
+      effort:'Low',impact:'High',timeToSee:'2 weeks',
+      scoreUplift: Math.round((7-avgEnergy)*2.5),
+    });
+    if(goals.length===0) ops.push({ id:'goals', col:T.accent, em:'🎯',
+      title:'Set 3 written, measurable goals',
+      headline:'+40% goal achievement probability',
+      detail:`People with written, specific goals are 42% more likely to achieve them (Dominican University). Goals also guide habit selection and provide motivation during low-energy periods.`,
+      effort:'Low',impact:'Medium',timeToSee:'Immediate',
+      scoreUplift: 8,
+    });
+    if(avgSleep>0&&avgMood>0&&avgMood<7) ops.push({ id:'mood', col:T.rose, em:'🧠',
+      title:'Boost baseline mood to 7+',
+      headline:`+${Math.round((7-avgMood)*8)}% decision quality`,
+      detail:`Mood at ${avgMood.toFixed(1)}/10 suppresses motivation and willpower. High-impact interventions: 10-min morning sunlight, social connection, and removing the #1 source of daily friction.`,
+      effort:'Low',impact:'High',timeToSee:'3 days',
+      scoreUplift: Math.round((7-avgMood)*2.5),
+    });
+    return ops.slice(0,4);
+  },[avgSleep,savingsRate,habitPct,avgEnergy,avgMood,goals,curIncome,curExpenses]);
+
+  // ── AI Analysis ───────────────────────────────────────────────────────────────
+  const runAI = async () => {
+    if (!settings.aiApiKey && settings.aiProvider!=='ollama') {
+      setAiInsights({ error:true, msg:'Configure your AI API key in Settings to enable trajectory analysis.' });
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const ctx = {
+        sleep_avg: avgSleep.toFixed(1), mood_avg: avgMood.toFixed(1), energy_avg: avgEnergy.toFixed(1),
+        savings_rate: savingsRate, income_monthly: curIncome, expenses_monthly: curExpenses,
+        habit_consistency_pct: Math.round(habitPct*100), total_debt: totalDebt,
+        goals_count: goals.length, habits_count: habits.length,
+        life_score: baseScore, top_risks: risks.slice(0,2).map(r=>r.title),
+        top_opportunities: opportunities.slice(0,2).map(o=>o.title),
+        vitals_entries_30d: recentVit.length,
+      };
+      const text = await callAI(settings, {
+        max_tokens: 700,
+        messages:[{ role:'user', content:`You are a life trajectory analyst. Analyze this data and provide specific, numbers-backed predictions. Be direct and actionable, not generic.
+
+Data: ${JSON.stringify(ctx)}
+
+Return ONLY valid JSON (no markdown):
+{
+  "thirty_day": "Specific prediction for next 30 days if nothing changes. Include numbers.",
+  "ninety_day_warning": "What happens in 90 days if current trends continue. Be specific and honest.",
+  "key_lever": "Single most impactful thing to change right now. One sentence.",
+  "intervention": "Concrete first step the person should take TODAY. Specific and actionable.",
+  "life_score_trend": "up|down|flat",
+  "score_delta_90d": number (estimated change in life score over 90 days if nothing changes)
+}` }]
+      });
+      const clean = text.replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(clean);
+      setAiInsights(parsed);
+    } catch(e) {
+      setAiInsights({ error:true, msg:`Analysis failed: ${e.message||'Unknown error'}. Check your API key in Settings.` });
+    }
+    setAiLoading(false);
+  };
+
+  const SEV = { high:T.rose, medium:T.amber, low:T.emerald };
+  const TABS = [
+    { id:'trajectory', label:'📈 Trajectory' },
+    { id:'risks',      label:'⚠️ Risks' },
+    { id:'opportunities', label:'✨ Opportunities' },
+  ];
+  const currentNode = trajectoryData.find(d=>d.iC);
+  const opt90 = trajectoryData[trajectoryData.length-1]?.optimized||baseScore;
+  const risk90 = trajectoryData[trajectoryData.length-1]?.risk||baseScore;
+
+  return (
+    <div style={{ padding:isMobile?'16px 14px':'28px 32px', maxWidth:920, margin:'0 auto' }}>
+      <PageHeader domain="future" title="Trajectory Engine"
+        subtitle="Predict & reshape your next 12 months"
+        infoIcon={<PageInfoIcon content="The Trajectory Engine computes your current life trends across sleep, savings, and habits — then models three futures: optimized, current, and declining. Use the AI Analysis button to get personalized predictions. The Risks and Opportunities tabs surface what matters most." />}
+      />
+
+      {/* ── KPI strip ── */}
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`, gap:10, marginBottom:20 }}>
+        {[
+          { lbl:'Sleep',   val:avgSleep>0?`${avgSleep.toFixed(1)}h`:'—', col:avgSleep>=7?T.emerald:avgSleep>=6?T.amber:avgSleep>0?T.rose:T.textSub, sub:avgSleep>=7?'Optimal':avgSleep>=6?'Low':'Deficit' },
+          { lbl:'Savings', val:`${savingsRate}%`,  col:savingsRate>=20?T.emerald:savingsRate>=10?T.amber:T.rose, sub:savingsRate>=20?'Healthy':savingsRate>=10?'Low':'Critical' },
+          { lbl:'Habits',  val:`${Math.round(habitPct*100)}%`, col:habitPct>=0.7?T.emerald:habitPct>=0.5?T.amber:habits.length>0?T.rose:T.textSub, sub:habitPct>=0.7?'Consistent':habitPct>=0.5?'Slipping':habits.length>0?'Breaking':'No habits' },
+          { lbl:'Life Score', val:`${baseScore}`, col:baseScore>=70?T.emerald:baseScore>=50?T.amber:T.rose, sub:baseScore>=70?'Thriving':baseScore>=50?'Building':'At Risk' },
+        ].map(k=>(
+          <GlassCard key={k.lbl} style={{ padding:'12px 14px' }}>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginBottom:4, letterSpacing:'0.08em', textTransform:'uppercase' }}>{k.lbl}</div>
+            <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color:k.col, letterSpacing:'-0.02em' }}>{k.val}</div>
+            <div style={{ fontSize:8, fontFamily:T.fM, color:k.col, marginTop:2, opacity:0.85 }}>{k.sub}</div>
+          </GlassCard>
+        ))}
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={{ display:'flex', gap:4, marginBottom:16, borderBottom:`1px solid ${T.border}`, paddingBottom:10 }}>
+        {TABS.map(tb=>(
+          <button key={tb.id} onClick={()=>setTab(tb.id)} style={{ padding:'6px 14px', borderRadius:8, fontSize:11, fontFamily:T.fD, fontWeight:tab===tb.id?700:400, background:tab===tb.id?T.accentDim:'transparent', color:tab===tb.id?T.accent:T.textSub, border:`1px solid ${tab===tb.id?T.accent+'44':'transparent'}`, cursor:'pointer', transition:'all 0.15s', whiteSpace:'nowrap' }}>{tb.label}</button>
+        ))}
+      </div>
+
+      {/* ════════════════ TRAJECTORY TAB ════════════════ */}
+      {tab==='trajectory' && (<>
+
+        {/* Main chart */}
+        <GlassCard style={{ padding:'20px 18px', marginBottom:16 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+            <div>
+              <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>Life Score — 12 Month Projection</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:3 }}>Three branching paths from today forward</div>
+            </div>
+            <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
+              {[{col:T.accent,lbl:'Optimized'},{col:T.amber,lbl:'Current'},{col:T.rose,lbl:'Decline',dash:true}].map(l=>(
+                <div key={l.lbl} style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+                  <svg width="16" height="8"><line x1="0" y1="4" x2="16" y2="4" stroke={l.col} strokeWidth="2" strokeDasharray={l.dash?'4 3':undefined}/></svg>
+                  {l.lbl}
+                </div>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={trajectoryData} margin={{ top:4, right:8, left:-22, bottom:0 }}>
+              <defs>
+                <linearGradient id="gradOpt118" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={T.accent} stopOpacity={0.18}/>
+                  <stop offset="95%" stopColor={T.accent} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
+              <XAxis dataKey="lbl" tick={{ fill:T.textSub, fontSize:8, fontFamily:T.fM }} axisLine={false} tickLine={false}/>
+              <YAxis tick={{ fill:T.textSub, fontSize:8, fontFamily:T.fM }} axisLine={false} tickLine={false} domain={[0,100]}/>
+              <Tooltip
+                contentStyle={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:8, fontSize:10, fontFamily:T.fM, padding:'8px 12px' }}
+                labelStyle={{ color:T.text, fontWeight:700 }}
+                formatter={(v,n)=>[v?`${Math.round(v)}/100`:'-', n.charAt(0).toUpperCase()+n.slice(1)]}
+              />
+              {/* "NOW" reference */}
+              {currentNode && <ReferenceArea x1={currentNode.lbl} x2={currentNode.lbl} fill={T.accent} fillOpacity={0.06}/>}
+              <Area    type="monotone" dataKey="optimized" stroke={T.accent}    strokeWidth={2.5} fill="url(#gradOpt118)" dot={false} connectNulls/>
+              <Line    type="monotone" dataKey="current"   stroke={T.amber}     strokeWidth={2}   dot={false} connectNulls/>
+              <Line    type="monotone" dataKey="risk"      stroke={T.rose}      strokeWidth={1.5} dot={false} connectNulls strokeDasharray="5 4"/>
+            </ComposedChart>
+          </ResponsiveContainer>
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:8, fontSize:9, fontFamily:T.fM, color:T.textMuted, padding:'0 4px' }}>
+            <span>← Past</span>
+            <span style={{ color:`${T.accent}99` }}>│ Today │</span>
+            <span>→ Projected</span>
+          </div>
+        </GlassCard>
+
+        {/* Score delta banner */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:16 }}>
+          {[
+            { lbl:'Optimized Path (90d)', val:`${opt90>baseScore?'+':''}${Math.round(opt90-baseScore)} pts`, col:T.accent, sub:'If you apply top opportunities' },
+            { lbl:'Current Path (90d)',   val:`${Math.round(trajectoryData.find(d=>d.i===9)?.current||baseScore)-baseScore>=0?'+':''}${Math.round((trajectoryData.find(d=>d.i===9)?.current||baseScore)-baseScore)} pts`, col:T.amber, sub:'If nothing changes' },
+            { lbl:'Risk Path (90d)',      val:`${Math.round(risk90-baseScore)} pts`, col:T.rose, sub:'If trends deteriorate' },
+          ].map(b=>(
+            <GlassCard key={b.lbl} style={{ padding:'12px 14px', textAlign:'center' }}>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginBottom:6, letterSpacing:'0.08em', textTransform:'uppercase' }}>{b.lbl}</div>
+              <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:b.col }}>{b.val}</div>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:4 }}>{b.sub}</div>
+            </GlassCard>
+          ))}
+        </div>
+
+        {/* What-If sliders */}
+        <GlassCard style={{ padding:'16px 20px', marginBottom:16, border:`1px solid ${T.violet}22` }}>
+          <button onClick={()=>setShowWhatIf(v=>!v)} style={{ width:'100%', background:'none', border:'none', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', color:T.text }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:14 }}>🎛️</span>
+              <div style={{ textAlign:'left' }}>
+                <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700 }}>What-If Simulator</div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Adjust sliders to reshape the optimized path</div>
+              </div>
+            </div>
+            <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{showWhatIf?'▲':'▼'}</span>
+          </button>
+          {showWhatIf && (
+            <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:14 }}>
+              {[
+                { key:'sleep', lbl:'Extra sleep', unit:'h', min:0, max:2, step:0.5, col:T.sky, icon:'🌙' },
+                { key:'savings', lbl:'Savings rate boost', unit:'pp', min:0, max:20, step:2, col:T.emerald, icon:'💰' },
+                { key:'habits', lbl:'Habit consistency boost', unit:'pp', min:0, max:40, step:5, col:T.violet, icon:'⚡' },
+              ].map(sl=>(
+                <div key={sl.key}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6, fontSize:10, fontFamily:T.fM }}>
+                    <span style={{ color:T.textSub }}>{sl.icon} {sl.lbl}</span>
+                    <span style={{ color:sl.col, fontWeight:700 }}>+{whatIf[sl.key]}{sl.unit}</span>
+                  </div>
+                  <input type="range" min={sl.min} max={sl.max} step={sl.step} value={whatIf[sl.key]}
+                    onChange={e=>setWhatIf(w=>({...w,[sl.key]:Number(e.target.value)}))}
+                    style={{ width:'100%', accentColor:sl.col, cursor:'pointer' }}
+                  />
+                </div>
+              ))}
+              <div style={{ padding:'10px 14px', borderRadius:8, background:`${T.accent}08`, border:`1px solid ${T.accent}22`, fontSize:10, fontFamily:T.fM, color:T.accent, textAlign:'center' }}>
+                With these changes: Life Score {baseScore} → <strong>{Math.min(100,Math.round(lifeScore(
+                  (avgSleep||7)+whatIf.sleep, savingsRate+whatIf.savings,
+                  Math.min(1,habitPct+whatIf.habits/100), avgMood||7
+                )))}</strong> (+{Math.min(100,Math.round(lifeScore((avgSleep||7)+whatIf.sleep,savingsRate+whatIf.savings,Math.min(1,habitPct+whatIf.habits/100),avgMood||7)))-baseScore} pts)
+              </div>
+            </div>
+          )}
+        </GlassCard>
+
+        {/* AI Analysis card */}
+        <GlassCard style={{ padding:'20px', border:`1px solid ${T.accent}22` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: aiInsights&&!aiInsights.error ? 16 : 0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:9, background:T.accentDim, border:`1px solid ${T.accent}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🔮</div>
+              <div>
+                <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>AI Trajectory Analysis</div>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Personalized 30/90-day predictions from your data</div>
+              </div>
+            </div>
+            <button onClick={runAI} disabled={aiLoading} style={{ padding:'8px 18px', borderRadius:8, background:aiLoading?T.surface:T.accentDim, color:aiLoading?T.textSub:T.accent, border:`1px solid ${T.accent}33`, fontFamily:T.fM, fontSize:10, cursor:aiLoading?'not-allowed':'pointer', fontWeight:700, transition:'all 0.15s', whiteSpace:'nowrap', flexShrink:0 }}>
+              {aiLoading?'⟳ Analyzing…':aiInsights?'↻ Refresh':'▶ Analyze'}
+            </button>
+          </div>
+          {aiInsights && (
+            aiInsights.error ? (
+              <div style={{ padding:'10px 14px', borderRadius:8, background:`${T.amber}10`, border:`1px solid ${T.amber}30`, fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:12 }}>{aiInsights.msg}</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {[
+                  { ic:'📅', lbl:'30-Day Prediction',  txt:aiInsights.thirty_day,          col:T.sky     },
+                  { ic:'⚠️', lbl:'90-Day Warning',      txt:aiInsights.ninety_day_warning,   col:T.amber   },
+                  { ic:'🎯', lbl:'Highest-Leverage Lever', txt:aiInsights.key_lever,        col:T.accent  },
+                  { ic:'✅', lbl:'Do This Today',        txt:aiInsights.intervention,        col:T.emerald },
+                ].filter(i=>i.txt).map(item=>(
+                  <div key={item.lbl} style={{ padding:'10px 14px', borderRadius:8, background:`${item.col}08`, border:`1px solid ${item.col}22`, display:'flex', gap:10, alignItems:'flex-start' }}>
+                    <span style={{ fontSize:15, flexShrink:0, marginTop:1 }}>{item.ic}</span>
+                    <div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:item.col, fontWeight:700, marginBottom:4, letterSpacing:'0.08em', textTransform:'uppercase' }}>{item.lbl}</div>
+                      <div style={{ fontSize:11, fontFamily:T.fD, color:T.text, lineHeight:1.6 }}>{item.txt}</div>
+                    </div>
+                  </div>
+                ))}
+                {aiInsights.score_delta_90d != null && (
+                  <div style={{ padding:'8px 14px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:10, fontFamily:T.fM }}>
+                    <span style={{ color:T.textSub }}>AI-estimated score change (90d, no changes)</span>
+                    <span style={{ color:aiInsights.score_delta_90d>=0?T.emerald:T.rose, fontWeight:700 }}>{aiInsights.score_delta_90d>=0?'+':''}{aiInsights.score_delta_90d} pts</span>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+        </GlassCard>
+      </>)}
+
+      {/* ════════════════ RISKS TAB ════════════════ */}
+      {tab==='risks' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {risks.map(risk=>(
+            <GlassCard key={risk.id} style={{ padding:'18px 20px', borderLeft:`3px solid ${SEV[risk.sev]||T.textSub}` }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, flex:1 }}>
+                  <span style={{ fontSize:22, flexShrink:0 }}>{risk.em}</span>
+                  <div>
+                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{risk.title}</div>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>{risk.trend}</div>
+                  </div>
+                </div>
+                <span style={{ padding:'3px 9px', borderRadius:99, background:`${SEV[risk.sev]||T.textSub}18`, color:SEV[risk.sev]||T.textSub, fontSize:8, fontFamily:T.fM, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', flexShrink:0 }}>{risk.sev}</span>
+              </div>
+              <div style={{ fontSize:11, fontFamily:T.fD, color:T.text, lineHeight:1.65, marginBottom:10 }}>{risk.impact}</div>
+              <div style={{ padding:'9px 13px', borderRadius:7, background:'rgba(255,255,255,0.03)', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>
+                📊 <strong>Projection:</strong> {risk.proj}
+              </div>
+            </GlassCard>
+          ))}
+          <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(255,255,255,0.02)', border:`1px dashed ${T.border}`, fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>
+            Risks computed from last 30 days of logged data · Log more vitals and habits for sharper signals
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════ OPPORTUNITIES TAB ════════════════ */}
+      {tab==='opportunities' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'repeat(2,1fr)', gap:12 }}>
+            {opportunities.map(opp=>(
+              <GlassCard key={opp.id} style={{ padding:'18px 20px' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                  <span style={{ fontSize:24 }}>{opp.em}</span>
+                  <div style={{ textAlign:'right' }}>
+                    <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:opp.col, letterSpacing:'-0.02em' }}>{opp.headline}</div>
+                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>+{opp.scoreUplift}pt life score</div>
+                  </div>
+                </div>
+                <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:6 }}>{opp.title}</div>
+                <div style={{ fontSize:10, fontFamily:T.fD, color:T.textSub, lineHeight:1.65, marginBottom:14 }}>{opp.detail}</div>
+                <div style={{ display:'flex', gap:6 }}>
+                  {[{lbl:'Effort',val:opp.effort},{lbl:'Impact',val:opp.impact},{lbl:'See in',val:opp.timeToSee}].map(m=>(
+                    <div key={m.lbl} style={{ flex:1, padding:'6px 6px', borderRadius:7, background:`${opp.col}08`, border:`1px solid ${opp.col}22`, textAlign:'center' }}>
+                      <div style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:3 }}>{m.lbl}</div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:opp.col, fontWeight:700 }}>{m.val}</div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+          {opportunities.length===0 && (
+            <GlassCard style={{ padding:32, textAlign:'center' }}>
+              <div style={{ fontSize:28, marginBottom:10 }}>🌟</div>
+              <div style={{ fontSize:13, fontFamily:T.fD, color:T.text, marginBottom:6 }}>All opportunities already captured</div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Log more data to surface new opportunities</div>
+            </GlassCard>
+          )}
+          <div style={{ padding:'12px 16px', borderRadius:8, background:`${T.accent}06`, border:`1px solid ${T.accent}18`, fontSize:9, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
+            💡 <strong style={{ color:T.accent }}>Compounding effect:</strong> Capturing the top 2 opportunities simultaneously yields ~1.4× the individual sum — they reinforce each other. Start with the lowest-effort, highest-impact item.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── SETTINGS PAGE ─────────────────────────────────────────────────────────────
 function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChange=()=>{} }) {
   const lang = useLang();
@@ -19904,6 +20383,7 @@ export default function LifeOS() {
     // intel page absorbed into Home dashboard
     archive:   eb(<ArchivePage   data={data} />),
     memory:    eb(<MemoryPage    data={data} />),
+    future:    eb(<FuturePage    data={data} />),
     projects:  eb(<ProjectsPage  data={data} actions={actions} />),
     groceries: eb(<GroceriesPage data={data} actions={actions} />),
     lifehub:   eb(<LifeHubPage   data={data} actions={actions} />),
