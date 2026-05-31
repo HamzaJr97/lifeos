@@ -2478,6 +2478,7 @@ const SPEND_CATEGORIES = ['Groceries','Electronics','Clothing','Home & Garden','
 function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
   const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [tag, setTag] = useState('General');
   const [type, setType] = useState(defaultType); const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
+  const [inProgress, setInProgress] = useState(false);
   const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
   const [paymentPlan, setPaymentPlan] = useState('none'); const [paymentStartDate, setPaymentStartDate] = useState(today().slice(0,7));
   const cost = Number(estimatedCost) || 0;
@@ -2486,8 +2487,8 @@ function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
   const save = () => {
     if (!title.trim()) return;
     const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null, paymentPlan: paymentPlan !== 'none' ? paymentPlan : null, paymentStartDate: paymentPlan !== 'none' && paymentStartDate ? paymentStartDate : null } : {};
-    onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, type, priority, dueDate, date:today(), archived:false, ...extra });
-    setTitle(''); setBody(''); setTag('General'); setType(defaultType); setPriority(2); setDueDate(''); setSpendCategory('Other'); setEstimatedCost(''); setPaymentPlan('none'); setPaymentStartDate(today().slice(0,7)); onClose();
+    onSave({ id:Date.now(), title:title.trim(), body:body.trim(), tag, type, priority, dueDate, date:today(), archived:false, inProgress: type==='task' ? inProgress : false, ...extra });
+    setTitle(''); setBody(''); setTag('General'); setType(defaultType); setPriority(2); setDueDate(''); setInProgress(false); setSpendCategory('Other'); setEstimatedCost(''); setPaymentPlan('none'); setPaymentStartDate(today().slice(0,7)); onClose();
   };
   return (
     <Modal open={open} onClose={onClose} title={defaultType==='task'?'✅ New Task':'📝 New Note'}>
@@ -2505,6 +2506,10 @@ function AddNoteModal({ open, onClose, onSave, defaultType='note' }) {
         {type==='task' && (
           <>
             <Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} placeholder="Due date (tasks)" />
+            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:inProgress?T.amberDim:T.surface, border:`1px solid ${inProgress?T.amber+'44':T.border}` }}>
+              <input type="checkbox" checked={inProgress} onChange={e=>setInProgress(e.target.checked)} />
+              <span>◑ Start as In Progress</span>
+            </label>
             <div style={{ padding:'12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22` }}>
               <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:8, fontWeight:600, letterSpacing:'0.06em' }}>🛒 SPENDING PLAN (OPTIONAL)</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
@@ -2603,6 +2608,22 @@ function AddAssetModal({ open, onClose, onSave }) {
         <Input type="number" value={val} onChange={e=>setVal(e.target.value)} placeholder="Current value" />
         <Select value={type} onChange={e=>setType(e.target.value)}>{['Cash','Real Estate','Vehicle','Crypto','Other'].map(t=><option key={t}>{t}</option>)}</Select>
         <Btn full onClick={save} color={T.accent}>Add Asset</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function EditAssetModal({ open, onClose, asset, onSave }) {
+  const [name, setName] = useState(''); const [val, setVal] = useState(''); const [type, setType] = useState('Cash');
+  useEffect(() => { if (asset && open) { setName(asset.name||''); setVal(String(asset.value||'')); setType(asset.type||'Cash'); } }, [asset, open]);
+  const save = () => { if (!name || !val) return; onSave(asset.id, { name:name.trim(), value:Number(val), type }); onClose(); };
+  return (
+    <Modal open={open} onClose={onClose} title="✏️ Edit Asset">
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <Input value={name} onChange={e=>setName(e.target.value)} placeholder="Asset name" />
+        <Input type="number" value={val} onChange={e=>setVal(e.target.value)} placeholder="Current value" />
+        <Select value={type} onChange={e=>setType(e.target.value)}>{['Cash','Real Estate','Vehicle','Crypto','Other'].map(t=><option key={t}>{t}</option>)}</Select>
+        <Btn full onClick={save} color={T.accent}>Save Changes</Btn>
       </div>
     </Modal>
   );
@@ -2797,9 +2818,9 @@ function EditBillModal({ open, onClose, bill, onSave }) {
   const [name, setName] = useState(''); const [amount, setAmount] = useState('');
   const [dueDay, setDueDay] = useState('1'); const [category, setCategory] = useState('Utilities');
   const [emoji, setEmoji] = useState('🧾'); const [autoPay, setAutoPay] = useState(false);
-  const [nextDate, setNextDate] = useState(today());
-  useEffect(() => { if (bill && open) { setName(bill.name||''); setAmount(String(bill.amount||'')); setDueDay(String(bill.dueDay||1)); setCategory(bill.category||'Utilities'); setEmoji(bill.emoji||'🧾'); setAutoPay(bill.autoPay||false); setNextDate(bill.nextDate||today()); } }, [bill, open]);
-  const save = () => { if (!name.trim() || !amount) return; onSave(bill.id, { name:name.trim(), amount:Number(amount), dueDay:Number(dueDay), category, emoji, autoPay, nextDate }); onClose(); };
+  const [nextDate, setNextDate] = useState(today()); const [frequency, setFrequency] = useState('monthly');
+  useEffect(() => { if (bill && open) { setName(bill.name||''); setAmount(String(bill.amount||'')); setDueDay(String(bill.dueDay||1)); setCategory(bill.category||'Utilities'); setEmoji(bill.emoji||'🧾'); setAutoPay(bill.autoPay||false); setNextDate(bill.nextDate||today()); setFrequency(bill.frequency||'monthly'); } }, [bill, open]);
+  const save = () => { if (!name.trim() || !amount) return; onSave(bill.id, { name:name.trim(), amount:Number(amount), dueDay:Number(dueDay), category, emoji, autoPay, nextDate, frequency }); onClose(); };
   return (
     <Modal open={open} onClose={onClose} title="✏️ Edit Bill">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -2811,7 +2832,10 @@ function EditBillModal({ open, onClose, bill, onSave }) {
           <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" />
           <Input type="number" value={dueDay} onChange={e=>setDueDay(e.target.value)} placeholder="Due day (1-31)" min="1" max="31" />
         </div>
-        <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Utilities','Rent/Mortgage','Insurance','Phone','Internet','Transportation','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Utilities','Rent/Mortgage','Insurance','Phone','Internet','Transportation','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+          <Select value={frequency} onChange={e=>setFrequency(e.target.value)}>{['monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>
+        </div>
         <div>
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:4 }}>Next due date</div>
           <Input type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)} />
@@ -2994,10 +3018,11 @@ function AddBillModal({ open, onClose, onSave }) {
   const [name, setName] = useState(''); const [amount, setAmount] = useState('');
   const [dueDay, setDueDay] = useState('1'); const [category, setCategory] = useState('Utilities');
   const [emoji, setEmoji] = useState('🧾'); const [autoPay, setAutoPay] = useState(false);
+  const [frequency, setFrequency] = useState('monthly');
   const save = () => {
     if (!name.trim() || !amount) return;
     const nextDate = (() => { const d=new Date(); d.setDate(Number(dueDay)); if(d<new Date()) d.setMonth(d.getMonth()+1); return d.toISOString().slice(0,10); })();
-    onSave({ id:Date.now(), name:name.trim(), amount:Number(amount), dueDay:Number(dueDay), category, emoji, autoPay, nextDate, createdAt:today(), paid:false });
+    onSave({ id:Date.now(), name:name.trim(), amount:Number(amount), dueDay:Number(dueDay), category, emoji, autoPay, frequency, nextDate, createdAt:today(), paid:false });
     setName(''); setAmount(''); onClose();
   };
   return (
@@ -3011,7 +3036,10 @@ function AddBillModal({ open, onClose, onSave }) {
           <Input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" />
           <Input type="number" value={dueDay} onChange={e=>setDueDay(e.target.value)} placeholder="Due day of month (1-31)" min="1" max="31" />
         </div>
-        <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Utilities','Rent/Mortgage','Insurance','Phone','Internet','Transportation','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+          <Select value={category} onChange={e=>setCategory(e.target.value)}>{['Utilities','Rent/Mortgage','Insurance','Phone','Internet','Transportation','Other'].map(c=><option key={c}>{c}</option>)}</Select>
+          <Select value={frequency} onChange={e=>setFrequency(e.target.value)}>{['monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>
+        </div>
         <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer' }}>
           <input type="checkbox" checked={autoPay} onChange={e=>setAutoPay(e.target.checked)} /> Auto-pay enabled
         </label>
@@ -6111,6 +6139,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const [editIncome, setEditIncome] = useState(null);
   const [editingSub, setEditingSub] = useState(null);
   const [editingBill, setEditingBill] = useState(null);
+  const [editingAsset, setEditingAsset] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(today().slice(0,7));
   const [goalCatFilter, setGoalCatFilter] = useState('all');
   const [spendCatFilter, setSpendCatFilter] = useState('__all__');
@@ -6186,6 +6215,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       <LogIncomeModal open={modal==='income'} onClose={()=>setModal(null)} onSave={e=>{actions.addIncome(e);setModal(null);}} />
       <EditIncomeModal open={!!editIncome} onClose={()=>setEditIncome(null)} income={editIncome} onSave={(id,patch)=>{actions.updateIncome(id,patch);setEditIncome(null);}} />
       <AddAssetModal open={modal==='asset'} onClose={()=>setModal(null)} onSave={e=>{actions.addAsset(e);setModal(null);}} />
+      <EditAssetModal open={!!editingAsset} onClose={()=>setEditingAsset(null)} asset={editingAsset} onSave={(id,patch)=>{actions.updateAsset(id,patch);setEditingAsset(null);}} />
       <AddGoalModal open={modal==='goal'} onClose={()=>setModal(null)} onSave={e=>{actions.addGoal(e);setModal(null);}} />
       <AddDebtModal open={modal==='debt'} onClose={()=>setModal(null)} onSave={e=>{actions.addDebt(e);setModal(null);}} />
       <LogDebtPaymentModal open={modal==='pay-debt'} onClose={()=>setModal(null)} debts={debts} onPay={(id,amt)=>{actions.payDebt(id,amt);setModal(null);}} />
@@ -7226,7 +7256,11 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               {(assets||[]).map((a,i)=>(
                 <div key={a.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<(assets||[]).length-1?`1px solid ${T.border}`:'none' }}>
                   <div><div style={{ fontSize:12, fontFamily:T.fM, color:T.text }}>{a.name}</div><Badge color={T.textSub}>{a.type||'Other'}</Badge></div>
-                  <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(a.value)}</div>
+                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                    <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent }}>{cur}{fmtN(a.value)}</div>
+                    <button onClick={()=>setEditingAsset(a)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}` }} title="Edit"><IcoPencil size={11} stroke={T.accent} /></button>
+                    <button onClick={()=>actions.removeAsset(a.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }} title="Delete"><IcoTrash size={11} stroke={T.rose} /></button>
+                  </div>
                 </div>
               ))}
             </GlassCard>
@@ -7235,7 +7269,13 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       )}
 
       {tab==='recurring' && (() => {
-        const billTotal = billsArr.reduce((s,b)=>s+Number(b.amount||0),0);
+        const billMonthly = (b) => {
+          const amt = Number(b.amount||0);
+          if (b.frequency==='quarterly') return amt/3;
+          if (b.frequency==='yearly') return amt/12;
+          return amt; // monthly default
+        };
+        const billTotal = billsArr.reduce((s,b)=>s+billMonthly(b),0);
         const recurringIncomes = (incomes||[]).filter(i => i.recurring);
         const recurringIncomeMo = recurringIncomes.reduce((s,i) => {
           const amt = Number(i.amount||0);
@@ -7390,7 +7430,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                         <div style={{ width:34, height:34, borderRadius:T.r, background:T.skyDim, border:`1px solid ${T.sky}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>{bill.emoji||'🧾'}</div>
                         <div>
                           <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text }}>{bill.name}</div>
-                          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{bill.category} · Due: {bill.nextDate}{bill.autoPay?' · ✓ Auto-pay':''}</div>
+                          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>{bill.category} · {bill.frequency||'monthly'} · Due: {bill.nextDate}{bill.autoPay?' · ✓ Auto-pay':''}</div>
                         </div>
                       </div>
                       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -9203,14 +9243,14 @@ function EditNoteModal({ open, onClose, note, onSave }) {
   const [title, setTitle] = useState(''); const [body, setBody] = useState('');
   const [tag, setTag] = useState('General'); const [type, setType] = useState('note');
   const [priority, setPriority] = useState(2); const [dueDate, setDueDate] = useState('');
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState(false); const [inProgress, setInProgress] = useState(false);
   const [spendCategory, setSpendCategory] = useState('Other'); const [estimatedCost, setEstimatedCost] = useState('');
   const [paymentPlan, setPaymentPlan] = useState('none'); const [paymentStartDate, setPaymentStartDate] = useState(today().slice(0,7));
   useEffect(() => {
     if (note && open) {
       setTitle(note.title || ''); setBody(note.body || ''); setTag(note.tag || 'General');
       setType(note.type || 'note'); setPriority(note.priority || 2);
-      setDueDate(note.dueDate || ''); setDone(!!note.done);
+      setDueDate(note.dueDate || ''); setDone(!!note.done); setInProgress(!!note.inProgress);
       setSpendCategory(note.spendCategory || 'Other');
       setEstimatedCost(note.estimatedCost != null ? String(note.estimatedCost) : '');
       setPaymentPlan(note.paymentPlan || 'none');
@@ -9223,7 +9263,7 @@ function EditNoteModal({ open, onClose, note, onSave }) {
   const save = () => {
     if (!title.trim()) return;
     const extra = type === 'task' ? { spendCategory, estimatedCost: estimatedCost ? Number(estimatedCost) : null, paymentPlan: paymentPlan !== 'none' ? paymentPlan : null, paymentStartDate: paymentPlan !== 'none' && paymentStartDate ? paymentStartDate : null } : {};
-    onSave(note.id, { title: title.trim(), body: body.trim(), tag, type, priority, dueDate, done, ...extra });
+    onSave(note.id, { title: title.trim(), body: body.trim(), tag, type, priority, dueDate, done, inProgress: done ? false : inProgress, ...extra });
     onClose();
   };
   return (
@@ -9242,10 +9282,16 @@ function EditNoteModal({ open, onClose, note, onSave }) {
         {type==='task' && (
           <>
             <Input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} placeholder="Due date" />
-            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:done?T.emeraldDim:T.surface, border:`1px solid ${done?T.emerald+'44':T.border}` }}>
-              <input type="checkbox" checked={done} onChange={e=>setDone(e.target.checked)} />
-              <span>{done ? '✅ Task completed' : 'Mark as done'}</span>
-            </label>
+            <div style={{ display:'flex', gap:8 }}>
+              <label style={{ flex:1, display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:inProgress&&!done?T.amberDim:T.surface, border:`1px solid ${inProgress&&!done?T.amber+'44':T.border}` }}>
+                <input type="checkbox" checked={inProgress&&!done} onChange={e=>{setInProgress(e.target.checked);if(e.target.checked)setDone(false);}} />
+                <span>◑ In Progress</span>
+              </label>
+              <label style={{ flex:1, display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer', padding:'8px 10px', borderRadius:T.r, background:done?T.emeraldDim:T.surface, border:`1px solid ${done?T.emerald+'44':T.border}` }}>
+                <input type="checkbox" checked={done} onChange={e=>{setDone(e.target.checked);if(e.target.checked)setInProgress(false);}} />
+                <span>{done ? '✅ Completed' : '● Mark Done'}</span>
+              </label>
+            </div>
             <div style={{ padding:'12px', borderRadius:T.r, background:`${T.amber}08`, border:`1px solid ${T.amber}22` }}>
               <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginBottom:8, fontWeight:600, letterSpacing:'0.06em' }}>🛒 SPENDING PLAN</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
@@ -20028,6 +20074,18 @@ export default function LifeOS() {
     pushEvent({ type:'asset', title:`Asset added: ${a.name}`, value:`${settings.currency||'$'}${a.value}`, color:T.accent, domain:'money' });
   }, [pushEvent, settings.currency]);
 
+  const removeAsset = useCallback((assetId) => {
+    const asset = (_assets||[]).find(a => a.id === assetId);
+    if (!asset) return;
+    setAssets(p => p.filter(a => a.id !== assetId));
+    addToast(`Asset removed: "${asset.name}"`, () => setAssets(p => [asset, ...p]));
+  }, [_assets, addToast]);
+
+  const updateAsset = useCallback((assetId, patch) => {
+    setAssets(p => p.map(a => a.id === assetId ? { ...a, ...patch, updatedAt: today() } : a));
+    pushEvent({ type:'asset_edited', title:'Asset updated', value:'', color:T.accent, domain:'money' });
+  }, [pushEvent]);
+
   const updateGoalProgress = useCallback((goalId, amount) => {
     setGoals(p => p.map(g => g.id === goalId ? { ...g, current: Number(g.current||0) + amount, updatedAt: today() } : g));
     setTotalXP(x => Number(x) + 25);
@@ -20150,20 +20208,20 @@ export default function LifeOS() {
   const markBillPaid = useCallback((billId) => {
     setBills(p => p.map(b => {
       if (b.id !== billId) return b;
-      // Advance nextDate based on dueDay (if set) or +1 month from current nextDate
+      // Advance nextDate based on frequency
+      const monthsToAdd = b.frequency==='quarterly' ? 3 : b.frequency==='yearly' ? 12 : 1;
       let next;
       if (b.dueDay) {
         next = new Date(b.nextDate || new Date());
-        next.setMonth(next.getMonth() + 1);
+        next.setMonth(next.getMonth() + monthsToAdd);
         next.setDate(Number(b.dueDay));
       } else {
         next = new Date(b.nextDate || new Date());
-        next.setMonth(next.getMonth() + 1);
+        next.setMonth(next.getMonth() + monthsToAdd);
       }
-      // paid:false so the bill re-appears as due next month (recurring behavior)
       return { ...b, paid:false, lastPaid:today(), nextDate:next.toISOString().slice(0,10) };
     }));
-    addToast('Bill marked as paid ✓ — reset for next month', null, 3);
+    addToast('Bill marked as paid ✓ — reset for next cycle', null, 3);
   }, [addToast]);
 
   const addQuickNote = useCallback((qn) => {
@@ -20233,7 +20291,7 @@ export default function LifeOS() {
   }, [_incomes, _expenses, _investments, _assets, _debts, _thisMonth, totalXP]);
 
   const actions = {
-    addVitals, removeVitals, updateVitals, addNote, addGoal, removeGoal, updateGoal, addAsset,
+    addVitals, removeVitals, updateVitals, addNote, addGoal, removeGoal, updateGoal, addAsset, removeAsset, updateAsset,
     updateGoalProgress, updateSettings,
     addDebt, payDebt, removeDebt,
     addInvestment, removeInvestment,
@@ -20241,6 +20299,7 @@ export default function LifeOS() {
     setBudgets,
     // S1
     removeExpense, updateExpense, updateDebt, removeNote, updateNote,
+    addIncome, removeIncome, updateIncome,
     addBill, removeBill, markBillPaid, updateBill,
     addQuickNote, removeQuickNote,
     // S2
