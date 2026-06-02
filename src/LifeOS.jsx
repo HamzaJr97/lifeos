@@ -51,16 +51,64 @@ import {
     const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#040408';
     document.head.appendChild(tc);
   }
-  // apple touch icon — used when pinned to home screen on iOS
+  // ── App icon: generate PNG via canvas (iOS requires PNG, not SVG, for home screen icons) ──
+  const generateAppIcon = (size) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    // Background
+    ctx.fillStyle = '#040408';
+    const r = size * 0.22;
+    ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(size-r, 0); ctx.quadraticCurveTo(size, 0, size, r);
+    ctx.lineTo(size, size-r); ctx.quadraticCurveTo(size, size, size-r, size);
+    ctx.lineTo(r, size); ctx.quadraticCurveTo(0, size, 0, size-r);
+    ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0); ctx.closePath(); ctx.fill();
+    // Accent bar
+    ctx.fillStyle = '#00f5d4'; ctx.globalAlpha = 0.7;
+    const bx = size*0.165, by = size*0.27, bw = size*0.022, bh = size*0.445;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bw/2); ctx.fill();
+    ctx.globalAlpha = 1;
+    // "OS" text
+    ctx.fillStyle = '#00f5d4';
+    ctx.font = `800 ${size*0.355}px system-ui,sans-serif`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('OS', size*0.24, size*0.635);
+    // "Life" small text
+    ctx.fillStyle = '#00f5d4'; ctx.globalAlpha = 0.55;
+    ctx.font = `600 ${size*0.13}px system-ui,sans-serif`;
+    ctx.fillText('Life', size*0.245, size*0.79);
+    ctx.globalAlpha = 1;
+    return canvas.toDataURL('image/png');
+  };
+
+  // Apple touch icon (iOS) — must be PNG
   if (!document.querySelector('link[rel="apple-touch-icon"]')) {
-    const icon = document.createElement('link'); icon.rel = 'apple-touch-icon';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="%23040408"/><rect x="30" y="50" width="4" height="80" rx="2" fill="%2300f5d4" opacity=".6"/><text x="44" y="115" font-family="system-ui,sans-serif" font-weight="800" font-size="64" fill="%2300f5d4">OS</text></svg>`;
-    icon.href = `data:image/svg+xml,${svg}`;
+    const png180 = generateAppIcon(180);
+    const icon = document.createElement('link'); icon.rel = 'apple-touch-icon'; icon.sizes = '180x180';
+    icon.href = png180;
     document.head.appendChild(icon);
   }
-  // manifest.json — links the installed PWA manifest (file already in /lifeos/ repo)
+
+  // Web App Manifest — fully self-contained, no external files needed
   if (!document.querySelector('link[rel="manifest"]')) {
-    const mf = document.createElement('link'); mf.rel = 'manifest'; mf.href = '/lifeos/manifest.json';
+    const png192 = generateAppIcon(192);
+    const png512 = generateAppIcon(512);
+    const manifest = {
+      name: 'LifeOS', short_name: 'LifeOS',
+      description: 'Your personal life operating system',
+      start_url: '/lifeos/',
+      scope: '/lifeos/',
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#040408',
+      theme_color: '#040408',
+      icons: [
+        { src: png192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+        { src: png512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+    const mf = document.createElement('link'); mf.rel = 'manifest'; mf.href = URL.createObjectURL(blob);
     document.head.appendChild(mf);
   }
   // Service Worker — register sw.js already in /lifeos/ repo
