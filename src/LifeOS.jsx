@@ -8459,8 +8459,12 @@ function HealthPage({ data, actions }) {
             {sorted.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No vitals logged yet.</div>}
           </GlassCard>
         </div>
-        <GlassCard style={{ padding:'22px', display:'flex', flexDirection:'column', alignItems:'center' }}>
-          <SectionLabel>Focus Session</SectionLabel>
+        <GlassCard style={{ overflow:'hidden' }}>
+          <button onClick={()=>setPomodoroOpen(o=>!o)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 22px', background:'none', border:'none', cursor:'pointer', color:T.text }}>
+            <span style={{ fontFamily:T.fM, fontWeight:700, fontSize:11, textTransform:'uppercase', letterSpacing:'0.08em', color:T.textSub }}>⏱ Focus Session</span>
+            <span style={{ fontSize:12, color:T.textSub, transition:'transform 0.25s', display:'inline-block', transform:pomodoroOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
+          </button>
+          {pomodoroOpen && <div style={{ padding:'0 22px 22px', display:'flex', flexDirection:'column', alignItems:'center' }}>
           {focusComplete ? (
             <div style={{ width:'100%', display:'flex', flexDirection:'column', alignItems:'center', gap:14, padding:'16px 0' }}>
               <div style={{ fontSize:38 }}>🎉</div>
@@ -8506,6 +8510,7 @@ function HealthPage({ data, actions }) {
               {focusActive?'⏸ PAUSE':'▶ START FOCUS'}
             </button>
           </>)}
+          </div>}
         </GlassCard>
 
         {/* Focus Billing */}
