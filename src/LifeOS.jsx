@@ -7279,7 +7279,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <LivePricesPanel investments={investments} onUpdatePrice={actions.updateInvestmentPrice} />
             {/* Trade History — merged from Trades tab */}
             <InvestmentsSubSection title="📋 Trade History" storageKey="los_inv_trades_open">
-              <TradeJournalTab />
+              <TradeJournalTab investments={investments} />
             </InvestmentsSubSection>
             {/* Watchlist — merged from Watchlist tab */}
             <InvestmentsSubSection title="👁 Watchlist" storageKey="los_inv_watchlist_open">
@@ -15909,13 +15909,24 @@ function TimeCapsuleTab({ data, actions }) {
 }
 
 // ── TRADE JOURNAL ─────────────────────────────────────────────────────────────
-function TradeJournalTab() {
+function TradeJournalTab({ investments = [] }) {
   const [trades,setTrades]=useLocalStorage('los_trades',[]);
   const [modal,setModal]=useState(false);
+  const [symFilter,setSymFilter]=useState('all'); // filter by position symbol
   const [sym,setSym]=useState(''); const [type,setType]=useState('Buy');
   const [qty,setQty]=useState(''); const [price,setPrice]=useState('');
   const [exit,setExit]=useState(''); const [note,setNote]=useState('');
   const [date,setDate]=useState(today());
+
+  // Symbols present in both positions and trades (for filter bar)
+  const posSymbols = useMemo(()=>[...new Set((investments||[]).map(i=>(i.symbol||i.name||'').toUpperCase()).filter(Boolean))],[investments]);
+  const tradeSymbols = useMemo(()=>[...new Set((trades||[]).map(t=>t.sym).filter(Boolean))],[trades]);
+  const allSymbols = useMemo(()=>[...new Set([...posSymbols,...tradeSymbols])].sort(),[posSymbols,tradeSymbols]);
+
+  const visibleTrades = useMemo(()=>
+    symFilter==='all' ? trades : trades.filter(t=>t.sym===symFilter)
+  ,[trades,symFilter]);
+
   const add=()=>{
     if(!sym.trim()||!qty||!price)return;
     const entry=Number(price); const ex=Number(exit)||0;
@@ -15923,22 +15934,88 @@ function TradeJournalTab() {
     setTrades(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),type,qty:Number(qty),price:entry,exitPrice:ex,pnl,note,date},...p]);
     setSym('');setQty('');setPrice('');setExit('');setNote('');setModal(false);
   };
-  const totalPnl=trades.filter(t=>t.pnl!==null).reduce((s,t)=>s+(t.pnl||0),0);
-  const wins=trades.filter(t=>t.pnl!=null&&t.pnl>0).length;
-  const losses=trades.filter(t=>t.pnl!=null&&t.pnl<0).length;
+  const totalPnl=visibleTrades.filter(t=>t.pnl!==null).reduce((s,t)=>s+(t.pnl||0),0);
+  const wins=visibleTrades.filter(t=>t.pnl!=null&&t.pnl>0).length;
+  const losses=visibleTrades.filter(t=>t.pnl!=null&&t.pnl<0).length;
+
+  // Per-symbol P&L summary for linked positions
+  const posStats = useMemo(()=>{
+    const m={};
+    (trades||[]).forEach(t=>{
+      if(t.pnl==null)return;
+      if(!m[t.sym])m[t.sym]={pnl:0,wins:0,losses:0};
+      m[t.sym].pnl+=t.pnl;
+      if(t.pnl>0)m[t.sym].wins++; else m[t.sym].losses++;
+    });
+    return m;
+  },[trades]);
+
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
           <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Trade Journal</div>
-          {trades.length>0&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>P&amp;L: <span style={{color:totalPnl>=0?T.emerald:T.rose,fontWeight:600}}>{totalPnl>=0?'+':''}{fmtN(totalPnl)}</span> · {wins}W / {losses}L</div>}
+          {visibleTrades.length>0&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>P&amp;L: <span style={{color:totalPnl>=0?T.emerald:T.rose,fontWeight:600}}>{totalPnl>=0?'+':''}{fmtN(totalPnl)}</span> · {wins}W / {losses}L</div>}
         </div>
         <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Trade</Btn>
       </div>
+
+      {/* Position filter chips */}
+      {allSymbols.length>0&&(
+        <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+          <button onClick={()=>setSymFilter('all')} style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,border:`1px solid ${symFilter==='all'?T.accent+'55':T.border}`,background:symFilter==='all'?T.accentDim:'transparent',color:symFilter==='all'?T.accent:T.textSub,cursor:'pointer'}}>All</button>
+          {allSymbols.map(s=>{
+            const st=posStats[s]; const linked=posSymbols.includes(s);
+            return (
+              <button key={s} onClick={()=>setSymFilter(symFilter===s?'all':s)}
+                style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,
+                  border:`1px solid ${symFilter===s?T.violet+'55':linked?T.violet+'33':T.border}`,
+                  background:symFilter===s?`${T.violet}22`:linked?`${T.violet}08`:'transparent',
+                  color:symFilter===s?T.violet:linked?T.violet:T.textSub,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                {linked&&<span style={{fontSize:7,opacity:0.7}}>●</span>}{s}
+                {st&&<span style={{opacity:0.7,marginLeft:2,color:st.pnl>=0?T.emerald:T.rose}}>{st.pnl>=0?'+':''}{fmtN(Math.abs(st.pnl))}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Linked position summary for filtered symbol */}
+      {symFilter!=='all'&&(()=>{
+        const pos=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===symFilter);
+        if(!pos)return null;
+        const cp=Number(pos.currentPrice??pos.buyPrice??0);
+        const val=cp*Number(pos.quantity||0);
+        const cost=Number(pos.buyPrice||0)*Number(pos.quantity||0);
+        const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
+        return (
+          <div style={{padding:'10px 14px',borderRadius:T.r,background:`${T.violet}0a`,border:`1px solid ${T.violet}22`,display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
+            <div style={{fontSize:9,fontFamily:T.fM,color:T.violet,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600}}>📌 Open Position</div>
+            <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>×{pos.quantity} @ <span style={{color:T.textSub}}>${fmtN(pos.buyPrice)}</span></div>
+            <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Current: <span style={{fontWeight:600,color:T.text}}>${fmtN(cp)}</span></div>
+            <div style={{fontSize:11,fontFamily:T.fM,color:pnl>=0?T.emerald:T.rose,fontWeight:600}}>{pnl>=0?'+':''}{fmtN(pnl)} ({pct.toFixed(1)}%)</div>
+          </div>
+        );
+      })()}
+
       {modal&&(
         <GlassCard style={{padding:'16px 18px'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-            <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="Symbol (AAPL…)" />
+            {/* Symbol — pre-fill from position if filtered */}
+            <div style={{position:'relative'}}>
+              <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="Symbol (AAPL…)" />
+              {posSymbols.length>0&&sym===''&&(
+                <div style={{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:200,overflow:'hidden'}}>
+                  {posSymbols.map(s=>(
+                    <button key={s} onClick={()=>setSym(s)} style={{display:'block',width:'100%',padding:'6px 10px',textAlign:'left',background:'transparent',border:'none',fontSize:11,fontFamily:T.fM,color:T.text,cursor:'pointer'}}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Select value={type} onChange={e=>setType(e.target.value)}>{['Buy','Sell','Short','Cover'].map(t=><option key={t}>{t}</option>)}</Select>
             <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
             <Input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="Entry price" />
@@ -15952,20 +16029,23 @@ function TradeJournalTab() {
           </div>
         </GlassCard>
       )}
-      {trades.length===0&&!modal&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No trades logged yet. Record your first position.</div></GlassCard>}
-      {trades.map((t,i)=>{
+      {visibleTrades.length===0&&!modal&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No trades logged yet. Record your first position.</div></GlassCard>}
+      {visibleTrades.map((t,i)=>{
         const hasPnl=t.pnl!==null&&t.pnl!==undefined;
         const col=!hasPnl?T.textSub:t.pnl>=0?T.emerald:T.rose;
+        const linkedPos=(investments||[]).find(inv=>(inv.symbol||inv.name||'').toUpperCase()===t.sym);
         return (
-          <GlassCard key={t.id||i} style={{padding:'14px 18px'}}>
+          <GlassCard key={t.id||i} style={{padding:'14px 18px',borderLeft:linkedPos?`3px solid ${T.violet}44`:'none'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div>
-                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
+                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
                   <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{t.sym}</span>
                   <Badge color={t.type==='Buy'||t.type==='Cover'?T.emerald:T.rose}>{t.type}</Badge>
                   {hasPnl&&<Badge color={col}>{t.pnl>=0?'+':''}{fmtN(t.pnl)}</Badge>}
+                  {linkedPos&&<span style={{fontSize:8,fontFamily:T.fM,color:T.violet,background:`${T.violet}15`,padding:'1px 6px',borderRadius:4}}>● Open position</span>}
                 </div>
                 <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{t.qty} × ${fmtN(t.price)}{t.exitPrice>0?` → $${fmtN(t.exitPrice)}`:''} · {t.date}</div>
+                {linkedPos&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>Current price: ${fmtN(Number(linkedPos.currentPrice??linkedPos.buyPrice))}</div>}
                 {t.note&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:4,fontStyle:'italic'}}>{t.note}</div>}
               </div>
               <button onClick={()=>setTrades(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
@@ -15997,10 +16077,10 @@ const WatchlistTab = memo(function WatchlistTab() {
 
   // Timeframe → CoinGecko days param + Yahoo range
   const TIMEFRAME_MAP = {
-    '1M': { cgDays: 30, yfRange: '1mo', label: '30-day' },
-    '1Y': { cgDays: 365, yfRange: '1y', label: '1-year' },
-    '5Y': { cgDays: 1825, yfRange: '5y', label: '5-year' },
-    'All': { cgDays: 'max', yfRange: 'max', label: 'All-time' },
+    '1M': { cgDays: 30,    yfRange: '1mo', yfInterval: '1d',  label: '30-day' },
+    '1Y': { cgDays: 365,   yfRange: '1y',  yfInterval: '1d',  label: '1-year' },
+    '5Y': { cgDays: 1825,  yfRange: '5y',  yfInterval: '1wk', label: '5-year' },
+    'All': { cgDays: 'max', yfRange: 'max', yfInterval: '1mo', label: 'All-time' },
   };
 
   // CORS proxy — tries multiple public proxies in sequence until one works
@@ -16012,7 +16092,7 @@ const WatchlistTab = memo(function WatchlistTab() {
   const fetchViaProxy = async (url) => {
     for (const makeProxy of YF_PROXY_LIST) {
       try {
-        const r = await fetch(makeProxy(url), { signal: AbortSignal.timeout(6000) });
+        const r = await fetch(makeProxy(url), { signal: AbortSignal.timeout(10000) });
         if (r.ok) return r;
       } catch {}
     }
@@ -16065,38 +16145,57 @@ const WatchlistTab = memo(function WatchlistTab() {
   // Fetch chart history for crypto with dynamic timeframe
   const fetchCryptoChart = async (coinId, sym, tf) => {
     const { cgDays } = TIMEFRAME_MAP[tf] || TIMEFRAME_MAP['1M'];
-    // For large ranges, show month+year; for 1M show month+day
     const showYear = tf === '1Y' || tf === '5Y' || tf === 'All';
     const formatLabel = (ts) => {
       const d = new Date(ts);
       if (showYear) return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
-    const attemptFetch = async (fetchFn) => {
-      const res = await fetchFn();
-      if (!res.ok) throw new Error('cg_error');
-      return res.json();
+
+    // For large ranges use unix range endpoint to get daily granularity reliably
+    const buildUrl = () => {
+      if (cgDays === 'max') {
+        // Use a long range: from 2013-01-01 to now
+        const from = Math.floor(new Date('2013-01-01').getTime() / 1000);
+        const to   = Math.floor(Date.now() / 1000);
+        return `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
+      }
+      if (cgDays >= 365) {
+        const from = Math.floor((Date.now() - cgDays * 86400 * 1000) / 1000);
+        const to   = Math.floor(Date.now() / 1000);
+        return `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
+      }
+      return `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}`;
     };
-    try {
-      const url = cgDays === 'max'
-        ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=max`
-        : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${cgDays}`;
-      // Try direct first, then proxy fallback (CoinGecko allows browser fetch usually)
-      let d;
+
+    const url = buildUrl();
+    const fetchWithTimeout = (fetchFn, ms) => Promise.race([fetchFn(), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
+
+    let d;
+    // Try direct first, then proxies with increasing timeouts
+    const attempts = [
+      () => fetch(url, { signal: AbortSignal.timeout(10000) }),
+      () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+      () => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+    ];
+    for (const attempt of attempts) {
       try {
-        d = await attemptFetch(() => fetch(url, { signal: AbortSignal.timeout(8000) }));
-      } catch {
-        // fallback via proxy
-        d = await attemptFetch(() => fetchViaProxy(url));
-      }
-      if (d.prices && d.prices.length > 0) {
-        const all = d.prices.map(([ts, price]) => ({ t: formatLabel(ts), p: price }));
-        // Downsample to max 80 pts for large ranges
-        const step = all.length > 80 ? Math.ceil(all.length / 80) : 1;
-        const pts = all.filter((_,i) => i % step === 0);
-        setCharts(prev => ({...prev, [`${sym}_${tf}`]: pts}));
-      }
-    } catch {}
+        const res = await attempt();
+        if (res.ok) { d = await res.json(); break; }
+      } catch {}
+    }
+    if (!d?.prices?.length) return;
+
+    const all = d.prices.map(([ts, price]) => ({ t: formatLabel(ts), p: price }));
+    // Dedupe consecutive labels (same month/year label) — keep last of each group
+    const deduped = [];
+    for (let i = 0; i < all.length; i++) {
+      if (i === all.length - 1 || all[i].t !== all[i+1].t) deduped.push(all[i]);
+    }
+    // Downsample to max 100 pts
+    const step = deduped.length > 100 ? Math.ceil(deduped.length / 100) : 1;
+    const pts = deduped.filter((_,i) => i % step === 0 || i === deduped.length - 1);
+    setCharts(prev => ({...prev, [`${sym}_${tf}`]: pts}));
   };
 
   // Fetch stock chart with dynamic timeframe (via CORS proxy)
@@ -16140,8 +16239,8 @@ const WatchlistTab = memo(function WatchlistTab() {
       const stockItems = watchlist.filter(w=>w.type==='stock'&&!COIN_IDS[w.sym]);
       if (stockItems.length > 0) {
         // Fetch price + chart for each stock via v8 chart endpoint (more reliable than v7 quote)
-        const { yfRange } = TIMEFRAME_MAP[activeTf] || TIMEFRAME_MAP['1M'];
-        const interval = activeTf === '1M' ? '1d' : activeTf === '1Y' ? '1wk' : '1mo';
+        const { yfRange, yfInterval } = TIMEFRAME_MAP[activeTf] || TIMEFRAME_MAP['1M'];
+        const interval = yfInterval;
         let anySuccess = false;
         await Promise.allSettled(stockItems.map(async (w) => {
           try {
@@ -16168,7 +16267,10 @@ const WatchlistTab = memo(function WatchlistTab() {
             const ts = result.timestamp || [];
             const closes = result.indicators?.quote?.[0]?.close || [];
             if (closes.length > 0) {
-              const pts = ts.map((t, idx) => ({ t: fmtLabel(t), p: closes[idx] || null })).filter(pt => pt.p !== null);
+              const rawPts = ts.map((t, idx) => ({ t: fmtLabel(t), p: closes[idx] || null })).filter(pt => pt.p !== null);
+              // Downsample to max 100 pts (1Y daily gives ~250 pts — reduce for chart perf)
+              const step = rawPts.length > 100 ? Math.ceil(rawPts.length / 100) : 1;
+              const pts = rawPts.filter((_,i) => i % step === 0 || i === rawPts.length - 1);
               setCharts(prev => ({ ...prev, [`${w.sym}_${activeTf}`]: pts }));
             }
           } catch {
