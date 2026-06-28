@@ -7244,21 +7244,27 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           {(investments||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
-              {[
-                { label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`,   color:T.violet },
-                { label:'Total Invested',  val:`${cur}${fmtN(costBasis)}`, color:T.text },
-                { label:'Total P&L',       val:`${pnlSign}${cur}${fmtN(totalPnl)}`, color:pnlColor },
-              ].map((m,i)=>(
-                <GlassCard key={i} style={{ padding:'16px 18px' }}>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
-                  <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
-                </GlassCard>
-              ))}
-            </div>
-            <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} />
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Positions</SectionLabel>
+            {/* Overview metrics */}
+            <InvestmentsSubSection title="📊 Overview" storageKey="los_inv_overview_open">
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
+                {[
+                  { label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`,   color:T.violet },
+                  { label:'Total Invested',  val:`${cur}${fmtN(costBasis)}`, color:T.text },
+                  { label:'Total P&L',       val:`${pnlSign}${cur}${fmtN(totalPnl)}`, color:pnlColor },
+                ].map((m,i)=>(
+                  <GlassCard key={i} style={{ padding:'16px 18px' }}>
+                    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                    <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
+                  </GlassCard>
+                ))}
+              </div>
+            </InvestmentsSubSection>
+            {/* Portfolio history chart */}
+            <InvestmentsSubSection title="📈 Portfolio History" storageKey="los_inv_chart_open">
+              <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} />
+            </InvestmentsSubSection>
+            {/* Positions list */}
+            <InvestmentsSubSection title="📌 Positions" storageKey="los_inv_positions_open">
               {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0;
               const typeColor={'Stock':T.sky,'ETF':T.violet,'Crypto':T.amber,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub}; const tCol=typeColor[inv.type||'Stock']||T.textSub;
               return (
@@ -7279,14 +7285,16 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   </div>
                 </div>
               ); })}
-            </GlassCard>
-            {/* S4: Live Prices Panel */}
-            <LivePricesPanel investments={investments} onUpdatePrice={actions.updateInvestmentPrice} />
-            {/* Trade History — merged from Trades tab */}
-            <InvestmentsSubSection title="📋 Trade History" storageKey="los_inv_trades_open">
-              <TradeJournalTab investments={investments} />
             </InvestmentsSubSection>
-            {/* Watchlist — merged from Watchlist tab */}
+            {/* Live Prices */}
+            <InvestmentsSubSection title="⚡ Live Prices" storageKey="los_inv_liveprices_open">
+              <LivePricesPanel investments={investments} onUpdatePrice={actions.updateInvestmentPrice} />
+            </InvestmentsSubSection>
+            {/* Position Journal */}
+            <InvestmentsSubSection title="📓 Position Journal" storageKey="los_inv_trades_open">
+              <PositionJournalTab investments={investments} />
+            </InvestmentsSubSection>
+            {/* Watchlist */}
             <InvestmentsSubSection title="👁 Watchlist" storageKey="los_inv_watchlist_open">
               <WatchlistTab />
             </InvestmentsSubSection>
@@ -15914,20 +15922,19 @@ function TimeCapsuleTab({ data, actions }) {
 }
 
 // ── TRADE JOURNAL ─────────────────────────────────────────────────────────────
-function TradeJournalTab({ investments = [] }) {
-  const [trades,setTrades]=useLocalStorage('los_trades',[]);
+function PositionJournalTab({ investments = [] }) {
+  const [entries,setEntries]=useLocalStorage('los_trades',[]); // reuse same key so data isn't lost
   const [modal,setModal]=useState(false);
   const [symFilter,setSymFilter]=useState('all');
   const [dateFrom,setDateFrom]=useState('');
   const [dateTo,setDateTo]=useState('');
-  const [datePreset,setDatePreset]=useState('all'); // 'all','7d','30d','90d','custom'
-  const [sym,setSym]=useState(''); const [type,setType]=useState('Buy');
+  const [datePreset,setDatePreset]=useState('all');
+  const [sym,setSym]=useState('');
   const [category,setCategory]=useState('Stock');
   const [qty,setQty]=useState(''); const [price,setPrice]=useState('');
-  const [exit,setExit]=useState(''); const [note,setNote]=useState('');
+  const [note,setNote]=useState('');
   const [date,setDate]=useState(today());
 
-  // Apply date preset → from/to
   const applyPreset = (p) => {
     setDatePreset(p);
     if(p==='all'||p==='custom'){setDateFrom('');setDateTo('');return;}
@@ -15940,38 +15947,21 @@ function TradeJournalTab({ investments = [] }) {
   };
 
   const posSymbols = useMemo(()=>[...new Set((investments||[]).map(i=>(i.symbol||i.name||'').toUpperCase()).filter(Boolean))],[investments]);
-  const tradeSymbols = useMemo(()=>[...new Set((trades||[]).map(t=>t.sym).filter(Boolean))],[trades]);
-  const allSymbols = useMemo(()=>[...new Set([...posSymbols,...tradeSymbols])].sort(),[posSymbols,tradeSymbols]);
+  const entrySymbols = useMemo(()=>[...new Set((entries||[]).map(t=>t.sym).filter(Boolean))],[entries]);
+  const allSymbols = useMemo(()=>[...new Set([...posSymbols,...entrySymbols])].sort(),[posSymbols,entrySymbols]);
 
-  const visibleTrades = useMemo(()=>{
-    let list = symFilter==='all' ? trades : trades.filter(t=>t.sym===symFilter);
+  const visible = useMemo(()=>{
+    let list = symFilter==='all' ? entries : entries.filter(t=>t.sym===symFilter);
     if(dateFrom) list=list.filter(t=>(t.date||'')>=dateFrom);
     if(dateTo)   list=list.filter(t=>(t.date||'')<=dateTo);
-    // Sort newest first
     return [...list].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; });
-  },[trades,symFilter,dateFrom,dateTo]);
+  },[entries,symFilter,dateFrom,dateTo]);
 
   const add=()=>{
     if(!sym.trim()||!qty||!price)return;
-    const entry=Number(price); const ex=Number(exit)||0;
-    const pnl=ex>0?(type==='Buy'||type==='Cover'?(ex-entry)*Number(qty):(entry-ex)*Number(qty)):null;
-    setTrades(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),type,category,qty:Number(qty),price:entry,exitPrice:ex,pnl,note,date},...p]);
-    setSym('');setQty('');setPrice('');setExit('');setNote('');setModal(false);
+    setEntries(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),category,qty:Number(qty),price:Number(price),pnl:null,note,date},...p]);
+    setSym('');setQty('');setPrice('');setNote('');setModal(false);
   };
-  const totalPnl=visibleTrades.filter(t=>t.pnl!==null).reduce((s,t)=>s+(t.pnl||0),0);
-  const wins=visibleTrades.filter(t=>t.pnl!=null&&t.pnl>0).length;
-  const losses=visibleTrades.filter(t=>t.pnl!=null&&t.pnl<0).length;
-
-  const posStats = useMemo(()=>{
-    const m={};
-    (trades||[]).forEach(t=>{
-      if(t.pnl==null)return;
-      if(!m[t.sym])m[t.sym]={pnl:0,wins:0,losses:0};
-      m[t.sym].pnl+=t.pnl;
-      if(t.pnl>0)m[t.sym].wins++; else m[t.sym].losses++;
-    });
-    return m;
-  },[trades]);
 
   const CATEGORY_COLOR={'Stock':T.sky,'ETF':T.violet,'Crypto':T.amber,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub,'Other':T.textMuted};
 
@@ -15979,13 +15969,13 @@ function TradeJournalTab({ investments = [] }) {
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
-          <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Trade Journal</div>
-          {visibleTrades.length>0&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>P&amp;L: <span style={{color:totalPnl>=0?T.emerald:T.rose,fontWeight:600}}>{totalPnl>=0?'+':''}{fmtN(totalPnl)}</span> · {wins}W / {losses}L · {visibleTrades.length} trades</div>}
+          <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Position Journal</div>
+          <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{visible.length} {visible.length===1?'entry':'entries'}</div>
         </div>
-        <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Trade</Btn>
+        <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Position</Btn>
       </div>
 
-      {/* ── Date filter ──────────────────────────────────────────────── */}
+      {/* Date filter */}
       <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
         <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginRight:2,textTransform:'uppercase',letterSpacing:'0.06em'}}>Period</span>
         {[['all','All Time'],['7d','7 Days'],['30d','30 Days'],['90d','3 Months'],['custom','Custom']].map(([p,label])=>(
@@ -16000,15 +15990,14 @@ function TradeJournalTab({ investments = [] }) {
         )}
       </div>
 
-      {/* ── Symbol filter chips ───────────────────────────────────────── */}
+      {/* Symbol filter chips */}
       {allSymbols.length>0&&(
         <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
           <button onClick={()=>setSymFilter('all')} style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,border:`1px solid ${symFilter==='all'?T.violet+'55':T.border}`,background:symFilter==='all'?`${T.violet}22`:'transparent',color:symFilter==='all'?T.violet:T.textSub,cursor:'pointer'}}>All Symbols</button>
           {allSymbols.map(s=>{
-            const st=posStats[s]; const linked=posSymbols.includes(s);
             const inv=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===s);
-            const cat=inv?.type||'';
-            const catCol=CATEGORY_COLOR[cat]||T.textSub;
+            const cat=inv?.type||''; const catCol=CATEGORY_COLOR[cat]||T.textSub;
+            const linked=posSymbols.includes(s);
             return (
               <button key={s} onClick={()=>setSymFilter(symFilter===s?'all':s)}
                 style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,
@@ -16017,67 +16006,63 @@ function TradeJournalTab({ investments = [] }) {
                   color:symFilter===s?catCol:linked?catCol:T.textSub,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
                 {linked&&<span style={{fontSize:7,opacity:0.7}}>●</span>}{s}
                 {cat&&<span style={{fontSize:7,opacity:0.6,marginLeft:1}}>{cat}</span>}
-                {st&&<span style={{opacity:0.7,marginLeft:2,color:st.pnl>=0?T.emerald:T.rose}}>{st.pnl>=0?'+':''}{fmtN(Math.abs(st.pnl))}</span>}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* ── "All" view: open positions summary ───────────────────────── */}
+      {/* All-view: open positions summary */}
       {symFilter==='all'&&(investments||[]).length>0&&(
         <div style={{borderRadius:T.r,border:`1px solid ${T.violet}22`,overflow:'hidden'}}>
           <div style={{padding:'8px 14px',background:`${T.violet}0a`,borderBottom:`1px solid ${T.violet}18`,display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontSize:9,fontFamily:T.fM,color:T.violet,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>📌 Open Positions</span>
             <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{(investments||[]).length} active</span>
           </div>
-          <div style={{display:'flex',flexDirection:'column'}}>
-            {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{
-              const cp=Number(inv.currentPrice??inv.buyPrice??0);
-              const val=cp*Number(inv.quantity||0);
-              const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);
-              const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
-              const catCol=CATEGORY_COLOR[inv.type||'Stock']||T.textSub;
-              return (
-                <div key={inv.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{inv.symbol||inv.name}</span>
-                    <span style={{fontSize:7,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{inv.type||'Stock'}</span>
-                    {inv.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {inv.date}</span>}
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>×{inv.quantity} @ ${fmtN(inv.buyPrice)}</span>
-                    <span style={{fontSize:11,fontFamily:T.fM,fontWeight:600,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{fmtN(pnl)} <span style={{fontSize:9,fontWeight:400}}>({pct.toFixed(1)}%)</span></span>
-                  </div>
+          {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{
+            const cp=Number(inv.currentPrice??inv.buyPrice??0);
+            const val=cp*Number(inv.quantity||0);
+            const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);
+            const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
+            const catCol=CATEGORY_COLOR[inv.type||'Stock']||T.textSub;
+            return (
+              <div key={inv.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{inv.symbol||inv.name}</span>
+                  <span style={{fontSize:7,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{inv.type||'Stock'}</span>
+                  {inv.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {inv.date}</span>}
                 </div>
-              );
-            })}
-          </div>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>×{inv.quantity} @ ${fmtN(inv.buyPrice)}</span>
+                  <span style={{fontSize:11,fontFamily:T.fM,fontWeight:600,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{fmtN(pnl)} <span style={{fontSize:9,fontWeight:400}}>({pct.toFixed(1)}%)</span></span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* ── Single symbol: linked position card ──────────────────────── */}
+      {/* Single symbol: linked position card */}
       {symFilter!=='all'&&(()=>{
         const pos=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===symFilter);
         if(!pos)return null;
         const cp=Number(pos.currentPrice??pos.buyPrice??0);
-        const val=cp*Number(pos.quantity||0);
-        const cost=Number(pos.buyPrice||0)*Number(pos.quantity||0);
-        const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
+        const pnl=cp*Number(pos.quantity||0)-Number(pos.buyPrice||0)*Number(pos.quantity||0);
+        const pct=Number(pos.buyPrice||0)*Number(pos.quantity||0)>0?(pnl/(Number(pos.buyPrice||0)*Number(pos.quantity||0)))*100:0;
         const catCol=CATEGORY_COLOR[pos.type||'Stock']||T.textSub;
         return (
           <div style={{padding:'10px 14px',borderRadius:T.r,background:`${catCol}0a`,border:`1px solid ${catCol}22`,display:'flex',gap:14,flexWrap:'wrap',alignItems:'center'}}>
-            <div style={{fontSize:9,fontFamily:T.fM,color:catCol,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600}}>📌 Open Position</div>
+            <span style={{fontSize:9,fontFamily:T.fM,color:catCol,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600}}>📌 Open Position</span>
             <span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 6px',borderRadius:3,textTransform:'uppercase'}}>{pos.type||'Stock'}</span>
             {pos.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {pos.date}</span>}
-            <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>×{pos.quantity} @ <span style={{color:T.textSub}}>${fmtN(pos.buyPrice)}</span></div>
-            <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Current: <span style={{fontWeight:600}}>${fmtN(cp)}</span></div>
-            <div style={{fontSize:11,fontFamily:T.fM,color:pnl>=0?T.emerald:T.rose,fontWeight:600}}>{pnl>=0?'+':''}{fmtN(pnl)} ({pct.toFixed(1)}%)</div>
+            <span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>×{pos.quantity} @ <span style={{color:T.textSub}}>${fmtN(pos.buyPrice)}</span></span>
+            <span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Current: <span style={{fontWeight:600}}>${fmtN(cp)}</span></span>
+            <span style={{fontSize:11,fontFamily:T.fM,color:pnl>=0?T.emerald:T.rose,fontWeight:600}}>{pnl>=0?'+':''}{fmtN(pnl)} ({pct.toFixed(1)}%)</span>
           </div>
         );
       })()}
 
-      {/* ── Log Trade form ────────────────────────────────────────────── */}
+      {/* Log form */}
       {modal&&(
         <GlassCard style={{padding:'16px 18px'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
@@ -16099,51 +16084,47 @@ function TradeJournalTab({ investments = [] }) {
                 </div>
               )}
             </div>
-            <Select value={type} onChange={e=>setType(e.target.value)}>{['Buy','Sell','Short','Cover'].map(t=><option key={t}>{t}</option>)}</Select>
             <Select value={category} onChange={e=>setCategory(e.target.value)}>
               {['Stock','ETF','Crypto','Bond','REIT','Commodity','Other'].map(c=><option key={c}>{c}</option>)}
             </Select>
-            <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
             <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
             <Input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="Entry price" />
-            <Input type="number" value={exit} onChange={e=>setExit(e.target.value)} placeholder="Exit price (optional)" style={{gridColumn:'span 2'}} />
+            <Input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{gridColumn:'span 2'}} />
           </div>
-          <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Rationale / notes…" style={{marginBottom:8}} />
+          <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Notes / thesis…" style={{marginBottom:8}} />
           <div style={{display:'flex',gap:8}}>
-            <Btn onClick={add} color={T.accent} style={{flex:1}}>Save Trade</Btn>
+            <Btn onClick={add} color={T.accent} style={{flex:1}}>Save Entry</Btn>
             <BtnCancel onClick={()=>setModal(false)} />
           </div>
         </GlassCard>
       )}
 
-      {visibleTrades.length===0&&!modal&&<GlassCard style={{padding:32,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No trades for this filter. Log your first trade above.</div></GlassCard>}
+      {visible.length===0&&!modal&&<GlassCard style={{padding:32,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No entries for this filter.</div></GlassCard>}
 
-      {/* ── Trade cards (sorted newest first) ───────────────────────── */}
-      {visibleTrades.map((t,i)=>{
-        const hasPnl=t.pnl!==null&&t.pnl!==undefined;
-        const col=!hasPnl?T.textSub:t.pnl>=0?T.emerald:T.rose;
+      {visible.map((t,i)=>{
         const linkedPos=(investments||[]).find(inv=>(inv.symbol||inv.name||'').toUpperCase()===t.sym);
         const cat=t.category||linkedPos?.type||'';
         const catCol=CATEGORY_COLOR[cat]||T.textSub;
+        const cp=linkedPos?Number(linkedPos.currentPrice??linkedPos.buyPrice??0):0;
+        const pnl=linkedPos?(cp-t.price)*t.qty:null;
         return (
-          <GlassCard key={t.id||i} style={{padding:'14px 18px',borderLeft:`3px solid ${linkedPos?T.violet+'55':cat?catCol+'33':'transparent'}`}}>
+          <GlassCard key={t.id||i} style={{padding:'14px 18px',borderLeft:`3px solid ${linkedPos?catCol+'66':cat?catCol+'33':'transparent'}`}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
                   <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{t.sym}</span>
                   {cat&&<span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 6px',borderRadius:4,textTransform:'uppercase'}}>{cat}</span>}
-                  <Badge color={t.type==='Buy'||t.type==='Cover'?T.emerald:T.rose}>{t.type}</Badge>
-                  {hasPnl&&<Badge color={col}>{t.pnl>=0?'+':''}{fmtN(t.pnl)}</Badge>}
-                  {linkedPos&&<span style={{fontSize:8,fontFamily:T.fM,color:T.violet,background:`${T.violet}15`,padding:'1px 6px',borderRadius:4}}>● Open</span>}
+                  {linkedPos&&<span style={{fontSize:8,fontFamily:T.fM,color:catCol,background:`${catCol}15`,padding:'1px 6px',borderRadius:4}}>● Open</span>}
+                  {pnl!==null&&<span style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{fmtN(pnl)}</span>}
                 </div>
                 <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>
-                  {t.qty} × ${fmtN(t.price)}{t.exitPrice>0?` → $${fmtN(t.exitPrice)}`:''}
+                  ×{t.qty} @ ${fmtN(t.price)}
                   {t.date&&<span style={{marginLeft:8,color:T.textMuted}}>📅 {t.date}</span>}
                 </div>
-                {linkedPos&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>Current: ${fmtN(Number(linkedPos.currentPrice??linkedPos.buyPrice))}</div>}
+                {linkedPos&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>Current: ${fmtN(cp)}</div>}
                 {t.note&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:4,fontStyle:'italic'}}>{t.note}</div>}
               </div>
-              <button onClick={()=>setTrades(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4,flexShrink:0}}><IcoTrash size={10} stroke={T.rose} /></button>
+              <button onClick={()=>setEntries(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4,flexShrink:0}}><IcoTrash size={10} stroke={T.rose} /></button>
             </div>
           </GlassCard>
         );
