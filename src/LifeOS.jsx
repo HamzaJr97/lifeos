@@ -7269,28 +7269,9 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <InvestmentsSubSection title="📈 Portfolio History" storageKey="los_inv_chart_open">
               <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} investments={investments} />
             </InvestmentsSubSection>
-            {/* Positions list */}
+            {/* Positions list with per-coin charts */}
             <InvestmentsSubSection title="📌 Positions" storageKey="los_inv_positions_open">
-              {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0;
-              const typeColor={'Stock':T.sky,'ETF':T.violet,'Crypto':T.amber,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub}; const tCol=typeColor[inv.type||'Stock']||T.textSub;
-              return (
-                <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none' }}>
-                  <div>
-                    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
-                      <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</div>
-                      <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600, color:tCol, background:`${tCol}18`, padding:'1px 6px', borderRadius:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>{inv.type||'Stock'}</span>
-                    </div>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}{inv.date?<span style={{ marginLeft:6, color:T.textMuted }}>· {inv.date}</span>:null}</div>
-                  </div>
-                  <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.text }}>{cur}{fmtN(val)}</div>
-                      <div style={{ fontSize:10, fontFamily:T.fM, color:pnl>=0?T.emerald:T.rose }}>{pnl>=0?'+':''}{cur}{fmtN(pnl)} ({pnlPct.toFixed(1)}%)</div>
-                    </div>
-                    <button onClick={()=>actions.removeInvestment(inv.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}><IcoTrash size={12} stroke={T.rose} /></button>
-                  </div>
-                </div>
-              ); })}
+              <PositionsPanel investments={investments} onRemove={actions.removeInvestment} cur={cur} />
             </InvestmentsSubSection>
             {/* Live Prices */}
             <InvestmentsSubSection title="⚡ Live Prices" storageKey="los_inv_liveprices_open">
@@ -15052,6 +15033,173 @@ function readPriceCache() {
 function writePriceCache(crypto, stocks) {
   try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({ crypto, stocks, ts: Date.now() })); } catch {}
 }
+
+// ── POSITIONS PANEL (with per-coin sparkline charts below each row) ───────────
+const PositionsPanel = memo(function PositionsPanel({ investments, onRemove, cur }) {
+  const [charts, setCharts] = useState({}); // sym → [{t, p}]
+  const [loading, setLoading] = useState({});
+  const [timeframe, setTimeframe] = useState('1M');
+  const TIMEFRAME_MAP = {
+    '1W': { cgDays:7,   label:'7-day' },
+    '1M': { cgDays:30,  label:'30-day' },
+    '3M': { cgDays:90,  label:'90-day' },
+    '1Y': { cgDays:365, label:'1-year' },
+  };
+  const YF_PROXY = url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+
+  const fetchChart = useCallback(async (inv, tf) => {
+    const sym = (inv.symbol||'').toUpperCase();
+    const key = `${sym}_${tf}`;
+    if (charts[key] || loading[key]) return;
+    setLoading(p => ({ ...p, [key]: true }));
+    try {
+      if (inv.type === 'Crypto') {
+        const coinId = CRYPTO_IDS[sym] || CRYPTO_COIN_IDS[sym];
+        if (!coinId) return;
+        const days = TIMEFRAME_MAP[tf]?.cgDays || 30;
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`);
+        const d = await res.json();
+        if (d?.prices) {
+          const pts = d.prices.map(([ts, p]) => ({ t: new Date(ts).toLocaleDateString('en', {month:'short',day:'numeric'}), p }));
+          setCharts(c => ({ ...c, [key]: pts }));
+        }
+      } else if (STOCK_TYPES.includes(inv.type) && sym) {
+        const rangeMap = { '1W':'5d', '1M':'1mo', '3M':'3mo', '1Y':'1y' };
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=${rangeMap[tf]||'1mo'}`;
+        const res = await fetch(YF_PROXY(url));
+        const d = await res.json();
+        const result = d?.chart?.result?.[0];
+        if (result) {
+          const timestamps = result.timestamp || [];
+          const closes = result.indicators?.quote?.[0]?.close || [];
+          const pts = timestamps.map((ts, i) => ({
+            t: new Date(ts * 1000).toLocaleDateString('en', {month:'short',day:'numeric'}),
+            p: closes[i]
+          })).filter(x => x.p != null);
+          setCharts(c => ({ ...c, [key]: pts }));
+        }
+      }
+    } catch {}
+    setLoading(p => ({ ...p, [key]: false }));
+  }, [charts, loading]);
+
+  // Fetch charts for all positions when timeframe changes
+  useEffect(() => {
+    (investments||[]).forEach(inv => fetchChart(inv, timeframe));
+  }, [investments, timeframe]);
+
+  const sorted = useMemo(() =>
+    [...(investments||[])].sort((a,b) => { const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }),
+  [investments]);
+
+  const typeColor = { Stock:T.sky, ETF:T.violet, Crypto:T.amber, Bond:T.emerald, REIT:T.rose, Commodity:T.textSub };
+
+  if (!sorted.length) return (
+    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'24px 0' }}>
+      No positions yet. Add your first position above.
+    </div>
+  );
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      {/* Timeframe selector */}
+      <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+        <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginRight:4, textTransform:'uppercase', letterSpacing:'0.06em' }}>Chart</span>
+        {Object.keys(TIMEFRAME_MAP).map(tf => (
+          <button key={tf} onClick={() => setTimeframe(tf)}
+            style={{ padding:'2px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:600,
+              border:`1px solid ${timeframe===tf?T.violet+'55':T.border}`,
+              background:timeframe===tf?`${T.violet}22`:'transparent',
+              color:timeframe===tf?T.violet:T.textSub, cursor:'pointer' }}>{tf}</button>
+        ))}
+      </div>
+
+      {sorted.map((inv) => {
+        const cp = Number(inv.currentPrice ?? inv.buyPrice ?? 0);
+        const val = cp * Number(inv.quantity || 0);
+        const cost = Number(inv.buyPrice || 0) * Number(inv.quantity || 0);
+        const pnl = val - cost;
+        const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
+        const tCol = typeColor[inv.type||'Stock'] || T.textSub;
+        const sym = (inv.symbol || '').toUpperCase();
+        const key = `${sym}_${timeframe}`;
+        const chartPts = charts[key] || [];
+        const isLoading = loading[key];
+        const chartColor = pnl >= 0 ? T.emerald : T.rose;
+        const minP = chartPts.length ? Math.min(...chartPts.map(x=>x.p)) : 0;
+        const maxP = chartPts.length ? Math.max(...chartPts.map(x=>x.p)) : 0;
+
+        return (
+          <GlassCard key={inv.id} style={{ padding:'14px 18px', borderLeft:`3px solid ${tCol}44` }}>
+            {/* ── Top row: symbol info + value ── */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: chartPts.length > 1 || isLoading ? 12 : 0 }}>
+              <div>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                  <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</span>
+                  <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600, color:tCol, background:`${tCol}18`, padding:'1px 6px', borderRadius:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>{inv.type||'Stock'}</span>
+                </div>
+                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                  ×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}
+                  {inv.date && <span style={{ marginLeft:6, color:T.textMuted }}>· {inv.date}</span>}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.text }}>{cur}{fmtN(val)}</div>
+                  <div style={{ fontSize:10, fontFamily:T.fM, color:pnl>=0?T.emerald:T.rose }}>
+                    {pnl>=0?'+':''}{cur}{fmtN(pnl)} ({pnlPct.toFixed(1)}%)
+                  </div>
+                </div>
+                <button onClick={() => onRemove(inv.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}>
+                  <IcoTrash size={12} stroke={T.rose} />
+                </button>
+              </div>
+            </div>
+
+            {/* ── Chart BELOW (not on top) ── */}
+            {isLoading && !chartPts.length && (
+              <div style={{ height:50, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:T.r, background:T.surface }}>
+                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>⟳ Loading chart…</span>
+              </div>
+            )}
+            {chartPts.length > 1 && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                  <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em' }}>
+                    {TIMEFRAME_MAP[timeframe]?.label?.toUpperCase()} PRICE
+                  </span>
+                  <div style={{ display:'flex', gap:8, fontSize:8, fontFamily:T.fM }}>
+                    <span style={{ color:T.textMuted }}>L {minP>=1?`$${fmtN(minP)}`:`$${minP.toFixed(4)}`}</span>
+                    <span style={{ color:T.textMuted }}>H {maxP>=1?`$${fmtN(maxP)}`:`$${maxP.toFixed(4)}`}</span>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={80}>
+                  <AreaChart data={chartPts} margin={{ top:2, right:2, left:2, bottom:2 }}>
+                    <defs>
+                      <linearGradient id={`pg_${sym}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor={chartColor} stopOpacity={0.25}/>
+                        <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <Tooltip
+                      contentStyle={{ background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:8, padding:'4px 8px' }}
+                      labelStyle={{ color:T.textSub, fontSize:8, fontFamily:T.fM }}
+                      itemStyle={{ color:chartColor, fontSize:10, fontFamily:T.fD, fontWeight:700 }}
+                      formatter={v => [`$${v>=1?fmtN(v):v.toFixed(6)}`, 'Price']}
+                    />
+                    <Area type="monotone" dataKey="p" stroke={chartColor} strokeWidth={1.5}
+                      fill={`url(#pg_${sym})`} dot={false}
+                      activeDot={{ r:3, fill:chartColor, strokeWidth:0 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+});
 
 const LivePricesPanel = memo(function LivePricesPanel({ investments, onUpdatePrice }) {
   const cached = useMemo(() => readPriceCache(), []);
