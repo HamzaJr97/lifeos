@@ -6173,16 +6173,36 @@ function NwProjectionCard({ chartData, hasProjection, cur }) {
 
 
 // ── PORTFOLIO HISTORY CHART ────────────────────────────────────────────────────
-function PortfolioChart({ invHistory, invVal, cur }) {
+function PortfolioChart({ invHistory, invVal, cur, investments }) {
   const [range, setRange] = useState('1M');
   const RANGES = ['1D','1W','1M','1Y','All'];
 
   const chartData = useMemo(() => {
-    const hist = [...(invHistory||[])].sort((a,b)=>a.date<b.date?-1:1);
-    // Always include today's live value
     const todayStr = today();
-    const base = hist.filter(h => h.date !== todayStr);
-    const all = [...base, { date: todayStr, value: invVal }];
+
+    // Seed synthetic history from investment entry dates when real history is sparse.
+    // For each unique entry date, sum up cost basis of all positions entered on-or-before that date.
+    const syntheticMap = {};
+    if ((investments||[]).length > 0) {
+      const sorted = [...(investments||[])].filter(i=>i.date).sort((a,b)=>a.date<b.date?-1:1);
+      let running = 0;
+      const datesSeen = new Set();
+      sorted.forEach(inv => {
+        running += Number(inv.buyPrice||0) * Number(inv.quantity||0);
+        syntheticMap[inv.date] = running;
+        datesSeen.add(inv.date);
+      });
+    }
+
+    // Merge real history over synthetics (real always wins for same date)
+    const merged = { ...syntheticMap };
+    (invHistory||[]).forEach(h => { merged[h.date] = h.value; });
+    // Always pin today to live value
+    merged[todayStr] = invVal;
+
+    const all = Object.entries(merged)
+      .map(([date, value]) => ({ date, value }))
+      .sort((a,b) => a.date < b.date ? -1 : 1);
 
     const now = new Date();
     const cutoff = (() => {
@@ -6194,37 +6214,23 @@ function PortfolioChart({ invHistory, invVal, cur }) {
     })();
     const filtered = cutoff ? all.filter(h => h.date >= cutoff) : all;
     return filtered.map(h => ({ date: h.date.slice(5), value: h.value }));
-  }, [invHistory, invVal, range]);
+  }, [invHistory, invVal, investments, range]);
 
   const first = chartData[0]?.value ?? invVal;
   const last  = chartData[chartData.length-1]?.value ?? invVal;
   const delta = last - first;
   const deltaColor = delta >= 0 ? T.emerald : T.rose;
   const deltaSign  = delta >= 0 ? '+' : '';
-
-  if (!chartData.length || chartData.length < 2) {
-    return (
-      <GlassCard style={{ padding:'20px 22px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-          <SectionLabel>📈 Portfolio History</SectionLabel>
-          <div style={{ display:'flex', gap:4 }}>
-            {RANGES.map(r=>(
-              <button key={r} onClick={()=>setRange(r)} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:range===r?`${T.violet}33`:'transparent', color:range===r?T.violet:T.textSub, border:`1px solid ${range===r?T.violet+'55':T.border}`, cursor:'pointer' }}>{r}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'24px 0' }}>
-          Not enough history yet — update prices daily to build the chart.
-        </div>
-      </GlassCard>
-    );
-  }
+  const isSeeded = (invHistory||[]).length < 2 && (investments||[]).some(i=>i.date);
 
   return (
     <GlassCard style={{ padding:'20px 22px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4, flexWrap:'wrap', gap:8 }}>
         <div>
-          <SectionLabel>📈 Portfolio History</SectionLabel>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <SectionLabel>📈 Portfolio History</SectionLabel>
+            {isSeeded && <span style={{ fontSize:8, fontFamily:T.fM, color:T.amber, background:`${T.amber}18`, border:`1px solid ${T.amber}33`, padding:'1px 6px', borderRadius:4 }}>estimated from entry dates</span>}
+          </div>
           <div style={{ display:'flex', gap:10, alignItems:'baseline', marginTop:2 }}>
             <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.violet }}>{cur}{fmtN(last)}</span>
             <span style={{ fontSize:11, fontFamily:T.fM, color:deltaColor }}>{deltaSign}{cur}{fmtN(Math.abs(delta))} ({deltaSign}{first>0?((delta/first)*100).toFixed(2):0}%)</span>
@@ -7261,7 +7267,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             </InvestmentsSubSection>
             {/* Portfolio history chart */}
             <InvestmentsSubSection title="📈 Portfolio History" storageKey="los_inv_chart_open">
-              <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} />
+              <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} investments={investments} />
             </InvestmentsSubSection>
             {/* Positions list */}
             <InvestmentsSubSection title="📌 Positions" storageKey="los_inv_positions_open">
