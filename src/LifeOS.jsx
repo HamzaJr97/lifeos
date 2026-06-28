@@ -6171,6 +6171,94 @@ function NwProjectionCard({ chartData, hasProjection, cur }) {
   );
 }
 
+
+// ── PORTFOLIO HISTORY CHART ────────────────────────────────────────────────────
+function PortfolioChart({ invHistory, invVal, cur }) {
+  const [range, setRange] = useState('1M');
+  const RANGES = ['1D','1W','1M','1Y','All'];
+
+  const chartData = useMemo(() => {
+    const hist = [...(invHistory||[])].sort((a,b)=>a.date<b.date?-1:1);
+    // Always include today's live value
+    const todayStr = today();
+    const base = hist.filter(h => h.date !== todayStr);
+    const all = [...base, { date: todayStr, value: invVal }];
+
+    const now = new Date();
+    const cutoff = (() => {
+      if (range === '1D') { const d = new Date(now); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+      if (range === '1W') { const d = new Date(now); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); }
+      if (range === '1M') { const d = new Date(now); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,10); }
+      if (range === '1Y') { const d = new Date(now); d.setFullYear(d.getFullYear()-1); return d.toISOString().slice(0,10); }
+      return null;
+    })();
+    const filtered = cutoff ? all.filter(h => h.date >= cutoff) : all;
+    return filtered.map(h => ({ date: h.date.slice(5), value: h.value }));
+  }, [invHistory, invVal, range]);
+
+  const first = chartData[0]?.value ?? invVal;
+  const last  = chartData[chartData.length-1]?.value ?? invVal;
+  const delta = last - first;
+  const deltaColor = delta >= 0 ? T.emerald : T.rose;
+  const deltaSign  = delta >= 0 ? '+' : '';
+
+  if (!chartData.length || chartData.length < 2) {
+    return (
+      <GlassCard style={{ padding:'20px 22px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <SectionLabel>📈 Portfolio History</SectionLabel>
+          <div style={{ display:'flex', gap:4 }}>
+            {RANGES.map(r=>(
+              <button key={r} onClick={()=>setRange(r)} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:range===r?`${T.violet}33`:'transparent', color:range===r?T.violet:T.textSub, border:`1px solid ${range===r?T.violet+'55':T.border}`, cursor:'pointer' }}>{r}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'24px 0' }}>
+          Not enough history yet — update prices daily to build the chart.
+        </div>
+      </GlassCard>
+    );
+  }
+
+  return (
+    <GlassCard style={{ padding:'20px 22px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4, flexWrap:'wrap', gap:8 }}>
+        <div>
+          <SectionLabel>📈 Portfolio History</SectionLabel>
+          <div style={{ display:'flex', gap:10, alignItems:'baseline', marginTop:2 }}>
+            <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.violet }}>{cur}{fmtN(last)}</span>
+            <span style={{ fontSize:11, fontFamily:T.fM, color:deltaColor }}>{deltaSign}{cur}{fmtN(Math.abs(delta))} ({deltaSign}{first>0?((delta/first)*100).toFixed(2):0}%)</span>
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:4 }}>
+          {RANGES.map(r=>(
+            <button key={r} onClick={()=>setRange(r)} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:range===r?`${T.violet}33`:'transparent', color:range===r?T.violet:T.textSub, border:`1px solid ${range===r?T.violet+'55':T.border}`, cursor:'pointer' }}>{r}</button>
+          ))}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <AreaChart data={chartData} margin={{ top:8, right:4, left:0, bottom:0 }}>
+          <defs>
+            <linearGradient id="invGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={T.violet} stopOpacity={0.22}/>
+              <stop offset="95%" stopColor={T.violet} stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
+          <XAxis dataKey="date" tick={{ fontSize:9, fontFamily:T.fM, fill:T.textMuted }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize:9, fontFamily:T.fM, fill:T.textMuted }} tickLine={false} axisLine={false} tickFormatter={v=>`${cur}${fmtN(v)}`} width={52} />
+          <Tooltip
+            contentStyle={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }}
+            labelStyle={{ color:T.textSub }}
+            formatter={(v)=>[`${cur}${fmtN(v)}`,'Portfolio']}
+          />
+          <Area type="monotone" dataKey="value" stroke={T.violet} strokeWidth={2} fill="url(#invGrad)" dot={false} activeDot={{ r:4, fill:T.violet }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </GlassCard>
+  );
+}
+
 function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const lang = useLang();
   const [tab, setTab] = useState('overview');
@@ -7168,6 +7256,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 </GlassCard>
               ))}
             </div>
+            <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} />
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Positions</SectionLabel>
               {(investments||[]).map((inv,i)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0; return (
@@ -10689,7 +10778,7 @@ function KnowledgePage({ data, actions }) {
 
   return (
     <div style={{ animation:'fadeUp 0.4s ease' }}>
-      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);}} defaultType={tab==='tasks'?'task':'note'} />
+      <AddNoteModal open={modal==='note'} onClose={()=>setModal(null)} onSave={e=>{actions.addNote(e);setModal(null);if(e.type==='task')setTab('tasks');}} defaultType={tab==='tasks'?'task':'note'} />
       <AddQuickNoteModal open={modal==='qnote'} onClose={()=>setModal(null)} onSave={e=>{actions.addQuickNote(e);setModal(null);}} />
       <EditNoteModal open={!!editingNote} onClose={()=>setEditingNote(null)} note={editingNote} onSave={(id,patch)=>{actions.updateNote(id,patch);setEditingNote(null);}} />
       <PageHeader
@@ -19720,6 +19809,7 @@ export default function LifeOS() {
   const [goals,         setGoals         ] = useLocalStorage('los_goals',        []);
   const [assets,        setAssets        ] = useLocalStorage('los_assets',       []);
   const [investments,   setInvestments   ] = useLocalStorage('los_investments',  []);
+  const [invHistory,    setInvHistory    ] = useLocalStorage('los_inv_history',  []);
   const [vitals,        setVitals        ] = useLocalStorage('los_vitals',       []);
   const [notes,         setNotes         ] = useLocalStorage('los_notes',        []);
   const [focusSessions, setFocusSessions ] = useDebouncedLocalStorage('los_focus',        [], 1000);
@@ -19745,6 +19835,7 @@ export default function LifeOS() {
   const _expenses      = expenses      || [];
   const _incomes       = incomes       || [];
   const _investments   = investments   || [];
+  const _invHistory    = invHistory    || [];
   const _assets        = assets        || [];
   const _debts         = debts         || [];
   const _goals         = goals         || [];
@@ -20186,10 +20277,16 @@ export default function LifeOS() {
 
   // Phase 4 — Investment Actions
   const addInvestment = useCallback((inv) => {
-    setInvestments(p => [...p, inv]);
+    setInvestments(p => {
+      const updated = [...p, inv];
+      const val = updated.reduce((s,i)=>s+Number((i.currentPrice??i.buyPrice)||0)*Number(i.quantity||0),0);
+      const d = today();
+      setInvHistory(h => { const f=(h||[]).filter(x=>x.date!==d); return [...f,{date:d,value:val}].slice(-730); });
+      return updated;
+    });
     setTotalXP(x => Number(x) + 15);
     pushEvent({ type:'investment', title:`Position: ${inv.symbol||inv.name}`, value:`×${inv.quantity} @ ${settings.currency||'$'}${inv.buyPrice}`, color:T.violet, domain:'money' });
-  }, [pushEvent, settings.currency]);
+  }, [pushEvent, settings.currency, setInvHistory]);
 
   const removeInvestment = useCallback((invId) => {
     const inv = (investments||[]).find(i => i.id === invId);
@@ -20325,9 +20422,12 @@ export default function LifeOS() {
         const filtered = (h||[]).filter(x => x.month !== month);
         return [...filtered, { month, value: nw }].slice(-24);
       });
+      // Snapshot daily portfolio value for investment chart
+      const d = today();
+      setInvHistory(h => { const f=(h||[]).filter(x=>x.date!==d); return [...f,{date:d,value:invVal}].slice(-730); });
       return updated;
     });
-  }, [_assets, _debts]);
+  }, [_assets, _debts, setInvHistory]);
 
   // ── CENTRAL COMPUTED VALUES — single source of truth for all pages ──────────
   const _thisMonth = today().slice(0,7);
@@ -20392,6 +20492,7 @@ export default function LifeOS() {
     subscriptions:_subscriptions, budgets:_budgets, bills:_bills, career,
     chronicles:_chronicles, challenges:_challenges, decisions:_decisions,
     projects:_projects, groceries:_groceries,
+    invHistory:_invHistory,
     computed,
     isMobile,
   };
