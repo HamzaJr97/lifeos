@@ -7259,11 +7259,16 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} />
             <GlassCard style={{ padding:'20px 22px' }}>
               <SectionLabel>Positions</SectionLabel>
-              {(investments||[]).map((inv,i)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0; return (
-                <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<(investments||[]).length-1?`1px solid ${T.border}`:'none' }}>
+              {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{ const cp=inv.currentPrice??inv.buyPrice??0; const val=Number(cp)*Number(inv.quantity||0); const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0); const pnl=val-cost; const pnlPct=cost>0?(pnl/cost)*100:0;
+              const typeColor={'Stock':T.sky,'ETF':T.violet,'Crypto':T.amber,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub}; const tCol=typeColor[inv.type||'Stock']||T.textSub;
+              return (
+                <div key={inv.id||i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none' }}>
                   <div>
-                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</div>
-                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)} · <Badge color={T.textSub}>{inv.type||'Stock'}</Badge></div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                      <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</div>
+                      <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600, color:tCol, background:`${tCol}18`, padding:'1px 6px', borderRadius:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>{inv.type||'Stock'}</span>
+                    </div>
+                    <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}{inv.date?<span style={{ marginLeft:6, color:T.textMuted }}>· {inv.date}</span>:null}</div>
                   </div>
                   <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                     <div style={{ textAlign:'right' }}>
@@ -15912,33 +15917,51 @@ function TimeCapsuleTab({ data, actions }) {
 function TradeJournalTab({ investments = [] }) {
   const [trades,setTrades]=useLocalStorage('los_trades',[]);
   const [modal,setModal]=useState(false);
-  const [symFilter,setSymFilter]=useState('all'); // filter by position symbol
+  const [symFilter,setSymFilter]=useState('all');
+  const [dateFrom,setDateFrom]=useState('');
+  const [dateTo,setDateTo]=useState('');
+  const [datePreset,setDatePreset]=useState('all'); // 'all','7d','30d','90d','custom'
   const [sym,setSym]=useState(''); const [type,setType]=useState('Buy');
+  const [category,setCategory]=useState('Stock');
   const [qty,setQty]=useState(''); const [price,setPrice]=useState('');
   const [exit,setExit]=useState(''); const [note,setNote]=useState('');
   const [date,setDate]=useState(today());
 
-  // Symbols present in both positions and trades (for filter bar)
+  // Apply date preset → from/to
+  const applyPreset = (p) => {
+    setDatePreset(p);
+    if(p==='all'||p==='custom'){setDateFrom('');setDateTo('');return;}
+    const now=new Date(); const from=new Date(now);
+    if(p==='7d')from.setDate(now.getDate()-7);
+    else if(p==='30d')from.setDate(now.getDate()-30);
+    else if(p==='90d')from.setDate(now.getDate()-90);
+    setDateFrom(from.toISOString().slice(0,10));
+    setDateTo(now.toISOString().slice(0,10));
+  };
+
   const posSymbols = useMemo(()=>[...new Set((investments||[]).map(i=>(i.symbol||i.name||'').toUpperCase()).filter(Boolean))],[investments]);
   const tradeSymbols = useMemo(()=>[...new Set((trades||[]).map(t=>t.sym).filter(Boolean))],[trades]);
   const allSymbols = useMemo(()=>[...new Set([...posSymbols,...tradeSymbols])].sort(),[posSymbols,tradeSymbols]);
 
-  const visibleTrades = useMemo(()=>
-    symFilter==='all' ? trades : trades.filter(t=>t.sym===symFilter)
-  ,[trades,symFilter]);
+  const visibleTrades = useMemo(()=>{
+    let list = symFilter==='all' ? trades : trades.filter(t=>t.sym===symFilter);
+    if(dateFrom) list=list.filter(t=>(t.date||'')>=dateFrom);
+    if(dateTo)   list=list.filter(t=>(t.date||'')<=dateTo);
+    // Sort newest first
+    return [...list].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; });
+  },[trades,symFilter,dateFrom,dateTo]);
 
   const add=()=>{
     if(!sym.trim()||!qty||!price)return;
     const entry=Number(price); const ex=Number(exit)||0;
     const pnl=ex>0?(type==='Buy'||type==='Cover'?(ex-entry)*Number(qty):(entry-ex)*Number(qty)):null;
-    setTrades(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),type,qty:Number(qty),price:entry,exitPrice:ex,pnl,note,date},...p]);
+    setTrades(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),type,category,qty:Number(qty),price:entry,exitPrice:ex,pnl,note,date},...p]);
     setSym('');setQty('');setPrice('');setExit('');setNote('');setModal(false);
   };
   const totalPnl=visibleTrades.filter(t=>t.pnl!==null).reduce((s,t)=>s+(t.pnl||0),0);
   const wins=visibleTrades.filter(t=>t.pnl!=null&&t.pnl>0).length;
   const losses=visibleTrades.filter(t=>t.pnl!=null&&t.pnl<0).length;
 
-  // Per-symbol P&L summary for linked positions
   const posStats = useMemo(()=>{
     const m={};
     (trades||[]).forEach(t=>{
@@ -15950,29 +15973,50 @@ function TradeJournalTab({ investments = [] }) {
     return m;
   },[trades]);
 
+  const CATEGORY_COLOR={'Stock':T.sky,'ETF':T.violet,'Crypto':T.amber,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub,'Other':T.textMuted};
+
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
         <div>
           <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Trade Journal</div>
-          {visibleTrades.length>0&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>P&amp;L: <span style={{color:totalPnl>=0?T.emerald:T.rose,fontWeight:600}}>{totalPnl>=0?'+':''}{fmtN(totalPnl)}</span> · {wins}W / {losses}L</div>}
+          {visibleTrades.length>0&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>P&amp;L: <span style={{color:totalPnl>=0?T.emerald:T.rose,fontWeight:600}}>{totalPnl>=0?'+':''}{fmtN(totalPnl)}</span> · {wins}W / {losses}L · {visibleTrades.length} trades</div>}
         </div>
         <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Trade</Btn>
       </div>
 
-      {/* Position filter chips */}
+      {/* ── Date filter ──────────────────────────────────────────────── */}
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
+        <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginRight:2,textTransform:'uppercase',letterSpacing:'0.06em'}}>Period</span>
+        {[['all','All Time'],['7d','7 Days'],['30d','30 Days'],['90d','3 Months'],['custom','Custom']].map(([p,label])=>(
+          <button key={p} onClick={()=>applyPreset(p)} style={{padding:'3px 9px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,border:`1px solid ${datePreset===p?T.accent+'55':T.border}`,background:datePreset===p?T.accentDim:'transparent',color:datePreset===p?T.accent:T.textSub,cursor:'pointer'}}>{label}</button>
+        ))}
+        {datePreset==='custom'&&(
+          <div style={{display:'flex',gap:5,alignItems:'center',marginLeft:4}}>
+            <Input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{padding:'3px 7px',fontSize:10,height:26}} />
+            <span style={{fontSize:9,color:T.textMuted}}>→</span>
+            <Input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{padding:'3px 7px',fontSize:10,height:26}} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Symbol filter chips ───────────────────────────────────────── */}
       {allSymbols.length>0&&(
         <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
-          <button onClick={()=>setSymFilter('all')} style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,border:`1px solid ${symFilter==='all'?T.accent+'55':T.border}`,background:symFilter==='all'?T.accentDim:'transparent',color:symFilter==='all'?T.accent:T.textSub,cursor:'pointer'}}>All</button>
+          <button onClick={()=>setSymFilter('all')} style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,border:`1px solid ${symFilter==='all'?T.violet+'55':T.border}`,background:symFilter==='all'?`${T.violet}22`:'transparent',color:symFilter==='all'?T.violet:T.textSub,cursor:'pointer'}}>All Symbols</button>
           {allSymbols.map(s=>{
             const st=posStats[s]; const linked=posSymbols.includes(s);
+            const inv=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===s);
+            const cat=inv?.type||'';
+            const catCol=CATEGORY_COLOR[cat]||T.textSub;
             return (
               <button key={s} onClick={()=>setSymFilter(symFilter===s?'all':s)}
                 style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,
-                  border:`1px solid ${symFilter===s?T.violet+'55':linked?T.violet+'33':T.border}`,
-                  background:symFilter===s?`${T.violet}22`:linked?`${T.violet}08`:'transparent',
-                  color:symFilter===s?T.violet:linked?T.violet:T.textSub,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                  border:`1px solid ${symFilter===s?catCol+'66':linked?catCol+'33':T.border}`,
+                  background:symFilter===s?`${catCol}22`:linked?`${catCol}0a`:'transparent',
+                  color:symFilter===s?catCol:linked?catCol:T.textSub,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
                 {linked&&<span style={{fontSize:7,opacity:0.7}}>●</span>}{s}
+                {cat&&<span style={{fontSize:7,opacity:0.6,marginLeft:1}}>{cat}</span>}
                 {st&&<span style={{opacity:0.7,marginLeft:2,color:st.pnl>=0?T.emerald:T.rose}}>{st.pnl>=0?'+':''}{fmtN(Math.abs(st.pnl))}</span>}
               </button>
             );
@@ -15980,7 +16024,39 @@ function TradeJournalTab({ investments = [] }) {
         </div>
       )}
 
-      {/* Linked position summary for filtered symbol */}
+      {/* ── "All" view: open positions summary ───────────────────────── */}
+      {symFilter==='all'&&(investments||[]).length>0&&(
+        <div style={{borderRadius:T.r,border:`1px solid ${T.violet}22`,overflow:'hidden'}}>
+          <div style={{padding:'8px 14px',background:`${T.violet}0a`,borderBottom:`1px solid ${T.violet}18`,display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:9,fontFamily:T.fM,color:T.violet,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>📌 Open Positions</span>
+            <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{(investments||[]).length} active</span>
+          </div>
+          <div style={{display:'flex',flexDirection:'column'}}>
+            {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{
+              const cp=Number(inv.currentPrice??inv.buyPrice??0);
+              const val=cp*Number(inv.quantity||0);
+              const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);
+              const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
+              const catCol=CATEGORY_COLOR[inv.type||'Stock']||T.textSub;
+              return (
+                <div key={inv.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{inv.symbol||inv.name}</span>
+                    <span style={{fontSize:7,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{inv.type||'Stock'}</span>
+                    {inv.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {inv.date}</span>}
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>×{inv.quantity} @ ${fmtN(inv.buyPrice)}</span>
+                    <span style={{fontSize:11,fontFamily:T.fM,fontWeight:600,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{fmtN(pnl)} <span style={{fontSize:9,fontWeight:400}}>({pct.toFixed(1)}%)</span></span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Single symbol: linked position card ──────────────────────── */}
       {symFilter!=='all'&&(()=>{
         const pos=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===symFilter);
         if(!pos)return null;
@@ -15988,39 +16064,49 @@ function TradeJournalTab({ investments = [] }) {
         const val=cp*Number(pos.quantity||0);
         const cost=Number(pos.buyPrice||0)*Number(pos.quantity||0);
         const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
+        const catCol=CATEGORY_COLOR[pos.type||'Stock']||T.textSub;
         return (
-          <div style={{padding:'10px 14px',borderRadius:T.r,background:`${T.violet}0a`,border:`1px solid ${T.violet}22`,display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
-            <div style={{fontSize:9,fontFamily:T.fM,color:T.violet,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600}}>📌 Open Position</div>
+          <div style={{padding:'10px 14px',borderRadius:T.r,background:`${catCol}0a`,border:`1px solid ${catCol}22`,display:'flex',gap:14,flexWrap:'wrap',alignItems:'center'}}>
+            <div style={{fontSize:9,fontFamily:T.fM,color:catCol,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600}}>📌 Open Position</div>
+            <span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 6px',borderRadius:3,textTransform:'uppercase'}}>{pos.type||'Stock'}</span>
+            {pos.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {pos.date}</span>}
             <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>×{pos.quantity} @ <span style={{color:T.textSub}}>${fmtN(pos.buyPrice)}</span></div>
-            <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Current: <span style={{fontWeight:600,color:T.text}}>${fmtN(cp)}</span></div>
+            <div style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Current: <span style={{fontWeight:600}}>${fmtN(cp)}</span></div>
             <div style={{fontSize:11,fontFamily:T.fM,color:pnl>=0?T.emerald:T.rose,fontWeight:600}}>{pnl>=0?'+':''}{fmtN(pnl)} ({pct.toFixed(1)}%)</div>
           </div>
         );
       })()}
 
+      {/* ── Log Trade form ────────────────────────────────────────────── */}
       {modal&&(
         <GlassCard style={{padding:'16px 18px'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-            {/* Symbol — pre-fill from position if filtered */}
             <div style={{position:'relative'}}>
-              <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="Symbol (AAPL…)" />
+              <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="Symbol (AAPL, BTC…)" />
               {posSymbols.length>0&&sym===''&&(
                 <div style={{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:200,overflow:'hidden'}}>
-                  {posSymbols.map(s=>(
-                    <button key={s} onClick={()=>setSym(s)} style={{display:'block',width:'100%',padding:'6px 10px',textAlign:'left',background:'transparent',border:'none',fontSize:11,fontFamily:T.fM,color:T.text,cursor:'pointer'}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.surface}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      {s}
-                    </button>
-                  ))}
+                  {posSymbols.map(s=>{
+                    const inv=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===s);
+                    return (
+                      <button key={s} onClick={()=>{setSym(s);if(inv?.type)setCategory(inv.type);}} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'6px 10px',textAlign:'left',background:'transparent',border:'none',fontSize:11,fontFamily:T.fM,color:T.text,cursor:'pointer'}}
+                        onMouseEnter={e=>e.currentTarget.style.background=T.surface}
+                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                        {s}
+                        {inv?.type&&<span style={{fontSize:8,color:CATEGORY_COLOR[inv.type]||T.textSub,background:`${CATEGORY_COLOR[inv.type]||T.textSub}18`,padding:'1px 5px',borderRadius:3}}>{inv.type}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
             <Select value={type} onChange={e=>setType(e.target.value)}>{['Buy','Sell','Short','Cover'].map(t=><option key={t}>{t}</option>)}</Select>
+            <Select value={category} onChange={e=>setCategory(e.target.value)}>
+              {['Stock','ETF','Crypto','Bond','REIT','Commodity','Other'].map(c=><option key={c}>{c}</option>)}
+            </Select>
+            <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
             <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
             <Input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="Entry price" />
-            <Input type="number" value={exit} onChange={e=>setExit(e.target.value)} placeholder="Exit price (optional)" />
-            <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+            <Input type="number" value={exit} onChange={e=>setExit(e.target.value)} placeholder="Exit price (optional)" style={{gridColumn:'span 2'}} />
           </div>
           <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Rationale / notes…" style={{marginBottom:8}} />
           <div style={{display:'flex',gap:8}}>
@@ -16029,26 +16115,35 @@ function TradeJournalTab({ investments = [] }) {
           </div>
         </GlassCard>
       )}
-      {visibleTrades.length===0&&!modal&&<GlassCard style={{padding:40,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No trades logged yet. Record your first position.</div></GlassCard>}
+
+      {visibleTrades.length===0&&!modal&&<GlassCard style={{padding:32,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No trades for this filter. Log your first trade above.</div></GlassCard>}
+
+      {/* ── Trade cards (sorted newest first) ───────────────────────── */}
       {visibleTrades.map((t,i)=>{
         const hasPnl=t.pnl!==null&&t.pnl!==undefined;
         const col=!hasPnl?T.textSub:t.pnl>=0?T.emerald:T.rose;
         const linkedPos=(investments||[]).find(inv=>(inv.symbol||inv.name||'').toUpperCase()===t.sym);
+        const cat=t.category||linkedPos?.type||'';
+        const catCol=CATEGORY_COLOR[cat]||T.textSub;
         return (
-          <GlassCard key={t.id||i} style={{padding:'14px 18px',borderLeft:linkedPos?`3px solid ${T.violet}44`:'none'}}>
+          <GlassCard key={t.id||i} style={{padding:'14px 18px',borderLeft:`3px solid ${linkedPos?T.violet+'55':cat?catCol+'33':'transparent'}`}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div>
-                <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
                   <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{t.sym}</span>
+                  {cat&&<span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 6px',borderRadius:4,textTransform:'uppercase'}}>{cat}</span>}
                   <Badge color={t.type==='Buy'||t.type==='Cover'?T.emerald:T.rose}>{t.type}</Badge>
                   {hasPnl&&<Badge color={col}>{t.pnl>=0?'+':''}{fmtN(t.pnl)}</Badge>}
-                  {linkedPos&&<span style={{fontSize:8,fontFamily:T.fM,color:T.violet,background:`${T.violet}15`,padding:'1px 6px',borderRadius:4}}>● Open position</span>}
+                  {linkedPos&&<span style={{fontSize:8,fontFamily:T.fM,color:T.violet,background:`${T.violet}15`,padding:'1px 6px',borderRadius:4}}>● Open</span>}
                 </div>
-                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>{t.qty} × ${fmtN(t.price)}{t.exitPrice>0?` → $${fmtN(t.exitPrice)}`:''} · {t.date}</div>
-                {linkedPos&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>Current price: ${fmtN(Number(linkedPos.currentPrice??linkedPos.buyPrice))}</div>}
+                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>
+                  {t.qty} × ${fmtN(t.price)}{t.exitPrice>0?` → $${fmtN(t.exitPrice)}`:''}
+                  {t.date&&<span style={{marginLeft:8,color:T.textMuted}}>📅 {t.date}</span>}
+                </div>
+                {linkedPos&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>Current: ${fmtN(Number(linkedPos.currentPrice??linkedPos.buyPrice))}</div>}
                 {t.note&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:4,fontStyle:'italic'}}>{t.note}</div>}
               </div>
-              <button onClick={()=>setTrades(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4}}><IcoTrash size={10} stroke={T.rose} /></button>
+              <button onClick={()=>setTrades(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4,flexShrink:0}}><IcoTrash size={10} stroke={T.rose} /></button>
             </div>
           </GlassCard>
         );
