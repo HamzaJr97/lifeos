@@ -23,7 +23,7 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar,
   PieChart, Pie, Cell, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceArea, ComposedChart} from "recharts";
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceArea, ReferenceLine, ComposedChart} from "recharts";
 
 // ── GLOBAL STYLES ─────────────────────────────────────────────────────────────
 (() => {
@@ -6180,19 +6180,26 @@ function PortfolioChart({ invHistory, invVal, cur, investments }) {
   const chartData = useMemo(() => {
     const todayStr = today();
 
-    // Seed synthetic history from investment entry dates when real history is sparse.
-    // For each unique entry date, sum up cost basis of all positions entered on-or-before that date.
+    // Build a cost-basis timeline from entry dates: cumulative cost basis
+    // as of each date a position was opened. Forward-filled between entries.
+    const sortedInv = [...(investments||[])].filter(i=>i.date).sort((a,b)=>a.date<b.date?-1:1);
+    const costEvents = []; // [{date, cost}] running cumulative, ascending by date
+    let runningCost = 0;
+    sortedInv.forEach(inv => {
+      runningCost += Number(inv.buyPrice||0) * Number(inv.quantity||0);
+      costEvents.push({ date: inv.date, cost: runningCost });
+    });
+    const costBasisAt = (d) => {
+      let c = 0;
+      for (const e of costEvents) { if (e.date <= d) c = e.cost; else break; }
+      return c;
+    };
+
+    // Seed synthetic value history from entry dates when real history is sparse.
+    // On an entry date with no real snapshot, assume value == cost basis at
+    // that moment (i.e. P&L = 0 the instant a position opens).
     const syntheticMap = {};
-    if ((investments||[]).length > 0) {
-      const sorted = [...(investments||[])].filter(i=>i.date).sort((a,b)=>a.date<b.date?-1:1);
-      let running = 0;
-      const datesSeen = new Set();
-      sorted.forEach(inv => {
-        running += Number(inv.buyPrice||0) * Number(inv.quantity||0);
-        syntheticMap[inv.date] = running;
-        datesSeen.add(inv.date);
-      });
-    }
+    costEvents.forEach(e => { syntheticMap[e.date] = e.cost; });
 
     // Merge real history over synthetics (real always wins for same date)
     const merged = { ...syntheticMap };
@@ -6201,7 +6208,7 @@ function PortfolioChart({ invHistory, invVal, cur, investments }) {
     merged[todayStr] = invVal;
 
     const all = Object.entries(merged)
-      .map(([date, value]) => ({ date, value }))
+      .map(([date, value]) => ({ date, pnl: value - costBasisAt(date) }))
       .sort((a,b) => a.date < b.date ? -1 : 1);
 
     const now = new Date();
@@ -6213,27 +6220,30 @@ function PortfolioChart({ invHistory, invVal, cur, investments }) {
       return null;
     })();
     const filtered = cutoff ? all.filter(h => h.date >= cutoff) : all;
-    return filtered.map(h => ({ date: h.date.slice(5), value: h.value }));
+    return filtered.map(h => ({ date: h.date.slice(5), pnl: h.pnl }));
   }, [invHistory, invVal, investments, range]);
 
-  const first = chartData[0]?.value ?? invVal;
-  const last  = chartData[chartData.length-1]?.value ?? invVal;
+  const first = chartData[0]?.pnl ?? 0;
+  const last  = chartData[chartData.length-1]?.pnl ?? 0;
   const delta = last - first;
   const deltaColor = delta >= 0 ? T.emerald : T.rose;
   const deltaSign  = delta >= 0 ? '+' : '';
+  const pnlColor = last >= 0 ? T.emerald : T.rose;
+  const pnlSign  = last >= 0 ? '+' : '';
   const isSeeded = (invHistory||[]).length < 2 && (investments||[]).some(i=>i.date);
+  const gradId = last >= 0 ? 'pnlGradPos' : 'pnlGradNeg';
 
   return (
     <GlassCard style={{ padding:'20px 22px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4, flexWrap:'wrap', gap:8 }}>
         <div>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <SectionLabel>📈 Portfolio History</SectionLabel>
+            <SectionLabel>📉 P&L History</SectionLabel>
             {isSeeded && <span style={{ fontSize:8, fontFamily:T.fM, color:T.amber, background:`${T.amber}18`, border:`1px solid ${T.amber}33`, padding:'1px 6px', borderRadius:4 }}>estimated from entry dates</span>}
           </div>
           <div style={{ display:'flex', gap:10, alignItems:'baseline', marginTop:2 }}>
-            <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:T.violet }}>{cur}{fmtN(last)}</span>
-            <span style={{ fontSize:11, fontFamily:T.fM, color:deltaColor }}>{deltaSign}{cur}{fmtN(Math.abs(delta))} ({deltaSign}{first>0?((delta/first)*100).toFixed(2):0}%)</span>
+            <span style={{ fontSize:18, fontFamily:T.fD, fontWeight:700, color:pnlColor }}>{pnlSign}{cur}{fmtN(Math.abs(last))}</span>
+            <span style={{ fontSize:11, fontFamily:T.fM, color:deltaColor }}>{deltaSign}{cur}{fmtN(Math.abs(delta))} this period</span>
           </div>
         </div>
         <div style={{ display:'flex', gap:4 }}>
@@ -6245,20 +6255,25 @@ function PortfolioChart({ invHistory, invVal, cur, investments }) {
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart data={chartData} margin={{ top:8, right:4, left:0, bottom:0 }}>
           <defs>
-            <linearGradient id="invGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={T.violet} stopOpacity={0.22}/>
-              <stop offset="95%" stopColor={T.violet} stopOpacity={0}/>
+            <linearGradient id="pnlGradPos" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={T.emerald} stopOpacity={0.25}/>
+              <stop offset="95%" stopColor={T.emerald} stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="pnlGradNeg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={T.rose} stopOpacity={0}/>
+              <stop offset="95%" stopColor={T.rose} stopOpacity={0.25}/>
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
           <XAxis dataKey="date" tick={{ fontSize:9, fontFamily:T.fM, fill:T.textMuted }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-          <YAxis tick={{ fontSize:9, fontFamily:T.fM, fill:T.textMuted }} tickLine={false} axisLine={false} tickFormatter={v=>`${cur}${fmtN(v)}`} width={52} />
+          <YAxis tick={{ fontSize:9, fontFamily:T.fM, fill:T.textMuted }} tickLine={false} axisLine={false} tickFormatter={v=>`${v>=0?'+':''}${cur}${fmtN(v)}`} width={58} />
           <Tooltip
             contentStyle={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }}
             labelStyle={{ color:T.textSub }}
-            formatter={(v)=>[`${cur}${fmtN(v)}`,'Portfolio']}
+            formatter={(v)=>[`${v>=0?'+':''}${cur}${fmtN(v)}`,'P&L']}
           />
-          <Area type="monotone" dataKey="value" stroke={T.violet} strokeWidth={2} fill="url(#invGrad)" dot={false} activeDot={{ r:4, fill:T.violet }} />
+          <ReferenceLine y={0} stroke={T.textMuted} strokeDasharray="3 3" />
+          <Area type="monotone" dataKey="pnl" stroke={pnlColor} strokeWidth={2} fill={`url(#${gradId})`} dot={false} activeDot={{ r:4, fill:pnlColor }} />
         </AreaChart>
       </ResponsiveContainer>
     </GlassCard>
@@ -7265,17 +7280,9 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 ))}
               </div>
             </InvestmentsSubSection>
-            {/* Portfolio history chart */}
-            <InvestmentsSubSection title="📈 Portfolio History" storageKey="los_inv_chart_open">
+            {/* P&L history chart */}
+            <InvestmentsSubSection title="📉 P&L History" storageKey="los_inv_chart_open">
               <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} investments={investments} />
-            </InvestmentsSubSection>
-            {/* Positions list with per-coin charts */}
-            <InvestmentsSubSection title="📌 Positions" storageKey="los_inv_positions_open">
-              <PositionsPanel investments={investments} onRemove={actions.removeInvestment} cur={cur} />
-            </InvestmentsSubSection>
-            {/* Live Prices */}
-            <InvestmentsSubSection title="⚡ Live Prices" storageKey="los_inv_liveprices_open">
-              <LivePricesPanel investments={investments} onUpdatePrice={actions.updateInvestmentPrice} />
             </InvestmentsSubSection>
             {/* Position Journal */}
             <InvestmentsSubSection title="📓 Position Journal" storageKey="los_inv_trades_open">
@@ -15012,344 +15019,6 @@ function WhatIfSimulator({ data }) {
     </GlassCard>
   );
 }
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── S4: LIVE PRICES PANEL ────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-const CRYPTO_IDS = { BTC:'bitcoin', ETH:'ethereum', SOL:'solana', BNB:'binancecoin', ADA:'cardano', DOT:'polkadot', XRP:'ripple', AVAX:'avalanche-2', MATIC:'matic-network', LINK:'chainlink' };
-// Stock tickers that can be fetched via Yahoo Finance public endpoint
-const STOCK_TYPES = ['Stock', 'ETF', 'Index', 'Fund'];
-
-const PRICE_CACHE_KEY = 'los_price_cache_v1';
-const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-function readPriceCache() {
-  try {
-    const raw = localStorage.getItem(PRICE_CACHE_KEY);
-    if (!raw) return { crypto:{}, stocks:{}, ts:0 };
-    return JSON.parse(raw);
-  } catch { return { crypto:{}, stocks:{}, ts:0 }; }
-}
-function writePriceCache(crypto, stocks) {
-  try { localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify({ crypto, stocks, ts: Date.now() })); } catch {}
-}
-
-// ── POSITIONS PANEL (with per-coin sparkline charts below each row) ───────────
-const PositionsPanel = memo(function PositionsPanel({ investments, onRemove, cur }) {
-  const [charts, setCharts] = useState({}); // sym → [{t, p}]
-  const [loading, setLoading] = useState({});
-  const [timeframe, setTimeframe] = useState('1M');
-  const TIMEFRAME_MAP = {
-    '1W': { cgDays:7,   label:'7-day' },
-    '1M': { cgDays:30,  label:'30-day' },
-    '3M': { cgDays:90,  label:'90-day' },
-    '1Y': { cgDays:365, label:'1-year' },
-  };
-  const YF_PROXY = url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-
-  const fetchChart = useCallback(async (inv, tf) => {
-    const sym = (inv.symbol||'').toUpperCase();
-    const key = `${sym}_${tf}`;
-    if (charts[key] || loading[key]) return;
-    setLoading(p => ({ ...p, [key]: true }));
-    try {
-      if (inv.type === 'Crypto') {
-        const coinId = CRYPTO_IDS[sym] || CRYPTO_COIN_IDS[sym];
-        if (!coinId) return;
-        const days = TIMEFRAME_MAP[tf]?.cgDays || 30;
-        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}`);
-        const d = await res.json();
-        if (d?.prices) {
-          const pts = d.prices.map(([ts, p]) => ({ t: new Date(ts).toLocaleDateString('en', {month:'short',day:'numeric'}), p }));
-          setCharts(c => ({ ...c, [key]: pts }));
-        }
-      } else if (STOCK_TYPES.includes(inv.type) && sym) {
-        const rangeMap = { '1W':'5d', '1M':'1mo', '3M':'3mo', '1Y':'1y' };
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=${rangeMap[tf]||'1mo'}`;
-        const res = await fetch(YF_PROXY(url));
-        const d = await res.json();
-        const result = d?.chart?.result?.[0];
-        if (result) {
-          const timestamps = result.timestamp || [];
-          const closes = result.indicators?.quote?.[0]?.close || [];
-          const pts = timestamps.map((ts, i) => ({
-            t: new Date(ts * 1000).toLocaleDateString('en', {month:'short',day:'numeric'}),
-            p: closes[i]
-          })).filter(x => x.p != null);
-          setCharts(c => ({ ...c, [key]: pts }));
-        }
-      }
-    } catch {}
-    setLoading(p => ({ ...p, [key]: false }));
-  }, [charts, loading]);
-
-  // Fetch charts for all positions when timeframe changes
-  useEffect(() => {
-    (investments||[]).forEach(inv => fetchChart(inv, timeframe));
-  }, [investments, timeframe]);
-
-  const sorted = useMemo(() =>
-    [...(investments||[])].sort((a,b) => { const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }),
-  [investments]);
-
-  const typeColor = { Stock:T.sky, ETF:T.violet, Crypto:T.amber, Bond:T.emerald, REIT:T.rose, Commodity:T.textSub };
-
-  if (!sorted.length) return (
-    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'24px 0' }}>
-      No positions yet. Add your first position above.
-    </div>
-  );
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-      {/* Timeframe selector */}
-      <div style={{ display:'flex', gap:4, alignItems:'center' }}>
-        <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginRight:4, textTransform:'uppercase', letterSpacing:'0.06em' }}>Chart</span>
-        {Object.keys(TIMEFRAME_MAP).map(tf => (
-          <button key={tf} onClick={() => setTimeframe(tf)}
-            style={{ padding:'2px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, fontWeight:600,
-              border:`1px solid ${timeframe===tf?T.violet+'55':T.border}`,
-              background:timeframe===tf?`${T.violet}22`:'transparent',
-              color:timeframe===tf?T.violet:T.textSub, cursor:'pointer' }}>{tf}</button>
-        ))}
-      </div>
-
-      {sorted.map((inv) => {
-        const cp = Number(inv.currentPrice ?? inv.buyPrice ?? 0);
-        const val = cp * Number(inv.quantity || 0);
-        const cost = Number(inv.buyPrice || 0) * Number(inv.quantity || 0);
-        const pnl = val - cost;
-        const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0;
-        const tCol = typeColor[inv.type||'Stock'] || T.textSub;
-        const sym = (inv.symbol || '').toUpperCase();
-        const key = `${sym}_${timeframe}`;
-        const chartPts = charts[key] || [];
-        const isLoading = loading[key];
-        const chartColor = pnl >= 0 ? T.emerald : T.rose;
-        const minP = chartPts.length ? Math.min(...chartPts.map(x=>x.p)) : 0;
-        const maxP = chartPts.length ? Math.max(...chartPts.map(x=>x.p)) : 0;
-
-        return (
-          <GlassCard key={inv.id} style={{ padding:'14px 18px', borderLeft:`3px solid ${tCol}44` }}>
-            {/* ── Top row: symbol info + value ── */}
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: chartPts.length > 1 || isLoading ? 12 : 0 }}>
-              <div>
-                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
-                  <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.text }}>{inv.symbol||inv.name}</span>
-                  <span style={{ fontSize:8, fontFamily:T.fM, fontWeight:600, color:tCol, background:`${tCol}18`, padding:'1px 6px', borderRadius:4, textTransform:'uppercase', letterSpacing:'0.05em' }}>{inv.type||'Stock'}</span>
-                </div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>
-                  ×{inv.quantity} @ {cur}{fmtN(inv.buyPrice)}
-                  {inv.date && <span style={{ marginLeft:6, color:T.textMuted }}>· {inv.date}</span>}
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                <div style={{ textAlign:'right' }}>
-                  <div style={{ fontSize:13, fontFamily:T.fM, fontWeight:600, color:T.text }}>{cur}{fmtN(val)}</div>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:pnl>=0?T.emerald:T.rose }}>
-                    {pnl>=0?'+':''}{cur}{fmtN(pnl)} ({pnlPct.toFixed(1)}%)
-                  </div>
-                </div>
-                <button onClick={() => onRemove(inv.id)} style={{ padding:5, borderRadius:6, background:T.surface, border:`1px solid ${T.border}`, opacity:0.5 }}>
-                  <IcoTrash size={12} stroke={T.rose} />
-                </button>
-              </div>
-            </div>
-
-            {/* ── Chart BELOW (not on top) ── */}
-            {isLoading && !chartPts.length && (
-              <div style={{ height:50, display:'flex', alignItems:'center', justifyContent:'center', borderRadius:T.r, background:T.surface }}>
-                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>⟳ Loading chart…</span>
-              </div>
-            )}
-            {chartPts.length > 1 && (
-              <div>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
-                  <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em' }}>
-                    {TIMEFRAME_MAP[timeframe]?.label?.toUpperCase()} PRICE
-                  </span>
-                  <div style={{ display:'flex', gap:8, fontSize:8, fontFamily:T.fM }}>
-                    <span style={{ color:T.textMuted }}>L {minP>=1?`$${fmtN(minP)}`:`$${minP.toFixed(4)}`}</span>
-                    <span style={{ color:T.textMuted }}>H {maxP>=1?`$${fmtN(maxP)}`:`$${maxP.toFixed(4)}`}</span>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={80}>
-                  <AreaChart data={chartPts} margin={{ top:2, right:2, left:2, bottom:2 }}>
-                    <defs>
-                      <linearGradient id={`pg_${sym}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor={chartColor} stopOpacity={0.25}/>
-                        <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Tooltip
-                      contentStyle={{ background:T.bg2, border:`1px solid ${T.borderLit}`, borderRadius:8, padding:'4px 8px' }}
-                      labelStyle={{ color:T.textSub, fontSize:8, fontFamily:T.fM }}
-                      itemStyle={{ color:chartColor, fontSize:10, fontFamily:T.fD, fontWeight:700 }}
-                      formatter={v => [`$${v>=1?fmtN(v):v.toFixed(6)}`, 'Price']}
-                    />
-                    <Area type="monotone" dataKey="p" stroke={chartColor} strokeWidth={1.5}
-                      fill={`url(#pg_${sym})`} dot={false}
-                      activeDot={{ r:3, fill:chartColor, strokeWidth:0 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </GlassCard>
-        );
-      })}
-    </div>
-  );
-});
-
-const LivePricesPanel = memo(function LivePricesPanel({ investments, onUpdatePrice }) {
-  const cached = useMemo(() => readPriceCache(), []);
-  const cacheValid = Date.now() - cached.ts < PRICE_CACHE_TTL;
-
-  const [cryptoPrices, setCryptoPrices] = useState(cacheValid ? cached.crypto : {});
-  const [stockPrices,  setStockPrices ] = useState(cacheValid ? cached.stocks : {});
-  const [loading,      setLoading     ] = useState(false);
-  const [lastFetched,  setLastFetched ] = useState(cacheValid ? new Date(cached.ts).toLocaleTimeString() : null);
-  const [errors,       setErrors      ] = useState([]);
-  const fetchingRef = useRef(false);
-
-  const cryptoInvs = useMemo(() => (investments||[]).filter(i => i.type === 'Crypto' && CRYPTO_IDS[i.symbol?.toUpperCase()]), [investments]);
-  const stockInvs  = useMemo(() => (investments||[]).filter(i => STOCK_TYPES.includes(i.type) && i.symbol), [investments]);
-  const cryptoIds  = useMemo(() => [...new Set(cryptoInvs.map(i => CRYPTO_IDS[i.symbol.toUpperCase()]))], [cryptoInvs]);
-  const stockSyms  = useMemo(() => [...new Set(stockInvs.map(i => i.symbol.toUpperCase()))], [stockInvs]);
-
-  const fetchCrypto = useCallback(async () => {
-    if (!cryptoIds.length) return null;
-    const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cryptoIds.join(',')}&vs_currencies=usd&include_24hr_change=true`);
-    if (!res.ok) throw new Error('Crypto API error');
-    return await res.json();
-  }, [cryptoIds]);
-
-  const fetchStock = useCallback(async (symbol) => {
-    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`)}`);
-    if (!res.ok) throw new Error(`${symbol} fetch failed`);
-    const j = await res.json();
-    const meta = j?.chart?.result?.[0]?.meta;
-    if (!meta) throw new Error(`No data for ${symbol}`);
-    const price = meta.regularMarketPrice || meta.previousClose;
-    const prev  = meta.chartPreviousClose || meta.previousClose;
-    const chg   = prev > 0 ? ((price - prev) / prev) * 100 : null;
-    return { price, chg };
-  }, []);
-
-  const fetchAll = useCallback(async (force = false) => {
-    if (fetchingRef.current) return;
-    // Skip if cache is still valid and not forced
-    if (!force) {
-      const c = readPriceCache();
-      if (Date.now() - c.ts < PRICE_CACHE_TTL) return;
-    }
-    fetchingRef.current = true;
-    setLoading(true); setErrors([]);
-    const errs = [];
-    let newCrypto = cryptoPrices, newStocks = stockPrices;
-    try {
-      if (cryptoIds.length) {
-        try {
-          const data = await fetchCrypto();
-          newCrypto = data;
-          setCryptoPrices(data);
-          cryptoInvs.forEach(inv => {
-            const cid = CRYPTO_IDS[inv.symbol.toUpperCase()];
-            if (data[cid]) onUpdatePrice(inv.id, data[cid].usd);
-          });
-        } catch (e) { errs.push('Crypto: ' + e.message); }
-      }
-      if (stockSyms.length) {
-        const results = await Promise.allSettled(stockSyms.map(s => fetchStock(s).then(d => ({ sym:s, ...d }))));
-        const fresh = {};
-        results.forEach((r, i) => {
-          if (r.status === 'fulfilled') {
-            fresh[stockSyms[i]] = r.value;
-            stockInvs.filter(inv => inv.symbol.toUpperCase() === stockSyms[i]).forEach(inv => onUpdatePrice(inv.id, r.value.price));
-          } else {
-            errs.push(`${stockSyms[i]}: ${r.reason?.message||'fetch failed'}`);
-          }
-        });
-        newStocks = { ...stockPrices, ...fresh };
-        setStockPrices(newStocks);
-      }
-      writePriceCache(newCrypto, newStocks);
-    } finally {
-      fetchingRef.current = false;
-      setLoading(false);
-      setLastFetched(new Date().toLocaleTimeString());
-      if (errs.length) setErrors(errs);
-    }
-  }, [cryptoIds, stockSyms, cryptoInvs, stockInvs, fetchCrypto, fetchStock, onUpdatePrice, cryptoPrices, stockPrices]);
-
-  // Auto-refresh every 5 min + on window focus (rate-limited by cache check)
-  useEffect(() => {
-    fetchAll(false); // initial load — uses cache if fresh
-    const interval = setInterval(() => fetchAll(false), PRICE_CACHE_TTL);
-    const onFocus = () => fetchAll(false);
-    window.addEventListener('focus', onFocus);
-    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
-  }, []);
-
-  const allInvs = useMemo(() => [...cryptoInvs, ...stockInvs], [cryptoInvs, stockInvs]);
-  if (!allInvs.length) return (
-    <GlassCard style={{ padding:'18px 20px' }}>
-      <SectionLabel>📡 Live Prices</SectionLabel>
-      <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>Add investments typed as Stock, ETF, or Crypto with symbols to see live prices.</div>
-    </GlassCard>
-  );
-
-  return (
-    <GlassCard style={{ padding:'18px 20px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <SectionLabel>📡 Live Prices (Crypto + Stocks)</SectionLabel>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          {lastFetched && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Updated {lastFetched}</span>}
-          <button onClick={()=>fetchAll(true)} disabled={loading} style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:7, background:T.accentDim, border:`1px solid ${T.accent}44`, color:T.accent, fontSize:10, fontFamily:T.fM, cursor:'pointer', opacity:loading?0.5:1 }}>
-            <IcoRefresh size={11} stroke={T.accent} style={loading?{animation:'spin 1s linear infinite'}:{}} /> {loading?'Fetching…':'Refresh'}
-          </button>
-        </div>
-      </div>
-      {errors.length > 0 && (
-        <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, marginBottom:8, padding:'6px 10px', background:T.amberDim, borderRadius:6, lineHeight:1.5 }}>
-          {errors.map((e,i)=><div key={i}>⚠ {e}</div>)}
-        </div>
-      )}
-      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-        {allInvs.map(inv => {
-          const isCrypto = inv.type === 'Crypto';
-          const sym = inv.symbol?.toUpperCase();
-          let price = null, chg = null, posVal = null;
-          if (isCrypto) {
-            const cid = CRYPTO_IDS[sym];
-            const p = cryptoPrices[cid];
-            if (p) { price = p.usd; chg = p.usd_24h_change; posVal = price * Number(inv.quantity); }
-          } else {
-            const p = stockPrices[sym];
-            if (p) { price = p.price; chg = p.chg; posVal = price * Number(inv.quantity); }
-          }
-          return (
-            <div key={inv.id} className="los-row" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-              <div style={{ display:'flex', flexDirection:'column' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  <span style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{sym}</span>
-                  <span style={{ fontSize:8, fontFamily:T.fM, color:isCrypto?T.amber:T.sky, background:isCrypto?T.amberDim:T.skyDim, padding:'1px 5px', borderRadius:99 }}>{inv.type||'—'}</span>
-                  <span style={{ fontSize:9, color:T.textMuted }}>×{inv.quantity}</span>
-                </div>
-                <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Cost basis ${fmtN(inv.buyPrice)}</span>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
-                <span style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:T.text }}>{price!=null?`$${fmtN(price)}`:'—'}</span>
-                {chg != null && <span style={{ fontSize:9, fontFamily:T.fM, color:chg>=0?T.emerald:T.rose }}>{chg>=0?'+':''}{chg.toFixed(2)}% 24h</span>}
-                {posVal != null && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Pos: ${fmtN(posVal)}</span>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </GlassCard>
-  );
-}); // end memo(LivePricesPanel)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BATCH 3 & 4 COMPONENTS
