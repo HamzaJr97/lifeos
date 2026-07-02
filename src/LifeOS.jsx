@@ -4868,9 +4868,9 @@ function HomePage({ data, actions, onNav, onOpenPatterns=()=>{}, onOpenGraph=()=
     const topCat = (()=>{ const m={}; (expenses||[]).filter(e=>e.date>=wStr).forEach(e=>{m[e.category]=(m[e.category]||0)+Number(e.amount||0);}); return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]; })();
     const habitPct = (habits||[]).length>0 ? Math.round((Object.values(habitLogs).flat().filter(d=>d>=wStr).length/((habits||[]).length*7))*100) : 0;
 
-    const prompt = `You are a personal life coach. Generate exactly 3 concise insight bullets (max 12 words each) based on this data. Be specific with numbers. Return JSON array of strings only, no markdown.
+    const prompt = `You are a personal life-systems analyst scanning cross-domain data for the single most significant signal. Generate exactly 3 concise insight bullets (max 12 words each), ordered by significance/impact — not by category. Do not default to spending as the lead bullet unless it is genuinely the most significant signal this week; sleep, habits, goals, savings rate, and net worth are equally valid leads. Be specific with numbers. Return JSON array of strings only, no markdown.
 
-Data: spending this week ${cur}${fmtN(Math.round(thisWeekExp))} vs last week ${cur}${fmtN(Math.round(lastWeekExp))} (${lastWeekExp>0?Math.round((thisWeekExp/lastWeekExp-1)*100):0}% change). Avg sleep this week: ${avgSleep7.toFixed(1)}h vs prior week ${avgSleep14.toFixed(1)}h. Habit completion: ${habitPct}%. Top spend category: ${topCat?`${topCat[0]} ${cur}${fmtN(Math.round(topCat[1]))}`:'-'}. Stale goals (no progress 14d): ${staleGoals.map(g=>g.name).join(', ')||'none'}. Savings rate: ${savRate.toFixed(1)}%. Net worth: ${cur}${fmtN(netWorth)}.
+Data — habit completion: ${habitPct}%. Avg sleep this week: ${avgSleep7.toFixed(1)}h vs prior week ${avgSleep14.toFixed(1)}h. Savings rate: ${savRate.toFixed(1)}%. Net worth: ${cur}${fmtN(netWorth)}. Stale goals (no progress 14d): ${staleGoals.map(g=>g.name).join(', ')||'none'}. Spending this week ${cur}${fmtN(Math.round(thisWeekExp))} vs last week ${cur}${fmtN(Math.round(lastWeekExp))} (${lastWeekExp>0?Math.round((thisWeekExp/lastWeekExp-1)*100):0}% change). Top spend category: ${topCat?`${topCat[0]} ${cur}${fmtN(Math.round(topCat[1]))}`:'-'}.
 
 Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
 
@@ -5029,7 +5029,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
   const primaryIssue = useMemo(() => {
     if (riskAlerts.length > 0) return riskAlerts[0].title;
     if (dailyBrief?.bullets?.[0]) return dailyBrief.bullets[0];
-    return 'All systems nominal. No critical issues detected.';
+    return 'All systems nominal. No priority signals detected.';
   }, [riskAlerts, dailyBrief]);
 
   const threats = useMemo(() => {
@@ -5312,7 +5312,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
               animation:'ncIssueIn 0.6s ease 0.4s both',
             }}>
               <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>
-                Primary issue detected
+                Priority signal detected
               </div>
               <div style={{ fontFamily:T.fD, fontWeight:600, fontSize:13, color:T.text, lineHeight:1.55 }}>
                 {briefLoading
@@ -5408,6 +5408,34 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
           ].map((act, i) => (
             <button key={i} onClick={act.action}
               className="cyber-scan"
+              style={{
+                padding:'15px 10px', borderRadius:13, cursor:'pointer',
+                background:`${act.color}08`, border:`1px solid ${act.color}30`,
+                display:'flex', flexDirection:'column', alignItems:'center', gap:7,
+                transition:'all 0.18s ease', fontFamily:T.fD,
+                animation:`fadeUp 0.4s ease ${0.05+i*0.08}s both`,
+                boxShadow:`0 0 0 rgba(0,0,0,0)`,
+              }}
+              onMouseEnter={e=>{ e.currentTarget.style.background=`${act.color}18`; e.currentTarget.style.borderColor=`${act.color}55`; e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 0 18px ${act.color}22`; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background=`${act.color}08`; e.currentTarget.style.borderColor=`${act.color}30`; e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=`0 0 0 rgba(0,0,0,0)`; }}>
+              <span style={{ fontSize:22, lineHeight:1 }}>{act.icon}</span>
+              <span style={{ fontSize:11, fontWeight:700, color:act.color, lineHeight:1.2, textAlign:'center' }}>{act.label}</span>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>{act.sub}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ─── QUICK LAUNCH — intelligence modules ───────────────────────── */}
+        <div style={{ marginTop:14, paddingTop:18, borderTop:`1px solid ${T.border}`, display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+          {[
+            { label:'Patterns', icon:'📡', color:'#c084fc', sub:'hidden correlations', action: onOpenPatterns, kbd:'P' },
+            { label:'Life Graph', icon:'🕸️', color:T.accent, sub:'connected domains', action: onOpenGraph, kbd:'G' },
+            { label:'Parallel You', icon:'🔀', color:T.sky, sub:'alternate timelines', action: onOpenParallel, kbd:'Z' },
+            { label:'Ambient Mode', icon:'🌊', color:T.amber, sub:'living dashboard', action: onOpenAmbient, kbd:'`' },
+          ].map((act, i) => (
+            <button key={i} onClick={act.action}
+              className="cyber-scan"
+              title={`${act.label} (${act.kbd})`}
               style={{
                 padding:'15px 10px', borderRadius:13, cursor:'pointer',
                 background:`${act.color}08`, border:`1px solid ${act.color}30`,
@@ -20760,29 +20788,7 @@ export default function LifeOS() {
               );
             })()}
             {!isMobile && (
-              <>
-                <button onClick={()=>setShowPatternEngine(true)} title="Pattern Engine (P)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(139,92,246,0.12)';e.currentTarget.style.borderColor='rgba(139,92,246,0.3)';e.currentTarget.style.color='#c084fc';}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
-                  📡 <span>Patterns</span>
-                </button>
-                <button onClick={()=>setShowLifeGraph(true)} title="Life Graph (G)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.accentLo;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
-                  🕸️ <span>Graph</span>
-                </button>
-                <button onClick={()=>setShowParallelYou(true)} title="Parallel You (Z)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background='rgba(56,189,248,0.1)';e.currentTarget.style.borderColor='rgba(56,189,248,0.3)';e.currentTarget.style.color=T.sky;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
-                  🔀 <span>Parallel</span>
-                </button>
-                <button onClick={()=>setShowAmbient(true)} title="Ambient Mode (`)" style={{ padding:'4px 9px', borderRadius:7, background:'transparent', border:`1px solid transparent`, color:T.textSub, display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, transition:'all 0.15s' }}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.amberDim;e.currentTarget.style.borderColor=T.amber+'44';e.currentTarget.style.color=T.amber;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=T.textSub;}}>
-                  🌊 <span>Ambient</span>
-                </button>
-                <div style={{ width:1, height:16, background:T.border, margin:'0 2px' }} />
-              </>
+              <div style={{ width:1, height:16, background:T.border, margin:'0 2px' }} />
             )}
             <button onClick={()=>setShowAIPanel(v=>!v)} title="AI Coach (A)" style={{ position:'relative', padding:'5px 7px', borderRadius:7, background:showAIPanel?T.accentDim:'transparent', border:`1px solid ${showAIPanel?T.accent+'44':'transparent'}`, color:showAIPanel?T.accent:T.textSub, display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s', animation:showAIPanel?'none':'glowPulse 6s 3', minWidth:36, minHeight:36 }}
               onMouseEnter={e=>{if(!showAIPanel){e.currentTarget.style.background=T.accentDim;e.currentTarget.style.borderColor=T.accent+'33';e.currentTarget.style.color=T.accent;}}}
