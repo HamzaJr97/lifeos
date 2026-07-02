@@ -6131,8 +6131,8 @@ function BackToMore({ onBack, label='← More' }) {
 
 // Collapsible sub-section used inside the Investments tab for Trade History / Watchlist
 // and inside Tools tab for Data Import. Persists open/closed state per key.
-function InvestmentsSubSection({ title, storageKey, children }) {
-  const [open, setOpen] = useLocalStorage(storageKey, false);
+function InvestmentsSubSection({ title, storageKey, children, defaultOpen=false }) {
+  const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
       <button
@@ -6840,6 +6840,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               : selMonthExpenses.filter(e => e.category === spendCatFilter);
             const visibleTotal = visibleExpenses.reduce((s,e)=>s+Number(e.amount||0),0);
             return (
+          <InvestmentsSubSection title="💳 All Expenses" storageKey="los_spend_allexp_open" defaultOpen={true}>
           <GlassCard style={{ padding:'16px 18px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <SectionLabel>
@@ -6874,6 +6875,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               </div>
             )}
           </GlassCard>
+          </InvestmentsSubSection>
             );
           })()}
 
@@ -6937,6 +6939,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             ];
             const cur2 = cur;
             return (
+              <InvestmentsSubSection title="📊 3-Month Category Comparison" storageKey="los_spend_3mo_open" defaultOpen={true}>
               <GlassCard style={{ padding:'20px 22px', border:`1px solid ${T.accent}22` }}>
                 <div style={{ marginBottom:14 }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.accent, letterSpacing:'0.12em', textTransform:'uppercase', fontWeight:700, marginBottom:3 }}>📊 3-Month Category Comparison</div>
@@ -7000,6 +7003,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   })}
                 </div>
               </GlassCard>
+              </InvestmentsSubSection>
             );
           })()}
 
@@ -7013,6 +7017,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             if (slotsThisMonth.length === 0) return null;
             const totalThisMonth = slotsThisMonth.reduce((sum,s) => sum + s.amount, 0);
             return (
+              <InvestmentsSubSection title="🛒 Task Payments Due" storageKey="los_spend_taskdue_open" defaultOpen={true}>
               <GlassCard style={{ padding:'16px 20px', border:`1px solid ${T.amber}22`, background:`${T.amber}04` }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
                   <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:700 }}>🛒 Task Payments Due — {selectedMonth}</div>
@@ -7038,6 +7043,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   </div>
                 )}
               </GlassCard>
+              </InvestmentsSubSection>
             );
           })()}
         </div>
