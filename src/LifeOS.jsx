@@ -945,31 +945,14 @@ const CHALLENGES_CATALOG = [
 
 // ── ACHIEVEMENTS (20 total) ────────────────────────────────────────────────────
 const ACHIEVEMENTS = [
-  // Habits
-  { id:'habit_first',   emoji:'🌱', name:'First Step',       desc:'Log your first habit',              color:T.accent,  check:d => Object.values(d.habitLogs).flat().length >= 1 },
+  // Habit consistency (streaks — least days you need to keep a habit going)
   { id:'streak_7',      emoji:'🔥', name:'Week Warrior',     desc:'7-day streak on any habit',          color:T.amber,   check:d => d.habits.some(h => getStreak(h.id, d.habitLogs) >= 7) },
   { id:'streak_30',     emoji:'⚡', name:'Iron Discipline',  desc:'30-day streak on any habit',         color:T.violet,  check:d => d.habits.some(h => getStreak(h.id, d.habitLogs) >= 30) },
-  { id:'habits_100',    emoji:'💯', name:'Century Club',     desc:'100 total habit logs',               color:T.accent,  check:d => Object.values(d.habitLogs).flat().length >= 100 },
-  { id:'habits_5',      emoji:'🎭', name:'Multi-Tracker',    desc:'Track 5 habits simultaneously',      color:T.sky,     check:d => d.habits.length >= 5 },
-  // Finance
-  { id:'expense_first', emoji:'💳', name:'First Log',        desc:'Log your first expense',             color:T.rose,    check:d => d.expenses.length >= 1 },
-  { id:'expenses_50',   emoji:'📊', name:'Data Driven',      desc:'Log 50 expenses',                    color:T.rose,    check:d => d.expenses.length >= 50 },
-  { id:'income_first',  emoji:'💰', name:'Earner',           desc:'Log your first income',              color:T.emerald, check:d => d.incomes.length >= 1 },
-  { id:'debt_free',     emoji:'🏆', name:'Debt Slayer',      desc:'Reduce all debts to zero balance',   color:T.emerald, check:d => d.debts.length > 0 && d.debts.every(x => Number(x.balance||0) === 0) },
-  { id:'savings_50',    emoji:'🚀', name:'Super Saver',      desc:'Achieve 50%+ savings rate',          color:T.accent,  check:d => { const m=new Date().toISOString().slice(0,7); const inc=d.incomes.filter(i=>i.date?.startsWith(m)).reduce((s,i)=>s+Number(i.amount||0),0); const exp=d.expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+Number(e.amount||0),0); return inc>0&&((inc-exp)/inc)>=0.5; } },
-  // Growth / XP
-  { id:'level_5',       emoji:'⚔️', name:'Rising Star',      desc:'Reach Level 5',                      color:T.violet,  check:d => Math.floor(Math.sqrt(Number(d.totalXP)/100))+1 >= 5 },
-  { id:'level_10',      emoji:'👑', name:'Life Master',      desc:'Reach Level 10',                     color:T.amber,   check:d => Math.floor(Math.sqrt(Number(d.totalXP)/100))+1 >= 10 },
-  { id:'goals_5',       emoji:'🎯', name:'Visionary',        desc:'Create 5 goals',                     color:T.amber,   check:d => d.goals.length >= 5 },
-  { id:'goal_done',     emoji:'🏅', name:'Goal Getter',      desc:'Complete your first goal',           color:T.emerald, check:d => d.goals.some(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0) },
-  { id:'xp_1000',       emoji:'✨', name:'XP Collector',     desc:'Earn 1,000 XP',                      color:T.violet,  check:d => Number(d.totalXP) >= 1000 },
-  // Knowledge / Health
-  { id:'note_first',    emoji:'📝', name:'Note Taker',       desc:'Create your first note',             color:T.amber,   check:d => d.notes.length >= 1 },
-  { id:'notes_10',      emoji:'📚', name:'Librarian',        desc:'Build a library of 10 notes',        color:T.amber,   check:d => d.notes.length >= 10 },
-  { id:'vitals_first',  emoji:'❤️', name:'Body Check',       desc:'Log vitals for the first time',      color:T.sky,     check:d => d.vitals.length >= 1 },
-  { id:'vitals_30',     emoji:'🏃', name:'Health Tracker',   desc:'Log vitals 30 times',                color:T.sky,     check:d => d.vitals.length >= 30 },
-  // Portfolio
-  { id:'invest_first',  emoji:'📈', name:'Investor',         desc:'Add your first investment position', color:T.violet,  check:d => d.investments.length >= 1 },
+  { id:'streak_100',    emoji:'💯', name:'Unbreakable',      desc:'100-day streak on any habit',        color:T.accent,  check:d => d.habits.some(h => getStreak(h.id, d.habitLogs) >= 100) },
+  // Goals achieved
+  { id:'goal_done',     emoji:'🏅', name:'Goal Getter',      desc:'Complete your first goal',           color:T.emerald, check:d => d.goals.filter(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0).length >= 1 },
+  { id:'goals_3',       emoji:'🎯', name:'Goal Crusher',     desc:'Complete 3 goals',                   color:T.amber,   check:d => d.goals.filter(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0).length >= 3 },
+  { id:'goals_10',      emoji:'🏆', name:'Visionary',        desc:'Complete 10 goals',                  color:T.violet,  check:d => d.goals.filter(g => Number(g.current||0) >= Number(g.target||1) && g.target > 0).length >= 10 },
 ];
 const EXPENSE_COLORS = {
   '🍽️ Food':T.emerald,'🍔 Fast Food':T.amber,'🚗 Transport':T.sky,
@@ -8251,57 +8234,6 @@ function HealthPage({ data, actions }) {
             </GlassCard>
           )}
 
-          {/* ── BMI / Weight trajectory ──────────────────────────────────── */}
-          {weightTrajectory && (
-            <GlassCard style={{ padding:'18px 20px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <SectionLabel>⚖️ Weight & BMI</SectionLabel>
-                {!targetWeightEdit ? (
-                  <button onClick={()=>{ setTargetWeightInput(targetWeight||''); setTargetWeightEdit(true); }} style={{ fontSize:9, fontFamily:T.fM, color:T.amber, background:T.amberDim, border:`1px solid ${T.amber}33`, borderRadius:99, padding:'3px 10px', cursor:'pointer' }}>
-                    {targetWeight?`Target: ${targetWeight} ${wu}`:'Set goal weight'}
-                  </button>
-                ) : (
-                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                    <input value={targetWeightInput} onChange={e=>setTargetWeightInput(e.target.value)} type="number" placeholder={`Goal (${wu})`} style={{ width:80, padding:'3px 8px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.text }} />
-                    <button onClick={()=>{ setTargetWeight(targetWeightInput); setTargetWeightEdit(false); }} style={{ padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:T.amber, color:'#000', border:'none', cursor:'pointer', fontWeight:700 }}>Save</button>
-                    <button onClick={()=>setTargetWeightEdit(false)} style={{ fontSize:10, background:'none', border:'none', cursor:'pointer', color:T.textMuted }}>✕</button>
-                  </div>
-                )}
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
-                {[
-                  { label:'Current', val:`${weightTrajectory.current} ${wu}`, color:T.emerald },
-                  weightTrajectory.bmi ? { label:'BMI', val:`${weightTrajectory.bmi}`, sub:weightTrajectory.bmiLabel, color:weightTrajectory.bmi<18.5||weightTrajectory.bmi>=30?T.rose:weightTrajectory.bmi<25?T.emerald:T.amber } : { label:'BMI', val:'—', sub:'Set height in Settings', color:T.textMuted },
-                  targetWeight ? { label:'Goal', val:`${targetWeight} ${wu}`, sub:weightTrajectory.gap!=null?`${weightTrajectory.gap>0?'-':''}${Math.abs(weightTrajectory.gap)} to go`:'', color:T.amber } : { label:'Trend', val:weightTrajectory.ratePerDay>0?`+${(weightTrajectory.ratePerDay*7).toFixed(1)}/wk`:weightTrajectory.ratePerDay<0?`${(weightTrajectory.ratePerDay*7).toFixed(1)}/wk`:'Stable', sub:'Per week', color:weightTrajectory.ratePerDay<0?T.emerald:T.amber },
-                ].map((m,i)=>(
-                  <div key={i} style={{ padding:'8px 10px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginBottom:3 }}>{m.label}</div>
-                    <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:m.color }}>{m.val}</div>
-                    {m.sub&&<div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, marginTop:1 }}>{m.sub}</div>}
-                  </div>
-                ))}
-              </div>
-              {targetWeight&&weightTrajectory.projDate&&weightTrajectory.daysToGoal && (
-                <div style={{ padding:'8px 12px', borderRadius:T.r, background:`${T.amber}0e`, border:`1px solid ${T.amber}33`, fontSize:10, fontFamily:T.fM, color:T.text }}>
-                  📅 At current pace ({(weightTrajectory.ratePerDay*7>0?'+':'')+((weightTrajectory.ratePerDay)*7).toFixed(2)} {wu}/wk), reach {targetWeight} {wu} in ~{weightTrajectory.daysToGoal} days · <span style={{ color:T.amber }}>{weightTrajectory.projDate}</span>
-                </div>
-              )}
-              {targetWeight&&(!weightTrajectory.projDate||!weightTrajectory.daysToGoal)&&weightTrajectory.ratePerDay===0 && (
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Weight is stable — no projected date. Log more data to establish a trend.</div>
-              )}
-              <ResponsiveContainer width="100%" height={100} style={{ marginTop:12 }}>
-                <LineChart data={weightTrajectory.wData.slice(-20)} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:8,fontFamily:T.fM}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={['dataMin - 2','dataMax + 2']} hide />
-                  <Tooltip content={<ChartTooltip suffix={` ${wu}`} />} />
-                  {targetWeight&&<ReferenceArea y1={Number(targetWeight)-0.5} y2={Number(targetWeight)+0.5} stroke={T.amber} strokeOpacity={0.4} fill={T.amber} fillOpacity={0.08} />}
-                  <Line type="monotone" dataKey="weight" name="Weight" stroke={T.emerald} strokeWidth={2} dot={{fill:T.emerald,r:2}} />
-                </LineChart>
-              </ResponsiveContainer>
-            </GlassCard>
-          )}
-
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Sleep History</SectionLabel>
             {recent7.length>0 ? (
@@ -8316,55 +8248,6 @@ function HealthPage({ data, actions }) {
               </ResponsiveContainer>
             ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see your sleep chart.</div>}
           </GlassCard>
-          <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Mood & Energy Trends</SectionLabel>
-            {recent7.length>0 ? (
-              <ResponsiveContainer width="100%" height={130}>
-                <LineChart data={recent7} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0,10]} hide />
-                  <Tooltip content={<ChartTooltip suffix="/10" />} />
-                  <Line type="monotone" dataKey="mood" name="Mood" stroke={T.violet} strokeWidth={2} dot={{fill:T.violet,r:3}} />
-                  <Line type="monotone" dataKey="energy" name="Energy" stroke={T.accent} strokeWidth={2} dot={{fill:T.accent,r:3}} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see mood & energy trends.</div>}
-          </GlassCard>
-          {recent7.some(v=>v.sleepQuality>0) && (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Sleep Quality (7d)</SectionLabel>
-              <ResponsiveContainer width="100%" height={110}>
-                <BarChart data={recent7} barSize={22} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0,5]} hide />
-                  <Tooltip formatter={(v)=>`${v}/5 ⭐`} contentStyle={{ background:T.surfaceHi, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }} />
-                  <Bar dataKey="sleepQuality" name="Sleep Quality" fill={T.amber} opacity={0.85} radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:6 }}>
-                {['1★','2★','3★','4★','5★'].map(s=><span key={s}>{s}</span>)}
-              </div>
-            </GlassCard>
-          )}
-          {recent7.some(v=>v.steps>0) && (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Steps (7d)</SectionLabel>
-              <ResponsiveContainer width="100%" height={110}>
-                <BarChart data={recent7} barSize={22} margin={{top:4,right:0,left:0,bottom:0}}>
-                  <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip content={<ChartTooltip suffix=" steps" />} />
-                  <Bar dataKey="steps" name="Steps" fill={T.amber} opacity={0.85} radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:4 }}>
-                {(() => { const s=recent7.filter(v=>v.steps>0); const avg=s.length?Math.round(s.reduce((a,v)=>a+Number(v.steps||0),0)/s.length):0; return `Avg: ${avg.toLocaleString()} steps/day${avg>=10000?' · ✅ 10k goal hit!':` · ${(10000-avg).toLocaleString()} to 10k goal`}`; })()}
-              </div>
-            </GlassCard>
-          )}
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Recent Vitals</SectionLabel>
             {sorted.slice(0,8).map((v,i)=>(
@@ -8385,64 +8268,6 @@ function HealthPage({ data, actions }) {
             ))}
             {sorted.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No vitals logged yet.</div>}
           </GlassCard>
-        </div>
-        <GlassCard style={{ overflow:'hidden' }}>
-          <button onClick={()=>setPomodoroOpen(o=>!o)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 22px', background:'none', border:'none', cursor:'pointer', color:T.text }}>
-            <span style={{ fontFamily:T.fM, fontWeight:700, fontSize:11, textTransform:'uppercase', letterSpacing:'0.08em', color:T.textSub }}>⏱ Focus Session</span>
-            <span style={{ fontSize:12, color:T.textSub, transition:'transform 0.25s', display:'inline-block', transform:pomodoroOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
-          </button>
-          {pomodoroOpen && <div style={{ padding:'0 22px 22px', display:'flex', flexDirection:'column', alignItems:'center' }}>
-          {focusComplete ? (
-            <div style={{ width:'100%', display:'flex', flexDirection:'column', alignItems:'center', gap:14, padding:'16px 0' }}>
-              <div style={{ fontSize:38 }}>🎉</div>
-              <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.accent, textAlign:'center' }}>Session Complete!</div>
-              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, textAlign:'center' }}>{fmtTime(focusTime)} focused</div>
-              {(habits||[]).length > 0 && (
-                <div style={{ width:'100%' }}>
-                  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Log a habit for this session?</div>
-                  <Select value={focusHabitId} onChange={e=>setFocusHabitId(e.target.value)} style={{ marginBottom:8 }}>
-                    <option value="">Skip</option>
-                    {(habits||[]).map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
-                  </Select>
-                </div>
-              )}
-              <Btn full onClick={handleFocusLog} color={T.accent}>{focusHabitId ? '✓ Log Habit & Done' : 'Done'}</Btn>
-            </div>
-          ) : (<>
-            <div style={{ position:'relative', width:150, height:150, margin:'0 auto 16px' }}>
-              <svg width={150} height={150} style={{ transform:'rotate(-90deg)' }}>
-                <circle cx={75} cy={75} r={64} fill="none" stroke={T.border} strokeWidth={5} />
-                <circle cx={75} cy={75} r={64} fill="none" stroke={T.accent} strokeWidth={5} strokeDasharray={`${2*Math.PI*64*(fpct/100)} ${2*Math.PI*64*(1-fpct/100)}`} strokeLinecap="round" style={{ filter:`drop-shadow(0 0 5px ${T.accent})`, transition:'stroke-dasharray 1s linear' }} />
-              </svg>
-              <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
-                <div style={{ fontSize:26, fontFamily:T.fM, fontWeight:600, color:T.text }}>{fmtTime(remaining)}</div>
-                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>remaining</div>
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:5, marginBottom:10 }}>
-              {[15*60,25*60,45*60,60*60].map(s=>(
-                <button key={s} onClick={()=>{setFocusTime(s);setElapsed(0);setFocusActive(false);}} style={{ padding:'3px 9px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:focusTime===s?T.accentDim:T.surface, color:focusTime===s?T.accent:T.textSub, border:`1px solid ${focusTime===s?T.accent+'44':T.border}` }}>{s/60}m</button>
-              ))}
-            </div>
-            {(habits||[]).length > 0 && (
-              <div style={{ width:'100%', marginBottom:10 }}>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:5 }}>Link habit (logged on complete)</div>
-                <Select value={focusHabitId} onChange={e=>setFocusHabitId(e.target.value)}>
-                  <option value="">None</option>
-                  {(habits||[]).map(h=><option key={h.id} value={h.id}>{h.emoji||'🔥'} {h.name}</option>)}
-                </Select>
-              </div>
-            )}
-            <button className="los-btn" onClick={()=>setFocusActive(!focusActive)} style={{ width:'100%', padding:'11px', borderRadius:T.r, background:focusActive?T.roseDim:T.accentDim, color:focusActive?T.rose:T.accent, border:`1px solid ${focusActive?T.rose+'44':T.accent+'44'}`, fontSize:11, fontFamily:T.fM, fontWeight:600, animation:focusActive?'glowPulse 2s infinite':'none' }}>
-              {focusActive?'⏸ PAUSE':'▶ START FOCUS'}
-            </button>
-          </>)}
-          </div>}
-        </GlassCard>
-
-        {/* Focus Billing */}
-        <div style={{ marginTop:14 }}>
-          <FocusBillingTab data={data} />
         </div>
       </div>}
     </div>
