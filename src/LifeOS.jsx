@@ -8685,7 +8685,11 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
                         return (
                           <tr key={row.habit.id} style={{ borderTop:`1px solid ${T.border}` }}>
                             <td style={{ padding:'8px 0', fontSize:11, fontFamily:T.fD, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:130 }}>
-                              {row.habit.emoji||'🔥'} {row.habit.name}
+                              <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                                {row.habit.emoji||'🔥'} {row.habit.name}
+                                <button onClick={()=>setEditHabit(row.habit)} title="Edit habit" style={{ padding:2, background:'none', border:'none', cursor:'pointer', opacity:0.6 }}><IcoPencil size={10} stroke={T.sky} /></button>
+                                <button onClick={()=>actions.removeHabit(row.habit.id)} title="Delete habit" style={{ padding:2, background:'none', border:'none', cursor:'pointer', opacity:0.6 }}><IcoTrash size={10} stroke={T.rose} /></button>
+                              </span>
                             </td>
                             {row.days.map(d => (
                               <td key={d.date} style={{ textAlign:'center', padding:'8px 4px' }}>
@@ -8710,59 +8714,12 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
               </GlassCard>
             );
           })()}
-          {(habits||[]).length > 0 && (
-            <GlassCard style={{ padding:'20px 22px' }}>
-              <SectionLabel>Activity Heatmap — Last 18 Weeks</SectionLabel>
-              <HabitHeatmap habitLogs={stableHabitLogs} habits={habits} />
-            </GlassCard>
-          )}
-          {/* ── Habit Co-occurrence Matrix ──────────────────────────────── */}
-          {(habits||[]).length >= 2 && (
-            <HabitCorrelationMatrix habits={habits} habitLogs={habitLogs} />
-          )}
           {/* ── Habit Mastery / Difficulty Curve ───────────────────────── */}
           {(habits||[]).length > 0 && (
             <HabitDifficultyCurve habits={habits} habitLogs={habitLogs} totalXP={totalXP} />
           )}
-          {(habits||[]).length===0 ? (
+          {(habits||[]).length===0 && (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No habits yet. Create your first habit to start building streaks.</div></GlassCard>
-          ) : (
-            <GlassCard style={{ padding:'16px 18px' }}>
-              <SectionLabel style={{ marginBottom:12 }}>All Habits</SectionLabel>
-              <LOSTable
-                columns={[
-                  { key:'name', label:'Habit', render:(v,row)=>{
-                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                    const hc=HCOLORS[(habits||[]).findIndex(h=>h.id===row.id)%HCOLORS.length];
-                    return <span style={{ display:'flex', alignItems:'center', gap:7 }}>
-                      <span style={{ fontSize:15 }}>{row.emoji||'🔥'}</span>
-                      <span style={{ fontFamily:T.fD, fontWeight:600, color:T.text }}>{v}</span>
-                      {row.category && <span style={{ fontSize:8, fontFamily:T.fM, color:hc, background:hc+'18', borderRadius:99, padding:'1px 6px' }}>{row.category}</span>}
-                    </span>;
-                  }},
-                  { key:'frequency', label:'Freq', width:70, render:(v)=><span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{v||'daily'}</span> },
-                  { key:'id', label:'Streak', mono:true, width:70, sortable:false, render:(_,row)=>{
-                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                    const hc=HCOLORS[(habits||[]).findIndex(h=>h.id===row.id)%HCOLORS.length];
-                    const s=getStreak(row.id,habitLogs);
-                    return <span style={{ color:s>0?hc:T.textMuted, fontWeight:s>=7?700:400 }}>🔥 {s}d</span>;
-                  }},
-                  { key:'xp', label:'XP', mono:true, width:55, align:'right', render:(v)=><span style={{ color:T.violet }}>+{v||10}</span> },
-                  { key:'id', label:'Today', width:80, sortable:false, align:'center', render:(_,row)=>{
-                    const done=(habitLogs[row.id]||[]).includes(d);
-                    const HCOLORS=[T.accent,T.violet,T.sky,T.amber,T.rose,T.emerald];
-                    const hc=HCOLORS[(habits||[]).findIndex(h=>h.id===row.id)%HCOLORS.length];
-                    return done
-                      ? <Badge color={hc}>✓ Done</Badge>
-                      : <button onClick={()=>actions.logHabit(row.id)} style={{ padding:'3px 10px', borderRadius:6, fontSize:10, fontFamily:T.fD, fontWeight:500, border:`1px solid ${hc}44`, color:hc, background:'transparent', cursor:'pointer' }}>Log</button>;
-                  }},
-                ]}
-                rows={habits||[]}
-                onEdit={setEditHabit}
-                onDelete={h=>actions.removeHabit(h.id)}
-                emptyMsg="No habits yet."
-              />
-            </GlassCard>
           )}
         </div>
       )}
@@ -20015,7 +19972,7 @@ export default function LifeOS() {
     addBill, removeBill, markBillPaid, updateBill,
     addQuickNote, removeQuickNote,
     // S2
-    updateHabit,
+    addHabit, logHabit, removeHabit, updateHabit,
     // S4
     updateCareer, updateInvestmentPrice,
     // Batch 1+2
