@@ -1026,7 +1026,7 @@ const GIST_SYNC_KNOWN_KEYS = [
   'los_goals','los_assets','los_investments','los_vitals','los_notes','los_xp',
   'los_nwhistory','los_settings','los_focus','los_subs','los_budgets','los_bills',
   'los_career','los_qnotes','los_chronicles','los_challenges','los_eventlog','los_decisions',
-  'los_projects','los_groceries','los_memory_logs'
+  'los_projects','los_groceries','los_memory_logs','los_planner'
 ];
 
 // Keys inside los_settings that must NEVER leave the device.
@@ -8093,8 +8093,7 @@ function HealthPage({ data, actions }) {
       {healthTab==='sleepcoach' && <AISleepCoachTab data={data} sleepCoachTips={sleepCoachTips} setSleepCoachTips={setSleepCoachTips} sleepCoachLoading={sleepCoachLoading} setSleepCoachLoading={setSleepCoachLoading} />}
       {healthTab==='custommetrics' && <CustomMetricsTab data={data} actions={actions} />}
 
-      {healthTab==='overview' && <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(min(300px,100%),1fr))', gap:14 }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      {healthTab==='overview' && <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
           {/* ── Recovery Recommendations (auto-surfaced after poor vitals) ── */}
           {(needsRecovery||(recoveryTips&&recoveryTips.date===today())) && (
@@ -8161,6 +8160,9 @@ function HealthPage({ data, actions }) {
             transactions={data.transactions||[]}
           />
 
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:14, alignItems:'start' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
           {/* ── Correlation Insights (text detail below graph) ────────────── */}
           {correlationInsights.length>0 && (
             <GlassCard style={{ padding:'14px 16px' }}>
@@ -8213,6 +8215,9 @@ function HealthPage({ data, actions }) {
             </GlassCard>
           )}
 
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
           <GlassCard style={{ padding:'20px 22px' }}>
             <SectionLabel>Sleep History</SectionLabel>
             {recent7.length>0 ? (
@@ -8247,7 +8252,9 @@ function HealthPage({ data, actions }) {
             ))}
             {sorted.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No vitals logged yet.</div>}
           </GlassCard>
-        </div>
+
+          </div>
+          </div>
       </div>}
     </div>
   );
@@ -8536,7 +8543,6 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
     challenges:   lang==='fr'?'Défis':'Challenges',
     social:       lang==='fr'?'Social':'Social',
     vision:       lang==='fr'?'Vision':'Vision',
-    lifemap:      lang==='fr'?'🗺️ Carte':'🗺️ Map',
   };
   const [tab, setTab] = useState('character');
   const [modal, setModal] = useState(null);
@@ -8585,7 +8591,7 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
       <PageHeader
         domain="Growth Domain"
         title={lang==='fr'?'Caractère · Habitudes · Objectifs':'Character · Habits · Goals'}
-        infoIcon={<PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlocked for completed goals and habit streaks — not for how much data you log.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} />}
+        infoIcon={<PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlocked for completed goals and habit streaks — not for how much data you log.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} />}
       />
       <TabNav
         tabs={['character','habits','goals','achievements','more-growth'].map(t=>({
@@ -8593,7 +8599,7 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
           label:t==='character'?GROWTH_TAB_LABELS['character']:t==='habits'?GROWTH_TAB_LABELS['habits']:t==='goals'?GROWTH_TAB_LABELS['goals']:t==='achievements'?GROWTH_TAB_LABELS['achievements']:'🧭 Explore',
           badge:t==='achievements'?unlockedAchievements.length:null
         }))}
-        active={tab==='chronicles'||tab==='challenges'||tab==='social'||tab==='vision'||tab==='lifemap'?'more-growth':tab}
+        active={tab==='chronicles'||tab==='challenges'||tab==='social'||tab==='vision'?'more-growth':tab}
         onChange={t=>setTab(t)}
         accentColor={T.violet}
       />
@@ -8947,13 +8953,6 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
         </div>
       )}
 
-      {tab==='lifemap' && (
-        <div>
-        <BackToMore onBack={()=>setTab('more-growth')} />
-        <LifeMapTab data={data} actions={actions} />
-        </div>
-      )}
-
       {tab==='more-growth' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', fontWeight:600, marginBottom:4 }}>EXPLORE</div>
@@ -8963,7 +8962,6 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
               { id:'challenges',  emoji:'⚔️',  label:'Challenges',  sub:'Active challenge tracker',  color:T.rose },
               { id:'social',      emoji:'🤝', label:'Social',      sub:'Social challenges & bets',   color:T.sky },
               { id:'vision',      emoji:'🌌', label:'Vision Board', sub:'Goals as a mood board',     color:T.violet },
-              { id:'lifemap',     emoji:'🗺️', label:'Life Map',    sub:'Visual goal graph',          color:T.accent },
             ].map(item => (
               <button key={item.id} onClick={()=>setTab(item.id)}
                 style={{ display:'flex', flexDirection:'column', gap:6, padding:'16px 14px', borderRadius:T.r,
@@ -10848,149 +10846,6 @@ function ScenarioCard({ cur, monthInc, savRate }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── 🗺️ LIFE MAP — goal & habit organiser ─────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-function LifeMapTab({ data, actions }) {
-  const {goals=[], habits=[], habitLogs={}, settings={}} = data;
-  const cur = settings.currency || '$';
-  const lang = useLang();
-
-  const DOMAINS = ['Finance','Health','Growth','Mind','Career','Learning','Body','Social'];
-  const DOMAIN_COLORS = { Finance:T.emerald, Health:T.sky, Growth:T.violet, Mind:T.accent, Learning:T.amber, Career:T.rose, Social:'#c084fc', Body:T.sky };
-
-  const [selectedDomain, setSelectedDomain] = useState(null);
-
-  const goalsByDomain = DOMAINS.reduce((acc, d) => {
-    acc[d] = (goals||[]).filter(g => (g.cat||'Growth') === d);
-    return acc;
-  }, {});
-  const habitsByDomain = DOMAINS.reduce((acc, d) => {
-    acc[d] = (habits||[]).filter(h => (h.category||'Growth') === d);
-    return acc;
-  }, {});
-  const activeDomains = DOMAINS.filter(d => goalsByDomain[d].length > 0 || habitsByDomain[d].length > 0);
-
-  const domainToShow = selectedDomain ? [selectedDomain] : activeDomains;
-
-  if ((goals||[]).length === 0 && (habits||[]).length === 0) {
-    return (
-      <GlassCard style={{ padding:48, textAlign:'center' }}>
-        <div style={{ fontSize:40, marginBottom:14 }}>🗺️</div>
-        <div style={{ fontSize:14, fontFamily:T.fD, fontWeight:700, color:T.text, marginBottom:8 }}>Your Life Map is empty</div>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, maxWidth:320, margin:'0 auto' }}>
-          Add goals and habits — they'll appear here grouped by life domain (Finance, Health, Growth…). Each domain shows your habits and how close you are to each goal.
-        </div>
-      </GlassCard>
-    );
-  }
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-      {/* Explanation */}
-      <GlassCard style={{ padding:'12px 16px', background:`${T.accent}07`, border:`1px solid ${T.accent}22` }}>
-        <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.6 }}>
-          <b style={{ color:T.accent }}>🗺️ Life Map</b> groups your goals and habits into life domains.
-          Tap a domain to focus on it. Each goal shows a progress ring — the fuller the ring, the closer you are to done.
-          Habits show today's streak.
-        </div>
-      </GlassCard>
-
-      {/* Domain filter pills */}
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-        <button onClick={()=>setSelectedDomain(null)}
-          style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', border:`1px solid ${!selectedDomain?T.accent+'55':T.border}`, background:!selectedDomain?T.accentDim:T.surface, color:!selectedDomain?T.accent:T.textSub }}>
-          All domains
-        </button>
-        {activeDomains.map(d => (
-          <button key={d} onClick={()=>setSelectedDomain(d===selectedDomain?null:d)}
-            style={{ padding:'4px 12px', borderRadius:99, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', border:`1px solid ${selectedDomain===d?(DOMAIN_COLORS[d]||T.accent)+'55':T.border}`, background:selectedDomain===d?(DOMAIN_COLORS[d]||T.accent)+'18':T.surface, color:selectedDomain===d?(DOMAIN_COLORS[d]||T.accent):T.textSub }}>
-            {d}
-          </button>
-        ))}
-      </div>
-
-      {/* Domain cards */}
-      {domainToShow.map(domain => {
-        const color = DOMAIN_COLORS[domain] || T.accent;
-        const domGoals = goalsByDomain[domain] || [];
-        const domHabits = habitsByDomain[domain] || [];
-        return (
-          <GlassCard key={domain} style={{ padding:'16px 20px', borderLeft:`3px solid ${color}55` }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
-              <div style={{ width:10, height:10, borderRadius:'50%', background:color, boxShadow:`0 0 8px ${color}88` }} />
-              <span style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color }}>{domain}</span>
-              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>
-                {domGoals.length} goal{domGoals.length!==1?'s':''} · {domHabits.length} habit{domHabits.length!==1?'s':''}
-              </span>
-            </div>
-
-            {/* Goals in this domain */}
-            {domGoals.length > 0 && (
-              <div style={{ marginBottom: domHabits.length > 0 ? 14 : 0 }}>
-                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>🎯 Goals</div>
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {domGoals.map(g => {
-                    const pct = g.target > 0 ? Math.min(100, ((g.current||0)/g.target)*100) : 0;
-                    const daysLeft = g.deadline ? Math.max(0, Math.ceil((new Date(g.deadline) - new Date()) / 86400000)) : null;
-                    return (
-                      <div key={g.id} style={{ display:'flex', alignItems:'center', gap:12 }}>
-                        {/* Progress ring */}
-                        <svg width={38} height={38} viewBox="0 0 38 38" style={{ flexShrink:0 }}>
-                          <circle cx="19" cy="19" r="15" fill="none" stroke={color+'22'} strokeWidth="3" />
-                          <circle cx="19" cy="19" r="15" fill="none" stroke={color} strokeWidth="3"
-                            strokeDasharray={`${pct/100*94.2} 94.2`} strokeLinecap="round"
-                            transform="rotate(-90 19 19)" />
-                          <text x="19" y="23" textAnchor="middle" fontSize="9" fill={color} fontWeight="700" fontFamily={T.fM}>{Math.round(pct)}%</text>
-                        </svg>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:600, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{g.name}</div>
-                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>
-                            {cur}{fmtN(g.current||0)} / {cur}{fmtN(g.target||0)}
-                            {daysLeft !== null && <span style={{ marginLeft:8, color: daysLeft < 14 ? T.rose : T.textMuted }}>{daysLeft}d left</span>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Habits in this domain */}
-            {domHabits.length > 0 && (
-              <div>
-                <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:8 }}>🔥 Habits</div>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                  {domHabits.map(h => {
-                    const streak = getStreak(h.id, habitLogs);
-                    const doneToday = (habitLogs[h.id]||[]).includes(today());
-                    return (
-                      <div key={h.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 10px', borderRadius:T.r, background:doneToday?color+'18':T.surface, border:`1px solid ${doneToday?color+'44':T.border}` }}>
-                        <span style={{ fontSize:14 }}>{h.emoji||'🔥'}</span>
-                        <div>
-                          <div style={{ fontSize:11, fontFamily:T.fM, color:doneToday?color:T.text, fontWeight:doneToday?700:400 }}>{h.name}</div>
-                          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>🔥 {streak}d streak{doneToday?' · ✓ today':''}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </GlassCard>
-        );
-      })}
-
-      {/* Legend */}
-      <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub, paddingTop:4 }}>
-        <span>◎ Ring = goal % complete</span>
-        <span>🔥 Number = streak days</span>
-        <span>✓ = completed today</span>
-      </div>
-    </div>
-  );
-}
-// ══════════════════════════════════════════════════════════════════════════════
 // ── 🔮 LIFE FORECAST ENGINE ───────────────────────────────────────════════════
 // ══════════════════════════════════════════════════════════════════════════════
 function LifeForecastTab({ data }) {
@@ -12859,6 +12714,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
       los_chronicles:   data.chronicles,
       los_challenges:   data.challenges,
       los_eventlog:     data.eventLog,
+      los_planner:      data.plannerEvents,
     };
     const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
@@ -13655,7 +13511,7 @@ function LifeHubPage({ data, actions }) {
         accentColor={T.amber}
       />
       {tab==='career'   && <CareerPage   data={data} actions={actions} embedded />}
-      {tab==='calendar' && <CalendarPage data={data} />}
+      {tab==='calendar' && <CalendarPage data={data} actions={actions} />}
       {tab==='timeline' && <TimelinePage data={data} embedded />}
       {tab==='archive'  && <ArchivePage  data={data} embedded />}
       {tab==='projects' && <NotionProjectsView data={data} actions={actions} />}
@@ -13906,7 +13762,7 @@ function CareerPage({ data, actions, embedded }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ── S4: CALENDAR PAGE ────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-function CalendarPage({ data }) {
+function CalendarPage({ data, actions }) {
   const lang = useLang();
   const [gcalTab, setGcalTab] = useState('local');
   const {expenses=[], habits=[], habitLogs={}, bills=[], goals=[], settings={}} = data;
@@ -14099,12 +13955,13 @@ function CalendarPage({ data }) {
         title={lang==='fr'?'Vue Mensuelle':'Monthly Overview'}
       />
       <TabNav
-        tabs={[{id:'local',label:'📅 Local'},{id:'gcal',label:'🗓 Google Calendar'}]}
+        tabs={[{id:'local',label:'📅 Local'},{id:'planner',label:'🗓️ Year Planner'},{id:'gcal',label:'🗓 Google Calendar'}]}
         active={gcalTab}
         onChange={setGcalTab}
         accentColor={T.accent}
       />
       {gcalTab==='gcal' && <GoogleCalendarTab data={data} />}
+      {gcalTab==='planner' && <YearPlannerTab data={data} actions={actions} />}
       {gcalTab==='local' && (
       <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
@@ -14310,7 +14167,225 @@ function CalendarPage({ data }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── S4: WHAT-IF FINANCIAL SIMULATOR ──────────────────────────────────────────
+// ── 🗓️ YEAR PLANNER — wall-planner style reference calendar ─────────────────
+// Manually-added important events/periods (trips, deadlines, birthdays…)
+// rendered across a full year at a glance, plus an upcoming-events list.
+// ══════════════════════════════════════════════════════════════════════════════
+const PLANNER_CATEGORIES = [
+  { id:'travel',    label:'Travel',    emoji:'✈️', color:'#38bdf8' },
+  { id:'work',      label:'Work / Deadline', emoji:'💼', color:'#f43f5e' },
+  { id:'birthday',  label:'Birthday',  emoji:'🎂', color:'#a78bfa' },
+  { id:'holiday',   label:'Holiday',   emoji:'🌴', color:'#34d399' },
+  { id:'milestone', label:'Milestone', emoji:'🏁', color:'#fb923c' },
+  { id:'personal',  label:'Personal',  emoji:'⭐', color:'#facc15' },
+];
+const plannerCat = (id) => PLANNER_CATEGORIES.find(c=>c.id===id) || PLANNER_CATEGORIES[5];
+
+function YearPlannerTab({ data, actions }) {
+  const lang = useLang();
+  const events = data.plannerEvents || [];
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [formOpen, setFormOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('personal');
+  const [startDate, setStartDate] = useState(today());
+  const [endDate, setEndDate] = useState('');
+
+  const resetForm = () => { setTitle(''); setCategory('personal'); setStartDate(today()); setEndDate(''); setFormOpen(false); };
+
+  const saveEvent = () => {
+    if (!title.trim() || !startDate) return;
+    actions.addPlannerEvent({
+      title: title.trim(),
+      category,
+      start: startDate,
+      end: endDate || startDate,
+    });
+    resetForm();
+  };
+
+  // ── Events touching the viewed year, sorted chronologically ────────────────
+  const yearEvents = useMemo(() => {
+    return events
+      .filter(e => e.start?.slice(0,4) === String(year) || e.end?.slice(0,4) === String(year) || (e.start < `${year}-01-01` && e.end >= `${year}-01-01`))
+      .sort((a,b) => a.start < b.start ? -1 : 1);
+  }, [events, year]);
+
+  // ── Fast lookup: dateStr -> [events covering that day] ─────────────────────
+  const eventsByDate = useMemo(() => {
+    const m = {};
+    events.forEach(ev => {
+      const s = ev.start, e = ev.end || ev.start;
+      if (!s) return;
+      // Only expand days that fall within the viewed year for performance
+      let d = new Date(Math.max(new Date(s), new Date(`${year}-01-01`)));
+      const last = new Date(Math.min(new Date(e), new Date(`${year}-12-31`)));
+      while (d <= last) {
+        const key = d.toISOString().slice(0,10);
+        (m[key] = m[key] || []).push(ev);
+        d.setDate(d.getDate()+1);
+      }
+    });
+    return m;
+  }, [events, year]);
+
+  const upcoming = useMemo(() => {
+    const t = today();
+    return [...events].filter(e => (e.end||e.start) >= t).sort((a,b)=>a.start<b.start?-1:1).slice(0,8);
+  }, [events]);
+
+  const DOW = ['S','M','T','W','T','F','S'];
+
+  const MiniMonth = ({ m }) => {
+    const first = new Date(year, m, 1).getDay();
+    const days  = new Date(year, m+1, 0).getDate();
+    const cells = [];
+    for (let i=0;i<first;i++) cells.push(null);
+    for (let d=1; d<=days; d++) cells.push(d);
+    const monthName = new Date(year, m, 1).toLocaleString('en-US', { month:'long' });
+    const isCurMonth = year===now.getFullYear() && m===now.getMonth();
+    return (
+      <GlassCard style={{ padding:'12px 14px' }}>
+        <div style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:isCurMonth?T.accent:T.text, marginBottom:8 }}>{monthName}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2, marginBottom:2 }}>
+          {DOW.map((d,i)=>(<div key={i} style={{ fontSize:7, fontFamily:T.fM, color:T.textMuted, textAlign:'center' }}>{d}</div>))}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2 }}>
+          {cells.map((d,idx) => {
+            if (!d) return <div key={idx} />;
+            const dateStr = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dayEvents = eventsByDate[dateStr] || [];
+            const isToday = isCurMonth && d===now.getDate();
+            const primary = dayEvents[0] ? plannerCat(dayEvents[0].category) : null;
+            return (
+              <div key={idx} title={dayEvents.map(e=>e.title).join(', ')} style={{
+                aspectRatio:'1', display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:8, fontFamily:T.fM, borderRadius:3, position:'relative',
+                color: isToday ? T.accent : primary ? '#fff' : T.textSub,
+                background: primary ? `${primary.color}cc` : isToday ? T.accentLo : 'transparent',
+                border: isToday ? `1px solid ${T.accent}` : 'none',
+                fontWeight: isToday ? 700 : 400,
+              }}>
+                {d}
+                {dayEvents.length > 1 && <span style={{ position:'absolute', bottom:0, right:0, width:3, height:3, borderRadius:'50%', background:'#fff' }} />}
+              </div>
+            );
+          })}
+        </div>
+      </GlassCard>
+    );
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+      {/* ── Header: year nav + add event ────────────────────────────────── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <button onClick={()=>setYear(y=>y-1)} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoChevLeft size={16} stroke={T.textSub} /></button>
+          <span style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:T.text }}>{year}</span>
+          <button onClick={()=>setYear(y=>y+1)} style={{ padding:'6px 10px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer' }}><IcoChevR size={16} stroke={T.textSub} /></button>
+          {year!==now.getFullYear() && (
+            <button onClick={()=>setYear(now.getFullYear())} style={{ padding:'5px 10px', borderRadius:8, background:'transparent', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, cursor:'pointer' }}>Today</button>
+          )}
+        </div>
+        <button onClick={()=>setFormOpen(o=>!o)} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, background:T.accent, border:'none', fontSize:11, fontFamily:T.fM, fontWeight:700, color:'#000', cursor:'pointer' }}>
+          <IcoPlus size={13} stroke="#000" /> Add Event
+        </button>
+      </div>
+
+      {/* ── Add event form ───────────────────────────────────────────────── */}
+      {formOpen && (
+        <GlassCard style={{ padding:'16px 18px', animation:'slideDown 0.2s ease' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:10, marginBottom:10 }}>
+            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Event title (e.g. Trip to Lisbon)" style={{ padding:'9px 12px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.text, fontSize:12, fontFamily:T.fM, gridColumn:'span 2' }} />
+            <select value={category} onChange={e=>setCategory(e.target.value)} style={{ padding:'9px 12px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.text, fontSize:12, fontFamily:T.fM }}>
+              {PLANNER_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+            </select>
+            <div />
+            <div>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.06em' }}>Start</div>
+              <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} style={{ width:'100%', padding:'9px 12px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.text, fontSize:12, fontFamily:T.fM }} />
+            </div>
+            <div>
+              <div style={{ fontSize:8, fontFamily:T.fM, color:T.textSub, marginBottom:4, textTransform:'uppercase', letterSpacing:'0.06em' }}>End (optional, for periods)</div>
+              <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} min={startDate} style={{ width:'100%', padding:'9px 12px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.text, fontSize:12, fontFamily:T.fM }} />
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+            <button onClick={resetForm} style={{ padding:'8px 14px', borderRadius:8, background:'transparent', border:`1px solid ${T.border}`, fontSize:11, fontFamily:T.fM, color:T.textSub, cursor:'pointer' }}>Cancel</button>
+            <button onClick={saveEvent} disabled={!title.trim()} style={{ padding:'8px 16px', borderRadius:8, background:T.accent, border:'none', fontSize:11, fontFamily:T.fM, fontWeight:700, color:'#000', cursor: title.trim()?'pointer':'not-allowed', opacity:title.trim()?1:0.5 }}>Save</button>
+          </div>
+        </GlassCard>
+      )}
+
+      <div style={{ display:'grid', gridTemplateColumns:'2.4fr 1fr', gap:14, alignItems:'start' }}>
+
+        {/* ── Year-at-a-glance wall planner grid ───────────────────────── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:10 }}>
+          {Array.from({length:12}, (_,m) => <MiniMonth key={m} m={m} />)}
+        </div>
+
+        {/* ── Sidebar: legend + upcoming key events ────────────────────── */}
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <GlassCard style={{ padding:'16px 18px' }}>
+            <SectionLabel>Legend</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:8 }}>
+              {PLANNER_CATEGORIES.map(c => (
+                <span key={c.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontFamily:T.fM, color:T.textSub }}>
+                  <span style={{ width:10, height:10, borderRadius:3, background:c.color, display:'inline-block', flexShrink:0 }} />
+                  {c.emoji} {c.label}
+                </span>
+              ))}
+            </div>
+          </GlassCard>
+
+          <GlassCard style={{ padding:'16px 18px' }}>
+            <SectionLabel>Upcoming Key Events</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:10 }}>
+              {upcoming.length===0 && <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No upcoming events. Add one to see it here.</div>}
+              {upcoming.map(ev => {
+                const c = plannerCat(ev.category);
+                const range = ev.end && ev.end!==ev.start ? `${ev.start} → ${ev.end}` : ev.start;
+                return (
+                  <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 9px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', background:c.color, flexShrink:0 }} />
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.emoji} {ev.title}</div>
+                      <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{range}</div>
+                    </div>
+                    <button onClick={()=>actions.removePlannerEvent(ev.id)} style={{ background:'transparent', border:'none', color:T.textMuted, cursor:'pointer', flexShrink:0 }}><IcoX size={12} stroke={T.textMuted} /></button>
+                  </div>
+                );
+              })}
+            </div>
+          </GlassCard>
+
+          {yearEvents.length > 0 && (
+            <GlassCard style={{ padding:'16px 18px' }}>
+              <SectionLabel>All {year} Events ({yearEvents.length})</SectionLabel>
+              <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, maxHeight:260, overflowY:'auto' }}>
+                {yearEvents.map(ev => {
+                  const c = plannerCat(ev.category);
+                  return (
+                    <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:10, fontFamily:T.fM, color:T.textSub }}>
+                      <span style={{ width:6, height:6, borderRadius:'50%', background:c.color, flexShrink:0 }} />
+                      <span style={{ flex:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</span>
+                      <span style={{ color:T.textMuted, flexShrink:0 }}>{ev.start.slice(5)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </GlassCard>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════════════════════
 // ── SIMULATE A DECISION ───────────────────────────────────────────────────────
@@ -19310,6 +19385,7 @@ export default function LifeOS() {
   const [challenges,    setChallenges    ] = useLocalStorage('los_challenges',   []);
   const [projects,      setProjects      ] = useLocalStorage('los_projects',      []);
   const [groceries,     setGroceries     ] = useLocalStorage('los_groceries',     []);
+  const [plannerEvents, setPlannerEvents ] = useLocalStorage('los_planner',       []);
 
   // ── NULL SANITIZER — defense-in-depth against JSON.parse("null") edge case ──
   // useLocalStorage guards against this, but if any value slipped through as null
@@ -19331,6 +19407,7 @@ export default function LifeOS() {
   const _challenges    = challenges    || [];
   const _projects      = projects      || [];
   const _groceries     = groceries     || [];
+  const _plannerEvents = plannerEvents || [];
   const _habitLogs     = habitLogs     || {};
   const _budgets       = budgets       || {};
   const _netWorthHistory = netWorthHistory || [];
@@ -19658,6 +19735,15 @@ export default function LifeOS() {
   const removeChronicle = useCallback((id) => {
     setChronicles(p => p.filter(c => c.id !== id));
   }, []);
+  const addPlannerEvent = useCallback((ev) => {
+    setPlannerEvents(p => [{ id: Date.now(), ...ev }, ...p]);
+  }, []);
+  const removePlannerEvent = useCallback((id) => {
+    setPlannerEvents(p => p.filter(e => e.id !== id));
+  }, []);
+  const updatePlannerEvent = useCallback((id, patch) => {
+    setPlannerEvents(p => p.map(e => e.id === id ? { ...e, ...patch } : e));
+  }, []);
   const addDecision = useCallback((d) => {
     setDecisions(p => [d, ...p]);
   }, []);
@@ -19950,6 +20036,7 @@ export default function LifeOS() {
     updateCareer, updateInvestmentPrice,
     // Batch 1+2
     addChronicle, removeChronicle, addDecision, removeDecision, joinChallenge, toggleChallengeDay, leaveChallenge,
+    addPlannerEvent, removePlannerEvent, updatePlannerEvent,
     // Projects
     addProject:      (p) => setProjects(prev => [...prev, { id:Date.now(), ...p, tasks:[], createdAt:new Date().toISOString() }]),
     removeProject:   (id) => setProjects(prev => prev.filter(p => p.id !== id)),
@@ -19974,7 +20061,7 @@ export default function LifeOS() {
     focusSessions:_focusSessions, quickNotes:_quickNotes,
     subscriptions:_subscriptions, budgets:_budgets, bills:_bills, career,
     chronicles:_chronicles, challenges:_challenges, decisions:_decisions,
-    projects:_projects, groceries:_groceries,
+    projects:_projects, groceries:_groceries, plannerEvents:_plannerEvents,
     invHistory:_invHistory,
     computed,
     isMobile,
@@ -20081,7 +20168,7 @@ export default function LifeOS() {
     growth:    eb(<GrowthPage    data={data} actions={{...actions, logHabit:logHabitWithPop, addGoal:addGoalWithPop}} onOpenWeeklyReview={()=>setShowWeeklyReview(true)} />),
     knowledge: eb(<KnowledgePage data={data} actions={{...actions, addNote:addNoteWithPop}} />),
     career:    eb(<CareerPage    data={data} actions={actions} />),
-    calendar:  eb(<CalendarPage  data={data} />),
+    calendar:  eb(<CalendarPage  data={data} actions={actions} />),
     // intel page absorbed into Home dashboard
     archive:   eb(<ArchivePage   data={data} />),
     memory:    eb(<MemoryPage    data={data} />),
