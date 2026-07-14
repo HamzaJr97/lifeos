@@ -620,7 +620,7 @@ const LOCALES = {
     habits:'Habits', goals:'Goals', streak:'streak', xp:'XP', level:'Level',
     logHabit:'Log Habit', addGoal:'New Goal', lifeMap:'Life Map',
     // Notes
-    notes:'Notes', addNote:'New Note', knowledge:'Knowledge',
+    notes:'Notes', addNote:'New Note',
     // Misc UI
     thisMonth:'This Month', today:'Today', yesterday:'Yesterday',
     save:'Save', cancel:'Cancel', delete:'Delete', edit:'Edit', add:'Add',
@@ -659,7 +659,7 @@ const LOCALES = {
     habits:'Habitudes', goals:'Objectifs', streak:'série', xp:'XP', level:'Niveau',
     logHabit:'Valider habitude', addGoal:'Nouvel objectif', lifeMap:'Carte de vie',
     // Notes
-    notes:'Notes', addNote:'Nouvelle note', knowledge:'Savoir',
+    notes:'Notes', addNote:'Nouvelle note',
     // Misc UI
     thisMonth:'Ce mois', today:'Aujourd\'hui', yesterday:'Hier',
     save:'Enregistrer', cancel:'Annuler', delete:'Supprimer', edit:'Modifier', add:'Ajouter',
@@ -943,7 +943,7 @@ const CHALLENGES_CATALOG = [
   { id:'learn_skill',  title:'Skill Sprint',         desc:'Study a new skill for 1h daily, 14 days',   emoji:'🎯',   xp:300, cat:'growth',  days:14 },
 ];
 
-// ── ACHIEVEMENTS (20 total) ────────────────────────────────────────────────────
+// ── ACHIEVEMENTS ────────────────────────────────────────────────────────────
 const ACHIEVEMENTS = [
   // Habit consistency (streaks — least days you need to keep a habit going)
   { id:'streak_7',      emoji:'🔥', name:'Week Warrior',     desc:'7-day streak on any habit',          color:T.amber,   check:d => d.habits.some(h => getStreak(h.id, d.habitLogs) >= 7) },
@@ -1762,10 +1762,6 @@ function QuickCaptureFAB({ onAction, isMobile }) {
 function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
   const lang = useLang();
   const ALL_NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
-  const EXTRA = [
-    { id:'future',    label: lang==='fr'?'Futur':'Future',                emoji:'🚀' },
-    { id:'lifehub',   label: lang==='fr'?'Hub Vie':'Life Hub',            emoji:'💼' },
-  ];
   const handleNav = (id) => { onNav(id); onClose(); };
   return (
     <>
@@ -1790,16 +1786,6 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
               </button>
             );
           })}
-          <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', padding:'14px 8px 4px' }}>More</div>
-          {EXTRA.map(({ id, label, emoji }) => {
-            const isA = active === id;
-            return (
-              <button key={id} onClick={() => handleNav(id)} style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'11px 12px', borderRadius:10, background:isA?T.accentDim:'transparent', color:isA?T.accent:T.text, border:`1px solid ${isA?T.accent+'33':'transparent'}`, marginBottom:2, transition:'all 0.15s', fontFamily:T.fD, fontSize:13, fontWeight:isA?700:400, textAlign:'left', cursor:'pointer' }}>
-                <span style={{ fontSize:15, width:20, textAlign:'center', flexShrink:0 }}>{emoji}</span>
-                {label}
-              </button>
-            );
-          })}
         </div>
         <div style={{ padding:'12px 10px', borderTop:`1px solid ${T.border}`, flexShrink:0, paddingBottom:`calc(12px + var(--sab))` }}>
           <button onClick={() => { onSearch(); onClose(); }} style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'11px 14px', borderRadius:10, background:T.surface, border:`1px solid ${T.border}`, color:T.textSub, fontFamily:T.fM, fontSize:12, cursor:'pointer', transition:'all 0.15s' }}>
@@ -1815,7 +1801,7 @@ function MobileNavDrawer({ open, onClose, active, onNav, onSearch }) {
 
 // ── BOTTOM NAV (mobile) ───────────────────────────────────────────────────────
 // 4 page items + AI button = 5 tappable targets (~78px each on 390px screen)
-// Knowledge / Intel / Settings reachable via nav drawer (☰) and ⌘K.
+// Knowledge, Memory, Future, Life Hub, Settings reachable via nav drawer (☰) and ⌘K.
 const BOTTOM_NAV_DEFS = [
   { id:'home',   Icon:IcoHome,   tKey:'home'   },
   { id:'money',  Icon:IcoMoney,  tKey:'money'  },
@@ -1889,7 +1875,6 @@ const NAV_DEFS = [
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
 function Sidebar({ active, onNav, userName, onAI, showAI }) {
-  const [hov, setHov] = useState(null);
   const lang = useLang();
   const NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
   const init = userName ? userName.charAt(0).toUpperCase() : 'U';
@@ -1899,27 +1884,21 @@ function Sidebar({ active, onNav, userName, onAI, showAI }) {
       {NAV.map(({ id, Icon, label }) => {
         const isA = active===id;
         return (
-          <div key={id} style={{ position:'relative', width:'100%' }} onMouseEnter={()=>setHov(id)} onMouseLeave={()=>setHov(null)}>
-            <button className="los-nav" onClick={()=>onNav(id)} style={{ width:'100%', height:42, display:'flex', alignItems:'center', justifyContent:'center', background:isA?T.accentDim:'transparent', color:isA?T.accent:T.textSub, borderLeft:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', position:'relative' }}>
-              {isA && <div style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)', width:2, height:18, background:T.accent, boxShadow:`0 0 12px ${T.accent}, 0 0 24px ${T.accent}55`, borderRadius:'0 2px 2px 0' }} />}
-              <Icon size={15} stroke={isA?T.accent:T.textSub} style={isA?{filter:`drop-shadow(0 0 6px ${T.accent}99)`}:{}} />
-            </button>
-            {hov===id && (
-              <div style={{ position:'absolute', left:'100%', top:'50%', transform:'translateY(-50%)', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', zIndex:200, fontSize:10, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', marginLeft:6, pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>{label}</div>
-            )}
-          </div>
+          <button key={id} className="los-nav" onClick={()=>onNav(id)} title={label} style={{ width:'100%', minHeight:46, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, padding:'5px 2px', background:isA?T.accentDim:'transparent', color:isA?T.accent:T.textSub, borderLeft:`2px solid ${isA?T.accent:'transparent'}`, transition:'all 0.18s', position:'relative' }}>
+            {isA && <div style={{ position:'absolute', left:0, top:'50%', transform:'translateY(-50%)', width:2, height:18, background:T.accent, boxShadow:`0 0 12px ${T.accent}, 0 0 24px ${T.accent}55`, borderRadius:'0 2px 2px 0' }} />}
+            <Icon size={15} stroke={isA?T.accent:T.textSub} style={isA?{filter:`drop-shadow(0 0 6px ${T.accent}99)`}:{}} />
+            <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.02em', fontWeight:isA?700:400, lineHeight:1.1, textAlign:'center' }}>{label.toUpperCase()}</span>
+          </button>
         );
       })}
       <div style={{ flex:1 }} />
       {/* AI Coach button */}
-      <div style={{ position:'relative', width:'100%' }} onMouseEnter={()=>setHov('ai')} onMouseLeave={()=>setHov(null)}>
-        <button onClick={onAI} style={{ width:'100%', height:40, display:'flex', alignItems:'center', justifyContent:'center', background:showAI?T.accentDim:'transparent', color:showAI?T.accent:T.textSub, borderLeft:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', position:'relative' }}>
-          <IcoBrain size={15} stroke={showAI?T.accent:T.textSub} />
-          {!showAI && <span style={{ position:'absolute', top:8, right:14, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
-        </button>
-        {hov==='ai' && <div style={{ position:'absolute', left:'100%', top:'50%', transform:'translateY(-50%)', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', zIndex:200, fontSize:10, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', marginLeft:6, pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>AI Coach (A)</div>}
-      </div>
-      <div style={{ width:32, height:32, borderRadius:'50%', background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:T.bg, fontFamily:T.fD, border:`2px solid ${T.border}`, marginBottom:6 }}>{init}</div>
+      <button onClick={onAI} title="AI Coach" style={{ width:'100%', minHeight:44, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, padding:'5px 2px', background:showAI?T.accentDim:'transparent', color:showAI?T.accent:T.textSub, borderLeft:`2px solid ${showAI?T.accent:'transparent'}`, transition:'all 0.18s', position:'relative' }}>
+        <IcoBrain size={15} stroke={showAI?T.accent:T.textSub} />
+        {!showAI && <span style={{ position:'absolute', top:6, right:16, width:5, height:5, borderRadius:'50%', background:T.accent, animation:'dotPulse 2s infinite' }} />}
+        <span style={{ fontSize:8, fontFamily:T.fM, letterSpacing:'0.02em', fontWeight:showAI?700:400, lineHeight:1.1 }}>AI COACH</span>
+      </button>
+      <div style={{ width:32, height:32, borderRadius:'50%', background:`linear-gradient(135deg,${T.violet},${T.accent})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:T.bg, fontFamily:T.fD, border:`2px solid ${T.border}`, marginBottom:6, marginTop:8 }}>{init}</div>
       <div style={{ width:5, height:5, borderRadius:'50%', background:T.emerald, boxShadow:`0 0 6px ${T.emerald}`, animation:'dotPulse 2s infinite', marginBottom:8 }} />
     </div>
   );
@@ -8606,7 +8585,7 @@ function GrowthPage({ data, actions, onOpenWeeklyReview }) {
       <PageHeader
         domain="Growth Domain"
         title={lang==='fr'?'Caractère · Habitudes · Objectifs':'Character · Habits · Goals'}
-        infoIcon={<PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP. Use the heatmap to see consistency over 18 weeks.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} />}
+        infoIcon={<PageInfoIcon content={<div><p><b>🔥 Habits</b> — Track daily habits. Check off each habit to build streaks and earn XP.</p><p style={{marginTop:8}}><b>🎯 Goals</b> — Set goals with a target amount and deadline. Update progress manually or link to real data.</p><p style={{marginTop:8}}><b>🗺️ Life Map</b> — A visual graph linking your goals and habits to life domains (Finance, Health, Growth…). Drag nodes to rearrange.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlocked for completed goals and habit streaks — not for how much data you log.</p><p style={{marginTop:8}}><b>⚡ XP System</b> — Every habit log, goal update, and expense entry earns XP. Level up as you build consistency.</p></div>} />}
       />
       <TabNav
         tabs={['character','habits','goals','achievements','more-growth'].map(t=>({
@@ -12827,7 +12806,6 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
   const [savingsTarget, setSavingsTarget] = useState(settings.savingsTarget||'');
   const [theme, setTheme] = useState(settings.theme||'dark');
   const [language, setLanguage] = useState(settings.language||'en');
-  const [pin, setPin] = useState(settings.pin||'');
   const [aiProvider, setAiProvider] = useState(settings.aiProvider||'claude');
   const [aiApiKey, setAiApiKey] = useState(settings.aiApiKey||'');
   const [whisperKey, setWhisperKey] = useState(settings.whisperKey||'');
@@ -12837,7 +12815,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
   const [weightUnit, setWeightUnit] = useState(settings.weightUnit||'lbs');
 
   const save = () => {
-    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, whisperKey, elevenLabsKey, pin:'', weightUnit });
+    actions.updateSettings({ ...settings, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, language, aiProvider, aiApiKey, whisperKey, elevenLabsKey, weightUnit });
     // Mutate T and bump themeVersion via callback so all inline-style references re-render
     onThemeChange(theme);
     // Note: currentLang global removed (Bug 5 fix) — language flows via LangContext
@@ -12852,7 +12830,12 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
   };
   // Architecture fix: all 18 localStorage keys are now exported — previously
   // los_bills, los_career, los_qnotes, and los_eventlog were silently omitted.
+  // Security fix: strip API keys/tokens before writing to the downloadable backup —
+  // previously los_settings (and any aiApiKey/whisperKey/elevenLabsKey inside it)
+  // went out in plaintext, so sharing a backup could leak credentials.
   const exportData = () => {
+    const safeSettings = { ...settings };
+    SETTINGS_SECRETS.forEach(secret => delete safeSettings[secret]);
     const d = {
       los_habits:       data.habits,
       los_habitlogs:    data.habitLogs,
@@ -12866,7 +12849,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
       los_notes:        data.notes,
       los_xp:           data.totalXP,
       los_nwhistory:    data.netWorthHistory,
-      los_settings:     settings,
+      los_settings:     safeSettings,
       los_focus:        data.focusSessions,
       los_subs:         data.subscriptions,
       los_budgets:      data.budgets,
@@ -13020,7 +13003,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:8, marginBottom:2 }}>Language</div>
             <div style={{ display:'flex', gap:8 }}>
               {[{id:'en',label:'🇬🇧 English'},{id:'fr',label:'🇫🇷 Français'}].map(lang=>(
-                <button key={lang.id} onClick={()=>{ setLanguage(lang.id); actions.updateSettings({...settings, language:lang.id, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, aiProvider, aiApiKey, pin:pin.length===4?pin:''}); }} style={{ flex:1, padding:'8px', borderRadius:8, background:language===lang.id?T.accentDim:T.surface, border:`1px solid ${language===lang.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:language===lang.id?T.accent:T.text }}>
+                <button key={lang.id} onClick={()=>{ setLanguage(lang.id); actions.updateSettings({...settings, language:lang.id, name, currency, incomeTarget:Number(incomeTarget), savingsTarget:Number(savingsTarget), theme, aiProvider, aiApiKey}); }} style={{ flex:1, padding:'8px', borderRadius:8, background:language===lang.id?T.accentDim:T.surface, border:`1px solid ${language===lang.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:language===lang.id?T.accent:T.text }}>
                   {lang.label}
                 </button>
               ))}
@@ -13788,7 +13771,7 @@ function CareerPage({ data, actions, embedded }) {
       {!embedded && <PageHeader
         domain="Career Domain"
         title={lang==='fr'?'Hub Carrière':'Career Hub'}
-        infoIcon={<PageInfoIcon content={<div><p><b>💼 Career</b> — Log your current role, track job applications, skills, and salary history.</p><p style={{marginTop:8}}><b>📈 Focus Billing</b> — Set an hourly rate and track how much you've earned per focus session.</p><p style={{marginTop:8}}><b>🏆 Achievements</b> — Unlock badges for reaching milestones across all life domains.</p></div>} />}
+        infoIcon={<PageInfoIcon content={<div><p><b>💼 Career</b> — Log your current role, track job applications, skills, and salary history.</p><p style={{marginTop:8}}><b>📈 Focus Billing</b> — Set an hourly rate and track how much you've earned per focus session.</p></div>} />}
       />}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12, marginBottom:18 }}>
         {statCards.map((m,i)=>(
@@ -14647,6 +14630,8 @@ function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('$');
   const [income, setIncome] = useState('');
+  const [weightUnit, setWeightUnit] = useState('lbs');
+  const [language, setLanguage] = useState('en');
   const [selGoals, setSelGoals] = useState([]);
   const [selHabits, setSelHabits] = useState([]);
   const GOAL_OPTS = [
@@ -14668,14 +14653,14 @@ function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
   const STEPS = [
     {title:'Welcome to LifeOS 👋',sub:'Your personal life operating system. Set up in under a minute.'},
     {title:'What\'s your name?',sub:'We\'ll personalise your experience.'},
-    {title:'Financial setup',sub:'Currency and income target — you can change these later.'},
+    {title:'Financial setup',sub:'Currency, income target, weight unit and language — all changeable later.'},
     {title:'What are your goals?',sub:'Pick up to 3 focus areas.'},
     {title:'Pick your first habits',sub:'Start with 2–3 for best results.'},
     {title:'You\'re all set! 🎉',sub:'LifeOS is ready to go.'},
   ];
   const toggle = (arr,setArr,id,max=3) => setArr(p=>p.includes(id)?p.filter(x=>x!==id):p.length<max?[...p,id]:p);
   const finish = () => {
-    actions.updateSettings({...settings,name,currency,incomeTarget:Number(income),onboarded:true});
+    actions.updateSettings({...settings,name,currency,incomeTarget:Number(income),weightUnit,language,onboarded:true});
     selGoals.forEach(g=>{const o=GOAL_OPTS.find(x=>x.id===g);actions.addGoal({id:Date.now()+Math.random(),name:o?.label||g,target:0,current:0,cat:'other',emoji:o?.emoji||'🎯',milestones:[]});});
     selHabits.forEach(h=>{const o=HABIT_OPTS.find(x=>x.id===h);actions.addHabit(o?.label||h,{emoji:o?.emoji||'✅'});});
     onComplete();
@@ -14699,6 +14684,20 @@ function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
               <Select value={currency} onChange={e=>setCurrency(e.target.value)}>{['$','€','£','¥','₹','₩','Fr','R$','CA$','A$'].map(c=><option key={c}>{c}</option>)}</Select></div>
             <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Monthly income (optional)</div>
               <Input type="number" value={income} onChange={e=>setIncome(e.target.value)} placeholder="e.g. 3000" /></div>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Weight unit</div>
+              <div style={{display:'flex',gap:8}}>
+                {['lbs','kg'].map(u=>(
+                  <button key={u} onClick={()=>setWeightUnit(u)} style={{flex:1,padding:'9px',borderRadius:T.r,background:weightUnit===u?T.skyDim:T.surface,border:`1px solid ${weightUnit===u?T.sky+'55':T.border}`,fontSize:11,fontFamily:T.fM,color:weightUnit===u?T.sky:T.textSub,cursor:'pointer',transition:'all 0.15s'}}>{u}</button>
+                ))}
+              </div>
+            </div>
+            <div><div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginBottom:6}}>Language</div>
+              <div style={{display:'flex',gap:8}}>
+                {[{id:'en',label:'English'},{id:'fr',label:'Français'}].map(l=>(
+                  <button key={l.id} onClick={()=>setLanguage(l.id)} style={{flex:1,padding:'9px',borderRadius:T.r,background:language===l.id?T.accentDim:T.surface,border:`1px solid ${language===l.id?T.accent+'55':T.border}`,fontSize:11,fontFamily:T.fM,color:language===l.id?T.accent:T.textSub,cursor:'pointer',transition:'all 0.15s'}}>{l.label}</button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
         {step===3&&(
@@ -14721,7 +14720,7 @@ function OnboardingWizard({ onComplete, onSkip, actions, settings }) {
         )}
         {step===5&&(
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            {[[`👤 Name`,name||'Not set'],[`💱 Currency`,currency],[`🎯 Goals`,selGoals.length+' selected'],[`🔥 Habits`,selHabits.length+' selected']].map(([k,v])=>(
+            {[[`👤 Name`,name||'Not set'],[`💱 Currency`,currency],[`⚖️ Weight unit`,weightUnit],[`🌐 Language`,language==='fr'?'Français':'English'],[`🎯 Goals`,selGoals.length+' selected'],[`🔥 Habits`,selHabits.length+' selected']].map(([k,v])=>(
               <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',borderRadius:T.r,background:T.surface,border:`1px solid ${T.border}`,fontSize:11,fontFamily:T.fM}}>
                 <span style={{color:T.textSub}}>{k}</span><span style={{color:T.accent,fontWeight:600}}>{v}</span>
               </div>
@@ -15083,31 +15082,6 @@ function MonthlyReviewModal({ open, onClose, data, actions }) {
           <BtnCancel onClick={onClose} />
           <Btn onClick={save} color={T.accent} style={{flex:1}}>Save to Chronicles</Btn>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── PIN LOCK OVERLAY ──────────────────────────────────────────────────────────
-function PinLockOverlay({ pin, onUnlock }) {
-  const [input,setInput]=useState('');
-  const [shake,setShake]=useState(false);
-  const tryPin=(val)=>{ if(val===pin){onUnlock();}else if(val.length>=pin.length){setShake(true);setInput('');setTimeout(()=>setShake(false),400);} };
-  const addDigit=(d)=>{ const next=input+d; setInput(next); tryPin(next); };
-  return (
-    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:99999,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:28}}>
-      <div style={{fontSize:26,fontFamily:T.fD,fontWeight:800,color:T.text}}>LifeOS 🔒</div>
-      <div style={{display:'flex',gap:14,animation:shake?'shake 0.4s ease':''}}>
-        {Array.from({length:pin.length},(_,i)=>(
-          <div key={i} style={{width:14,height:14,borderRadius:'50%',background:input.length>i?T.accent:T.border,transition:'background 0.15s'}} />
-        ))}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,transform:shake?'translateX(-6px)':'none',transition:'transform 0.1s'}}>
-        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((d,i)=>(
-          <button key={i} onClick={()=>d==='⌫'?setInput(p=>p.slice(0,-1)):d&&addDigit(d)} style={{width:64,height:64,borderRadius:'50%',background:d?T.surface:'transparent',border:`1px solid ${d?T.border:'transparent'}`,fontSize:18,fontFamily:T.fD,fontWeight:600,color:T.text,cursor:d?'pointer':'default'}}>
-            {d}
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -19282,7 +19256,6 @@ export default function LifeOS() {
   // inline-style references to T.bg / T.accent etc. pick up the new values.
   const [themeVersion, setThemeVersion] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [pinUnlocked, setPinUnlocked] = useState(true); // PIN disabled — always unlocked
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showVoice,   setShowVoice  ] = useState(false);
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
