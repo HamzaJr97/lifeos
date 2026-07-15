@@ -14180,6 +14180,12 @@ const PLANNER_CATEGORIES = [
   { id:'personal',  label:'Personal',  emoji:'⭐', color:'#facc15' },
 ];
 const plannerCat = (id) => PLANNER_CATEGORIES.find(c=>c.id===id) || PLANNER_CATEGORIES[5];
+// Inclusive day count between two YYYY-MM-DD strings (a 1-day event = 1 day)
+const plannerDays = (start, end) => {
+  if (!start) return 0;
+  const s = new Date(start), e = new Date(end || start);
+  return Math.round((e - s) / 86400000) + 1;
+};
 
 function YearPlannerTab({ data, actions }) {
   const lang = useLang();
@@ -14295,6 +14301,25 @@ function YearPlannerTab({ data, actions }) {
         </button>
       </div>
 
+      {/* ── Year stat strip ──────────────────────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))', gap:12 }}>
+        <GlassCard style={{ padding:'14px 16px' }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>Events in {year}</div>
+          <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.accent }}>{yearEvents.length}</div>
+        </GlassCard>
+        <GlassCard style={{ padding:'14px 16px' }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>Total Days Planned</div>
+          <div style={{ fontSize:18, fontFamily:T.fD, fontWeight:800, color:T.emerald }}>
+            {yearEvents.reduce((sum,ev) => {
+              // Clip each event's span to the days that actually fall in the viewed year
+              const s = ev.start < `${year}-01-01` ? `${year}-01-01` : ev.start;
+              const e = (ev.end||ev.start) > `${year}-12-31` ? `${year}-12-31` : (ev.end||ev.start);
+              return sum + plannerDays(s, e);
+            }, 0)}d
+          </div>
+        </GlassCard>
+      </div>
+
       {/* ── Add event form ───────────────────────────────────────────────── */}
       {formOpen && (
         <GlassCard style={{ padding:'16px 18px', animation:'slideDown 0.2s ease' }}>
@@ -14313,6 +14338,11 @@ function YearPlannerTab({ data, actions }) {
               <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} min={startDate} style={{ width:'100%', padding:'9px 12px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}`, color:T.text, fontSize:12, fontFamily:T.fM }} />
             </div>
           </div>
+          {startDate && (
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:10 }}>
+              📏 {plannerDays(startDate, endDate)} day{plannerDays(startDate, endDate)>1?'s':''} total
+            </div>
+          )}
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
             <button onClick={resetForm} style={{ padding:'8px 14px', borderRadius:8, background:'transparent', border:`1px solid ${T.border}`, fontSize:11, fontFamily:T.fM, color:T.textSub, cursor:'pointer' }}>Cancel</button>
             <button onClick={saveEvent} disabled={!title.trim()} style={{ padding:'8px 16px', borderRadius:8, background:T.accent, border:'none', fontSize:11, fontFamily:T.fM, fontWeight:700, color:'#000', cursor: title.trim()?'pointer':'not-allowed', opacity:title.trim()?1:0.5 }}>Save</button>
@@ -14348,6 +14378,7 @@ function YearPlannerTab({ data, actions }) {
               {upcoming.map(ev => {
                 const c = plannerCat(ev.category);
                 const range = ev.end && ev.end!==ev.start ? `${ev.start} → ${ev.end}` : ev.start;
+                const days = plannerDays(ev.start, ev.end);
                 return (
                   <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 9px', borderRadius:8, background:T.surface, border:`1px solid ${T.border}` }}>
                     <span style={{ width:8, height:8, borderRadius:'50%', background:c.color, flexShrink:0 }} />
@@ -14355,6 +14386,7 @@ function YearPlannerTab({ data, actions }) {
                       <div style={{ fontSize:11, fontFamily:T.fM, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.emoji} {ev.title}</div>
                       <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{range}</div>
                     </div>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:c.color, background:`${c.color}18`, borderRadius:99, padding:'2px 7px', flexShrink:0, whiteSpace:'nowrap' }}>{days}d</span>
                     <button onClick={()=>actions.removePlannerEvent(ev.id)} style={{ background:'transparent', border:'none', color:T.textMuted, cursor:'pointer', flexShrink:0 }}><IcoX size={12} stroke={T.textMuted} /></button>
                   </div>
                 );
@@ -14368,10 +14400,12 @@ function YearPlannerTab({ data, actions }) {
               <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:10, maxHeight:260, overflowY:'auto' }}>
                 {yearEvents.map(ev => {
                   const c = plannerCat(ev.category);
+                  const days = plannerDays(ev.start, ev.end);
                   return (
                     <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:8, fontSize:10, fontFamily:T.fM, color:T.textSub }}>
                       <span style={{ width:6, height:6, borderRadius:'50%', background:c.color, flexShrink:0 }} />
                       <span style={{ flex:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</span>
+                      <span style={{ color:c.color, flexShrink:0 }}>{days}d</span>
                       <span style={{ color:T.textMuted, flexShrink:0 }}>{ev.start.slice(5)}</span>
                     </div>
                   );
