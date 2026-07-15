@@ -14178,6 +14178,7 @@ const PLANNER_CATEGORIES = [
   { id:'holiday',   label:'Holiday',   emoji:'🌴', color:'#34d399' },
   { id:'milestone', label:'Milestone', emoji:'🏁', color:'#fb923c' },
   { id:'personal',  label:'Personal',  emoji:'⭐', color:'#facc15' },
+  { id:'public',    label:'Public Holiday', emoji:'🇫🇷', color:'#60a5fa' },
 ];
 const plannerCat = (id) => PLANNER_CATEGORIES.find(c=>c.id===id) || PLANNER_CATEGORIES[5];
 // Inclusive day count between two YYYY-MM-DD strings (a 1-day event = 1 day)
@@ -14185,6 +14186,35 @@ const plannerDays = (start, end) => {
   if (!start) return 0;
   const s = new Date(start), e = new Date(end || start);
   return Math.round((e - s) / 86400000) + 1;
+};
+// Anonymous Gregorian algorithm (Meeus/Jones/Butcher) — returns Easter Sunday as a Date
+const easterSunday = (year) => {
+  const a = year % 19, b = Math.floor(year/100), c = year % 100;
+  const d = Math.floor(b/4), e = b % 4, f = Math.floor((b+8)/25);
+  const g = Math.floor((b-f+1)/3), h = (19*a+b-d-g+15) % 30;
+  const i = Math.floor(c/4), k = c % 4, l = (32+2*e+2*i-h-k) % 7;
+  const m = Math.floor((a+11*h+22*l)/451);
+  const month = Math.floor((h+l-7*m+114)/31), day = ((h+l-7*m+114) % 31) + 1;
+  return new Date(year, month-1, day);
+};
+const addDays = (date, n) => { const d = new Date(date); d.setDate(d.getDate()+n); return d; };
+const iso = (d) => d.toISOString().slice(0,10);
+// Official French public holidays ("jours fériés") for a given year
+const franceHolidays = (year) => {
+  const easter = easterSunday(year);
+  return [
+    { title:"Jour de l'An",        start: `${year}-01-01` },
+    { title:'Lundi de Pâques',     start: iso(addDays(easter, 1)) },
+    { title:'Fête du Travail',     start: `${year}-05-01` },
+    { title:'Victoire 1945',       start: `${year}-05-08` },
+    { title:'Ascension',           start: iso(addDays(easter, 39)) },
+    { title:'Lundi de Pentecôte',  start: iso(addDays(easter, 50)) },
+    { title:'Fête Nationale',      start: `${year}-07-14` },
+    { title:'Assomption',          start: `${year}-08-15` },
+    { title:'Toussaint',           start: `${year}-11-01` },
+    { title:'Armistice 1918',      start: `${year}-11-11` },
+    { title:'Noël',                start: `${year}-12-25` },
+  ];
 };
 
 function YearPlannerTab({ data, actions }) {
@@ -14199,6 +14229,17 @@ function YearPlannerTab({ data, actions }) {
   const [endDate, setEndDate] = useState('');
 
   const resetForm = () => { setTitle(''); setCategory('personal'); setStartDate(today()); setEndDate(''); setFormOpen(false); };
+
+  const holidaysLoaded = useMemo(() =>
+    events.some(e => e.source === 'fr-holiday' && e.start?.slice(0,4) === String(year)),
+  [events, year]);
+
+  const addFranceHolidays = () => {
+    if (holidaysLoaded) return;
+    franceHolidays(year).forEach(h => {
+      actions.addPlannerEvent({ title: h.title, category: 'public', start: h.start, end: h.start, source: 'fr-holiday' });
+    });
+  };
 
   const saveEvent = () => {
     if (!title.trim() || !startDate) return;
@@ -14296,9 +14337,14 @@ function YearPlannerTab({ data, actions }) {
             <button onClick={()=>setYear(now.getFullYear())} style={{ padding:'5px 10px', borderRadius:8, background:'transparent', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textSub, cursor:'pointer' }}>Today</button>
           )}
         </div>
-        <button onClick={()=>setFormOpen(o=>!o)} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, background:T.accent, border:'none', fontSize:11, fontFamily:T.fM, fontWeight:700, color:'#000', cursor:'pointer' }}>
-          <IcoPlus size={13} stroke="#000" /> Add Event
-        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button onClick={addFranceHolidays} disabled={holidaysLoaded} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, background:'transparent', border:`1px solid ${holidaysLoaded?T.border:'#60a5fa66'}`, fontSize:11, fontFamily:T.fM, fontWeight:700, color:holidaysLoaded?T.textMuted:'#60a5fa', cursor:holidaysLoaded?'default':'pointer' }}>
+            🇫🇷 {holidaysLoaded ? `Holidays loaded for ${year}` : `Add France Holidays ${year}`}
+          </button>
+          <button onClick={()=>setFormOpen(o=>!o)} style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, background:T.accent, border:'none', fontSize:11, fontFamily:T.fM, fontWeight:700, color:'#000', cursor:'pointer' }}>
+            <IcoPlus size={13} stroke="#000" /> Add Event
+          </button>
+        </div>
       </div>
 
       {/* ── Year stat strip ──────────────────────────────────────────────── */}
