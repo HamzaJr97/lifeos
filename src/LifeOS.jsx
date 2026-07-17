@@ -2794,152 +2794,206 @@ function AddInvestmentModal({ open, onClose, onSave }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ── 🔮 BUY WHAT-IF CALCULATOR — "what if I bought BTC/a stock today?" ─────────
-// Lump-sum hypothetical: pick an asset, optionally pull its live price, assume
-// an annual growth rate, and see the projected value at 1/2/3/4/10 years out.
+// ── 🔮 BUY WHAT-IF CALCULATOR — historical backtest ───────────────────────────
+// "What if I had invested in [asset] back on [date]?" — pulls REAL historical
+// prices (CoinGecko for crypto, Yahoo Finance for stocks), not an assumed rate.
+// Supports a one-time lump sum OR a monthly recurring buy (DCA) from that date
+// through today.
 // ══════════════════════════════════════════════════════════════════════════════
-const WHATIF_MILESTONES = [1, 2, 3, 4, 10];
-const WHATIF_PRESETS = [
-  { label:'Conservative', rate:8,  desc:'~long-run S&P 500 real return' },
-  { label:'Moderate',     rate:15, desc:'growth-stock ballpark' },
-  { label:'Bullish',      rate:30, desc:'strong bull-market crypto year' },
-  { label:'Very Bullish', rate:60, desc:'aggressive / speculative' },
-];
-
 function InvestmentWhatIfCalculator({ cur }) {
-  const [assetType, setAssetType]   = useLocalStorage('los_whatif_type', 'Crypto');
-  const [symbol, setSymbol]         = useLocalStorage('los_whatif_symbol', 'BTC');
-  const [amount, setAmount]         = useLocalStorage('los_whatif_amount', 1000);
-  const [price, setPrice]           = useLocalStorage('los_whatif_price', '');
-  const [rate, setRate]             = useLocalStorage('los_whatif_rate', 15);
-  const [fetching, setFetching]     = useState(false);
-  const [fetchMsg, setFetchMsg]     = useState('');
+  const [assetType, setAssetType] = useLocalStorage('los_whatif_type', 'Crypto');
+  const [symbol, setSymbol]       = useLocalStorage('los_whatif_symbol', 'BTC');
+  const [mode, setMode]           = useLocalStorage('los_whatif_mode', 'lump'); // 'lump' | 'dca'
+  const [startDate, setStartDate] = useLocalStorage('los_whatif_start', '2016-01-01');
+  const [amount, setAmount]       = useLocalStorage('los_whatif_amount', 1000);
+  const [monthly, setMonthly]     = useLocalStorage('los_whatif_monthly', 100);
 
-  const fetchPrice = async () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [result, setResult]   = useState(null); // { series, startPrice, currentPrice, ... }
+
+  const runBacktest = async () => {
     const s = symbol.trim().toUpperCase();
-    if (!s) return;
-    setFetching(true); setFetchMsg('');
+    if (!s || !startDate) return;
+    setLoading(true); setError(''); setResult(null);
     try {
+      const fromSec = Math.floor(new Date(startDate + 'T00:00:00Z').getTime() / 1000);
+      const toSec   = Math.floor(Date.now() / 1000);
+      if (fromSec >= toSec) { setError('Start date must be in the past.'); setLoading(false); return; }
+
+      let series = []; // [{date:'YYYY-MM-DD', price:Number}] ascending, daily-ish
+      let assetLabel = s;
+
       if (assetType === 'Crypto') {
         const coinId = CRYPTO_COIN_IDS[s];
-        if (coinId) {
-          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
-          const d = await res.json();
-          if (d[coinId]?.usd) { setPrice(d[coinId].usd.toString()); setFetchMsg(`✓ Live price: $${fmtN(d[coinId].usd)}`); }
-          else setFetchMsg('Symbol not found on CoinGecko');
-        } else setFetchMsg('Unknown ticker — try BTC, ETH, SOL, BNB, ADA, XRP, DOGE… or enter price manually');
-      } else {
-        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`)}`);
+        if (!coinId) { setError('Unknown ticker — try BTC, ETH, SOL, BNB, ADA, XRP, DOGE, AVAX, DOT, MATIC, LINK, UNI, LTC, ATOM.'); setLoading(false); return; }
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${fromSec}&to=${toSec}`);
         const d = await res.json();
-        const meta = d?.chart?.result?.[0]?.meta;
-        if (meta?.regularMarketPrice) { setPrice(meta.regularMarketPrice.toString()); setFetchMsg(`✓ ${meta.longName||s}: $${fmtN(meta.regularMarketPrice)}`); }
-        else setFetchMsg(`"${s}" not found — check ticker or enter manually`);
+        if (!d?.prices?.length) { setError('No historical data returned — this asset may not have existed yet on that date.'); setLoading(false); return; }
+        series = d.prices.map(([ms, price]) => ({ date: new Date(ms).toISOString().slice(0,10), price })).filter(p => p.price > 0);
+        assetLabel = coinId;
+      } else {
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?period1=${fromSec}&period2=${toSec}&interval=1d`)}`);
+        const d = await res.json();
+        const r0 = d?.chart?.result?.[0];
+        const closes = r0?.indicators?.quote?.[0]?.close;
+        const timestamps = r0?.timestamp;
+        if (!closes || !timestamps) { setError(`"${s}" not found — check the ticker.`); setLoading(false); return; }
+        series = timestamps.map((t,i) => ({ date: new Date(t*1000).toISOString().slice(0,10), price: closes[i] })).filter(p => p.price != null);
+        assetLabel = r0?.meta?.longName || s;
+        if (series.length < 2) { setError('Not enough historical data for that range — the stock may not have been listed yet.'); setLoading(false); return; }
       }
-    } catch { setFetchMsg('Network error — enter price manually'); }
-    setFetching(false);
+      if (series.length < 2) { setError('Not enough historical data for that range.'); setLoading(false); return; }
+
+      const startPrice   = series[0].price;
+      const currentPrice = series[series.length-1].price;
+      const actualStartDate = series[0].date;
+
+      if (mode === 'lump') {
+        const amt = Number(amount) || 0;
+        const units = amt / startPrice;
+        const currentValue = units * currentPrice;
+        // downsample series to ~40 points for the chart
+        const step = Math.max(1, Math.floor(series.length / 60));
+        const chartData = series.filter((_,i)=>i%step===0 || i===series.length-1).map(pt => ({ date: pt.date, value: (amt/startPrice)*pt.price }));
+        setResult({ mode:'lump', assetLabel, startPrice, currentPrice, actualStartDate, amt, units, currentValue, gain: currentValue-amt, gainPct: amt>0?((currentValue-amt)/amt)*100:0, multiple: amt>0?currentValue/amt:0, chartData });
+      } else {
+        const monthlyAmt = Number(monthly) || 0;
+        // Resample to one price per calendar month (first available trading day)
+        const monthlyBuys = [];
+        let curMonth = '';
+        for (const pt of series) {
+          const ym = pt.date.slice(0,7);
+          if (ym !== curMonth) { curMonth = ym; monthlyBuys.push(pt); }
+        }
+        let totalUnits = 0, totalInvested = 0;
+        const chartData = [];
+        for (const buy of monthlyBuys) {
+          totalUnits += monthlyAmt / buy.price;
+          totalInvested += monthlyAmt;
+          chartData.push({ date: buy.date, value: totalUnits * buy.price, invested: totalInvested });
+        }
+        const currentValue = totalUnits * currentPrice;
+        setResult({ mode:'dca', assetLabel, startPrice, currentPrice, actualStartDate, months: monthlyBuys.length, monthlyAmt, totalInvested, totalUnits, currentValue, gain: currentValue-totalInvested, gainPct: totalInvested>0?((currentValue-totalInvested)/totalInvested)*100:0, multiple: totalInvested>0?currentValue/totalInvested:0, chartData });
+      }
+    } catch (err) { setError('Network error fetching historical data — try again.'); }
+    setLoading(false);
   };
-
-  const amt = Number(amount) || 0;
-  const r   = Number(rate) || 0;
-  const p   = Number(price) || 0;
-  const units = p > 0 ? amt / p : null;
-
-  const projections = useMemo(() => WHATIF_MILESTONES.map(y => {
-    const val = amt * Math.pow(1 + r/100, y);
-    return { year: y, value: val, gain: val - amt, gainPct: amt > 0 ? ((val - amt) / amt) * 100 : 0, multiple: amt > 0 ? val / amt : 0 };
-  }), [amt, r]);
-
-  const chartData = useMemo(() => {
-    const d = [];
-    for (let y = 0; y <= 10; y++) d.push({ year: `Y${y}`, value: Math.round(amt * Math.pow(1 + r/100, y)) });
-    return d;
-  }, [amt, r]);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
 
+      {/* ── Mode toggle ───────────────────────────────────────────────── */}
+      <div style={{ display:'flex', gap:6 }}>
+        {[{id:'lump',label:'💰 Lump Sum'},{id:'dca',label:'🔁 Monthly (DCA)'}].map(m => (
+          <button key={m.id} onClick={()=>{setMode(m.id);setResult(null);}} style={{ flex:1, padding:'9px 10px', borderRadius:T.r, border:`1px solid ${mode===m.id?T.violet:T.border}`, background:mode===m.id?`${T.violet}22`:'rgba(255,255,255,0.03)', color:mode===m.id?T.violet:T.textSub, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:'pointer' }}>{m.label}</button>
+        ))}
+      </div>
+
       {/* ── Inputs ─────────────────────────────────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:12 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))', gap:12 }}>
         <div>
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Asset type</div>
           <div style={{ display:'flex', gap:6 }}>
             {['Crypto','Stock'].map(t => (
-              <button key={t} onClick={()=>{setAssetType(t);setFetchMsg('');}} style={{ flex:1, padding:'8px 10px', borderRadius:T.r, border:`1px solid ${assetType===t?T.violet:T.border}`, background:assetType===t?`${T.violet}22`:'rgba(255,255,255,0.03)', color:assetType===t?T.violet:T.textSub, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:'pointer' }}>{t}</button>
+              <button key={t} onClick={()=>{setAssetType(t);setResult(null);}} style={{ flex:1, padding:'8px 10px', borderRadius:T.r, border:`1px solid ${assetType===t?T.violet:T.border}`, background:assetType===t?`${T.violet}22`:'rgba(255,255,255,0.03)', color:assetType===t?T.violet:T.textSub, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:'pointer' }}>{t}</button>
             ))}
           </div>
         </div>
         <div>
           <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Symbol / ticker</div>
-          <div style={{ display:'flex', gap:6 }}>
-            <input value={symbol} onChange={e=>{setSymbol(e.target.value.toUpperCase());setFetchMsg('');}} placeholder={assetType==='Crypto'?'BTC':'AAPL'} style={{ flex:1, width:0, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
-            <button onClick={fetchPrice} disabled={fetching||!symbol.trim()} style={{ padding:'8px 12px', borderRadius:T.r, border:`1px solid ${T.violet}66`, background:'transparent', color:T.violet, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:fetching?'default':'pointer', whiteSpace:'nowrap', opacity:fetching?0.6:1 }}>{fetching?'…':'📡 Fetch'}</button>
+          <input value={symbol} onChange={e=>{setSymbol(e.target.value.toUpperCase());setResult(null);}} placeholder={assetType==='Crypto'?'BTC':'AAPL'} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+        </div>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Start date</div>
+          <input type="date" value={startDate} onChange={e=>{setStartDate(e.target.value);setResult(null);}} max={today()} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+        </div>
+        {mode==='lump' ? (
+          <div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Amount invested then ({cur})</div>
+            <input type="number" value={amount} onChange={e=>{setAmount(e.target.value);setResult(null);}} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
           </div>
-        </div>
-        <div>
-          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Price per unit ({cur})</div>
-          <input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="e.g. 65000" style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
-        </div>
-        <div>
-          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Amount to invest ({cur})</div>
-          <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
-        </div>
+        ) : (
+          <div>
+            <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Buying every month ({cur})</div>
+            <input type="number" value={monthly} onChange={e=>{setMonthly(e.target.value);setResult(null);}} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+          </div>
+        )}
       </div>
 
-      {fetchMsg && <div style={{ fontSize:10, fontFamily:T.fM, color:fetchMsg.startsWith('✓')?T.emerald:T.amber }}>{fetchMsg}</div>}
-      {units!=null && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>≈ buys <b style={{ color:T.text }}>{units < 1 ? units.toFixed(6) : fmtN(units)}</b> {symbol.trim().toUpperCase() || 'units'} at {cur}{fmtN(p)}/unit</div>}
+      <button onClick={runBacktest} disabled={loading||!symbol.trim()} style={{ padding:'10px 16px', borderRadius:T.r, border:'none', background:T.violet, color:'#000', fontFamily:T.fM, fontSize:12, fontWeight:700, cursor:loading?'default':'pointer', opacity:loading?0.6:1, alignSelf:'flex-start' }}>
+        {loading ? '📡 Fetching historical prices…' : '📡 Run Backtest'}
+      </button>
 
-      {/* ── Assumed annual growth rate ────────────────────────────────── */}
-      <div>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Assumed annual growth rate</div>
-          <span style={{ fontSize:13, fontFamily:T.fM, fontWeight:700, color:T.violet }}>{r}%/yr</span>
-        </div>
-        <input type="range" min={-30} max={100} step={1} value={rate} onChange={e=>setRate(Number(e.target.value))} style={{ width:'100%', accentColor:T.violet }} />
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
-          {WHATIF_PRESETS.map(preset => (
-            <button key={preset.label} onClick={()=>setRate(preset.rate)} title={preset.desc} style={{ padding:'5px 10px', borderRadius:99, border:`1px solid ${rate===preset.rate?T.violet:T.border}`, background:rate===preset.rate?`${T.violet}22`:'transparent', color:rate===preset.rate?T.violet:T.textSub, fontFamily:T.fM, fontSize:9, cursor:'pointer' }}>{preset.label} ({preset.rate}%)</button>
-          ))}
-        </div>
-      </div>
+      {error && <div style={{ fontSize:11, fontFamily:T.fM, color:T.rose }}>{error}</div>}
 
-      {/* ── Milestone projection cards ───────────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10 }}>
-        {projections.map(pr => {
-          const gainColor = pr.gain >= 0 ? T.emerald : T.rose;
-          return (
-            <GlassCard key={pr.year} style={{ padding:'14px 14px' }}>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 }}>{pr.year} year{pr.year>1?'s':''}</div>
-              <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:800, color:T.text }}>{cur}{fmtN(pr.value)}</div>
-              <div style={{ fontSize:10, fontFamily:T.fM, color:gainColor, marginTop:4 }}>{pr.gain>=0?'+':''}{cur}{fmtN(pr.gain)} ({pr.gain>=0?'+':''}{pr.gainPct.toFixed(0)}%)</div>
-              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>{pr.multiple.toFixed(2)}× your money</div>
-            </GlassCard>
-          );
-        })}
-      </div>
+      {/* ── Results ───────────────────────────────────────────────────── */}
+      {result && result.mode==='lump' && (
+        <>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>
+            Buying <b style={{ color:T.text }}>{cur}{fmtN(result.amt)}</b> of {result.assetLabel} on <b style={{ color:T.text }}>{result.actualStartDate}</b> at {cur}{fmtN(result.startPrice)}/unit → <b style={{ color:T.text }}>{result.units < 1 ? result.units.toFixed(6) : fmtN(result.units)}</b> units, now worth {cur}{fmtN(result.currentPrice)}/unit.
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10 }}>
+            {[
+              { label:'Invested',      val:`${cur}${fmtN(result.amt)}`,          color:T.text },
+              { label:'Worth Today',   val:`${cur}${fmtN(result.currentValue)}`, color:T.violet },
+              { label:'Gain / Loss',   val:`${result.gain>=0?'+':''}${cur}${fmtN(result.gain)}`, color:result.gain>=0?T.emerald:T.rose },
+              { label:'Return',        val:`${result.gain>=0?'+':''}${result.gainPct.toFixed(1)}% (${result.multiple.toFixed(2)}×)`, color:result.gain>=0?T.emerald:T.rose },
+            ].map((m,i) => (
+              <GlassCard key={i} style={{ padding:'14px 14px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:m.color }}>{m.val}</div>
+              </GlassCard>
+            ))}
+          </div>
+        </>
+      )}
 
-      {/* ── Growth curve chart ───────────────────────────────────────── */}
-      {amt > 0 && (
+      {result && result.mode==='dca' && (
+        <>
+          <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>
+            Buying <b style={{ color:T.text }}>{cur}{fmtN(result.monthlyAmt)}</b> of {result.assetLabel} every month since <b style={{ color:T.text }}>{result.actualStartDate}</b> ({result.months} buys) → <b style={{ color:T.text }}>{result.totalUnits < 1 ? result.totalUnits.toFixed(6) : fmtN(result.totalUnits)}</b> units accumulated, now worth {cur}{fmtN(result.currentPrice)}/unit.
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10 }}>
+            {[
+              { label:'Total Invested', val:`${cur}${fmtN(result.totalInvested)}`,   color:T.text },
+              { label:'Worth Today',    val:`${cur}${fmtN(result.currentValue)}`,    color:T.violet },
+              { label:'Gain / Loss',    val:`${result.gain>=0?'+':''}${cur}${fmtN(result.gain)}`, color:result.gain>=0?T.emerald:T.rose },
+              { label:'Return',         val:`${result.gain>=0?'+':''}${result.gainPct.toFixed(1)}% (${result.multiple.toFixed(2)}×)`, color:result.gain>=0?T.emerald:T.rose },
+            ].map((m,i) => (
+              <GlassCard key={i} style={{ padding:'14px 14px' }}>
+                <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 }}>{m.label}</div>
+                <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:m.color }}>{m.val}</div>
+              </GlassCard>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ── Value-over-time chart ────────────────────────────────────── */}
+      {result && result.chartData?.length > 1 && (
         <div style={{ height:180 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top:6, right:10, left:0, bottom:0 }}>
+            <AreaChart data={result.chartData} margin={{ top:6, right:10, left:0, bottom:0 }}>
               <defs>
-                <linearGradient id="whatifGrad" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="whatifBacktestGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={T.violet} stopOpacity={0.35} />
                   <stop offset="100%" stopColor={T.violet} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
-              <XAxis dataKey="year" tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} minTickGap={40} />
               <YAxis tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} tickFormatter={v=>fmtN(v)} width={50} />
               <Tooltip contentStyle={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }} formatter={v=>[`${cur}${fmtN(v)}`,'Value']} />
-              <Area type="monotone" dataKey="value" stroke={T.violet} strokeWidth={2} fill="url(#whatifGrad)" />
+              <Area type="monotone" dataKey="value" stroke={T.violet} strokeWidth={2} fill="url(#whatifBacktestGrad)" />
+              {result.mode==='dca' && <Area type="monotone" dataKey="invested" stroke={T.textMuted} strokeWidth={1.5} strokeDasharray="4 3" fill="none" />}
             </AreaChart>
           </ResponsiveContainer>
         </div>
       )}
 
       <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted, lineHeight:1.6 }}>
-        ⚠️ Hypothetical projection only — assumes a flat compounded annual rate, which real markets (especially crypto) never actually follow. Not financial advice or a forecast of any specific asset's future performance.
+        📊 Uses real historical closing prices (CoinGecko for crypto, Yahoo Finance for stocks) — not a projection. If the asset didn't exist yet on your chosen date, results start from its earliest available price instead. Past performance doesn't predict future returns.
       </div>
     </div>
   );
@@ -6544,7 +6598,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 { icon:'📊', title:'Overview', desc:'Net worth, income, spending & savings rate. Your monthly financial snapshot at a glance.' },
                 { icon:'💳', title:'Spending', desc:'All expenses by category. Set monthly budgets, filter by category, use the 50/30/20 rule panel.' },
                 { icon:'🏦', title:'Debts', desc:'Track loans & credit cards. Log payments — they auto-appear in Spending with a debt label.' },
-                { icon:'📈', title:'Investments', desc:'Track positions. Watchlist monitors live crypto/stock prices with custom price alerts. Buy What-If Calculator projects a hypothetical purchase 1–10 years out.' },
+                { icon:'📈', title:'Investments', desc:'Track positions. Watchlist monitors live crypto/stock prices with custom price alerts. Buy What-If Calculator backtests a past lump-sum or monthly buy using real historical prices.' },
                 { icon:'🎯', title:'Goals', desc:'Savings goals with progress. Link expenses directly to a goal when you log them.' },
                 { icon:'🔮', title:'Forecast / FI', desc:'Projects your net worth & FIRE date based on real trailing income and spending data.' },
                 { icon:'🛠️', title:'Tools', desc:'DTI ratio, emergency fund tracker, compound growth calculator, receipt scanner.' },
