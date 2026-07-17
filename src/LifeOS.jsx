@@ -2793,6 +2793,158 @@ function AddInvestmentModal({ open, onClose, onSave }) {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// ── 🔮 BUY WHAT-IF CALCULATOR — "what if I bought BTC/a stock today?" ─────────
+// Lump-sum hypothetical: pick an asset, optionally pull its live price, assume
+// an annual growth rate, and see the projected value at 1/2/3/4/10 years out.
+// ══════════════════════════════════════════════════════════════════════════════
+const WHATIF_MILESTONES = [1, 2, 3, 4, 10];
+const WHATIF_PRESETS = [
+  { label:'Conservative', rate:8,  desc:'~long-run S&P 500 real return' },
+  { label:'Moderate',     rate:15, desc:'growth-stock ballpark' },
+  { label:'Bullish',      rate:30, desc:'strong bull-market crypto year' },
+  { label:'Very Bullish', rate:60, desc:'aggressive / speculative' },
+];
+
+function InvestmentWhatIfCalculator({ cur }) {
+  const [assetType, setAssetType]   = useLocalStorage('los_whatif_type', 'Crypto');
+  const [symbol, setSymbol]         = useLocalStorage('los_whatif_symbol', 'BTC');
+  const [amount, setAmount]         = useLocalStorage('los_whatif_amount', 1000);
+  const [price, setPrice]           = useLocalStorage('los_whatif_price', '');
+  const [rate, setRate]             = useLocalStorage('los_whatif_rate', 15);
+  const [fetching, setFetching]     = useState(false);
+  const [fetchMsg, setFetchMsg]     = useState('');
+
+  const fetchPrice = async () => {
+    const s = symbol.trim().toUpperCase();
+    if (!s) return;
+    setFetching(true); setFetchMsg('');
+    try {
+      if (assetType === 'Crypto') {
+        const coinId = CRYPTO_COIN_IDS[s];
+        if (coinId) {
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+          const d = await res.json();
+          if (d[coinId]?.usd) { setPrice(d[coinId].usd.toString()); setFetchMsg(`✓ Live price: $${fmtN(d[coinId].usd)}`); }
+          else setFetchMsg('Symbol not found on CoinGecko');
+        } else setFetchMsg('Unknown ticker — try BTC, ETH, SOL, BNB, ADA, XRP, DOGE… or enter price manually');
+      } else {
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`)}`);
+        const d = await res.json();
+        const meta = d?.chart?.result?.[0]?.meta;
+        if (meta?.regularMarketPrice) { setPrice(meta.regularMarketPrice.toString()); setFetchMsg(`✓ ${meta.longName||s}: $${fmtN(meta.regularMarketPrice)}`); }
+        else setFetchMsg(`"${s}" not found — check ticker or enter manually`);
+      }
+    } catch { setFetchMsg('Network error — enter price manually'); }
+    setFetching(false);
+  };
+
+  const amt = Number(amount) || 0;
+  const r   = Number(rate) || 0;
+  const p   = Number(price) || 0;
+  const units = p > 0 ? amt / p : null;
+
+  const projections = useMemo(() => WHATIF_MILESTONES.map(y => {
+    const val = amt * Math.pow(1 + r/100, y);
+    return { year: y, value: val, gain: val - amt, gainPct: amt > 0 ? ((val - amt) / amt) * 100 : 0, multiple: amt > 0 ? val / amt : 0 };
+  }), [amt, r]);
+
+  const chartData = useMemo(() => {
+    const d = [];
+    for (let y = 0; y <= 10; y++) d.push({ year: `Y${y}`, value: Math.round(amt * Math.pow(1 + r/100, y)) });
+    return d;
+  }, [amt, r]);
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* ── Inputs ─────────────────────────────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:12 }}>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Asset type</div>
+          <div style={{ display:'flex', gap:6 }}>
+            {['Crypto','Stock'].map(t => (
+              <button key={t} onClick={()=>{setAssetType(t);setFetchMsg('');}} style={{ flex:1, padding:'8px 10px', borderRadius:T.r, border:`1px solid ${assetType===t?T.violet:T.border}`, background:assetType===t?`${T.violet}22`:'rgba(255,255,255,0.03)', color:assetType===t?T.violet:T.textSub, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:'pointer' }}>{t}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Symbol / ticker</div>
+          <div style={{ display:'flex', gap:6 }}>
+            <input value={symbol} onChange={e=>{setSymbol(e.target.value.toUpperCase());setFetchMsg('');}} placeholder={assetType==='Crypto'?'BTC':'AAPL'} style={{ flex:1, width:0, padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+            <button onClick={fetchPrice} disabled={fetching||!symbol.trim()} style={{ padding:'8px 12px', borderRadius:T.r, border:`1px solid ${T.violet}66`, background:'transparent', color:T.violet, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:fetching?'default':'pointer', whiteSpace:'nowrap', opacity:fetching?0.6:1 }}>{fetching?'…':'📡 Fetch'}</button>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Price per unit ({cur})</div>
+          <input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="e.g. 65000" style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+        </div>
+        <div>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:6 }}>Amount to invest ({cur})</div>
+          <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:13, color:T.text }} />
+        </div>
+      </div>
+
+      {fetchMsg && <div style={{ fontSize:10, fontFamily:T.fM, color:fetchMsg.startsWith('✓')?T.emerald:T.amber }}>{fetchMsg}</div>}
+      {units!=null && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>≈ buys <b style={{ color:T.text }}>{units < 1 ? units.toFixed(6) : fmtN(units)}</b> {symbol.trim().toUpperCase() || 'units'} at {cur}{fmtN(p)}/unit</div>}
+
+      {/* ── Assumed annual growth rate ────────────────────────────────── */}
+      <div>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Assumed annual growth rate</div>
+          <span style={{ fontSize:13, fontFamily:T.fM, fontWeight:700, color:T.violet }}>{r}%/yr</span>
+        </div>
+        <input type="range" min={-30} max={100} step={1} value={rate} onChange={e=>setRate(Number(e.target.value))} style={{ width:'100%', accentColor:T.violet }} />
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
+          {WHATIF_PRESETS.map(preset => (
+            <button key={preset.label} onClick={()=>setRate(preset.rate)} title={preset.desc} style={{ padding:'5px 10px', borderRadius:99, border:`1px solid ${rate===preset.rate?T.violet:T.border}`, background:rate===preset.rate?`${T.violet}22`:'transparent', color:rate===preset.rate?T.violet:T.textSub, fontFamily:T.fM, fontSize:9, cursor:'pointer' }}>{preset.label} ({preset.rate}%)</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Milestone projection cards ───────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))', gap:10 }}>
+        {projections.map(pr => {
+          const gainColor = pr.gain >= 0 ? T.emerald : T.rose;
+          return (
+            <GlassCard key={pr.year} style={{ padding:'14px 14px' }}>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 }}>{pr.year} year{pr.year>1?'s':''}</div>
+              <div style={{ fontSize:17, fontFamily:T.fD, fontWeight:800, color:T.text }}>{cur}{fmtN(pr.value)}</div>
+              <div style={{ fontSize:10, fontFamily:T.fM, color:gainColor, marginTop:4 }}>{pr.gain>=0?'+':''}{cur}{fmtN(pr.gain)} ({pr.gain>=0?'+':''}{pr.gainPct.toFixed(0)}%)</div>
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, marginTop:2 }}>{pr.multiple.toFixed(2)}× your money</div>
+            </GlassCard>
+          );
+        })}
+      </div>
+
+      {/* ── Growth curve chart ───────────────────────────────────────── */}
+      {amt > 0 && (
+        <div style={{ height:180 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top:6, right:10, left:0, bottom:0 }}>
+              <defs>
+                <linearGradient id="whatifGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={T.violet} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={T.violet} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+              <XAxis dataKey="year" tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} tickFormatter={v=>fmtN(v)} width={50} />
+              <Tooltip contentStyle={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, fontSize:11, fontFamily:T.fM }} formatter={v=>[`${cur}${fmtN(v)}`,'Value']} />
+              <Area type="monotone" dataKey="value" stroke={T.violet} strokeWidth={2} fill="url(#whatifGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted, lineHeight:1.6 }}>
+        ⚠️ Hypothetical projection only — assumes a flat compounded annual rate, which real markets (especially crypto) never actually follow. Not financial advice or a forecast of any specific asset's future performance.
+      </div>
+    </div>
+  );
+}
+
 // Phase 2 — Add Subscription Modal
 function EditSubscriptionModal({ open, onClose, sub, onSave }) {
   const lang = useLang();
@@ -6392,7 +6544,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 { icon:'📊', title:'Overview', desc:'Net worth, income, spending & savings rate. Your monthly financial snapshot at a glance.' },
                 { icon:'💳', title:'Spending', desc:'All expenses by category. Set monthly budgets, filter by category, use the 50/30/20 rule panel.' },
                 { icon:'🏦', title:'Debts', desc:'Track loans & credit cards. Log payments — they auto-appear in Spending with a debt label.' },
-                { icon:'📈', title:'Investments', desc:'Track positions. Watchlist monitors live crypto/stock prices with custom price alerts.' },
+                { icon:'📈', title:'Investments', desc:'Track positions. Watchlist monitors live crypto/stock prices with custom price alerts. Buy What-If Calculator projects a hypothetical purchase 1–10 years out.' },
                 { icon:'🎯', title:'Goals', desc:'Savings goals with progress. Link expenses directly to a goal when you log them.' },
                 { icon:'🔮', title:'Forecast / FI', desc:'Projects your net worth & FIRE date based on real trailing income and spending data.' },
                 { icon:'🛠️', title:'Tools', desc:'DTI ratio, emergency fund tracker, compound growth calculator, receipt scanner.' },
@@ -7257,6 +7409,9 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           <div style={{ display:'flex', gap:10 }}>
             <Btn onClick={()=>setModal('investment')} color={T.violet}>+ Add Position</Btn>
           </div>
+          <InvestmentsSubSection title="🔮 Buy What-If Calculator" storageKey="los_inv_whatif_open">
+            <InvestmentWhatIfCalculator cur={cur} />
+          </InvestmentsSubSection>
           {(investments||[]).length===0 ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
