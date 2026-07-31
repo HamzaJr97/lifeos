@@ -2812,6 +2812,25 @@ function InvestmentWhatIfCalculator({ cur }) {
   const [error, setError]     = useState('');
   const [result, setResult]   = useState(null); // { series, startPrice, currentPrice, ... }
 
+  // Try direct fetch first (fast when it works), then fall back through CORS
+  // proxies — mirrors the retry pattern already used by the Watchlist charts.
+  const fetchJsonWithFallback = async (url) => {
+    const attempts = [
+      () => fetch(url, { signal: AbortSignal.timeout(10000) }),
+      () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+      () => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+    ];
+    let lastErr = null;
+    for (const attempt of attempts) {
+      try {
+        const res = await attempt();
+        if (res.ok) return await res.json();
+        lastErr = new Error(`HTTP ${res.status}`);
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('All fetch attempts failed');
+  };
+
   const runBacktest = async () => {
     const s = symbol.trim().toUpperCase();
     if (!s || !startDate) return;
@@ -2827,23 +2846,27 @@ function InvestmentWhatIfCalculator({ cur }) {
       if (assetType === 'Crypto') {
         const coinId = CRYPTO_COIN_IDS[s];
         if (!coinId) { setError('Unknown ticker — try BTC, ETH, SOL, BNB, ADA, XRP, DOGE, AVAX, DOT, MATIC, LINK, UNI, LTC, ATOM.'); setLoading(false); return; }
-        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${fromSec}&to=${toSec}`);
-        const d = await res.json();
-        if (!d?.prices?.length) { setError('No historical data returned — this asset may not have existed yet on that date.'); setLoading(false); return; }
+        let d;
+        try {
+          d = await fetchJsonWithFallback(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${fromSec}&to=${toSec}`);
+        } catch { setError('Could not reach the price data source (it may be temporarily rate-limited) — please try again in a moment.'); setLoading(false); return; }
+        if (d?.status?.error_code) { setError(`Price source error: ${d.status.error_message || 'rate-limited, try again shortly.'}`); setLoading(false); return; }
+        if (!d?.prices?.length) { setError('No historical data returned for that range — this asset may not have existed yet on that date.'); setLoading(false); return; }
         series = d.prices.map(([ms, price]) => ({ date: new Date(ms).toISOString().slice(0,10), price })).filter(p => p.price > 0);
         assetLabel = coinId;
       } else {
-        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?period1=${fromSec}&period2=${toSec}&interval=1d`)}`);
-        const d = await res.json();
+        let d;
+        try {
+          d = await fetchJsonWithFallback(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?period1=${fromSec}&period2=${toSec}&interval=1d`);
+        } catch { setError('Could not reach the price data source — please try again in a moment.'); setLoading(false); return; }
         const r0 = d?.chart?.result?.[0];
         const closes = r0?.indicators?.quote?.[0]?.close;
         const timestamps = r0?.timestamp;
         if (!closes || !timestamps) { setError(`"${s}" not found — check the ticker.`); setLoading(false); return; }
         series = timestamps.map((t,i) => ({ date: new Date(t*1000).toISOString().slice(0,10), price: closes[i] })).filter(p => p.price != null);
         assetLabel = r0?.meta?.longName || s;
-        if (series.length < 2) { setError('Not enough historical data for that range — the stock may not have been listed yet.'); setLoading(false); return; }
       }
-      if (series.length < 2) { setError('Not enough historical data for that range.'); setLoading(false); return; }
+      if (series.length < 2) { setError('Not enough historical data for that range — the asset may not have existed yet on that date.'); setLoading(false); return; }
 
       const startPrice   = series[0].price;
       const currentPrice = series[series.length-1].price;
@@ -6596,7 +6619,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
               {[
                 { icon:'📊', title:'Overview', desc:'Net worth, income, spending & savings rate. Your monthly financial snapshot at a glance.' },
-                { icon:'💳', title:'Spending', desc:'All expenses by category. Set monthly budgets, filter by category, use the 50/30/20 rule panel.' },
+                { icon:'💳', title:'Spending', desc:'All expenses by category. Set monthly budgets, filter by category, use the 50/30/20 rule panel. Weekly Breakdown splits the month into weeks by category.' },
                 { icon:'🏦', title:'Debts', desc:'Track loans & credit cards. Log payments — they auto-appear in Spending with a debt label.' },
                 { icon:'📈', title:'Investments', desc:'Track positions. Watchlist monitors live crypto/stock prices with custom price alerts. Buy What-If Calculator backtests a past lump-sum or monthly buy using real historical prices.' },
                 { icon:'🎯', title:'Goals', desc:'Savings goals with progress. Link expenses directly to a goal when you log them.' },
@@ -7001,7 +7024,85 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             </div>
           )}
 
-          {/* Full expense list for selected month — filtered by category */}
+          {/* ── Weekly Breakdown — spending by category, split by week ─── */}
+          {selMonthExpenses.length > 0 && (() => {
+            // Split the selected month into 7-day week buckets starting at day 1.
+            const [yy, mm] = selectedMonth.split('-').map(Number);
+            const daysInMo = new Date(yy, mm, 0).getDate();
+            const weeks = [];
+            for (let start = 1; start <= daysInMo; start += 7) {
+              const end = Math.min(start + 6, daysInMo);
+              weeks.push({ start, end });
+            }
+            const fmtD = (d) => new Date(yy, mm-1, d).toLocaleDateString(lang==='fr'?'fr-FR':'en-US', { month:'short', day:'numeric' });
+
+            // Top categories overall this month drive the chart's series/colors; the rest bucket into "Other".
+            const TOP_N = 6;
+            const topCats = spendByCat.slice(0, TOP_N);
+            const topNames = new Set(topCats.map(c=>c.name));
+            const hasOther = spendByCat.length > TOP_N;
+            const series = [...topCats.map(c=>({ name:c.name, color:c.color })), ...(hasOther ? [{ name:'Other', color:T.textMuted }] : [])];
+
+            const weekRows = weeks.map((w,i) => {
+              const wExpenses = selMonthExpenses.filter(e => { const d = Number(e.date?.slice(8,10)); return d >= w.start && d <= w.end; });
+              const row = { label:`Week ${i+1}`, range:`${fmtD(w.start)}–${fmtD(w.end)}`, total:0 };
+              series.forEach(s => row[s.name] = 0);
+              wExpenses.forEach(e => {
+                const cat = topNames.has(e.category) ? e.category : 'Other';
+                row[cat] = (row[cat]||0) + Number(e.amount||0);
+                row.total += Number(e.amount||0);
+              });
+              return row;
+            });
+
+            return (
+              <InvestmentsSubSection title="📆 Weekly Breakdown" storageKey="los_spend_weekly_open" defaultOpen={true}>
+                <GlassCard style={{ padding:'20px 22px' }}>
+                  <SectionLabel>{lang==='fr'?`Dépenses par semaine — `:`Spending by week — `}{selectedMonth}</SectionLabel>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={weekRows} margin={{ top:10, right:10, left:0, bottom:0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize:9, fill:T.textMuted, fontFamily:T.fM }} axisLine={false} tickLine={false} tickFormatter={v=>fmtN(v)} width={44} />
+                      <Tooltip content={<ChartTooltip prefix={cur} />} />
+                      {series.map(s => <Bar key={s.name} dataKey={s.name} stackId="wk" fill={s.color} />)}
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:8, marginBottom:16 }}>
+                    {series.map(s => (
+                      <span key={s.name} style={{ display:'flex', alignItems:'center', gap:5, fontSize:9, fontFamily:T.fM, color:T.textSub }}>
+                        <span style={{ width:8, height:8, borderRadius:2, background:s.color, display:'inline-block' }} />{s.name}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {weekRows.map((w,i) => {
+                      const topCatThisWeek = series.map(s=>({ name:s.name, val:w[s.name] })).sort((a,b)=>b.val-a.val)[0];
+                      return (
+                        <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                          <div style={{ minWidth:100 }}>
+                            <div style={{ fontSize:11, fontFamily:T.fM, fontWeight:700, color:T.text }}>{w.label}</div>
+                            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{w.range}</div>
+                          </div>
+                          <div style={{ flex:1, height:6, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden', display:'flex' }}>
+                            {series.map(s => w[s.name] > 0 && (
+                              <div key={s.name} style={{ width:`${(w[s.name]/Math.max(w.total,1))*100}%`, background:s.color }} />
+                            ))}
+                          </div>
+                          <div style={{ textAlign:'right', minWidth:110 }}>
+                            <div style={{ fontSize:12, fontFamily:T.fM, fontWeight:700, color:T.text }}>{cur}{fmtN(w.total)}</div>
+                            {topCatThisWeek?.val > 0 && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>top: {topCatThisWeek.name}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </GlassCard>
+              </InvestmentsSubSection>
+            );
+          })()}
+
+
           {(() => {
             const visibleExpenses = spendCatFilter === '__all__'
               ? selMonthExpenses
