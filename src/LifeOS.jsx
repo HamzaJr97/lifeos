@@ -6445,19 +6445,17 @@ function NwProjectionCard({ chartData, hasProjection, cur }) {
 
 
 // ── PORTFOLIO HISTORY CHART ────────────────────────────────────────────────────
-function PortfolioChart({ invHistory, invVal, cur, investments, journalEntries=[] }) {
+function PortfolioChart({ invHistory, invVal, cur, journalEntries=[] }) {
   const [range, setRange] = useState('1M');
   const RANGES = ['1D','1W','1M','1Y','All'];
 
   const chartData = useMemo(() => {
     const todayStr = today();
 
-    // Build a cost-basis timeline from entry dates — both the manual
-    // "+ Add Position" list and Position Journal entries — cumulative cost
-    // basis as of each date a position was opened. Forward-filled between entries.
-    const investorEvents = (investments||[]).filter(i=>i.date).map(i=>({ date:i.date, cost:Number(i.buyPrice||0)*Number(i.quantity||0) }));
-    const journalEvents  = (journalEntries||[]).filter(e=>e.date).map(e=>({ date:e.date, cost:Number(e.invested||0) }));
-    const sortedEvents = [...investorEvents, ...journalEvents].sort((a,b)=>a.date<b.date?-1:1);
+    // Build a cost-basis timeline from Position Journal entry dates only —
+    // cumulative cost basis as of each date a position was logged.
+    // Forward-filled between entries.
+    const sortedEvents = [...(journalEntries||[])].filter(e=>e.date).map(e=>({ date:e.date, cost:Number(e.invested||0) })).sort((a,b)=>a.date<b.date?-1:1);
     const costEvents = []; // [{date, cost}] running cumulative, ascending by date
     let runningCost = 0;
     sortedEvents.forEach(ev => {
@@ -6496,7 +6494,7 @@ function PortfolioChart({ invHistory, invVal, cur, investments, journalEntries=[
     })();
     const filtered = cutoff ? all.filter(h => h.date >= cutoff) : all;
     return filtered.map(h => ({ date: h.date.slice(5), pnl: h.pnl }));
-  }, [invHistory, invVal, investments, journalEntries, range]);
+  }, [invHistory, invVal, journalEntries, range]);
 
   const first = chartData[0]?.pnl ?? 0;
   const last  = chartData[chartData.length-1]?.pnl ?? 0;
@@ -6505,7 +6503,7 @@ function PortfolioChart({ invHistory, invVal, cur, investments, journalEntries=[
   const deltaSign  = delta >= 0 ? '+' : '';
   const pnlColor = last >= 0 ? T.emerald : T.rose;
   const pnlSign  = last >= 0 ? '+' : '';
-  const isSeeded = (invHistory||[]).length < 2 && ((investments||[]).some(i=>i.date) || (journalEntries||[]).some(e=>e.date));
+  const isSeeded = (invHistory||[]).length < 2 && (journalEntries||[]).some(e=>e.date);
   const gradId = last >= 0 ? 'pnlGradPos' : 'pnlGradNeg';
 
   return (
@@ -7614,15 +7612,15 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {tab==='investments' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {(() => {
-            // Combine manual "+ Add Position" holdings with Position Journal
-            // entries so the Overview cards reflect everything logged.
-            const manualCostBasis = (investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0);
-            const costBasis = manualCostBasis + journalStats.invested;
-            const combinedInvVal = invVal + journalStats.currentValue;
-            const totalPnl  = combinedInvVal - costBasis;
+            // Overview & P&L History are calculated from Position Journal
+            // entries only (manual "+ Add Position" holdings are excluded).
+            const costBasis = journalStats.invested;
+            const journalVal = journalStats.currentValue;
+            const totalPnl  = journalVal - costBasis;
             const pnlColor  = totalPnl >= 0 ? T.emerald : T.rose;
             const pnlSign   = totalPnl >= 0 ? '+' : '';
             const hasAnyPositions = (investments||[]).length>0 || journalStats.count>0;
+            const breakdownRows = [...journalStats.entries].sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
             return (
           <>
           <div style={{ display:'flex', gap:10 }}>
@@ -7634,11 +7632,11 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           {!hasAnyPositions ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
-            {/* Overview metrics */}
+            {/* Overview metrics — sourced from Position Journal only */}
             <InvestmentsSubSection title="📊 Overview" storageKey="los_inv_overview_open">
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
                 {[
-                  { label:'Portfolio Value', val:`${cur}${fmtN(combinedInvVal)}`,   color:T.violet },
+                  { label:'Portfolio Value', val:`${cur}${fmtN(journalVal)}`,   color:T.violet },
                   { label:'Total Invested',  val:`${cur}${fmtN(costBasis)}`, color:T.text },
                   { label:'Total P&L',       val:`${pnlSign}${cur}${fmtN(totalPnl)}`, color:pnlColor },
                 ].map((m,i)=>(
@@ -7648,11 +7646,36 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   </GlassCard>
                 ))}
               </div>
-              {journalStats.count>0 && <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginTop:8}}>Includes {journalStats.count} Position Journal {journalStats.count===1?'entry':'entries'}.</div>}
+              <div style={{marginTop:14}}>
+                <div style={{fontSize:9,fontFamily:T.fM,fontWeight:700,color:T.textSub,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>
+                  Calculated From — {journalStats.count} Position Journal {journalStats.count===1?'entry':'entries'}
+                </div>
+                {journalStats.count>0 ? (
+                  <LOSTable
+                    columns={[
+                      { key:'sym', label:'Asset', width:70, render:(v,row)=>(
+                        <span style={{display:'flex',alignItems:'center',gap:6}}>
+                          <b style={{color:T.text}}>{v}</b>
+                          <span style={{fontSize:7,fontFamily:T.fM,fontWeight:600,color:T.textSub,background:'rgba(255,255,255,0.06)',padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{row.category}</span>
+                        </span>
+                      )},
+                      { key:'date', label:'Buy Date', mono:true, color:T.textSub, width:90 },
+                      { key:'qty', label:'Qty', mono:true, align:'right', width:70, render:v=>fmtQty(v) },
+                      { key:'invested', label:`Invested (${cur})`, mono:true, align:'right', width:100, render:v=>`${cur}${fmtN(v)}` },
+                      { key:'currentValue', label:`Value (${cur})`, mono:true, align:'right', width:100, color:T.violet, render:v=>`${cur}${fmtN(v)}` },
+                      { key:'pnl', label:'P/L', mono:true, align:'right', width:90, color:(v)=>v>=0?T.emerald:T.rose, render:v=>`${v>=0?'+':''}${cur}${fmtN(v)}` },
+                    ]}
+                    rows={breakdownRows}
+                    emptyMsg="No entries."
+                  />
+                ) : (
+                  <div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>No Position Journal entries yet — log a position below and it'll show up here.</div>
+                )}
+              </div>
             </InvestmentsSubSection>
-            {/* P&L history chart */}
+            {/* P&L history chart — sourced from Position Journal only */}
             <InvestmentsSubSection title="📉 P&L History" storageKey="los_inv_chart_open">
-              <PortfolioChart invHistory={data.invHistory} invVal={combinedInvVal} cur={cur} investments={investments} journalEntries={journalStats.entries} />
+              <PortfolioChart invHistory={data.invHistory} invVal={journalVal} cur={cur} journalEntries={journalStats.entries} />
             </InvestmentsSubSection>
             {/* Position Journal */}
             <InvestmentsSubSection title="📓 Position Journal" storageKey="los_inv_trades_open">
@@ -16043,7 +16066,12 @@ function PositionJournalTab({ investments = [], cur = '$', onStatsChange }) {
     const buyPx = Number(t.price||0)*fxRate;
     const cp = Number(t.currentPrice ?? t.price ?? 0)*fxRate;
     const qty = Number(t.qty||0);
-    return { date: t.date, invested: buyPx*qty, currentValue: cp*qty };
+    const invested = buyPx*qty, currentValue = cp*qty;
+    return {
+      id: t.id, sym: t.sym, category: t.category, qty, date: t.date,
+      buyPrice: buyPx, currentPrice: cp, invested, currentValue,
+      pnl: currentValue-invested,
+    };
   }),[entries,fxRate]);
   useEffect(()=>{
     if(!onStatsChange) return;
