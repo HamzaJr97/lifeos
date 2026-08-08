@@ -2691,6 +2691,11 @@ function LogDebtPaymentModal({ open, onClose, debts, onPay }) {
 
 // Phase 4 — Add Investment Modal
 const CRYPTO_COIN_IDS = {BTC:'bitcoin',ETH:'ethereum',SOL:'solana',BNB:'binancecoin',ADA:'cardano',XRP:'ripple',DOGE:'dogecoin',AVAX:'avalanche-2',DOT:'polkadot',MATIC:'matic-network',LINK:'chainlink',UNI:'uniswap',LTC:'litecoin',ATOM:'cosmos'};
+// Yahoo Finance ticker for each coin — used for long-range backtests because CoinGecko's
+// free/no-key API caps /market_chart/range history at the last 365 days, while Yahoo's
+// crypto pairs (SYMBOL-USD) carry full multi-year daily history at no cost. CoinGecko is
+// kept as a fallback for spot price and for coins Yahoo doesn't carry.
+const CRYPTO_YAHOO_TICKERS = {BTC:'BTC-USD',ETH:'ETH-USD',SOL:'SOL-USD',BNB:'BNB-USD',ADA:'ADA-USD',XRP:'XRP-USD',DOGE:'DOGE-USD',AVAX:'AVAX-USD',DOT:'DOT-USD',MATIC:'MATIC-USD',LINK:'LINK-USD',UNI:'UNI-USD',LTC:'LTC-USD',ATOM:'ATOM-USD'};
 
 function AddInvestmentModal({ open, onClose, onSave }) {
   const lang = useLang();
@@ -2814,11 +2819,15 @@ function InvestmentWhatIfCalculator({ cur }) {
 
   // Try direct fetch first (fast when it works), then fall back through CORS
   // proxies — mirrors the retry pattern already used by the Watchlist charts.
+  // NOTE: corsproxy.io requires the `?url=` query-param form — passing the
+  // encoded target URL as a bare query string (the old format) is rejected
+  // by their current service, which silently killed that fallback before.
   const fetchJsonWithFallback = async (url) => {
     const attempts = [
       () => fetch(url, { signal: AbortSignal.timeout(10000) }),
       () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
-      () => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+      () => fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+      () => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
     ];
     let lastErr = null;
     for (const attempt of attempts) {
@@ -2829,6 +2838,16 @@ function InvestmentWhatIfCalculator({ cur }) {
       } catch (e) { lastErr = e; }
     }
     throw lastErr || new Error('All fetch attempts failed');
+  };
+
+  const fetchYahooRange = async (yahooSymbol, fromSec, toSec) => {
+    const d = await fetchJsonWithFallback(`https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?period1=${fromSec}&period2=${toSec}&interval=1d`);
+    const r0 = d?.chart?.result?.[0];
+    const closes = r0?.indicators?.quote?.[0]?.close;
+    const timestamps = r0?.timestamp;
+    if (!closes || !timestamps) return { series: [], longName: null };
+    const series = timestamps.map((t,i) => ({ date: new Date(t*1000).toISOString().slice(0,10), price: closes[i] })).filter(p => p.price != null);
+    return { series, longName: r0?.meta?.longName || null };
   };
 
   const runBacktest = async () => {
@@ -2842,29 +2861,50 @@ function InvestmentWhatIfCalculator({ cur }) {
 
       let series = []; // [{date:'YYYY-MM-DD', price:Number}] ascending, daily-ish
       let assetLabel = s;
+      let note = ''; // shown under the results if a data-source limitation kicked in
 
       if (assetType === 'Crypto') {
-        const coinId = CRYPTO_COIN_IDS[s];
-        if (!coinId) { setError('Unknown ticker — try BTC, ETH, SOL, BNB, ADA, XRP, DOGE, AVAX, DOT, MATIC, LINK, UNI, LTC, ATOM.'); setLoading(false); return; }
-        let d;
-        try {
-          d = await fetchJsonWithFallback(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${fromSec}&to=${toSec}`);
-        } catch { setError('Could not reach the price data source (it may be temporarily rate-limited) — please try again in a moment.'); setLoading(false); return; }
-        if (d?.status?.error_code) { setError(`Price source error: ${d.status.error_message || 'rate-limited, try again shortly.'}`); setLoading(false); return; }
-        if (!d?.prices?.length) { setError('No historical data returned for that range — this asset may not have existed yet on that date.'); setLoading(false); return; }
-        series = d.prices.map(([ms, price]) => ({ date: new Date(ms).toISOString().slice(0,10), price })).filter(p => p.price > 0);
-        assetLabel = coinId;
+        const yahooSym = CRYPTO_YAHOO_TICKERS[s];
+        const coinId   = CRYPTO_COIN_IDS[s];
+        if (!yahooSym && !coinId) { setError('Unknown ticker — try BTC, ETH, SOL, BNB, ADA, XRP, DOGE, AVAX, DOT, MATIC, LINK, UNI, LTC, ATOM.'); setLoading(false); return; }
+
+        // 1) Prefer Yahoo Finance — its crypto pairs (e.g. BTC-USD) carry full
+        // multi-year daily history for free. CoinGecko's keyless API now caps
+        // /market_chart/range at the last 365 days, which silently broke any
+        // "what if I bought in 2016/2020" backtest that used to work.
+        if (yahooSym) {
+          try {
+            const { series: ySeries } = await fetchYahooRange(yahooSym, fromSec, toSec);
+            if (ySeries.length >= 2) { series = ySeries; assetLabel = s; }
+          } catch { /* fall through to CoinGecko below */ }
+        }
+
+        // 2) Fall back to CoinGecko if Yahoo had nothing for this pair — capping
+        // the request to the last 365 days since that's all the free tier serves,
+        // and telling the user so instead of failing silently.
+        if (series.length < 2 && coinId) {
+          const oneYearSec = 365*24*3600;
+          const cgFrom = Math.max(fromSec, toSec - oneYearSec);
+          if (cgFrom > fromSec) note = `Showing the last 365 days only — the backup price source (CoinGecko free tier) doesn't provide history further back than that for this coin, and Yahoo Finance doesn't carry ${s} either.`;
+          try {
+            const d = await fetchJsonWithFallback(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart/range?vs_currency=usd&from=${cgFrom}&to=${toSec}`);
+            if (d?.status?.error_code) { setError(`Price source error: ${d.status.error_message || 'rate-limited, try again shortly.'}`); setLoading(false); return; }
+            if (d?.prices?.length) {
+              series = d.prices.map(([ms, price]) => ({ date: new Date(ms).toISOString().slice(0,10), price })).filter(p => p.price > 0);
+              assetLabel = coinId;
+            }
+          } catch { /* handled by the length check below */ }
+        }
+
+        if (series.length < 2) { setError('Could not reach either price source (Yahoo Finance or CoinGecko) — they may be temporarily rate-limited. Please try again in a moment.'); setLoading(false); return; }
       } else {
-        let d;
+        let ySeries, longName;
         try {
-          d = await fetchJsonWithFallback(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?period1=${fromSec}&period2=${toSec}&interval=1d`);
+          ({ series: ySeries, longName } = await fetchYahooRange(s, fromSec, toSec));
         } catch { setError('Could not reach the price data source — please try again in a moment.'); setLoading(false); return; }
-        const r0 = d?.chart?.result?.[0];
-        const closes = r0?.indicators?.quote?.[0]?.close;
-        const timestamps = r0?.timestamp;
-        if (!closes || !timestamps) { setError(`"${s}" not found — check the ticker.`); setLoading(false); return; }
-        series = timestamps.map((t,i) => ({ date: new Date(t*1000).toISOString().slice(0,10), price: closes[i] })).filter(p => p.price != null);
-        assetLabel = r0?.meta?.longName || s;
+        if (!ySeries.length) { setError(`"${s}" not found — check the ticker.`); setLoading(false); return; }
+        series = ySeries;
+        assetLabel = longName || s;
       }
       if (series.length < 2) { setError('Not enough historical data for that range — the asset may not have existed yet on that date.'); setLoading(false); return; }
 
@@ -2879,7 +2919,7 @@ function InvestmentWhatIfCalculator({ cur }) {
         // downsample series to ~40 points for the chart
         const step = Math.max(1, Math.floor(series.length / 60));
         const chartData = series.filter((_,i)=>i%step===0 || i===series.length-1).map(pt => ({ date: pt.date, value: (amt/startPrice)*pt.price }));
-        setResult({ mode:'lump', assetLabel, startPrice, currentPrice, actualStartDate, amt, units, currentValue, gain: currentValue-amt, gainPct: amt>0?((currentValue-amt)/amt)*100:0, multiple: amt>0?currentValue/amt:0, chartData });
+        setResult({ mode:'lump', assetLabel, startPrice, currentPrice, actualStartDate, amt, units, currentValue, gain: currentValue-amt, gainPct: amt>0?((currentValue-amt)/amt)*100:0, multiple: amt>0?currentValue/amt:0, chartData, note });
       } else {
         const monthlyAmt = Number(monthly) || 0;
         // Resample to one price per calendar month (first available trading day)
@@ -2897,7 +2937,7 @@ function InvestmentWhatIfCalculator({ cur }) {
           chartData.push({ date: buy.date, value: totalUnits * buy.price, invested: totalInvested });
         }
         const currentValue = totalUnits * currentPrice;
-        setResult({ mode:'dca', assetLabel, startPrice, currentPrice, actualStartDate, months: monthlyBuys.length, monthlyAmt, totalInvested, totalUnits, currentValue, gain: currentValue-totalInvested, gainPct: totalInvested>0?((currentValue-totalInvested)/totalInvested)*100:0, multiple: totalInvested>0?currentValue/totalInvested:0, chartData });
+        setResult({ mode:'dca', assetLabel, startPrice, currentPrice, actualStartDate, months: monthlyBuys.length, monthlyAmt, totalInvested, totalUnits, currentValue, gain: currentValue-totalInvested, gainPct: totalInvested>0?((currentValue-totalInvested)/totalInvested)*100:0, multiple: totalInvested>0?currentValue/totalInvested:0, chartData, note });
       }
     } catch (err) { setError('Network error fetching historical data — try again.'); }
     setLoading(false);
@@ -2949,6 +2989,7 @@ function InvestmentWhatIfCalculator({ cur }) {
       </button>
 
       {error && <div style={{ fontSize:11, fontFamily:T.fM, color:T.rose }}>{error}</div>}
+      {result?.note && <div style={{ fontSize:11, fontFamily:T.fM, color:T.amber }}>⚠️ {result.note}</div>}
 
       {/* ── Results ───────────────────────────────────────────────────── */}
       {result && result.mode==='lump' && (
@@ -3016,7 +3057,7 @@ function InvestmentWhatIfCalculator({ cur }) {
       )}
 
       <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:`1px solid ${T.border}`, fontSize:10, fontFamily:T.fM, color:T.textMuted, lineHeight:1.6 }}>
-        📊 Uses real historical closing prices (CoinGecko for crypto, Yahoo Finance for stocks) — not a projection. If the asset didn't exist yet on your chosen date, results start from its earliest available price instead. Past performance doesn't predict future returns.
+        📊 Uses real historical closing prices (Yahoo Finance, with CoinGecko as a backup for crypto) — not a projection. If the asset didn't exist yet on your chosen date, results start from its earliest available price instead. Past performance doesn't predict future returns.
       </div>
     </div>
   );
