@@ -886,6 +886,19 @@ const fmtN = (n) => {
     : num >= 1000 ? num.toLocaleString('en-US', {maximumFractionDigits:0})
     : num.toFixed(num % 1 ? 2 : 0);
 };
+// Quantity formatter — unlike fmtN, keeps enough precision for fractional
+// crypto holdings (e.g. 0.00083 BTC) instead of rounding them to 0.00.
+const fmtQty = (n) => {
+  if (n === undefined || n === null) return '0';
+  const num = Number(n);
+  if (isNaN(num)) return '0';
+  if (num === 0) return '0';
+  const abs = Math.abs(num);
+  if (abs >= 1000) return fmtN(num);
+  if (abs >= 1) return num.toFixed(4).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
+  const s = num.toFixed(8).replace(/0+$/,'').replace(/\.$/,'');
+  return s===''||s==='-' ? '0' : s;
+};
 const getStreak = (habitId, habitLogs) => {
   const logs = habitLogs[habitId] || [];
   let streak = 0; let d = new Date();
@@ -6432,21 +6445,24 @@ function NwProjectionCard({ chartData, hasProjection, cur }) {
 
 
 // ── PORTFOLIO HISTORY CHART ────────────────────────────────────────────────────
-function PortfolioChart({ invHistory, invVal, cur, investments }) {
+function PortfolioChart({ invHistory, invVal, cur, investments, journalEntries=[] }) {
   const [range, setRange] = useState('1M');
   const RANGES = ['1D','1W','1M','1Y','All'];
 
   const chartData = useMemo(() => {
     const todayStr = today();
 
-    // Build a cost-basis timeline from entry dates: cumulative cost basis
-    // as of each date a position was opened. Forward-filled between entries.
-    const sortedInv = [...(investments||[])].filter(i=>i.date).sort((a,b)=>a.date<b.date?-1:1);
+    // Build a cost-basis timeline from entry dates — both the manual
+    // "+ Add Position" list and Position Journal entries — cumulative cost
+    // basis as of each date a position was opened. Forward-filled between entries.
+    const investorEvents = (investments||[]).filter(i=>i.date).map(i=>({ date:i.date, cost:Number(i.buyPrice||0)*Number(i.quantity||0) }));
+    const journalEvents  = (journalEntries||[]).filter(e=>e.date).map(e=>({ date:e.date, cost:Number(e.invested||0) }));
+    const sortedEvents = [...investorEvents, ...journalEvents].sort((a,b)=>a.date<b.date?-1:1);
     const costEvents = []; // [{date, cost}] running cumulative, ascending by date
     let runningCost = 0;
-    sortedInv.forEach(inv => {
-      runningCost += Number(inv.buyPrice||0) * Number(inv.quantity||0);
-      costEvents.push({ date: inv.date, cost: runningCost });
+    sortedEvents.forEach(ev => {
+      runningCost += ev.cost;
+      costEvents.push({ date: ev.date, cost: runningCost });
     });
     const costBasisAt = (d) => {
       let c = 0;
@@ -6480,7 +6496,7 @@ function PortfolioChart({ invHistory, invVal, cur, investments }) {
     })();
     const filtered = cutoff ? all.filter(h => h.date >= cutoff) : all;
     return filtered.map(h => ({ date: h.date.slice(5), pnl: h.pnl }));
-  }, [invHistory, invVal, investments, range]);
+  }, [invHistory, invVal, investments, journalEntries, range]);
 
   const first = chartData[0]?.pnl ?? 0;
   const last  = chartData[chartData.length-1]?.pnl ?? 0;
@@ -6489,7 +6505,7 @@ function PortfolioChart({ invHistory, invVal, cur, investments }) {
   const deltaSign  = delta >= 0 ? '+' : '';
   const pnlColor = last >= 0 ? T.emerald : T.rose;
   const pnlSign  = last >= 0 ? '+' : '';
-  const isSeeded = (invHistory||[]).length < 2 && (investments||[]).some(i=>i.date);
+  const isSeeded = (invHistory||[]).length < 2 && ((investments||[]).some(i=>i.date) || (journalEntries||[]).some(e=>e.date));
   const gradId = last >= 0 ? 'pnlGradPos' : 'pnlGradNeg';
 
   return (
@@ -6560,6 +6576,8 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
   const [goalCatFilter, setGoalCatFilter] = useState('all');
   const [spendCatFilter, setSpendCatFilter] = useState('__all__');
   const [show503020, setShow503020] = useState(false);
+  const [journalStats, setJournalStats] = useState({ invested:0, currentValue:0, count:0, entries:[] });
+  const onJournalStatsChange = useCallback((s)=>setJournalStats(s), []);
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], goals=[], settings={}, netWorthHistory=[], subscriptions=[], budgets={}, bills=[]} = data;
   const cur = settings.currency || '$'; const thisMonth = today().slice(0,7);
   // Use pre-computed values from App root
@@ -7596,10 +7614,15 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
       {tab==='investments' && (
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {(() => {
-            const costBasis = (investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0);
-            const totalPnl  = invVal - costBasis;
+            // Combine manual "+ Add Position" holdings with Position Journal
+            // entries so the Overview cards reflect everything logged.
+            const manualCostBasis = (investments||[]).reduce((s,i)=>s+Number(i.buyPrice||0)*Number(i.quantity||0),0);
+            const costBasis = manualCostBasis + journalStats.invested;
+            const combinedInvVal = invVal + journalStats.currentValue;
+            const totalPnl  = combinedInvVal - costBasis;
             const pnlColor  = totalPnl >= 0 ? T.emerald : T.rose;
             const pnlSign   = totalPnl >= 0 ? '+' : '';
+            const hasAnyPositions = (investments||[]).length>0 || journalStats.count>0;
             return (
           <>
           <div style={{ display:'flex', gap:10 }}>
@@ -7608,14 +7631,14 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           <InvestmentsSubSection title="🔮 Buy What-If Calculator" storageKey="los_inv_whatif_open">
             <InvestmentWhatIfCalculator cur={cur} />
           </InvestmentsSubSection>
-          {(investments||[]).length===0 ? (
+          {!hasAnyPositions ? (
             <GlassCard style={{ padding:40, textAlign:'center' }}><div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No investment positions yet. Add your first position.</div></GlassCard>
           ) : (<>
             {/* Overview metrics */}
             <InvestmentsSubSection title="📊 Overview" storageKey="los_inv_overview_open">
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:12 }}>
                 {[
-                  { label:'Portfolio Value', val:`${cur}${fmtN(invVal)}`,   color:T.violet },
+                  { label:'Portfolio Value', val:`${cur}${fmtN(combinedInvVal)}`,   color:T.violet },
                   { label:'Total Invested',  val:`${cur}${fmtN(costBasis)}`, color:T.text },
                   { label:'Total P&L',       val:`${pnlSign}${cur}${fmtN(totalPnl)}`, color:pnlColor },
                 ].map((m,i)=>(
@@ -7625,14 +7648,15 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   </GlassCard>
                 ))}
               </div>
+              {journalStats.count>0 && <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginTop:8}}>Includes {journalStats.count} Position Journal {journalStats.count===1?'entry':'entries'}.</div>}
             </InvestmentsSubSection>
             {/* P&L history chart */}
             <InvestmentsSubSection title="📉 P&L History" storageKey="los_inv_chart_open">
-              <PortfolioChart invHistory={data.invHistory} invVal={invVal} cur={cur} investments={investments} />
+              <PortfolioChart invHistory={data.invHistory} invVal={combinedInvVal} cur={cur} investments={investments} journalEntries={journalStats.entries} />
             </InvestmentsSubSection>
             {/* Position Journal */}
             <InvestmentsSubSection title="📓 Position Journal" storageKey="los_inv_trades_open">
-              <PositionJournalTab investments={investments} cur={cur} />
+              <PositionJournalTab investments={investments} cur={cur} onStatsChange={onJournalStatsChange} />
             </InvestmentsSubSection>
             {/* Watchlist */}
             <InvestmentsSubSection title="👁 Watchlist" storageKey="los_inv_watchlist_open">
@@ -15734,7 +15758,12 @@ function TimeCapsuleTab({ data, actions }) {
 }
 
 // ── TRADE JOURNAL ─────────────────────────────────────────────────────────────
-function PositionJournalTab({ investments = [], cur = '$' }) {
+// Currency symbol → ISO code, for FX conversion (Position Journal prices are
+// always fetched in USD from Yahoo/CoinGecko, so non-USD display currencies
+// need a live conversion rate).
+const CURRENCY_ISO = {'$':'USD','€':'EUR','£':'GBP','¥':'JPY','₹':'INR','₩':'KRW','Fr':'CHF','A$':'AUD','C$':'CAD','R$':'BRL','CA$':'CAD'};
+
+function PositionJournalTab({ investments = [], cur = '$', onStatsChange }) {
   const [entries,setEntries]=useLocalStorage('los_trades',[]); // reuse same key so data isn't lost
 
   // ── Add-position form state ──────────────────────────────────────────────
@@ -15748,6 +15777,30 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
   const [fetchMsg,setFetchMsg]=useState('');
   const [needsManualPrice,setNeedsManualPrice]=useState(false);
   const [manualPrice,setManualPrice]=useState('');
+
+  // ── Edit-entry form state ────────────────────────────────────────────────
+  const [editingId,setEditingId]=useState(null);
+  const [eSym,setESym]=useState('');
+  const [eCategory,setECategory]=useState('Stock');
+  const [eQty,setEQty]=useState('');
+  const [eDate,setEDate]=useState('');
+  const [ePrice,setEPrice]=useState('');
+  const [eCurrentPrice,setECurrentPrice]=useState('');
+  const [eNote,setENote]=useState('');
+
+  // ── FX conversion (all fetched prices are USD; convert to display currency) ─
+  const [fxRate,setFxRate]=useState(1);
+  const [fxDate,setFxDate]=useState('');
+  useEffect(()=>{
+    const iso = CURRENCY_ISO[cur];
+    if(!iso || iso==='USD'){ setFxRate(1); setFxDate(''); return; }
+    let cancelled=false;
+    fetch(`https://api.frankfurter.dev/v1/latest?from=USD&to=${iso}`)
+      .then(r=>r.json())
+      .then(d=>{ const r=d?.rates?.[iso]; if(r && !cancelled){ setFxRate(r); setFxDate(d.date||''); } })
+      .catch(()=>{ if(!cancelled) setFxRate(1); });
+    return ()=>{cancelled=true;};
+  },[cur]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
   const [symFilter,setSymFilter]=useState('all');
@@ -15895,6 +15948,35 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
     saveEntry(manualPrice, date, null);
   };
 
+  // ── Edit an existing entry ───────────────────────────────────────────────
+  // Prices are shown/edited in the display currency (cur) and converted back
+  // to the stored USD baseline on save, so they stay consistent with entries
+  // that were auto-fetched.
+  const openEdit = (row) => {
+    setEditingId(row.id);
+    setESym(row.sym); setECategory(row.category); setEQty(String(row.qty));
+    setEDate(row.date); setENote(row.note||'');
+    setEPrice(String(Number(row.price)*fxRate));
+    setECurrentPrice(String(Number(row.currentPrice ?? row.price)*fxRate));
+    setModal(false);
+  };
+  const cancelEdit = () => setEditingId(null);
+  const saveEdit = () => {
+    if(!editingId||!eSym.trim()||!eQty||!eDate||!ePrice) return;
+    setEntries(p=>p.map(t=>t.id!==editingId ? t : {
+      ...t,
+      sym: eSym.trim().toUpperCase(),
+      category: eCategory,
+      qty: Number(eQty),
+      date: eDate,
+      price: fxRate ? Number(ePrice)/fxRate : Number(ePrice),
+      currentPrice: fxRate ? Number(eCurrentPrice||ePrice)/fxRate : Number(eCurrentPrice||ePrice),
+      currentPriceUpdated: today(),
+      note: eNote,
+    }));
+    setEditingId(null);
+  };
+
   const refreshAllPrices = async () => {
     const uniq = [...new Set(entries.map(t=>`${t.category}|${t.sym}`))];
     if (!uniq.length) return;
@@ -15917,15 +15999,17 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
 
   const CATEGORY_COLOR={'Stock':T.sky,'Crypto':T.amber,'ETF':T.violet,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub,'Other':T.textMuted};
 
-  // ── Lot-level rows with derived value/P&L ───────────────────────────────
+  // ── Lot-level rows with derived value/P&L (converted to display currency) ─
   const lotRows = useMemo(()=>visible.map(t=>{
-    const cp = Number(t.currentPrice ?? t.price ?? 0);
-    const value = cp*Number(t.qty||0);
-    const cost = Number(t.price||0)*Number(t.qty||0);
+    const buyPx = Number(t.price||0)*fxRate;
+    const cp = Number(t.currentPrice ?? t.price ?? 0)*fxRate;
+    const qty = Number(t.qty||0);
+    const value = cp*qty;
+    const cost = buyPx*qty;
     const pnl = value-cost;
     const pnlPct = cost>0 ? (pnl/cost)*100 : 0;
-    return { ...t, currentValue:value, pnl, pnlPct };
-  }),[visible]);
+    return { ...t, price:buyPx, currentPrice:cp, currentValue:value, pnl, pnlPct };
+  }),[visible,fxRate]);
 
   // ── Per-symbol aggregation ───────────────────────────────────────────────
   const grouped = useMemo(()=>{
@@ -15952,6 +16036,22 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
     return { invested, currentValue, pnl:currentValue-invested, pnlPct: invested>0?(currentValue-invested)/invested*100:0 };
   },[grouped]);
 
+  // Report totals up to the Investments Overview so it includes journal positions.
+  // Uses ALL entries (unfiltered) so the Overview isn't affected by the journal's
+  // own date/symbol filters.
+  const allLotRows = useMemo(()=>entries.map(t=>{
+    const buyPx = Number(t.price||0)*fxRate;
+    const cp = Number(t.currentPrice ?? t.price ?? 0)*fxRate;
+    const qty = Number(t.qty||0);
+    return { date: t.date, invested: buyPx*qty, currentValue: cp*qty };
+  }),[entries,fxRate]);
+  useEffect(()=>{
+    if(!onStatsChange) return;
+    const invested = allLotRows.reduce((s,r)=>s+r.invested,0);
+    const currentValue = allLotRows.reduce((s,r)=>s+r.currentValue,0);
+    onStatsChange({ invested, currentValue, count: entries.length, entries: allLotRows });
+  },[allLotRows, entries.length, onStatsChange]);
+
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
@@ -15965,10 +16065,15 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
               {refreshing?'🔄 Refreshing…':'🔄 Refresh Prices'}
             </button>
           )}
-          <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Position</Btn>
+          <Btn onClick={()=>{setEditingId(null);setModal(true);}} color={T.accent}>+ Log Position</Btn>
         </div>
       </div>
       {refreshMsg && <div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>{refreshMsg}</div>}
+      {fxRate!==1 && (
+        <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>
+          💱 Prices fetched in USD, converted to {cur} at 1 USD ≈ {cur}{fxRate.toFixed(4)}{fxDate?` (rate as of ${fxDate})`:''}
+        </div>
+      )}
 
       {/* Date filter */}
       <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
@@ -16022,7 +16127,7 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
 
           {fetchMsg && <div style={{fontSize:10,fontFamily:T.fM,color:needsManualPrice?T.amber:T.textSub,marginBottom:8}}>{needsManualPrice?'⚠️ ':''}{fetchMsg}</div>}
           {needsManualPrice && (
-            <Input type="number" value={manualPrice} onChange={e=>setManualPrice(e.target.value)} placeholder={`Buy price on ${date} (${cur})`} style={{marginBottom:8}} />
+            <Input type="number" value={manualPrice} onChange={e=>setManualPrice(e.target.value)} placeholder={`Buy price on ${date} (USD)`} style={{marginBottom:8}} />
           )}
 
           <div style={{display:'flex',gap:8}}>
@@ -16035,6 +16140,31 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
           </div>
           <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginTop:8,lineHeight:1.5}}>
             Prices are pulled automatically from Yahoo Finance (crypto uses SYMBOL-USD pairs), with CoinGecko as a backup for crypto tickers Yahoo doesn't carry.
+            {fxRate!==1 && ` Manual prices are entered in USD too, so they convert to ${cur} the same way as fetched prices.`}
+          </div>
+        </GlassCard>
+      )}
+
+      {/* Edit form */}
+      {editingId&&(
+        <GlassCard style={{padding:'16px 18px',border:`1px solid ${T.sky}44`}}>
+          <div style={{fontSize:11,fontFamily:T.fM,fontWeight:700,color:T.sky,marginBottom:10}}>✏️ Edit Entry</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+            <Input value={eSym} onChange={e=>setESym(e.target.value.toUpperCase())} placeholder="Symbol" />
+            <div style={{display:'flex',gap:6}}>
+              {['Stock','Crypto'].map(c=>(
+                <button key={c} onClick={()=>setECategory(c)} style={{flex:1,padding:'8px 10px',borderRadius:T.r,border:`1px solid ${eCategory===c?T.violet:T.border}`,background:eCategory===c?`${T.violet}22`:'rgba(255,255,255,0.03)',color:eCategory===c?T.violet:T.textSub,fontFamily:T.fM,fontSize:11,fontWeight:700,cursor:'pointer'}}>{c}</button>
+              ))}
+            </div>
+            <Input type="number" step="any" value={eQty} onChange={e=>setEQty(e.target.value)} placeholder="Quantity" />
+            <Input type="date" value={eDate} onChange={e=>setEDate(e.target.value)} max={today()} />
+            <Input type="number" step="any" value={ePrice} onChange={e=>setEPrice(e.target.value)} placeholder={`Buy price (${cur})`} />
+            <Input type="number" step="any" value={eCurrentPrice} onChange={e=>setECurrentPrice(e.target.value)} placeholder={`Current price (${cur})`} />
+          </div>
+          <Input value={eNote} onChange={e=>setENote(e.target.value)} placeholder="Notes / thesis… (optional)" style={{marginBottom:8}} />
+          <div style={{display:'flex',gap:8}}>
+            <Btn onClick={saveEdit} color={T.sky} style={{flex:1}} disabled={!eSym.trim()||!eQty||!eDate||!ePrice}>Save changes</Btn>
+            <BtnCancel onClick={cancelEdit} />
           </div>
         </GlassCard>
       )}
@@ -16052,7 +16182,7 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
                 </span>
               )},
               { key:'avgBuyPrice', label:`Avg Buy Price (${cur})`, mono:true, align:'right', width:110, render:v=>`${cur}${fmtN(v)}` },
-              { key:'qty', label:'Total Qty', mono:true, align:'right', width:90, render:v=>fmtN(v) },
+              { key:'qty', label:'Total Qty', mono:true, align:'right', width:90, render:v=>fmtQty(v) },
               { key:'invested', label:`Total Invested (${cur})`, mono:true, align:'right', width:120, render:v=>`${cur}${fmtN(v)}` },
               { key:'currentValue', label:`Current Value (${cur})`, mono:true, align:'right', width:120, color:T.violet, render:v=>`${cur}${fmtN(v)}` },
               { key:'pnl', label:'P/L', mono:true, align:'right', width:110, color:(v)=>v>=0?T.emerald:T.rose, render:(v,row)=>`${v>=0?'+':''}${cur}${fmtN(v)} (${row.pnlPct.toFixed(1)}%)` },
@@ -16076,7 +16206,7 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
             { key:'sym', label:'Asset', width:70, render:(v)=><b style={{color:T.text}}>{v}</b> },
             { key:'category', label:'Type', width:60, render:(v)=><span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:CATEGORY_COLOR[v]||T.textSub,background:`${CATEGORY_COLOR[v]||T.textSub}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{v}</span> },
             { key:'date', label:'Buy Date', mono:true, color:T.textSub, width:90 },
-            { key:'qty', label:'Qty', mono:true, align:'right', width:70, render:v=>fmtN(v) },
+            { key:'qty', label:'Qty', mono:true, align:'right', width:70, render:v=>fmtQty(v) },
             { key:'price', label:`Buy Price (${cur})`, mono:true, align:'right', width:100, render:v=>`${cur}${fmtN(v)}` },
             { key:'currentPrice', label:`Current Price (${cur})`, mono:true, align:'right', width:110, render:v=>v!=null?`${cur}${fmtN(v)}`:'—' },
             { key:'currentValue', label:`Current Value (${cur})`, mono:true, align:'right', width:110, color:T.violet, render:v=>`${cur}${fmtN(v)}` },
@@ -16084,6 +16214,7 @@ function PositionJournalTab({ investments = [], cur = '$' }) {
             { key:'pnlPct', label:'P/L %', mono:true, align:'right', width:70, color:(v)=>v>=0?T.emerald:T.rose, render:v=>`${v>=0?'+':''}${v.toFixed(1)}%` },
           ]}
           rows={lotRows}
+          onEdit={openEdit}
           onDelete={row=>setEntries(p=>p.filter(x=>x.id!==row.id))}
           emptyMsg="No entries for this filter."
         />
