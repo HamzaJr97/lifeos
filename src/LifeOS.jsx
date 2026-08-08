@@ -7632,7 +7632,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
             </InvestmentsSubSection>
             {/* Position Journal */}
             <InvestmentsSubSection title="📓 Position Journal" storageKey="los_inv_trades_open">
-              <PositionJournalTab investments={investments} />
+              <PositionJournalTab investments={investments} cur={cur} />
             </InvestmentsSubSection>
             {/* Watchlist */}
             <InvestmentsSubSection title="👁 Watchlist" storageKey="los_inv_watchlist_open">
@@ -15734,18 +15734,30 @@ function TimeCapsuleTab({ data, actions }) {
 }
 
 // ── TRADE JOURNAL ─────────────────────────────────────────────────────────────
-function PositionJournalTab({ investments = [] }) {
+function PositionJournalTab({ investments = [], cur = '$' }) {
   const [entries,setEntries]=useLocalStorage('los_trades',[]); // reuse same key so data isn't lost
+
+  // ── Add-position form state ──────────────────────────────────────────────
   const [modal,setModal]=useState(false);
+  const [sym,setSym]=useState('');
+  const [category,setCategory]=useState('Stock'); // 'Stock' | 'Crypto'
+  const [qty,setQty]=useState('');
+  const [date,setDate]=useState(today());
+  const [note,setNote]=useState('');
+  const [fetching,setFetching]=useState(false);
+  const [fetchMsg,setFetchMsg]=useState('');
+  const [needsManualPrice,setNeedsManualPrice]=useState(false);
+  const [manualPrice,setManualPrice]=useState('');
+
+  // ── Filters ───────────────────────────────────────────────────────────────
   const [symFilter,setSymFilter]=useState('all');
   const [dateFrom,setDateFrom]=useState('');
   const [dateTo,setDateTo]=useState('');
   const [datePreset,setDatePreset]=useState('all');
-  const [sym,setSym]=useState('');
-  const [category,setCategory]=useState('Stock');
-  const [qty,setQty]=useState(''); const [price,setPrice]=useState('');
-  const [note,setNote]=useState('');
-  const [date,setDate]=useState(today());
+
+  // ── Bulk price refresh ───────────────────────────────────────────────────
+  const [refreshing,setRefreshing]=useState(false);
+  const [refreshMsg,setRefreshMsg]=useState('');
 
   const applyPreset = (p) => {
     setDatePreset(p);
@@ -15758,9 +15770,7 @@ function PositionJournalTab({ investments = [] }) {
     setDateTo(now.toISOString().slice(0,10));
   };
 
-  const posSymbols = useMemo(()=>[...new Set((investments||[]).map(i=>(i.symbol||i.name||'').toUpperCase()).filter(Boolean))],[investments]);
-  const entrySymbols = useMemo(()=>[...new Set((entries||[]).map(t=>t.sym).filter(Boolean))],[entries]);
-  const allSymbols = useMemo(()=>[...new Set([...posSymbols,...entrySymbols])].sort(),[posSymbols,entrySymbols]);
+  const entrySymbols = useMemo(()=>[...new Set((entries||[]).map(t=>t.sym).filter(Boolean))].sort(),[entries]);
 
   const visible = useMemo(()=>{
     let list = symFilter==='all' ? entries : entries.filter(t=>t.sym===symFilter);
@@ -15769,13 +15779,178 @@ function PositionJournalTab({ investments = [] }) {
     return [...list].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; });
   },[entries,symFilter,dateFrom,dateTo]);
 
-  const add=()=>{
-    if(!sym.trim()||!qty||!price)return;
-    setEntries(p=>[{id:Date.now(),sym:sym.trim().toUpperCase(),category,qty:Number(qty),price:Number(price),pnl:null,note,date},...p]);
-    setSym('');setQty('');setPrice('');setNote('');setModal(false);
+  // ── Price fetching ───────────────────────────────────────────────────────
+  // Same fixed retry chain as the Buy What-If calculator: direct fetch, then
+  // fall back through CORS proxies (corsproxy.io needs the `?url=` form —
+  // the plain query-string form the app used to use is rejected now).
+  const fetchJsonWithFallback = async (url) => {
+    const attempts = [
+      () => fetch(url, { signal: AbortSignal.timeout(9000) }),
+      () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+      () => fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+      () => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(12000) }),
+    ];
+    let lastErr = null;
+    for (const attempt of attempts) {
+      try {
+        const res = await attempt();
+        if (res.ok) return await res.json();
+        lastErr = new Error(`HTTP ${res.status}`);
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('All fetch attempts failed');
   };
 
-  const CATEGORY_COLOR={'Stock':T.sky,'ETF':T.violet,'Crypto':T.amber,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub,'Other':T.textMuted};
+  const yahooSymbolFor = (cat, s) => cat === 'Crypto' ? (CRYPTO_YAHOO_TICKERS[s] || `${s}-USD`) : s;
+
+  // Closing price on (or just before) a given date — pads the request window
+  // to cross weekends/holidays, then picks the latest close on or before the
+  // target date.
+  const fetchPriceOnDate = async (cat, s, dateStr) => {
+    const targetSec = Math.floor(new Date(dateStr+'T00:00:00Z').getTime()/1000);
+    const fromSec = targetSec - 8*24*3600;
+    const toSec = Math.min(targetSec + 4*24*3600, Math.floor(Date.now()/1000));
+    const ySym = yahooSymbolFor(cat, s);
+    try {
+      const d = await fetchJsonWithFallback(`https://query1.finance.yahoo.com/v8/finance/chart/${ySym}?period1=${fromSec}&period2=${toSec}&interval=1d`);
+      const r0 = d?.chart?.result?.[0];
+      const closes = r0?.indicators?.quote?.[0]?.close;
+      const timestamps = r0?.timestamp;
+      if (closes && timestamps) {
+        const pts = timestamps.map((t,i)=>({date:new Date(t*1000).toISOString().slice(0,10), price:closes[i]})).filter(p=>p.price!=null);
+        if (pts.length) {
+          const onOrBefore = pts.filter(p=>p.date<=dateStr);
+          const chosen = onOrBefore.length ? onOrBefore[onOrBefore.length-1] : pts[0];
+          return { price: chosen.price, actualDate: chosen.date };
+        }
+      }
+    } catch { /* fall through to CoinGecko below */ }
+    // CoinGecko single-day history as a crypto fallback — its free tier only
+    // serves the last 365 days, so this only helps for recent buy dates.
+    if (cat === 'Crypto') {
+      const coinId = CRYPTO_COIN_IDS[s];
+      if (coinId) {
+        const [y,m,dd] = dateStr.split('-');
+        try {
+          const d = await fetchJsonWithFallback(`https://api.coingecko.com/api/v3/coins/${coinId}/history?date=${dd}-${m}-${y}&localization=false`);
+          const p = d?.market_data?.current_price?.usd;
+          if (p) return { price: p, actualDate: dateStr };
+        } catch { /* handled by the null return below */ }
+      }
+    }
+    return null;
+  };
+
+  const fetchCurrentPrice = async (cat, s) => {
+    const ySym = yahooSymbolFor(cat, s);
+    try {
+      const d = await fetchJsonWithFallback(`https://query1.finance.yahoo.com/v8/finance/chart/${ySym}?range=5d&interval=1d`);
+      const meta = d?.chart?.result?.[0]?.meta;
+      if (meta?.regularMarketPrice) return meta.regularMarketPrice;
+    } catch { /* fall through to CoinGecko below */ }
+    if (cat === 'Crypto') {
+      const coinId = CRYPTO_COIN_IDS[s];
+      if (coinId) {
+        try {
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
+          const d = await res.json();
+          if (d[coinId]?.usd) return d[coinId].usd;
+        } catch { /* leave as null */ }
+      }
+    }
+    return null;
+  };
+
+  const resetForm = () => { setSym('');setQty('');setNote('');setDate(today());setNeedsManualPrice(false);setManualPrice('');setFetchMsg(''); };
+
+  const saveEntry = (buyPrice, buyPriceActualDate, currentPrice) => {
+    setEntries(p=>[{
+      id:Date.now(), sym:sym.trim().toUpperCase(), category, qty:Number(qty), date,
+      price:Number(buyPrice), buyPriceActualDate:buyPriceActualDate||date,
+      currentPrice: currentPrice!=null ? Number(currentPrice) : Number(buyPrice),
+      currentPriceUpdated: today(), note,
+    },...p]);
+    resetForm(); setModal(false);
+  };
+
+  const submitAdd = async () => {
+    const s = sym.trim().toUpperCase();
+    if(!s||!qty||!date) return;
+    setFetching(true); setFetchMsg(''); setNeedsManualPrice(false);
+    const [priceResult, currentPrice] = await Promise.all([
+      fetchPriceOnDate(category, s, date),
+      fetchCurrentPrice(category, s),
+    ]);
+    setFetching(false);
+    if (!priceResult) {
+      setNeedsManualPrice(true);
+      setFetchMsg(`Couldn't find a historical price for ${s} on ${date} — both price sources may be temporarily unavailable, or the ticker is wrong. Enter the price manually below.`);
+      return;
+    }
+    saveEntry(priceResult.price, priceResult.actualDate, currentPrice);
+  };
+
+  const submitManual = () => {
+    if (!manualPrice) return;
+    saveEntry(manualPrice, date, null);
+  };
+
+  const refreshAllPrices = async () => {
+    const uniq = [...new Set(entries.map(t=>`${t.category}|${t.sym}`))];
+    if (!uniq.length) return;
+    setRefreshing(true); setRefreshMsg(`Refreshing 0/${uniq.length}…`);
+    const priceMap = {};
+    for (let i=0;i<uniq.length;i++) {
+      const [cat,s] = uniq[i].split('|');
+      priceMap[uniq[i]] = await fetchCurrentPrice(cat, s);
+      setRefreshMsg(`Refreshing ${i+1}/${uniq.length}…`);
+    }
+    setEntries(p=>p.map(t=>{
+      const np = priceMap[`${t.category}|${t.sym}`];
+      return np!=null ? { ...t, currentPrice:Number(np), currentPriceUpdated:today() } : t;
+    }));
+    setRefreshing(false);
+    const okCount = Object.values(priceMap).filter(v=>v!=null).length;
+    setRefreshMsg(`Updated ${okCount}/${uniq.length} symbols.`);
+    setTimeout(()=>setRefreshMsg(''), 5000);
+  };
+
+  const CATEGORY_COLOR={'Stock':T.sky,'Crypto':T.amber,'ETF':T.violet,'Bond':T.emerald,'REIT':T.rose,'Commodity':T.textSub,'Other':T.textMuted};
+
+  // ── Lot-level rows with derived value/P&L ───────────────────────────────
+  const lotRows = useMemo(()=>visible.map(t=>{
+    const cp = Number(t.currentPrice ?? t.price ?? 0);
+    const value = cp*Number(t.qty||0);
+    const cost = Number(t.price||0)*Number(t.qty||0);
+    const pnl = value-cost;
+    const pnlPct = cost>0 ? (pnl/cost)*100 : 0;
+    return { ...t, currentValue:value, pnl, pnlPct };
+  }),[visible]);
+
+  // ── Per-symbol aggregation ───────────────────────────────────────────────
+  const grouped = useMemo(()=>{
+    const map = {};
+    for (const t of lotRows) {
+      const key = t.sym;
+      if (!map[key]) map[key] = { sym:t.sym, category:t.category, qty:0, invested:0, currentValue:0 };
+      const g = map[key];
+      g.qty += Number(t.qty)||0;
+      g.invested += Number(t.qty||0)*Number(t.price||0);
+      g.currentValue += t.currentValue;
+    }
+    return Object.values(map).map(g=>({
+      ...g,
+      avgBuyPrice: g.qty>0 ? g.invested/g.qty : 0,
+      pnl: g.currentValue-g.invested,
+      pnlPct: g.invested>0 ? (g.currentValue-g.invested)/g.invested*100 : 0,
+    })).sort((a,b)=>b.currentValue-a.currentValue);
+  },[lotRows]);
+
+  const totals = useMemo(()=>{
+    const invested = grouped.reduce((s,g)=>s+g.invested,0);
+    const currentValue = grouped.reduce((s,g)=>s+g.currentValue,0);
+    return { invested, currentValue, pnl:currentValue-invested, pnlPct: invested>0?(currentValue-invested)/invested*100:0 };
+  },[grouped]);
 
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
@@ -15784,8 +15959,16 @@ function PositionJournalTab({ investments = [] }) {
           <div style={{fontSize:13,fontFamily:T.fD,fontWeight:700,color:T.text}}>Position Journal</div>
           <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:2}}>{visible.length} {visible.length===1?'entry':'entries'}</div>
         </div>
-        <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Position</Btn>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          {entries.length>0 && (
+            <button onClick={refreshAllPrices} disabled={refreshing} style={{padding:'8px 12px',borderRadius:T.r,background:'rgba(255,255,255,0.04)',border:`1px solid ${T.border}`,color:T.textSub,fontFamily:T.fM,fontSize:11,fontWeight:600,cursor:refreshing?'default':'pointer',opacity:refreshing?0.6:1}}>
+              {refreshing?'🔄 Refreshing…':'🔄 Refresh Prices'}
+            </button>
+          )}
+          <Btn onClick={()=>setModal(true)} color={T.accent}>+ Log Position</Btn>
+        </div>
       </div>
+      {refreshMsg && <div style={{fontSize:10,fontFamily:T.fM,color:T.textMuted}}>{refreshMsg}</div>}
 
       {/* Date filter */}
       <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
@@ -15803,144 +15986,108 @@ function PositionJournalTab({ investments = [] }) {
       </div>
 
       {/* Symbol filter chips */}
-      {allSymbols.length>0&&(
+      {entrySymbols.length>0&&(
         <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'center'}}>
           <button onClick={()=>setSymFilter('all')} style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,border:`1px solid ${symFilter==='all'?T.violet+'55':T.border}`,background:symFilter==='all'?`${T.violet}22`:'transparent',color:symFilter==='all'?T.violet:T.textSub,cursor:'pointer'}}>All Symbols</button>
-          {allSymbols.map(s=>{
-            const inv=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===s);
-            const cat=inv?.type||''; const catCol=CATEGORY_COLOR[cat]||T.textSub;
-            const linked=posSymbols.includes(s);
+          {entrySymbols.map(s=>{
+            const inv=(entries||[]).find(i=>i.sym===s);
+            const cat=inv?.category||''; const catCol=CATEGORY_COLOR[cat]||T.textSub;
             return (
               <button key={s} onClick={()=>setSymFilter(symFilter===s?'all':s)}
                 style={{padding:'3px 10px',borderRadius:99,fontSize:9,fontFamily:T.fM,fontWeight:600,
-                  border:`1px solid ${symFilter===s?catCol+'66':linked?catCol+'33':T.border}`,
-                  background:symFilter===s?`${catCol}22`:linked?`${catCol}0a`:'transparent',
-                  color:symFilter===s?catCol:linked?catCol:T.textSub,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-                {linked&&<span style={{fontSize:7,opacity:0.7}}>●</span>}{s}
-                {cat&&<span style={{fontSize:7,opacity:0.6,marginLeft:1}}>{cat}</span>}
+                  border:`1px solid ${symFilter===s?catCol+'66':T.border}`,
+                  background:symFilter===s?`${catCol}22`:'transparent',
+                  color:symFilter===s?catCol:T.textSub,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                {s}{cat&&<span style={{fontSize:7,opacity:0.6,marginLeft:1}}>{cat}</span>}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* All-view: open positions summary */}
-      {symFilter==='all'&&(investments||[]).length>0&&(
-        <div style={{borderRadius:T.r,border:`1px solid ${T.violet}22`,overflow:'hidden'}}>
-          <div style={{padding:'8px 14px',background:`${T.violet}0a`,borderBottom:`1px solid ${T.violet}18`,display:'flex',alignItems:'center',gap:8}}>
-            <span style={{fontSize:9,fontFamily:T.fM,color:T.violet,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em'}}>📌 Open Positions</span>
-            <span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>{(investments||[]).length} active</span>
-          </div>
-          {[...(investments||[])].sort((a,b)=>{ const da=a.date||''; const db=b.date||''; return da<db?1:da>db?-1:0; }).map((inv,i,arr)=>{
-            const cp=Number(inv.currentPrice??inv.buyPrice??0);
-            const val=cp*Number(inv.quantity||0);
-            const cost=Number(inv.buyPrice||0)*Number(inv.quantity||0);
-            const pnl=val-cost; const pct=cost>0?(pnl/cost)*100:0;
-            const catCol=CATEGORY_COLOR[inv.type||'Stock']||T.textSub;
-            return (
-              <div key={inv.id||i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 14px',borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:12,fontFamily:T.fD,fontWeight:700,color:T.text}}>{inv.symbol||inv.name}</span>
-                  <span style={{fontSize:7,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{inv.type||'Stock'}</span>
-                  {inv.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {inv.date}</span>}
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:12}}>
-                  <span style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>×{inv.quantity} @ ${fmtN(inv.buyPrice)}</span>
-                  <span style={{fontSize:11,fontFamily:T.fM,fontWeight:600,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{fmtN(pnl)} <span style={{fontSize:9,fontWeight:400}}>({pct.toFixed(1)}%)</span></span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Single symbol: linked position card */}
-      {symFilter!=='all'&&(()=>{
-        const pos=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===symFilter);
-        if(!pos)return null;
-        const cp=Number(pos.currentPrice??pos.buyPrice??0);
-        const pnl=cp*Number(pos.quantity||0)-Number(pos.buyPrice||0)*Number(pos.quantity||0);
-        const pct=Number(pos.buyPrice||0)*Number(pos.quantity||0)>0?(pnl/(Number(pos.buyPrice||0)*Number(pos.quantity||0)))*100:0;
-        const catCol=CATEGORY_COLOR[pos.type||'Stock']||T.textSub;
-        return (
-          <div style={{padding:'10px 14px',borderRadius:T.r,background:`${catCol}0a`,border:`1px solid ${catCol}22`,display:'flex',gap:14,flexWrap:'wrap',alignItems:'center'}}>
-            <span style={{fontSize:9,fontFamily:T.fM,color:catCol,textTransform:'uppercase',letterSpacing:'0.1em',fontWeight:600}}>📌 Open Position</span>
-            <span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 6px',borderRadius:3,textTransform:'uppercase'}}>{pos.type||'Stock'}</span>
-            {pos.date&&<span style={{fontSize:9,fontFamily:T.fM,color:T.textMuted}}>entered {pos.date}</span>}
-            <span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>×{pos.quantity} @ <span style={{color:T.textSub}}>${fmtN(pos.buyPrice)}</span></span>
-            <span style={{fontSize:11,fontFamily:T.fM,color:T.text}}>Current: <span style={{fontWeight:600}}>${fmtN(cp)}</span></span>
-            <span style={{fontSize:11,fontFamily:T.fM,color:pnl>=0?T.emerald:T.rose,fontWeight:600}}>{pnl>=0?'+':''}{fmtN(pnl)} ({pct.toFixed(1)}%)</span>
-          </div>
-        );
-      })()}
-
       {/* Log form */}
       {modal&&(
         <GlassCard style={{padding:'16px 18px'}}>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-            <div style={{position:'relative'}}>
-              <Input value={sym} onChange={e=>setSym(e.target.value)} placeholder="Symbol (AAPL, BTC…)" />
-              {posSymbols.length>0&&sym===''&&(
-                <div style={{position:'absolute',top:'calc(100% + 2px)',left:0,right:0,background:T.bg2,border:`1px solid ${T.borderLit}`,borderRadius:T.r,zIndex:200,overflow:'hidden'}}>
-                  {posSymbols.map(s=>{
-                    const inv=(investments||[]).find(i=>(i.symbol||i.name||'').toUpperCase()===s);
-                    return (
-                      <button key={s} onClick={()=>{setSym(s);if(inv?.type)setCategory(inv.type);}} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'6px 10px',textAlign:'left',background:'transparent',border:'none',fontSize:11,fontFamily:T.fM,color:T.text,cursor:'pointer'}}
-                        onMouseEnter={e=>e.currentTarget.style.background=T.surface}
-                        onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                        {s}
-                        {inv?.type&&<span style={{fontSize:8,color:CATEGORY_COLOR[inv.type]||T.textSub,background:`${CATEGORY_COLOR[inv.type]||T.textSub}18`,padding:'1px 5px',borderRadius:3}}>{inv.type}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+            <Input value={sym} onChange={e=>{setSym(e.target.value.toUpperCase());setNeedsManualPrice(false);setFetchMsg('');}} placeholder={category==='Crypto'?'BTC, ETH…':'AAPL, MSFT…'} />
+            <div style={{display:'flex',gap:6}}>
+              {['Stock','Crypto'].map(c=>(
+                <button key={c} onClick={()=>{setCategory(c);setNeedsManualPrice(false);setFetchMsg('');}} style={{flex:1,padding:'8px 10px',borderRadius:T.r,border:`1px solid ${category===c?T.violet:T.border}`,background:category===c?`${T.violet}22`:'rgba(255,255,255,0.03)',color:category===c?T.violet:T.textSub,fontFamily:T.fM,fontSize:11,fontWeight:700,cursor:'pointer'}}>{c}</button>
+              ))}
             </div>
-            <Select value={category} onChange={e=>setCategory(e.target.value)}>
-              {['Stock','ETF','Crypto','Bond','REIT','Commodity','Other'].map(c=><option key={c}>{c}</option>)}
-            </Select>
-            <Input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
-            <Input type="number" value={price} onChange={e=>setPrice(e.target.value)} placeholder="Entry price" />
-            <Input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{gridColumn:'span 2'}} />
+            <Input type="number" step="any" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Quantity" />
+            <Input type="date" value={date} onChange={e=>{setDate(e.target.value);setNeedsManualPrice(false);setFetchMsg('');}} max={today()} />
           </div>
-          <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Notes / thesis…" style={{marginBottom:8}} />
+          <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Notes / thesis… (optional)" style={{marginBottom:8}} />
+
+          {fetchMsg && <div style={{fontSize:10,fontFamily:T.fM,color:needsManualPrice?T.amber:T.textSub,marginBottom:8}}>{needsManualPrice?'⚠️ ':''}{fetchMsg}</div>}
+          {needsManualPrice && (
+            <Input type="number" value={manualPrice} onChange={e=>setManualPrice(e.target.value)} placeholder={`Buy price on ${date} (${cur})`} style={{marginBottom:8}} />
+          )}
+
           <div style={{display:'flex',gap:8}}>
-            <Btn onClick={add} color={T.accent} style={{flex:1}}>Save Entry</Btn>
-            <BtnCancel onClick={()=>setModal(false)} />
+            {needsManualPrice ? (
+              <Btn onClick={submitManual} color={T.amber} style={{flex:1}} disabled={!manualPrice}>Add with manual price</Btn>
+            ) : (
+              <Btn onClick={submitAdd} color={T.accent} style={{flex:1}} disabled={fetching||!sym.trim()||!qty}>{fetching?'📡 Fetching price…':'📡 Fetch price & add'}</Btn>
+            )}
+            <BtnCancel onClick={()=>{setModal(false);resetForm();}} />
+          </div>
+          <div style={{fontSize:9,fontFamily:T.fM,color:T.textMuted,marginTop:8,lineHeight:1.5}}>
+            Prices are pulled automatically from Yahoo Finance (crypto uses SYMBOL-USD pairs), with CoinGecko as a backup for crypto tickers Yahoo doesn't carry.
           </div>
         </GlassCard>
       )}
 
-      {visible.length===0&&!modal&&<GlassCard style={{padding:32,textAlign:'center'}}><div style={{fontSize:11,fontFamily:T.fM,color:T.textMuted}}>No entries for this filter.</div></GlassCard>}
+      {/* ── Per-symbol summary table ──────────────────────────────────────── */}
+      {grouped.length>0 && (
+        <div>
+          <div style={{fontSize:10,fontFamily:T.fM,fontWeight:700,color:T.textSub,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Portfolio Summary</div>
+          <LOSTable
+            columns={[
+              { key:'sym', label:'Asset', width:80, render:(v,row)=>(
+                <span style={{display:'flex',alignItems:'center',gap:6}}>
+                  <b style={{color:T.text}}>{v}</b>
+                  <span style={{fontSize:7,fontFamily:T.fM,fontWeight:600,color:CATEGORY_COLOR[row.category]||T.textSub,background:`${CATEGORY_COLOR[row.category]||T.textSub}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{row.category}</span>
+                </span>
+              )},
+              { key:'avgBuyPrice', label:`Avg Buy Price (${cur})`, mono:true, align:'right', width:110, render:v=>`${cur}${fmtN(v)}` },
+              { key:'qty', label:'Total Qty', mono:true, align:'right', width:90, render:v=>fmtN(v) },
+              { key:'invested', label:`Total Invested (${cur})`, mono:true, align:'right', width:120, render:v=>`${cur}${fmtN(v)}` },
+              { key:'currentValue', label:`Current Value (${cur})`, mono:true, align:'right', width:120, color:T.violet, render:v=>`${cur}${fmtN(v)}` },
+              { key:'pnl', label:'P/L', mono:true, align:'right', width:110, color:(v)=>v>=0?T.emerald:T.rose, render:(v,row)=>`${v>=0?'+':''}${cur}${fmtN(v)} (${row.pnlPct.toFixed(1)}%)` },
+            ]}
+            rows={grouped}
+            emptyMsg="No positions logged yet."
+          />
+          <div style={{display:'flex',justifyContent:'flex-end',gap:16,marginTop:10,padding:'10px 14px',borderRadius:T.r,background:'rgba(255,255,255,0.03)',border:`1px solid ${T.border}`,flexWrap:'wrap'}}>
+            <span style={{fontSize:11,fontFamily:T.fM,color:T.textSub}}>Invested: <b style={{color:T.text}}>{cur}{fmtN(totals.invested)}</b></span>
+            <span style={{fontSize:11,fontFamily:T.fM,color:T.textSub}}>Worth Today: <b style={{color:T.violet}}>{cur}{fmtN(totals.currentValue)}</b></span>
+            <span style={{fontSize:11,fontFamily:T.fM,color:T.textSub}}>Total P/L: <b style={{color:totals.pnl>=0?T.emerald:T.rose}}>{totals.pnl>=0?'+':''}{cur}{fmtN(totals.pnl)} ({totals.pnlPct.toFixed(1)}%)</b></span>
+          </div>
+        </div>
+      )}
 
-      {visible.map((t,i)=>{
-        const linkedPos=(investments||[]).find(inv=>(inv.symbol||inv.name||'').toUpperCase()===t.sym);
-        const cat=t.category||linkedPos?.type||'';
-        const catCol=CATEGORY_COLOR[cat]||T.textSub;
-        const cp=linkedPos?Number(linkedPos.currentPrice??linkedPos.buyPrice??0):0;
-        const pnl=linkedPos?(cp-t.price)*t.qty:null;
-        return (
-          <GlassCard key={t.id||i} style={{padding:'14px 18px',borderLeft:`3px solid ${linkedPos?catCol+'66':cat?catCol+'33':'transparent'}`}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
-                  <span style={{fontSize:14,fontFamily:T.fD,fontWeight:700,color:T.text}}>{t.sym}</span>
-                  {cat&&<span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:catCol,background:`${catCol}18`,padding:'1px 6px',borderRadius:4,textTransform:'uppercase'}}>{cat}</span>}
-                  {linkedPos&&<span style={{fontSize:8,fontFamily:T.fM,color:catCol,background:`${catCol}15`,padding:'1px 6px',borderRadius:4}}>● Open</span>}
-                  {pnl!==null&&<span style={{fontSize:10,fontFamily:T.fM,fontWeight:600,color:pnl>=0?T.emerald:T.rose}}>{pnl>=0?'+':''}{fmtN(pnl)}</span>}
-                </div>
-                <div style={{fontSize:10,fontFamily:T.fM,color:T.textSub}}>
-                  ×{t.qty} @ ${fmtN(t.price)}
-                  {t.date&&<span style={{marginLeft:8,color:T.textMuted}}>📅 {t.date}</span>}
-                </div>
-                {linkedPos&&<div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,marginTop:3}}>Current: ${fmtN(cp)}</div>}
-                {t.note&&<div style={{fontSize:10,fontFamily:T.fM,color:T.textSub,marginTop:4,fontStyle:'italic'}}>{t.note}</div>}
-              </div>
-              <button onClick={()=>setEntries(p=>p.filter(x=>x.id!==t.id))} style={{padding:4,borderRadius:6,background:T.surface,border:`1px solid ${T.border}`,opacity:0.4,flexShrink:0}}><IcoTrash size={10} stroke={T.rose} /></button>
-            </div>
-          </GlassCard>
-        );
-      })}
+      {/* ── Lot-level table ─────────────────────────────────────────────────── */}
+      <div>
+        <div style={{fontSize:10,fontFamily:T.fM,fontWeight:700,color:T.textSub,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>All Entries</div>
+        <LOSTable
+          columns={[
+            { key:'sym', label:'Asset', width:70, render:(v)=><b style={{color:T.text}}>{v}</b> },
+            { key:'category', label:'Type', width:60, render:(v)=><span style={{fontSize:8,fontFamily:T.fM,fontWeight:600,color:CATEGORY_COLOR[v]||T.textSub,background:`${CATEGORY_COLOR[v]||T.textSub}18`,padding:'1px 5px',borderRadius:3,textTransform:'uppercase'}}>{v}</span> },
+            { key:'date', label:'Buy Date', mono:true, color:T.textSub, width:90 },
+            { key:'qty', label:'Qty', mono:true, align:'right', width:70, render:v=>fmtN(v) },
+            { key:'price', label:`Buy Price (${cur})`, mono:true, align:'right', width:100, render:v=>`${cur}${fmtN(v)}` },
+            { key:'currentPrice', label:`Current Price (${cur})`, mono:true, align:'right', width:110, render:v=>v!=null?`${cur}${fmtN(v)}`:'—' },
+            { key:'currentValue', label:`Current Value (${cur})`, mono:true, align:'right', width:110, color:T.violet, render:v=>`${cur}${fmtN(v)}` },
+            { key:'pnl', label:`P/L (${cur})`, mono:true, align:'right', width:90, color:(v)=>v>=0?T.emerald:T.rose, render:v=>`${v>=0?'+':''}${cur}${fmtN(v)}` },
+            { key:'pnlPct', label:'P/L %', mono:true, align:'right', width:70, color:(v)=>v>=0?T.emerald:T.rose, render:v=>`${v>=0?'+':''}${v.toFixed(1)}%` },
+          ]}
+          rows={lotRows}
+          onDelete={row=>setEntries(p=>p.filter(x=>x.id!==row.id))}
+          emptyMsg="No entries for this filter."
+        />
+      </div>
     </div>
   );
 }
