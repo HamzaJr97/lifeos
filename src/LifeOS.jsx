@@ -48,7 +48,7 @@ import {
   });
   // theme-color — colors browser chrome / status bar on Android Chrome
   if (!document.querySelector('meta[name="theme-color"]')) {
-    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#040408';
+    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#05070c';
     document.head.appendChild(tc);
   }
   // ── App icon: generate PNG via canvas (iOS requires PNG, not SVG, for home screen icons) ──
@@ -57,24 +57,24 @@ import {
     canvas.width = size; canvas.height = size;
     const ctx = canvas.getContext('2d');
     // Background
-    ctx.fillStyle = '#040408';
+    ctx.fillStyle = '#05070c';
     const r = size * 0.22;
     ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(size-r, 0); ctx.quadraticCurveTo(size, 0, size, r);
     ctx.lineTo(size, size-r); ctx.quadraticCurveTo(size, size, size-r, size);
     ctx.lineTo(r, size); ctx.quadraticCurveTo(0, size, 0, size-r);
     ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0); ctx.closePath(); ctx.fill();
     // Accent bar
-    ctx.fillStyle = '#00f5d4'; ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#ff9d4d'; ctx.globalAlpha = 0.7;
     const bx = size*0.165, by = size*0.27, bw = size*0.022, bh = size*0.445;
     ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bw/2); ctx.fill();
     ctx.globalAlpha = 1;
     // "OS" text
-    ctx.fillStyle = '#00f5d4';
+    ctx.fillStyle = '#ff9d4d';
     ctx.font = `800 ${size*0.355}px system-ui,sans-serif`;
     ctx.textBaseline = 'alphabetic';
     ctx.fillText('OS', size*0.24, size*0.635);
     // "Life" small text
-    ctx.fillStyle = '#00f5d4'; ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#ff9d4d'; ctx.globalAlpha = 0.55;
     ctx.font = `600 ${size*0.13}px system-ui,sans-serif`;
     ctx.fillText('Life', size*0.245, size*0.79);
     ctx.globalAlpha = 1;
@@ -100,8 +100,8 @@ import {
       scope: '/lifeos/',
       display: 'standalone',
       orientation: 'portrait',
-      background_color: '#040408',
-      theme_color: '#040408',
+      background_color: '#05070c',
+      theme_color: '#05070c',
       icons: [
         { src: png192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
         { src: png512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
@@ -133,7 +133,7 @@ import {
 
   const link = document.createElement('link');
   link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Nunito:wght@400;500;600;700;800&display=swap';
+  link.href = 'https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;500;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Nunito:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap';
   document.head.appendChild(link);
   const style = document.createElement('style');
   style.textContent = `
@@ -147,10 +147,10 @@ import {
     }
     ::-webkit-scrollbar { width: 2px; height: 2px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(0,245,212,0.18); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,157,77,0.18); border-radius: 2px; }
     @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-    @keyframes glowPulse { 0%,100% { box-shadow:0 0 8px rgba(0,245,212,0.25); } 50% { box-shadow:0 0 28px rgba(0,245,212,0.65),0 0 50px rgba(0,245,212,0.12); } }
+    @keyframes glowPulse { 0%,100% { box-shadow:0 0 8px rgba(255,157,77,0.25); } 50% { box-shadow:0 0 28px rgba(255,157,77,0.65),0 0 50px rgba(255,157,77,0.12); } }
     @keyframes dotPulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.6); opacity:0.5; } }
     @keyframes nodeEnter { from { opacity:0; transform:scale(0.8) translateX(-8px); } to { opacity:1; transform:scale(1) translateX(0); } }
     @keyframes modalIn { from { opacity:0; transform:scale(0.92); } to { opacity:1; transform:scale(1); } }
@@ -203,10 +203,10 @@ import {
       background:var(--los-input-bg, rgba(255,255,255,0.04));
       border:1px solid var(--los-border, rgba(255,255,255,0.07));
       border-radius:10px; font-family:inherit;
-      font-size:13px; color:var(--los-text, #dde0f2); resize:vertical;
+      font-size:13px; color:var(--los-text, #eef0f5); resize:vertical;
       transition:border-color 0.2s; line-height:1.5;
     }
-    .los-textarea:focus { border-color:var(--los-accent-focus, rgba(0,245,212,0.5)); }
+    .los-textarea:focus { border-color:var(--los-accent-focus, rgba(255,157,77,0.5)); }
     [data-theme="light"] {
       --los-input-bg:    rgba(0,0,0,0.04);
       --los-border:      rgba(0,0,0,0.10);
@@ -246,8 +246,8 @@ import {
     /* Bottom nav tap feedback */
     .los-bottom-nav button:active { transform: scale(0.88); opacity: 0.75; transition: transform 0.08s, opacity 0.08s; }
     .los-btn:hover { filter:brightness(1.2); transform:translateY(-1px); }
-    .los-card:hover { border-color:rgba(0,245,212,0.18) !important; }
-    .los-nav:hover { background:rgba(0,245,212,0.08) !important; }
+    .los-card:hover { border-color:rgba(255,157,77,0.18) !important; }
+    .los-nav:hover { background:rgba(255,157,77,0.08) !important; }
     .los-qa:hover { background:rgba(255,255,255,0.07) !important; transform:translateY(-2px); }
     .los-ev:hover { background:rgba(255,255,255,0.04) !important; }
     .los-tab:hover { background:rgba(255,255,255,0.05) !important; }
@@ -258,11 +258,11 @@ import {
        keyboard/AT users via :focus-visible. Previously ALL focus indicators were
        removed, making keyboard navigation effectively invisible. */
     input, textarea, select { outline:none; font-family:inherit; }
-    input:focus, textarea:focus, select:focus { border-color:rgba(0,245,212,0.5) !important; }
+    input:focus, textarea:focus, select:focus { border-color:rgba(255,157,77,0.5) !important; }
     button { cursor:pointer; border:none; background:none; font-family:inherit; transition:all 0.18s ease; }
-    button:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 6px; }
-    a:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 4px; }
-    select option { background:#0b0b1a; color:#dde0f2; }
+    button:focus-visible { outline: 2px solid rgba(255,157,77,0.7); outline-offset: 2px; border-radius: 6px; }
+    a:focus-visible { outline: 2px solid rgba(255,157,77,0.7); outline-offset: 2px; border-radius: 4px; }
+    select option { background:#0d1220; color:#eef0f5; }
     /* Battery / accessibility: suppress looping ambient animations for users
        who prefer reduced motion or on any device that opts in */
     @media (prefers-reduced-motion: reduce) {
@@ -270,11 +270,11 @@ import {
     }
     /* Page skeleton — shimmer bars shown while async content loads */
     @keyframes cyberScan { 0% { transform:translateY(-100%); opacity:0.8; } 100% { transform:translateY(800%); opacity:0; } }
-    @keyframes borderGlow { 0%,100% { box-shadow:0 0 6px rgba(0,245,212,0.12),inset 0 0 6px rgba(0,245,212,0.04); border-color:rgba(0,245,212,0.18); } 50% { box-shadow:0 0 22px rgba(0,245,212,0.32),0 0 44px rgba(0,245,212,0.08),inset 0 0 12px rgba(0,245,212,0.06); border-color:rgba(0,245,212,0.42); } }
+    @keyframes borderGlow { 0%,100% { box-shadow:0 0 6px rgba(255,157,77,0.12),inset 0 0 6px rgba(255,157,77,0.04); border-color:rgba(255,157,77,0.18); } 50% { box-shadow:0 0 22px rgba(255,157,77,0.32),0 0 44px rgba(255,157,77,0.08),inset 0 0 12px rgba(255,157,77,0.06); border-color:rgba(255,157,77,0.42); } }
     @keyframes cornerTrace { 0%,100% { opacity:0.35; } 50% { opacity:0.85; } }
     @keyframes dataStream { 0% { background-position:0 0; } 100% { background-position:0 -60px; } }
     @keyframes cyberPulseRing { 0% { transform:scale(1); opacity:0.7; } 100% { transform:scale(2.2); opacity:0; } }
-    @keyframes textGlitch { 0%,94%,100% { text-shadow:0 0 10px rgba(0,245,212,0.45); clip-path:none; } 95% { text-shadow:-2px 0 rgba(251,113,133,0.6),2px 0 rgba(139,92,246,0.6),0 0 10px rgba(0,245,212,0.45); } 97% { text-shadow:1px 0 rgba(251,113,133,0.4),-1px 0 rgba(139,92,246,0.4),0 0 10px rgba(0,245,212,0.45); } }
+    @keyframes textGlitch { 0%,94%,100% { text-shadow:0 0 10px rgba(255,157,77,0.45); clip-path:none; } 95% { text-shadow:-2px 0 rgba(255,107,91,0.6),2px 0 rgba(124,140,232,0.6),0 0 10px rgba(255,157,77,0.45); } 97% { text-shadow:1px 0 rgba(255,107,91,0.4),-1px 0 rgba(124,140,232,0.4),0 0 10px rgba(255,157,77,0.45); } }
     @keyframes holoBars { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.25) saturate(1.3); } }
     /* ── Cyber utility classes ──────────────────────────────────────── */
     .cyber-border { animation: borderGlow 4s ease-in-out infinite; }
@@ -284,7 +284,7 @@ import {
     .cyber-scan { position:relative; overflow:hidden; }
     .cyber-scan::after {
       content:''; position:absolute; left:0; right:0; height:2px; top:0; pointer-events:none; z-index:2;
-      background:linear-gradient(90deg,transparent 0%,rgba(0,245,212,0.35) 30%,rgba(0,245,212,0.7) 50%,rgba(0,245,212,0.35) 70%,transparent 100%);
+      background:linear-gradient(90deg,transparent 0%,rgba(255,157,77,0.35) 30%,rgba(255,157,77,0.7) 50%,rgba(255,157,77,0.35) 70%,transparent 100%);
       animation: cyberScan 5s cubic-bezier(0.4,0,0.6,1) infinite;
     }
     .cyber-scan-slow::after { animation-duration: 8s; }
@@ -294,26 +294,26 @@ import {
       content:''; position:absolute; width:10px; height:10px; pointer-events:none; z-index:3;
       animation: cornerTrace 3s ease-in-out infinite;
     }
-    .cyber-corner::before { top:5px; left:5px; border-top:1.5px solid rgba(0,245,212,0.6); border-left:1.5px solid rgba(0,245,212,0.6); border-radius:1px 0 0 0; }
-    .cyber-corner::after  { bottom:5px; right:5px; border-bottom:1.5px solid rgba(0,245,212,0.6); border-right:1.5px solid rgba(0,245,212,0.6); border-radius:0 0 1px 0; }
+    .cyber-corner::before { top:5px; left:5px; border-top:1.5px solid rgba(255,157,77,0.6); border-left:1.5px solid rgba(255,157,77,0.6); border-radius:1px 0 0 0; }
+    .cyber-corner::after  { bottom:5px; right:5px; border-bottom:1.5px solid rgba(255,157,77,0.6); border-right:1.5px solid rgba(255,157,77,0.6); border-radius:0 0 1px 0; }
     /* Live pulse ring — for status dots */
     .cyber-ring { position:relative; display:inline-flex; align-items:center; justify-content:center; }
     .cyber-ring::before {
       content:''; position:absolute; inset:-4px; border-radius:50%;
-      border:1.5px solid rgba(0,245,212,0.5);
+      border:1.5px solid rgba(255,157,77,0.5);
       animation: cyberPulseRing 2s ease-out infinite;
     }
     /* Holographic chart shimmer */
-    .cyber-chart { filter:drop-shadow(0 0 8px rgba(0,245,212,0.18)); animation: holoBars 6s ease-in-out infinite; }
+    .cyber-chart { filter:drop-shadow(0 0 8px rgba(255,157,77,0.18)); animation: holoBars 6s ease-in-out infinite; }
     /* Grid-dot background pattern */
     .cyber-grid-bg {
-      background-image: radial-gradient(circle, rgba(0,245,212,0.08) 1px, transparent 1px);
+      background-image: radial-gradient(circle, rgba(255,157,77,0.08) 1px, transparent 1px);
       background-size: 28px 28px;
     }
     /* Data stream — animated dotted left border */
     .cyber-stream {
       border-left: 2px solid transparent;
-      background-image: repeating-linear-gradient(to bottom, rgba(0,245,212,0.5) 0px, rgba(0,245,212,0.5) 4px, transparent 4px, transparent 10px);
+      background-image: repeating-linear-gradient(to bottom, rgba(255,157,77,0.5) 0px, rgba(255,157,77,0.5) 4px, transparent 4px, transparent 10px);
       background-size: 2px 10px;
       background-repeat: repeat-y;
       background-position: 0 0;
@@ -337,34 +337,36 @@ import {
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
 let T = {
-  bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
+  bg:'#05070c', bg1:'#0a0e18', bg2:'#0d1220',
   surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
-  border:'rgba(255,255,255,0.07)', borderLit:'rgba(0,245,212,0.3)',
-  accent:'#00f5d4', accentDim:'rgba(0,245,212,0.12)', accentLo:'rgba(0,245,212,0.06)',
-  violet:'#8b5cf6', violetDim:'rgba(139,92,246,0.12)',
-  amber:'#fbbf24', amberDim:'rgba(251,191,36,0.12)',
-  rose:'#fb7185', roseDim:'rgba(251,113,133,0.12)',
-  emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
-  sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
-  text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-  fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace',
+  border:'rgba(255,255,255,0.07)', borderLit:'rgba(255,157,77,0.3)',
+  accent:'#ff9d4d', accentDim:'rgba(255,157,77,0.12)', accentLo:'rgba(255,157,77,0.06)',
+  violet:'#7c8ce8', violetDim:'rgba(124,140,232,0.12)',
+  amber:'#f2b155', amberDim:'rgba(242,177,85,0.12)',
+  rose:'#ff6b5b', roseDim:'rgba(255,107,91,0.12)',
+  emerald:'#6fd39a', emeraldDim:'rgba(111,211,154,0.12)',
+  sky:'#7ea6ff', skyDim:'rgba(126,166,255,0.12)',
+  text:'#eef0f5', textSub:'#8b93ab', textMuted:'#4d5468',
+  fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
+  starA:'#4c5fd1', starB:'#2fa9a1', star:'#eaf1ff',
   r:'10px', rL:'16px', sw:72,
 };
 
 // ── S5: THEME SYSTEM ──────────────────────────────────────────────────────────
 const THEMES = {
   dark: {
-    bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
+    bg:'#05070c', bg1:'#0a0e18', bg2:'#0d1220',
     surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
-    border:'rgba(255,255,255,0.07)', borderLit:'rgba(0,245,212,0.3)',
-    accent:'#00f5d4', accentDim:'rgba(0,245,212,0.12)', accentLo:'rgba(0,245,212,0.06)',
-    violet:'#8b5cf6', violetDim:'rgba(139,92,246,0.12)',
-    amber:'#fbbf24', amberDim:'rgba(251,191,36,0.12)',
-    rose:'#fb7185', roseDim:'rgba(251,113,133,0.12)',
-    emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
-    sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
-    text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
-    fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace',
+    border:'rgba(255,255,255,0.07)', borderLit:'rgba(255,157,77,0.3)',
+    accent:'#ff9d4d', accentDim:'rgba(255,157,77,0.12)', accentLo:'rgba(255,157,77,0.06)',
+    violet:'#7c8ce8', violetDim:'rgba(124,140,232,0.12)',
+    amber:'#f2b155', amberDim:'rgba(242,177,85,0.12)',
+    rose:'#ff6b5b', roseDim:'rgba(255,107,91,0.12)',
+    emerald:'#6fd39a', emeraldDim:'rgba(111,211,154,0.12)',
+    sky:'#7ea6ff', skyDim:'rgba(126,166,255,0.12)',
+    text:'#eef0f5', textSub:'#8b93ab', textMuted:'#4d5468',
+    fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
+    starA:'#4c5fd1', starB:'#2fa9a1', star:'#eaf1ff',
     r:'10px', rL:'16px', sw:72,
   },
   light: {
@@ -378,7 +380,8 @@ const THEMES = {
     emerald:'#059669', emeraldDim:'rgba(5,150,105,0.12)',
     sky:'#0284c7', skyDim:'rgba(2,132,199,0.12)',
     text:'#1e1e2e', textSub:'#4a4a6a', textMuted:'#9090b0',
-    fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace',
+    fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
+    starA:'#93a5f6', starB:'#7fd4cb', star:'#0a0e18',
     r:'10px', rL:'16px', sw:72,
   },
 };
@@ -811,9 +814,9 @@ function useAmbientIntelligence(data) {
         intensity: activeFocusSession ? 1.0 : 0.65,
         label: activeFocusSession ? '⚡ Focus Session' : '🎯 Peak Focus',
         description: "Minimal mode. You're locked in.",
-        glowColor: '#00f5d4',
-        pillBg: 'rgba(0,245,212,0.10)',
-        pillBorder: 'rgba(0,245,212,0.30)',
+        glowColor: '#ff9d4d',
+        pillBg: 'rgba(255,157,77,0.10)',
+        pillBorder: 'rgba(255,157,77,0.30)',
       };
     }
 
@@ -825,9 +828,9 @@ function useAmbientIntelligence(data) {
         intensity,
         label: `🔥 ${bestStreak}d Streak`,
         description: `Momentum is real. ${habitsCompletedToday}/${habits.length} habits done.`,
-        glowColor: '#38bdf8',
-        pillBg: 'rgba(56,189,248,0.10)',
-        pillBorder: 'rgba(56,189,248,0.30)',
+        glowColor: '#7ea6ff',
+        pillBg: 'rgba(126,166,255,0.10)',
+        pillBorder: 'rgba(126,166,255,0.30)',
       };
     }
 
@@ -843,9 +846,9 @@ function useAmbientIntelligence(data) {
         intensity: Math.max(0.3, Math.min(1, severity)),
         label: isBadFocus ? '😩 Rough Focus' : isLowSleep ? '😴 Sleep Debt' : '🌧 Rough Day',
         description: 'Take it easy. Recovery is progress too.',
-        glowColor: '#fb7185',
-        pillBg: 'rgba(251,113,133,0.10)',
-        pillBorder: 'rgba(251,113,133,0.30)',
+        glowColor: '#ff6b5b',
+        pillBg: 'rgba(255,107,91,0.10)',
+        pillBorder: 'rgba(255,107,91,0.30)',
       };
     }
 
@@ -856,9 +859,9 @@ function useAmbientIntelligence(data) {
         intensity: 0.35,
         label: todayMood >= 8 ? '✨ Great Day' : '💚 On Track',
         description: 'Things are going well.',
-        glowColor: '#34d399',
-        pillBg: 'rgba(52,211,153,0.10)',
-        pillBorder: 'rgba(52,211,153,0.30)',
+        glowColor: '#6fd39a',
+        pillBg: 'rgba(111,211,154,0.10)',
+        pillBorder: 'rgba(111,211,154,0.30)',
       };
     }
 
@@ -868,7 +871,7 @@ function useAmbientIntelligence(data) {
       intensity: 0,
       label: null,
       description: null,
-      glowColor: '#00f5d4',
+      glowColor: '#ff9d4d',
       pillBg: 'transparent',
       pillBorder: 'transparent',
     };
@@ -1887,6 +1890,147 @@ const NAV_DEFS = [
   { id:'lifehub',   Icon:IcoBriefcase,  tKey:'lifehub'     },
   { id:'settings',  Icon:IcoSettings,   tKey:'settings'    },
 ];
+// ── STARFIELD — global ambient background (Constellation design system) ────────
+function StarField() {
+  const canvasRef = useRef(null);
+  const themeIsLight = T.bg === '#f4f6fb';
+  useEffect(() => {
+    if (themeIsLight) return; // keep light theme clean/flat
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let raf, W, H, stars = [];
+    const COUNT = 70, LINK_DIST = 120;
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function resize() {
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    stars = Array.from({ length: COUNT }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.08, vy: (Math.random() - 0.5) * 0.08,
+      r: Math.random() * 1.3 + 0.4, phase: Math.random() * Math.PI * 2,
+    }));
+
+    let t = 0;
+    function tick() {
+      t += 0.016;
+      ctx.clearRect(0, 0, W, H);
+      for (let i = 0; i < stars.length; i++) {
+        for (let j = i + 1; j < stars.length; j++) {
+          const a = stars[i], b = stars[j];
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < LINK_DIST) {
+            ctx.strokeStyle = `rgba(150,175,255,${(1 - d / LINK_DIST) * 0.12})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          }
+        }
+      }
+      stars.forEach(s => {
+        if (!reduced) { s.x += s.vx; s.y += s.vy; }
+        if (s.x < -10) s.x = W + 10; if (s.x > W + 10) s.x = -10;
+        if (s.y < -10) s.y = H + 10; if (s.y > H + 10) s.y = -10;
+        const twinkle = reduced ? 0.6 : 0.55 + Math.sin(t * 1.1 + s.phase) * 0.35;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(234,241,255,${twinkle})`;
+        ctx.fill();
+      });
+      raf = requestAnimationFrame(tick);
+    }
+    tick();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, [themeIsLight]);
+
+  if (themeIsLight) return null;
+
+  return (
+    <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
+      <div style={{ position:'absolute', inset:'-10%', filter:'blur(60px)', opacity:0.28 }}>
+        <div style={{ position:'absolute', width:'46vw', height:'46vw', borderRadius:'50%', top:'-10%', left:'-8%', background:`radial-gradient(circle, ${T.starA} 0%, transparent 70%)`, animation:'starDriftA 52s ease-in-out infinite alternate' }} />
+        <div style={{ position:'absolute', width:'40vw', height:'40vw', borderRadius:'50%', bottom:'-15%', right:'-10%', background:`radial-gradient(circle, ${T.starB} 0%, transparent 70%)`, animation:'starDriftB 64s ease-in-out infinite alternate' }} />
+      </div>
+      <canvas ref={canvasRef} style={{ position:'absolute', inset:0, width:'100%', height:'100%' }} />
+      <style>{`
+        @keyframes starDriftA { 0%{ transform:translate(0,0) scale(1);} 100%{ transform:translate(6vw,8vh) scale(1.15);} }
+        @keyframes starDriftB { 0%{ transform:translate(0,0) scale(1);} 100%{ transform:translate(-7vw,-6vh) scale(1.1);} }
+        @media (prefers-reduced-motion: reduce) {
+          [style*="starDriftA"], [style*="starDriftB"] { animation-play-state: paused !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── STAR CLUSTER — signature score visualization (Constellation design system) ─
+// Denser / brighter cluster = higher score. Used wherever a score used to show
+// as a ring or bar (Life Score, Body Score, Financial Health, Growth Score…).
+function StarCluster({ value = 0, max = 100, size = 48, color }) {
+  const canvasRef = useRef(null);
+  const dotColor = color || T.accent;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const center = size / 2;
+    const pct = Math.max(0, Math.min(1, value / max));
+    const count = Math.round(6 + pct * 22);
+    const pts = Array.from({ length: count }, () => {
+      const ang = Math.random() * Math.PI * 2;
+      const rad = Math.pow(Math.random(), 0.55) * (size * 0.42);
+      return {
+        x: center + Math.cos(ang) * rad, y: center + Math.sin(ang) * rad,
+        r: Math.random() * (size * 0.02) + size * 0.01,
+        phase: Math.random() * Math.PI * 2, speed: 0.5 + Math.random() * 0.8,
+      };
+    });
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let raf, t = 0;
+    function draw() {
+      t += 0.02;
+      ctx.clearRect(0, 0, size, size);
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const a = pts[i], b = pts[j];
+          const dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy);
+          if (d < size * 0.22) {
+            ctx.strokeStyle = hexToRgba(dotColor, (1 - d / (size * 0.22)) * 0.18);
+            ctx.lineWidth = 0.6;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          }
+        }
+      }
+      pts.forEach(p => {
+        const tw = reduced ? 0.75 : 0.55 + Math.sin(t * p.speed + p.phase) * 0.4;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = hexToRgba(dotColor, tw);
+        ctx.fill();
+      });
+      raf = requestAnimationFrame(draw);
+    }
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [value, max, size, dotColor]);
+  return <canvas ref={canvasRef} style={{ width:size, height:size, display:'block' }} />;
+}
+function hexToRgba(hex, alpha) {
+  if (!hex || hex[0] !== '#') return `rgba(255,255,255,${alpha})`;
+  const h = hex.replace('#','');
+  const r = parseInt(h.length===3?h[0]+h[0]:h.slice(0,2),16);
+  const g = parseInt(h.length===3?h[1]+h[1]:h.slice(2,4),16);
+  const b = parseInt(h.length===3?h[2]+h[2]:h.slice(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function Sidebar({ active, onNav, userName, onAI, showAI }) {
   const lang = useLang();
   const NAV = NAV_DEFS.map(n => ({ ...n, label: t(n.tKey, lang) }));
@@ -3344,8 +3488,8 @@ function AddBillModal({ open, onClose, onSave }) {
 
 // S1 — Add Quick Note Modal
 function AddQuickNoteModal({ open, onClose, onSave }) {
-  const [text, setText] = useState(''); const [color, setColor] = useState('#fbbf24');
-  const COLORS = ['#fbbf24','#34d399','#38bdf8','#8b5cf6','#fb7185','#00f5d4'];
+  const [text, setText] = useState(''); const [color, setColor] = useState('#f2b155');
+  const COLORS = ['#f2b155','#6fd39a','#7ea6ff','#7c8ce8','#ff6b5b','#ff9d4d'];
   const save = () => { if (!text.trim()) return; onSave({ id:Date.now(), text:text.trim(), color, date:today() }); setText(''); onClose(); };
   return (
     <Modal open={open} onClose={onClose} title="📌 Quick Note">
@@ -3578,7 +3722,7 @@ const HabitHeatmap = memo(function HabitHeatmap({ habitLogs, habits }) {
     if (future) return 'transparent';
     if (pct === 0) return 'rgba(255,255,255,0.04)';
     const alpha = 0.2 + pct * 0.8;
-    return `rgba(0,245,212,${alpha.toFixed(2)})`;
+    return `rgba(255,157,77,${alpha.toFixed(2)})`;
   };
 
   const MONTH_LABELS = useMemo(() => {
@@ -5321,17 +5465,17 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         @keyframes ncOrbRotate { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
         @keyframes ncOrbRotateRev { from { transform:rotate(0deg); } to { transform:rotate(-360deg); } }
         @keyframes ncOrbScanner { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-        @keyframes ncCoreGlow { 0%,100% { filter:drop-shadow(0 0 14px rgba(0,245,212,0.3)); } 50% { filter:drop-shadow(0 0 32px rgba(0,245,212,0.7)); } }
-        @keyframes ncCoreGlowWarn { 0%,100% { filter:drop-shadow(0 0 14px rgba(251,113,133,0.3)); } 50% { filter:drop-shadow(0 0 40px rgba(251,113,133,0.8)); } }
-        @keyframes ncCoreGlowAnalyze { 0%,100% { filter:drop-shadow(0 0 14px rgba(139,92,246,0.3)); } 50% { filter:drop-shadow(0 0 36px rgba(139,92,246,0.75)); } }
+        @keyframes ncCoreGlow { 0%,100% { filter:drop-shadow(0 0 14px rgba(255,157,77,0.3)); } 50% { filter:drop-shadow(0 0 32px rgba(255,157,77,0.7)); } }
+        @keyframes ncCoreGlowWarn { 0%,100% { filter:drop-shadow(0 0 14px rgba(255,107,91,0.3)); } 50% { filter:drop-shadow(0 0 40px rgba(255,107,91,0.8)); } }
+        @keyframes ncCoreGlowAnalyze { 0%,100% { filter:drop-shadow(0 0 14px rgba(124,140,232,0.3)); } 50% { filter:drop-shadow(0 0 36px rgba(124,140,232,0.75)); } }
         @keyframes ncThreatIn { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:translateX(0); } }
         @keyframes ncProjIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
         @keyframes ncIssueIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
         @keyframes ncRingPulse { 0%,100% { opacity:0.4; } 50% { opacity:0.9; } }
         .nc-grid { display:grid; grid-template-columns:1fr 1.55fr 1fr; gap:18px; align-items:start; }
         .nc-panel { position:relative; }
-        .nc-panel::before { content:''; position:absolute; top:6px; left:6px; width:8px; height:8px; border-top:1.5px solid rgba(0,245,212,0.5); border-left:1.5px solid rgba(0,245,212,0.5); pointer-events:none; z-index:2; border-radius:1px 0 0 0; animation:cornerTrace 3s ease-in-out infinite; }
-        .nc-panel::after  { content:''; position:absolute; bottom:6px; right:6px; width:8px; height:8px; border-bottom:1.5px solid rgba(0,245,212,0.5); border-right:1.5px solid rgba(0,245,212,0.5); pointer-events:none; z-index:2; border-radius:0 0 1px 0; animation:cornerTrace 3s ease-in-out infinite 1.5s; }
+        .nc-panel::before { content:''; position:absolute; top:6px; left:6px; width:8px; height:8px; border-top:1.5px solid rgba(255,157,77,0.5); border-left:1.5px solid rgba(255,157,77,0.5); pointer-events:none; z-index:2; border-radius:1px 0 0 0; animation:cornerTrace 3s ease-in-out infinite; }
+        .nc-panel::after  { content:''; position:absolute; bottom:6px; right:6px; width:8px; height:8px; border-bottom:1.5px solid rgba(255,157,77,0.5); border-right:1.5px solid rgba(255,157,77,0.5); pointer-events:none; z-index:2; border-radius:0 0 1px 0; animation:cornerTrace 3s ease-in-out infinite 1.5s; }
         @media (max-width:767px) {
           .nc-grid { grid-template-columns:1fr; gap:14px; }
           .nc-orb-col { order:-1; }
@@ -5346,10 +5490,10 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
 
           {/* Logo */}
           <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-            <div style={{ width:30, height:30, borderRadius:9, background:`linear-gradient(135deg,rgba(0,245,212,0.12),rgba(139,92,246,0.12))`, border:`1.5px solid rgba(0,245,212,0.3)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ width:30, height:30, borderRadius:9, background:`linear-gradient(135deg,rgba(255,157,77,0.12),rgba(124,140,232,0.12))`, border:`1.5px solid rgba(255,157,77,0.3)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
               <svg width="15" height="15" viewBox="-8 -8 16 16">
-                <polygon points="0,-7 6.06,-3.5 6.06,3.5 0,7 -6.06,3.5 -6.06,-3.5" fill="none" stroke="#00f5d4" strokeWidth="1.5"/>
-                <circle r="3" fill="#00f5d4" opacity="0.85"/>
+                <polygon points="0,-7 6.06,-3.5 6.06,3.5 0,7 -6.06,3.5 -6.06,-3.5" fill="none" stroke="#ff9d4d" strokeWidth="1.5"/>
+                <circle r="3" fill="#ff9d4d" opacity="0.85"/>
               </svg>
             </div>
             <span style={{ fontFamily:T.fD, fontWeight:800, fontSize:15, color:T.text, letterSpacing:'-0.025em' }}>LifeOS</span>
@@ -5360,7 +5504,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
             <input
               placeholder="Search anything…"
               style={{ width:'100%', padding:'6px 12px 6px 30px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}`, fontFamily:T.fM, fontSize:11, color:T.text, outline:'none' }}
-              onFocus={e=>{ e.target.style.borderColor=`rgba(0,245,212,0.4)`; }}
+              onFocus={e=>{ e.target.style.borderColor=`rgba(255,157,77,0.4)`; }}
               onBlur={e=>{ e.target.style.borderColor=T.border; }}
             />
             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:11, opacity:0.4 }}>🔍</span>
@@ -5371,8 +5515,8 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
           {/* AI Status pill */}
           <div style={{
             display:'flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:99,
-            background: orbState==='warning'?`rgba(251,113,133,0.08)`:orbState==='analyzing'?`rgba(139,92,246,0.08)`:`rgba(0,245,212,0.06)`,
-            border:`1px solid ${orbState==='warning'?'rgba(251,113,133,0.25)':orbState==='analyzing'?'rgba(139,92,246,0.25)':'rgba(0,245,212,0.18)'}`,
+            background: orbState==='warning'?`rgba(255,107,91,0.08)`:orbState==='analyzing'?`rgba(124,140,232,0.08)`:`rgba(255,157,77,0.06)`,
+            border:`1px solid ${orbState==='warning'?'rgba(255,107,91,0.25)':orbState==='analyzing'?'rgba(124,140,232,0.25)':'rgba(255,157,77,0.18)'}`,
             flexShrink:0,
           }}>
             <div className="cyber-ring" style={{ width:5, height:5, borderRadius:'50%', background:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, animation:`dotPulse ${orbState==='warning'?'0.9s':orbState==='analyzing'?'0.6s':'2s'} infinite` }}/>
@@ -5383,9 +5527,9 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
 
           {/* Profile */}
           <button onClick={()=>onNav('settings')} style={{ display:'flex', alignItems:'center', gap:7, padding:'5px 12px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}`, cursor:'pointer', transition:'all 0.18s', flexShrink:0 }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor=`rgba(139,92,246,0.4)`; }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor=`rgba(124,140,232,0.4)`; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor=T.border; }}>
-            <div style={{ width:20, height:20, borderRadius:'50%', background:`rgba(139,92,246,0.12)`, border:`1.5px solid rgba(139,92,246,0.35)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:T.violet, fontFamily:T.fD }}>
+            <div style={{ width:20, height:20, borderRadius:'50%', background:`rgba(124,140,232,0.12)`, border:`1.5px solid rgba(124,140,232,0.35)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:T.violet, fontFamily:T.fD }}>
               {(settings.name||'U').slice(0,2).toUpperCase()}
             </div>
             <span style={{ fontFamily:T.fM, fontSize:9, color:T.textSub }}>{settings.name||'You'}&thinsp;<span style={{ color:T.violet }}>·&thinsp;Lv{level}</span></span>
@@ -5431,15 +5575,15 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
               </div>
             ))}
 
-            {/* Life score capsule */}
+            {/* Life score capsule — star cluster readout */}
             <div style={{ marginTop:'auto', padding:'14px 16px', borderRadius:12, background:T.surface, border:`1px solid ${T.border}`, animation:'ncThreatIn 0.45s ease 0.35s both' }}>
-              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Life Score</div>
-              <div style={{ display:'flex', alignItems:'flex-end', gap:6, marginBottom:8 }}>
-                <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:28, color: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, lineHeight:1 }}>{lifeScore}</div>
-                <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, paddingBottom:4 }}>/ 100</div>
-              </div>
-              <div style={{ height:3, borderRadius:99, background:T.border, overflow:'hidden', marginBottom:6 }}>
-                <div style={{ height:'100%', width:`${lifeScore}%`, borderRadius:99, background: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, transition:'width 0.8s ease' }}/>
+              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:10 }}>Life Score</div>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
+                <StarCluster value={lifeScore} max={100} size={46} color={lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose} />
+                <div style={{ display:'flex', alignItems:'flex-end', gap:5 }}>
+                  <div style={{ fontFamily:T.fS, fontWeight:600, fontSize:30, color: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, lineHeight:1 }}>{lifeScore}</div>
+                  <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, paddingBottom:3 }}>/ 100</div>
+                </div>
               </div>
               <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub }}>{personaLabel}</div>
             </div>
@@ -5569,7 +5713,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
                 }
               </div>
               {!briefLoading && !briefIsToday && (
-                <button onClick={generateDailyBrief} style={{ marginTop:10, padding:'4px 12px', borderRadius:99, background:`rgba(139,92,246,0.1)`, border:`1px solid rgba(139,92,246,0.25)`, color:T.violet, fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
+                <button onClick={generateDailyBrief} style={{ marginTop:10, padding:'4px 12px', borderRadius:99, background:`rgba(124,140,232,0.1)`, border:`1px solid rgba(124,140,232,0.25)`, color:T.violet, fontSize:9, fontFamily:T.fM, fontWeight:600, cursor:'pointer' }}>
                   ↻ Refresh analysis
                 </button>
               )}
@@ -5597,7 +5741,7 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
             </div>
 
             {/* Savings projection */}
-            <div style={{ padding:'12px 14px', borderRadius:10, background:`rgba(139,92,246,0.07)`, border:`1px solid rgba(139,92,246,0.2)`, animation:'ncProjIn 0.45s ease 0.1s both', cursor:'pointer' }} onClick={()=>onNav('money')}>
+            <div style={{ padding:'12px 14px', borderRadius:10, background:`rgba(124,140,232,0.07)`, border:`1px solid rgba(124,140,232,0.2)`, animation:'ncProjIn 0.45s ease 0.1s both', cursor:'pointer' }} onClick={()=>onNav('money')}>
               <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5 }}>Savings Delta</div>
               <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:22, color:projection.proj30>=0?T.emerald:T.rose, lineHeight:1, marginBottom:4 }}>
                 {projection.proj30>=0?'+':''}{cur}{fmtN(Math.abs(projection.proj30))}
@@ -6165,8 +6309,8 @@ function BillCalendarHeatmap({ bills = [], subscriptions = [], cur }) {
               ? `rgba(239,68,68,${0.15+0.45*intensity})`
               : isHigh
                 ? `rgba(251,146,60,${0.12+0.35*intensity})`
-                : `rgba(56,189,248,${0.08+0.3*intensity})`;
-          const borderCol = val === 0 ? T.border : isCrunch ? `rgba(239,68,68,0.35)` : isHigh ? `rgba(251,146,60,0.3)` : `rgba(56,189,248,0.25)`;
+                : `rgba(126,166,255,${0.08+0.3*intensity})`;
+          const borderCol = val === 0 ? T.border : isCrunch ? `rgba(239,68,68,0.35)` : isHigh ? `rgba(251,146,60,0.3)` : `rgba(126,166,255,0.25)`;
           const isHovered = hoveredDay === i;
           return (
             <div key={i}
@@ -6200,7 +6344,7 @@ function BillCalendarHeatmap({ bills = [], subscriptions = [], cur }) {
       {/* Legend */}
       <div style={{ display:'flex', gap:10, marginTop:8, alignItems:'center' }}>
         <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>Low</span>
-        {['rgba(56,189,248,0.2)','rgba(251,146,60,0.3)','rgba(239,68,68,0.35)','rgba(239,68,68,0.6)'].map((c,i)=>(
+        {['rgba(126,166,255,0.2)','rgba(251,146,60,0.3)','rgba(239,68,68,0.35)','rgba(239,68,68,0.6)'].map((c,i)=>(
           <div key={i} style={{ width:12, height:12, borderRadius:3, background:c }} />
         ))}
         <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>High (cash crunch)</span>
@@ -6690,8 +6834,8 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 </div>
               ))}
             </div>
-            <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(0,245,212,0.06)', border:'1px solid rgba(0,245,212,0.2)', fontSize:10, color:'#94a3b8', lineHeight:1.65 }}>
-              💡 <b style={{ color:'#e2e8f0' }}>Tip:</b> Use <b style={{ color:'#00f5d4' }}>Left in month</b> (Overview tab) to see your real-time budget surplus or deficit. The <b style={{ color:'#38bdf8' }}>50/30/20</b> button in Spending gives a breakdown against the classic budgeting rule.
+            <div style={{ padding:'10px 14px', borderRadius:8, background:'rgba(255,157,77,0.06)', border:'1px solid rgba(255,157,77,0.2)', fontSize:10, color:'#94a3b8', lineHeight:1.65 }}>
+              💡 <b style={{ color:'#e2e8f0' }}>Tip:</b> Use <b style={{ color:'#ff9d4d' }}>Left in month</b> (Overview tab) to see your real-time budget surplus or deficit. The <b style={{ color:'#7ea6ff' }}>50/30/20</b> button in Spending gives a breakdown against the classic budgeting rule.
             </div>
           </div>
         } />}
@@ -10756,7 +10900,7 @@ function KnowledgePage({ data, actions }) {
       return true;
     }).sort((a,b) => ((a.priority||2)-(b.priority||2)) || (a.date<b.date?1:-1));
   },[notes, noteSearch, noteTypeFilter, notePriorityFilter, showArchived]);
-  const STICKY_COLORS = ['#fbbf24','#34d399','#38bdf8','#8b5cf6','#fb7185','#00f5d4'];
+  const STICKY_COLORS = ['#f2b155','#6fd39a','#7ea6ff','#7c8ce8','#ff6b5b','#ff9d4d'];
   const analyzeNotes = async () => {
     if (noteAnalysisLoading || !(notes||[]).length) return;
     setNoteAnalysisLoading(true);
@@ -11025,7 +11169,7 @@ function SpendingPlannerSection({ notes }) {
   const doneTasks = spendTasks.filter(n => n.done);
   const doneTotal = doneTasks.reduce((s,n) => s + Number(n.estimatedCost||0), 0);
   const tasks4x = spendTasks.filter(n => n.paymentPlan === '4x');
-  const CAT_COLORS = ['#00f5d4','#8b5cf6','#fbbf24','#fb7185','#34d399','#38bdf8','#c084fc','#f97316','#a78bfa','#22d3ee','#4ade80','#e879f9','#94a3b8'];
+  const CAT_COLORS = ['#ff9d4d','#7c8ce8','#f2b155','#ff6b5b','#6fd39a','#7ea6ff','#c084fc','#f97316','#a78bfa','#22d3ee','#4ade80','#e879f9','#94a3b8'];
   const thisMonth = new Date().toISOString().slice(0,7);
 
   return (
@@ -12140,12 +12284,12 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
           const weekendDays = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d===0||d===6;}).length;
           const weekdayExp = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d>=1&&d<=5;}).reduce((s,e)=>s+Number(e.amount||0),0);
           const weekdayDays = (expenses||[]).filter(e=>{const d=new Date(e.date||'').getDay();return d>=1&&d<=5;}).length;
-          if (weekendDays>3&&weekdayDays>3){const wa=weekendExp/weekendDays,wd=weekdayExp/weekdayDays;if(wa>wd*1.3)results.push({icon:'📅',title:'Weekend Spending Surge',strength:Math.min(99,Math.round((wa/wd-1)*100)),color:'#fbbf24',desc:`${cur}${wa.toFixed(0)}/day weekends vs ${cur}${wd.toFixed(0)}/day weekdays`});}
+          if (weekendDays>3&&weekdayDays>3){const wa=weekendExp/weekendDays,wd=weekdayExp/weekdayDays;if(wa>wd*1.3)results.push({icon:'📅',title:'Weekend Spending Surge',strength:Math.min(99,Math.round((wa/wd-1)*100)),color:'#f2b155',desc:`${cur}${wa.toFixed(0)}/day weekends vs ${cur}${wd.toFixed(0)}/day weekdays`});}
           const vWithBoth=(vitals||[]).filter(v=>v.sleep&&v.mood);
-          if(vWithBoth.length>=5){const hi=vWithBoth.filter(v=>Number(v.sleep)>=7),lo=vWithBoth.filter(v=>Number(v.sleep)<7);if(hi.length>=2&&lo.length>=2){const mh=hi.reduce((s,v)=>s+Number(v.mood),0)/hi.length,ml=lo.reduce((s,v)=>s+Number(v.mood),0)/lo.length;if(Math.abs(mh-ml)>=1)results.push({icon:'😴',title:'Sleep Drives Mood',strength:Math.min(99,Math.round(Math.abs(mh-ml)/10*100+40)),color:'#38bdf8',desc:`Mood ${mh.toFixed(1)}/10 with 7h+ sleep vs ${ml.toFixed(1)}/10 below`});}}
+          if(vWithBoth.length>=5){const hi=vWithBoth.filter(v=>Number(v.sleep)>=7),lo=vWithBoth.filter(v=>Number(v.sleep)<7);if(hi.length>=2&&lo.length>=2){const mh=hi.reduce((s,v)=>s+Number(v.mood),0)/hi.length,ml=lo.reduce((s,v)=>s+Number(v.mood),0)/lo.length;if(Math.abs(mh-ml)>=1)results.push({icon:'😴',title:'Sleep Drives Mood',strength:Math.min(99,Math.round(Math.abs(mh-ml)/10*100+40)),color:'#7ea6ff',desc:`Mood ${mh.toFixed(1)}/10 with 7h+ sleep vs ${ml.toFixed(1)}/10 below`});}}
           const totalLogs=Object.values(habitLogs).flat().length;
           const avgStreak=(habits||[]).length?(habits||[]).map(h=>streakCache[h.id]||0).reduce((s,x)=>s+x,0)/(habits||[]).length:0;
-          if(totalLogs>20&&avgStreak>0)results.push({icon:'🔥',title:'Habit Compound Effect',strength:Math.min(99,Math.round(avgStreak*3+40)),color:'#00f5d4',desc:`${(habits||[]).length} habits · ${totalLogs} logs · ${avgStreak.toFixed(1)}d avg streak`});
+          if(totalLogs>20&&avgStreak>0)results.push({icon:'🔥',title:'Habit Compound Effect',strength:Math.min(99,Math.round(avgStreak*3+40)),color:'#ff9d4d',desc:`${(habits||[]).length} habits · ${totalLogs} logs · ${avgStreak.toFixed(1)}d avg streak`});
           return results.slice(0,2);
         })();
         // Graph preview stats
@@ -12203,7 +12347,7 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
               </div>
               {nodeCount > 4 && (
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12 }}>
-                  {[{label:'Finance', count:catCount, color:T.emerald},{label:'Habits', count:Math.min(8,(habits||[]).length), color:T.accent},{label:'Goals', count:Math.min(6,(goals||[]).length), color:'#8b5cf6'},{label:'Domains', count:4, color:'#fbbf24'}].filter(d=>d.count>0).map((d,i)=>(
+                  {[{label:'Finance', count:catCount, color:T.emerald},{label:'Habits', count:Math.min(8,(habits||[]).length), color:T.accent},{label:'Goals', count:Math.min(6,(goals||[]).length), color:'#7c8ce8'},{label:'Domains', count:4, color:'#f2b155'}].filter(d=>d.count>0).map((d,i)=>(
                     <div key={i} style={{ padding:'4px 10px', borderRadius:99, background:d.color+'14', border:`1px solid ${d.color}33`, fontSize:9, fontFamily:T.fM, color:d.color, fontWeight:600 }}>
                       {d.count} {d.label}
                     </div>
@@ -12214,7 +12358,7 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
             {/* Compact immersive launchers */}
             <div style={{ display:'flex', gap:10 }}>
               {[
-                { icon:'🔀', title:'Parallel You', sub:'Simulate alternate timelines', color:T.sky, bg:'rgba(56,189,248,0.08)', border:'rgba(56,189,248,0.25)', action: onOpenParallel, kbd:'Z' },
+                { icon:'🔀', title:'Parallel You', sub:'Simulate alternate timelines', color:T.sky, bg:'rgba(126,166,255,0.08)', border:'rgba(126,166,255,0.25)', action: onOpenParallel, kbd:'Z' },
                 { icon:'🌊', title:'Ambient Mode', sub:'Living dashboard screensaver',  color:T.amber, bg:T.amberDim, border:T.amber+'33', action: onOpenAmbient,  kbd:'`' },
               ].map((feat,i)=>(
                 <button key={i} onClick={feat.action} style={{ flex:1, padding:'13px 14px', borderRadius:12, background:feat.bg, border:`1px solid ${feat.border}`, textAlign:'left', cursor:'pointer', transition:'all 0.18s', display:'flex', alignItems:'center', gap:10 }}
@@ -12246,7 +12390,7 @@ function IntelligencePage({ data, actions={}, onOpenPatterns, onOpenGraph, onOpe
             <button onClick={()=>{
               const text = composeWeeklyDigest();
               navigator.clipboard.writeText(text).then(()=>{ setDigestCopied(true); setTimeout(()=>setDigestCopied(false),2500); });
-            }} style={{ padding:'6px 13px', borderRadius:99, background:digestCopied?'rgba(52,211,153,0.15)':T.surface, border:`1px solid ${digestCopied?T.emerald+'55':T.border}`, color:digestCopied?T.emerald:T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+            }} style={{ padding:'6px 13px', borderRadius:99, background:digestCopied?'rgba(111,211,154,0.15)':T.surface, border:`1px solid ${digestCopied?T.emerald+'55':T.border}`, color:digestCopied?T.emerald:T.textSub, fontSize:10, fontFamily:T.fM, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
               {digestCopied?'✅ Copied!':'📋 Copy Weekly Digest'}
             </button>
           </div>
@@ -13243,7 +13387,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>{lang==='fr'?'Thème':'Theme'}</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {[
-                { id:'dark',  label:'🌑 Dark',  preview:'#040408' },
+                { id:'dark',  label:'🌑 Dark',  preview:'#05070c' },
                 { id:'light', label:'☀️ Light', preview:'#f4f6fb' },
               ].map(th => (
                 <button key={th.id} onClick={()=>{ setTheme(th.id); onThemeChange(th.id); actions.updateSettings({...settings, theme:th.id}); }} style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderRadius:8, background:theme===th.id?T.accentDim:T.surface, border:`1px solid ${theme===th.id?T.accent+'55':T.border}`, cursor:'pointer', fontSize:11, fontFamily:T.fM, color:theme===th.id?T.accent:T.text, transition:'all 0.18s' }}>
@@ -14423,13 +14567,13 @@ function CalendarPage({ data, actions }) {
               const heatBg = load === 0
                 ? isOpen ? `${T.emerald}0d` : 'transparent'
                 : intensity < 0.33
-                  ? `rgba(56,189,248,${0.06+intensity*0.18})`   // sky — light
+                  ? `rgba(126,166,255,${0.06+intensity*0.18})`   // sky — light
                   : intensity < 0.66
                     ? `rgba(251,146,60,${0.06+intensity*0.2})`  // amber — medium
                     : `rgba(239,68,68,${0.08+intensity*0.22})`; // rose — busy
               const heatBorder = load === 0
                 ? isOpen ? `${T.emerald}33` : T.border
-                : intensity < 0.33 ? `rgba(56,189,248,0.25)`
+                : intensity < 0.33 ? `rgba(126,166,255,0.25)`
                 : intensity < 0.66 ? `rgba(251,146,60,0.3)`
                 : `rgba(239,68,68,0.35)`;
 
@@ -14501,7 +14645,7 @@ function CalendarPage({ data, actions }) {
           {/* Legend */}
           <div style={{ display:'flex', gap:12, marginTop:14, flexWrap:'wrap', fontSize:9, fontFamily:T.fM, color:T.textSub }}>
             {[
-              {color:'rgba(56,189,248,0.4)',  label:'Light day'},
+              {color:'rgba(126,166,255,0.4)',  label:'Light day'},
               {color:'rgba(251,146,60,0.4)',  label:'Busy day'},
               {color:'rgba(239,68,68,0.4)',   label:'Heavy day'},
               {color:`${T.emerald}44`,        label:'Open (deep work)'},
@@ -14570,10 +14714,10 @@ function CalendarPage({ data, actions }) {
 // rendered across a full year at a glance, plus an upcoming-events list.
 // ══════════════════════════════════════════════════════════════════════════════
 const PLANNER_CATEGORIES = [
-  { id:'travel',    label:'Travel',    emoji:'✈️', color:'#38bdf8' },
+  { id:'travel',    label:'Travel',    emoji:'✈️', color:'#7ea6ff' },
   { id:'work',      label:'Work / Deadline', emoji:'💼', color:'#f43f5e' },
   { id:'birthday',  label:'Birthday',  emoji:'🎂', color:'#a78bfa' },
-  { id:'holiday',   label:'Holiday',   emoji:'🌴', color:'#34d399' },
+  { id:'holiday',   label:'Holiday',   emoji:'🌴', color:'#6fd39a' },
   { id:'milestone', label:'Milestone', emoji:'🏁', color:'#fb923c' },
   { id:'personal',  label:'Personal',  emoji:'⭐', color:'#facc15' },
   { id:'public',    label:'Public Holiday', emoji:'🇫🇷', color:'#60a5fa' },
@@ -16704,22 +16848,16 @@ const TARGET_ALLOC = {
 };
 
 function ScoreRing({ score, color, size=72, label }) {
-  const r = (size/2) - 6;
-  const circ = 2 * Math.PI * r;
-  const dash = (score / 100) * circ;
+  // Constellation design system — score shown as a star cluster (denser/brighter = higher score)
+  // instead of a progress ring, matching StarCluster used on the Home page's Life Score.
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-      <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={6}/>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={6}
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
-          style={{transition:'stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1)'}}/>
-        <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
-          transform={`rotate(90, ${size/2}, ${size/2})`}
-          style={{fontSize:size*0.22,fontFamily:T.fD,fontWeight:800,fill:color}}>
-          {score}
-        </text>
-      </svg>
+      <div style={{ position:'relative', width:size, height:size }}>
+        <StarCluster value={score} max={100} size={size} color={color} />
+        <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <span style={{ fontSize:size*0.24, fontFamily:T.fS, fontWeight:600, color }}>{score}</span>
+        </div>
+      </div>
       {label && <div style={{fontSize:9,fontFamily:T.fM,color:T.textSub,textAlign:'center',letterSpacing:'0.06em'}}>{label}</div>}
     </div>
   );
@@ -18161,7 +18299,7 @@ function PatternEngine({ data, open, onClose }) {
       const wkndAvg = weekendExp / weekendDays;
       const wkdyAvg = weekdayExp / weekdayDays;
       if (wkndAvg > wkdyAvg * 1.3) {
-        results.push({ icon:'📅', title:'Weekend Spending Surge', strength: Math.min(99, Math.round((wkndAvg/wkdyAvg-1)*100)), color: '#fbbf24',
+        results.push({ icon:'📅', title:'Weekend Spending Surge', strength: Math.min(99, Math.round((wkndAvg/wkdyAvg-1)*100)), color: '#f2b155',
           desc:`You spend ${cur}${wkndAvg.toFixed(0)}/day on weekends vs ${cur}${wkdyAvg.toFixed(0)}/day on weekdays — ${Math.round((wkndAvg/wkdyAvg-1)*100)}% more. Weekend "treat yourself" spending is the most common silent budget killer.`,
           action: 'Set a weekend cash envelope to cap this pattern.' });
       }
@@ -18177,7 +18315,7 @@ function PatternEngine({ data, open, onClose }) {
         const avgMoodLow  = lowSleep.reduce((s,v)=>s+Number(v.mood),0)/lowSleep.length;
         const diff = avgMoodHigh - avgMoodLow;
         if (Math.abs(diff) >= 1) {
-          results.push({ icon:'😴', title:'Sleep Quality Drives Mood', strength: Math.min(99, Math.round(Math.abs(diff)/10*100 + 40)), color: '#38bdf8',
+          results.push({ icon:'😴', title:'Sleep Quality Drives Mood', strength: Math.min(99, Math.round(Math.abs(diff)/10*100 + 40)), color: '#7ea6ff',
             desc:`On nights with 7h+ sleep, your average mood is ${avgMoodHigh.toFixed(1)}/10. Under 7h it drops to ${avgMoodLow.toFixed(1)}/10 — a ${diff.toFixed(1)}-point difference. Every hour of sleep lost costs you measurable wellbeing.`,
             action: 'Protect your sleep window. Even 30 min more makes a measurable difference.' });
         }
@@ -18189,7 +18327,7 @@ function PatternEngine({ data, open, onClose }) {
     const avgStreak = habitStreaks.length ? habitStreaks.reduce((s,x)=>s+x,0)/habitStreaks.length : 0;
     const totalLogs = Object.values(habitLogs).flat().length;
     if (totalLogs > 20 && avgStreak > 0) {
-      results.push({ icon:'🔥', title:'Habit Compound Effect', strength: Math.min(99, Math.round(avgStreak * 3 + 40)), color: '#00f5d4',
+      results.push({ icon:'🔥', title:'Habit Compound Effect', strength: Math.min(99, Math.round(avgStreak * 3 + 40)), color: '#ff9d4d',
         desc:`Your ${(habits||[]).length} habits have ${totalLogs} total logs with an average streak of ${avgStreak.toFixed(1)} days. Habit logging is your biggest XP driver — each streak day multiplies compounding returns.`,
         action: 'Focus on extending your longest streak first. Chains create momentum.' });
     }
@@ -18206,7 +18344,7 @@ function PatternEngine({ data, open, onClose }) {
         const bestMonth  = monthData.reduce((a,b)=>b.rate>a.rate?b:a);
         const worstMonth = monthData.reduce((a,b)=>b.rate<a.rate?b:a);
         if (bestMonth.rate - worstMonth.rate > 15) {
-          results.push({ icon:'💰', title:'Savings Rate Volatility', strength: Math.min(99, Math.round((bestMonth.rate - worstMonth.rate) * 1.5)), color: '#34d399',
+          results.push({ icon:'💰', title:'Savings Rate Volatility', strength: Math.min(99, Math.round((bestMonth.rate - worstMonth.rate) * 1.5)), color: '#6fd39a',
             desc:`Your savings rate swings between ${worstMonth.rate.toFixed(0)}% (${worstMonth.m}) and ${bestMonth.rate.toFixed(0)}% (${bestMonth.m}) — a ${(bestMonth.rate-worstMonth.rate).toFixed(0)}-point gap. Inconsistency is the enemy of wealth-building.`,
             action: `Automate ${cur}${Math.round(bestMonth.saved * 0.8)} in savings on payday to lock in your best months.` });
         }
@@ -18218,7 +18356,7 @@ function PatternEngine({ data, open, onClose }) {
     if (activeGoals.length > 0) {
       const behind = activeGoals.filter(g => (Number(g.current||0)/Number(g.target||1)) < 0.3 && g.deadline && new Date(g.deadline) < new Date(Date.now() + 90*24*60*60*1000));
       if (behind.length > 0) {
-        results.push({ icon:'🎯', title:'Goals at Risk', strength: Math.min(99, 60 + behind.length * 10), color: '#fb7185',
+        results.push({ icon:'🎯', title:'Goals at Risk', strength: Math.min(99, 60 + behind.length * 10), color: '#ff6b5b',
           desc:`${behind.length} goal${behind.length>1?'s are':' is'} under 30% complete with deadlines in the next 90 days: ${behind.map(g=>g.name).join(', ')}. These need immediate attention.`,
           action: 'Break each at-risk goal into weekly micro-targets and log progress daily.' });
       }
@@ -18275,12 +18413,12 @@ function PatternEngine({ data, open, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9980, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', animation:'fadeIn 0.2s ease' }} />
-      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9981, width:'min(700px,96vw)', maxHeight:'88vh', overflowY:'auto', background:T.bg2, border:`1px solid rgba(139,92,246,0.4)`, borderRadius:20, boxShadow:'0 32px 80px rgba(0,0,0,0.8)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9981, width:'min(700px,96vw)', maxHeight:'88vh', overflowY:'auto', background:T.bg2, border:`1px solid rgba(124,140,232,0.4)`, borderRadius:20, boxShadow:'0 32px 80px rgba(0,0,0,0.8)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
         {/* Header */}
         <div style={{ position:'sticky', top:0, zIndex:10, padding:'20px 24px 16px', background:T.bg2, backdropFilter:'blur(16px)', borderBottom:`1px solid ${T.border}` }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-              <div style={{ width:38, height:38, borderRadius:12, background:'rgba(139,92,246,0.15)', border:'1px solid rgba(139,92,246,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📡</div>
+              <div style={{ width:38, height:38, borderRadius:12, background:'rgba(124,140,232,0.15)', border:'1px solid rgba(124,140,232,0.4)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📡</div>
               <div>
                 <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:T.text }}>Pattern Engine</div>
                 <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Hidden correlations across your life data</div>
@@ -18289,8 +18427,8 @@ function PatternEngine({ data, open, onClose }) {
             <BtnClose onClick={onClose} size={13} />
           </div>
           <div style={{ display:'flex', gap:10, alignItems:'center', marginTop:10, flexWrap:'wrap' }}>
-            <button onClick={runAIPatterns} disabled={loading} style={{ padding:'8px 18px', borderRadius:T.r, background:loading?T.surface:'rgba(139,92,246,0.18)', border:`1px solid ${loading?T.border:'rgba(139,92,246,0.5)'}`, color:loading?T.textSub:'#c084fc', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
-              {loading ? <><div style={{ width:10, height:10, borderRadius:'50%', border:'2px solid rgba(139,92,246,0.3)', borderTopColor:'#c084fc', animation:'spin 0.8s linear infinite' }}/> Analyzing…</> : '🔍 Run Deep Analysis'}
+            <button onClick={runAIPatterns} disabled={loading} style={{ padding:'8px 18px', borderRadius:T.r, background:loading?T.surface:'rgba(124,140,232,0.18)', border:`1px solid ${loading?T.border:'rgba(124,140,232,0.5)'}`, color:loading?T.textSub:'#c084fc', fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center', gap:6 }}>
+              {loading ? <><div style={{ width:10, height:10, borderRadius:'50%', border:'2px solid rgba(124,140,232,0.3)', borderTopColor:'#c084fc', animation:'spin 0.8s linear infinite' }}/> Analyzing…</> : '🔍 Run Deep Analysis'}
             </button>
             {patterns?.ts && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{patterns.autoDiscovered?'✨ Auto-discovered on open':'Last run: '+patterns.ts} · {patterns.aiCount||0} AI + {localCorrelations.length} local patterns</span>}
             {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <span style={{ fontSize:9, fontFamily:T.fM, color:T.amber }}>⚠️ Add API key for AI patterns</span>}
@@ -18368,43 +18506,43 @@ function LifeGraph({ data, open, onClose }) {
     };
 
     // Core life domains
-    addNode('core_finance', 'Finance', 'domain', '#00f5d4', 32, { desc:'Your financial life' });
-    addNode('core_health',  'Health',  'domain', '#38bdf8', 32, { desc:'Your health & vitals' });
-    addNode('core_growth',  'Growth',  'domain', '#8b5cf6', 32, { desc:'Habits & goals' });
-    addNode('core_knowledge','Knowledge','domain','#fbbf24', 32, { desc:'Notes & learning' });
+    addNode('core_finance', 'Finance', 'domain', '#ff9d4d', 32, { desc:'Your financial life' });
+    addNode('core_health',  'Health',  'domain', '#7ea6ff', 32, { desc:'Your health & vitals' });
+    addNode('core_growth',  'Growth',  'domain', '#7c8ce8', 32, { desc:'Habits & goals' });
+    addNode('core_knowledge','Knowledge','domain','#f2b155', 32, { desc:'Notes & learning' });
 
     // Expense categories
     const catMap = {};
     (expenses||[]).forEach(e => { if (e.category) catMap[e.category] = (catMap[e.category]||0) + Number(e.amount||0); });
     Object.entries(catMap).slice(0,8).forEach(([cat, total]) => {
-      addNode(`cat_${cat}`, cat.split(' ').slice(-1)[0], 'expense', '#fb7185', 14 + Math.min(12, total/200), { desc:`${cat}: ${settings.currency||'$'}${Math.round(total)}` });
+      addNode(`cat_${cat}`, cat.split(' ').slice(-1)[0], 'expense', '#ff6b5b', 14 + Math.min(12, total/200), { desc:`${cat}: ${settings.currency||'$'}${Math.round(total)}` });
     });
 
     // Habits
     (habits||[]).slice(0,8).forEach(h => {
       const streak = getStreak(h.id, habitLogs);
-      addNode(`habit_${h.id}`, h.name.slice(0,12), 'habit', '#00f5d4', 14 + Math.min(10, streak), { desc:`${h.name} · ${streak}d streak` });
+      addNode(`habit_${h.id}`, h.name.slice(0,12), 'habit', '#ff9d4d', 14 + Math.min(10, streak), { desc:`${h.name} · ${streak}d streak` });
     });
 
     // Goals
     (goals||[]).slice(0,6).forEach(g => {
       const pct = Math.round((Number(g.current||0)/Math.max(1,Number(g.target||1)))*100);
-      addNode(`goal_${g.id}`, g.name.slice(0,12), 'goal', '#8b5cf6', 16, { desc:`${g.name} · ${pct}%` });
+      addNode(`goal_${g.id}`, g.name.slice(0,12), 'goal', '#7c8ce8', 16, { desc:`${g.name} · ${pct}%` });
     });
 
     // Notes (group by tag)
     const tagMap = {};
     (notes||[]).forEach(n => { tagMap[n.tag] = (tagMap[n.tag]||0) + 1; });
     Object.entries(tagMap).slice(0,6).forEach(([tag, count]) => {
-      addNode(`tag_${tag}`, tag.slice(0,10), 'note', '#fbbf24', 12 + Math.min(8, count*2), { desc:`${tag}: ${count} notes` });
+      addNode(`tag_${tag}`, tag.slice(0,10), 'note', '#f2b155', 12 + Math.min(8, count*2), { desc:`${tag}: ${count} notes` });
     });
 
     // Vitals averages
     if ((vitals||[]).length > 0) {
       const avgSleep = (vitals||[]).slice(-14).reduce((s,v)=>s+Number(v.sleep||0),0)/Math.max(1,(vitals||[]).slice(-14).filter(v=>v.sleep).length);
       const avgMood  = (vitals||[]).slice(-14).reduce((s,v)=>s+Number(v.mood||0),0)/Math.max(1,(vitals||[]).slice(-14).filter(v=>v.mood).length);
-      if (avgSleep > 0) addNode('vital_sleep', 'Sleep', 'vital', '#38bdf8', 14, { desc:`Avg sleep: ${avgSleep.toFixed(1)}h` });
-      if (avgMood  > 0) addNode('vital_mood',  'Mood',  'vital', '#34d399', 14, { desc:`Avg mood: ${avgMood.toFixed(1)}/10` });
+      if (avgSleep > 0) addNode('vital_sleep', 'Sleep', 'vital', '#7ea6ff', 14, { desc:`Avg sleep: ${avgSleep.toFixed(1)}h` });
+      if (avgMood  > 0) addNode('vital_mood',  'Mood',  'vital', '#6fd39a', 14, { desc:`Avg mood: ${avgMood.toFixed(1)}/10` });
     }
 
     // Build static edges (structural)
@@ -18416,9 +18554,9 @@ function LifeGraph({ data, open, onClose }) {
     newNodes.filter(n=>n.group==='vital').forEach(n => staticEdges.push({ from:'core_health', to:n.id, strength:0.7 }));
     // Cross-domain insights
     if (newNodes.find(n=>n.id==='vital_sleep') && newNodes.find(n=>n.id==='vital_mood'))
-      staticEdges.push({ from:'vital_sleep', to:'vital_mood', strength:0.9, label:'correlates', color:'#34d399' });
+      staticEdges.push({ from:'vital_sleep', to:'vital_mood', strength:0.9, label:'correlates', color:'#6fd39a' });
     newNodes.filter(n=>n.group==='habit').forEach(n => {
-      if (newNodes.find(x=>x.id==='vital_mood')) staticEdges.push({ from:n.id, to:'vital_mood', strength:0.3, color:'rgba(0,245,212,0.3)' });
+      if (newNodes.find(x=>x.id==='vital_mood')) staticEdges.push({ from:n.id, to:'vital_mood', strength:0.3, color:'rgba(255,157,77,0.3)' });
     });
 
     nodeMap.current = Object.fromEntries(newNodes.map(n=>[n.id,n]));
@@ -18496,24 +18634,24 @@ function LifeGraph({ data, open, onClose }) {
     setAiLoading(false);
   };
 
-  const GROUP_COLORS = { domain:'#00f5d4', expense:'#fb7185', habit:'#00f5d4', goal:'#8b5cf6', note:'#fbbf24', vital:'#38bdf8' };
+  const GROUP_COLORS = { domain:'#ff9d4d', expense:'#ff6b5b', habit:'#ff9d4d', goal:'#7c8ce8', note:'#f2b155', vital:'#7ea6ff' };
 
   if (!open) return null;
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9970, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }} />
-      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9971, width:'min(900px,97vw)', background:T.bg2, border:`1px solid rgba(0,245,212,0.25)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)', overflow:'hidden' }}>
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9971, width:'min(900px,97vw)', background:T.bg2, border:`1px solid rgba(255,157,77,0.25)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)', overflow:'hidden' }}>
         {/* Header */}
         <div style={{ padding:'18px 22px 14px', borderBottom:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(0,245,212,0.1)', border:'1px solid rgba(0,245,212,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🕸️</div>
+            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(255,157,77,0.1)', border:'1px solid rgba(255,157,77,0.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🕸️</div>
             <div>
               <div style={{ fontSize:15, fontFamily:T.fD, fontWeight:800, color:T.text }}>Life Graph</div>
               <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{nodes.length} nodes · {edges.length} connections</div>
             </div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-            <button onClick={fetchAIEdges} disabled={aiLoading} style={{ padding:'6px 14px', borderRadius:8, background:'rgba(0,245,212,0.1)', border:'1px solid rgba(0,245,212,0.3)', color:T.accent, fontFamily:T.fM, fontSize:10, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer' }}>
+            <button onClick={fetchAIEdges} disabled={aiLoading} style={{ padding:'6px 14px', borderRadius:8, background:'rgba(255,157,77,0.1)', border:'1px solid rgba(255,157,77,0.3)', color:T.accent, fontFamily:T.fM, fontSize:10, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer' }}>
               {aiLoading ? '🤖 Connecting…' : '🤖 AI Connections'}
             </button>
             <BtnClose onClick={onClose} size={13} />
@@ -18529,7 +18667,7 @@ function LifeGraph({ data, open, onClose }) {
             </div>
           ))}
           <div style={{ display:'flex', alignItems:'center', gap:5, marginLeft:'auto' }}>
-            <div style={{ width:20, height:1, background:'rgba(0,245,212,0.6)', borderTop:'1px dashed rgba(0,245,212,0.6)' }} />
+            <div style={{ width:20, height:1, background:'rgba(255,157,77,0.6)', borderTop:'1px dashed rgba(255,157,77,0.6)' }} />
             <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>AI edge</span>
           </div>
         </div>
@@ -18565,10 +18703,10 @@ function LifeGraph({ data, open, onClose }) {
               return (
                 <g key={i}>
                   <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                    stroke={e.color||`rgba(0,245,212,${isAI?0.5:0.18})`}
+                    stroke={e.color||`rgba(255,157,77,${isAI?0.5:0.18})`}
                     strokeWidth={isAI?1.5:1} strokeDasharray={isAI?'5 3':undefined}
                     style={isAI?{animation:'graphEdge 0.8s ease forwards'}:{}} />
-                  {isAI && e.label && <text x={mx} y={my-5} textAnchor="middle" style={{ fontSize:8, fill:'rgba(0,245,212,0.7)', fontFamily:T.fM, pointerEvents:'none' }}>{e.label}</text>}
+                  {isAI && e.label && <text x={mx} y={my-5} textAnchor="middle" style={{ fontSize:8, fill:'rgba(255,157,77,0.7)', fontFamily:T.fM, pointerEvents:'none' }}>{e.label}</text>}
                 </g>
               );
             })}
@@ -18593,7 +18731,7 @@ function LifeGraph({ data, open, onClose }) {
             {/* Tooltip */}
             {tooltip && (
               <g style={{ pointerEvents:'none', animation:'fadeIn 0.15s ease' }}>
-                <rect x={Math.min(tooltip.x+tooltip.size+6, W-160)} y={tooltip.y-22} width={155} height={40} rx={8} fill="#0b0b1a" stroke="rgba(0,245,212,0.25)" strokeWidth={1} />
+                <rect x={Math.min(tooltip.x+tooltip.size+6, W-160)} y={tooltip.y-22} width={155} height={40} rx={8} fill="#0d1220" stroke="rgba(255,157,77,0.25)" strokeWidth={1} />
                 <text x={Math.min(tooltip.x+tooltip.size+14, W-152)} y={tooltip.y-7} style={{ fontSize:10, fill:T.text, fontFamily:T.fM, fontWeight:700 }}>{tooltip.label}</text>
                 <text x={Math.min(tooltip.x+tooltip.size+14, W-152)} y={tooltip.y+9} style={{ fontSize:8, fill:T.textSub, fontFamily:T.fM }}>{tooltip.meta?.desc||tooltip.group}</text>
               </g>
@@ -18648,14 +18786,14 @@ function AmbientMode({ data, open, onClose }) {
     const completedGoals = (goals||[]).filter(g=>Number(g.current||0)>=Number(g.target||1)&&g.target>0).length;
 
     const ORB_DATA = [
-      { label:'Net Worth',    value:`${cur}${fmtN(nw)}`,           color:'#00f5d4', size:64, pulseSpeed:0.012, glowR:90 },
-      { label:'Savings Rate', value:`${savRate.toFixed(0)}%`,       color:'#34d399', size:52, pulseSpeed:0.018, glowR:75 },
-      { label:'Best Streak',  value:`🔥 ${bestStreak}d`,           color:'#fbbf24', size:48, pulseSpeed:0.022, glowR:70 },
-      { label:'Monthly In',   value:`${cur}${fmtN(monthInc)}`,     color:'#38bdf8', size:50, pulseSpeed:0.016, glowR:72 },
-      { label:'Monthly Out',  value:`${cur}${fmtN(monthExp)}`,     color:'#fb7185', size:44, pulseSpeed:0.020, glowR:65 },
-      { label:'Avg Mood',     value:avgMood>0?`${avgMood.toFixed(1)}/10`:'—',color:'#8b5cf6', size:44, pulseSpeed:0.024, glowR:65 },
+      { label:'Net Worth',    value:`${cur}${fmtN(nw)}`,           color:'#ff9d4d', size:64, pulseSpeed:0.012, glowR:90 },
+      { label:'Savings Rate', value:`${savRate.toFixed(0)}%`,       color:'#6fd39a', size:52, pulseSpeed:0.018, glowR:75 },
+      { label:'Best Streak',  value:`🔥 ${bestStreak}d`,           color:'#f2b155', size:48, pulseSpeed:0.022, glowR:70 },
+      { label:'Monthly In',   value:`${cur}${fmtN(monthInc)}`,     color:'#7ea6ff', size:50, pulseSpeed:0.016, glowR:72 },
+      { label:'Monthly Out',  value:`${cur}${fmtN(monthExp)}`,     color:'#ff6b5b', size:44, pulseSpeed:0.020, glowR:65 },
+      { label:'Avg Mood',     value:avgMood>0?`${avgMood.toFixed(1)}/10`:'—',color:'#7c8ce8', size:44, pulseSpeed:0.024, glowR:65 },
       { label:'Goals Done',   value:`${completedGoals}/${(goals||[]).length}`,color:'#a78bfa', size:40, pulseSpeed:0.015, glowR:58 },
-      { label:'Habits',       value:`${(habits||[]).length} tracked`,color:'#00f5d4', size:38, pulseSpeed:0.019, glowR:56 },
+      { label:'Habits',       value:`${(habits||[]).length} tracked`,color:'#ff9d4d', size:38, pulseSpeed:0.019, glowR:56 },
     ].filter(o => o.value !== '—');
 
     // Orb physics state
@@ -18674,7 +18812,7 @@ function AmbientMode({ data, open, onClose }) {
       r: Math.random()*2+0.5,
       vx: (Math.random()-0.5)*0.3, vy: -Math.random()*0.4-0.1,
       opacity: Math.random()*0.4+0.1,
-      color: ['#00f5d4','#8b5cf6','#fbbf24','#38bdf8'][Math.floor(Math.random()*4)],
+      color: ['#ff9d4d','#7c8ce8','#f2b155','#7ea6ff'][Math.floor(Math.random()*4)],
     }));
 
     let frame = 0;
@@ -18685,7 +18823,7 @@ function AmbientMode({ data, open, onClose }) {
       ctx.fillRect(0, 0, W, H);
 
       // Subtle grid
-      ctx.strokeStyle = 'rgba(0,245,212,0.03)';
+      ctx.strokeStyle = 'rgba(255,157,77,0.03)';
       ctx.lineWidth = 1;
       for (let x = 0; x < W; x += 80) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
       for (let y = 0; y < H; y += 80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
@@ -18738,7 +18876,7 @@ function AmbientMode({ data, open, onClose }) {
       });
 
       // Corner watermark
-      ctx.save(); ctx.fillStyle = 'rgba(0,245,212,0.15)'; ctx.font = '700 11px "DM Mono", monospace'; ctx.textAlign = 'left';
+      ctx.save(); ctx.fillStyle = 'rgba(255,157,77,0.15)'; ctx.font = '700 11px "DM Mono", monospace'; ctx.textAlign = 'left';
       ctx.fillText('LIFE OS  ·  AMBIENT', 24, H-18); ctx.restore();
       ctx.save(); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.font = '400 10px "DM Mono", monospace'; ctx.textAlign = 'right';
       ctx.fillText(new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}), W-24, H-18); ctx.restore();
@@ -18864,11 +19002,11 @@ function ParallelYou({ data, open, onClose }) {
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:9960, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }} />
-      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9961, width:'min(760px,96vw)', maxHeight:'92vh', overflowY:'auto', background:T.bg2, border:`1px solid rgba(56,189,248,0.3)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', zIndex:9961, width:'min(760px,96vw)', maxHeight:'92vh', overflowY:'auto', background:T.bg2, border:`1px solid rgba(126,166,255,0.3)`, borderRadius:22, boxShadow:'0 40px 100px rgba(0,0,0,0.9)', animation:'modalIn 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
         {/* Header */}
         <div style={{ padding:'20px 24px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ width:38, height:38, borderRadius:12, background:'rgba(56,189,248,0.12)', border:'1px solid rgba(56,189,248,0.35)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🔀</div>
+            <div style={{ width:38, height:38, borderRadius:12, background:'rgba(126,166,255,0.12)', border:'1px solid rgba(126,166,255,0.35)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🔀</div>
             <div>
               <div style={{ fontSize:16, fontFamily:T.fD, fontWeight:800, color:T.text }}>Parallel You</div>
               <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Simulate alternate timelines on your real data</div>
@@ -18883,7 +19021,7 @@ function ParallelYou({ data, open, onClose }) {
             <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:10 }}>Choose a scenario</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {SCENARIOS.map(s => (
-                <button key={s.id} onClick={()=>{ setScenario(s.id); setResult(null); setAiNarrative(''); }} style={{ padding:'12px 14px', borderRadius:12, background:scenario===s.id?'rgba(56,189,248,0.12)':T.surface, border:`1px solid ${scenario===s.id?'rgba(56,189,248,0.4)':T.border}`, color:scenario===s.id?T.sky:T.textSub, fontFamily:T.fM, fontSize:11, textAlign:'left', transition:'all 0.15s', cursor:'pointer' }}>
+                <button key={s.id} onClick={()=>{ setScenario(s.id); setResult(null); setAiNarrative(''); }} style={{ padding:'12px 14px', borderRadius:12, background:scenario===s.id?'rgba(126,166,255,0.12)':T.surface, border:`1px solid ${scenario===s.id?'rgba(126,166,255,0.4)':T.border}`, color:scenario===s.id?T.sky:T.textSub, fontFamily:T.fM, fontSize:11, textAlign:'left', transition:'all 0.15s', cursor:'pointer' }}>
                   {s.label}
                 </button>
               ))}
@@ -18902,7 +19040,7 @@ function ParallelYou({ data, open, onClose }) {
                 {[3,6,12,24,36,60].map(m=><option key={m} value={m}>{m} months</option>)}
               </select>
             </div>
-            <button onClick={simulate} style={{ padding:'10px 18px', borderRadius:T.r, background:'rgba(56,189,248,0.15)', border:'1px solid rgba(56,189,248,0.4)', color:T.sky, fontFamily:T.fM, fontSize:12, fontWeight:700, cursor:'pointer', height:42 }}>Run →</button>
+            <button onClick={simulate} style={{ padding:'10px 18px', borderRadius:T.r, background:'rgba(126,166,255,0.15)', border:'1px solid rgba(126,166,255,0.4)', color:T.sky, fontFamily:T.fM, fontSize:12, fontWeight:700, cursor:'pointer', height:42 }}>Run →</button>
           </div>
 
           {/* Results */}
@@ -18971,8 +19109,8 @@ function ParallelYou({ data, open, onClose }) {
                   return { yr, mo, realNW, parallelNW, deltaNW: parallelNW-realNW, realSavRate, parallelSavRate, habitScore, healthScore };
                 });
                 return (
-                  <div style={{ borderRadius:14, border:`1px solid rgba(56,189,248,0.2)`, background:'rgba(56,189,248,0.04)', overflow:'hidden' }}>
-                    <div style={{ padding:'12px 16px', borderBottom:`1px solid rgba(56,189,248,0.15)`, display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{ borderRadius:14, border:`1px solid rgba(126,166,255,0.2)`, background:'rgba(126,166,255,0.04)', overflow:'hidden' }}>
+                    <div style={{ padding:'12px 16px', borderBottom:`1px solid rgba(126,166,255,0.15)`, display:'flex', alignItems:'center', gap:8 }}>
                       <span style={{ fontSize:14 }}>📊</span>
                       <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.sky }}>KPI Delta View</div>
                       <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Current vs Parallel at 1y / 5y / 10y</div>
@@ -18980,7 +19118,7 @@ function ParallelYou({ data, open, onClose }) {
                     <div style={{ overflowX:'auto' }}>
                       <table style={{ width:'100%', borderCollapse:'collapse', fontFamily:T.fM, fontSize:10 }}>
                         <thead>
-                          <tr style={{ background:'rgba(56,189,248,0.06)' }}>
+                          <tr style={{ background:'rgba(126,166,255,0.06)' }}>
                             <th style={{ padding:'10px 14px', textAlign:'left', color:T.textSub, fontWeight:600, fontSize:9, letterSpacing:'0.07em', whiteSpace:'nowrap' }}>METRIC</th>
                             {projections.map(p=>(
                               <React.Fragment key={p.yr}>
@@ -19029,11 +19167,11 @@ function ParallelYou({ data, open, onClose }) {
 
               {/* AI Narrative */}
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <button onClick={generateNarrative} disabled={aiLoading} style={{ padding:'10px', borderRadius:T.r, background:aiLoading?T.surface:'rgba(56,189,248,0.1)', border:`1px solid rgba(56,189,248,${aiLoading?'0.15':'0.4'})`, color:aiLoading?T.textSub:T.sky, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                  {aiLoading ? <><div style={{ width:12,height:12,borderRadius:'50%',border:'2px solid rgba(56,189,248,0.3)',borderTopColor:T.sky,animation:'spin 0.8s linear infinite' }}/>Generating narrative…</> : '✨ Generate AI Life Narrative'}
+                <button onClick={generateNarrative} disabled={aiLoading} style={{ padding:'10px', borderRadius:T.r, background:aiLoading?T.surface:'rgba(126,166,255,0.1)', border:`1px solid rgba(126,166,255,${aiLoading?'0.15':'0.4'})`, color:aiLoading?T.textSub:T.sky, fontFamily:T.fM, fontSize:11, fontWeight:700, cursor:aiLoading?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  {aiLoading ? <><div style={{ width:12,height:12,borderRadius:'50%',border:'2px solid rgba(126,166,255,0.3)',borderTopColor:T.sky,animation:'spin 0.8s linear infinite' }}/>Generating narrative…</> : '✨ Generate AI Life Narrative'}
                 </button>
                 {aiNarrative && (
-                  <div style={{ padding:'18px 20px', borderRadius:14, background:'rgba(56,189,248,0.05)', border:`1px solid rgba(56,189,248,0.2)` }}>
+                  <div style={{ padding:'18px 20px', borderRadius:14, background:'rgba(126,166,255,0.05)', border:`1px solid rgba(126,166,255,0.2)` }}>
                     <div style={{ fontSize:9, fontFamily:T.fM, color:T.sky, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:12 }}>Your Alternate Story</div>
                     <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.8, whiteSpace:'pre-wrap' }}>{aiNarrative}</div>
                   </div>
@@ -19947,7 +20085,7 @@ function AmbientIntelligenceLayer({ ambientState }) {
 
   // ── BAD DAY — warm red-orange vignette, edges close in ──────────────────
   if (state === 'bad_day') {
-    const r = `rgba(251,113,133,`;
+    const r = `rgba(255,107,91,`;
     const o = `rgba(251,100,68,`;
     return (
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
@@ -19975,7 +20113,7 @@ function AmbientIntelligenceLayer({ ambientState }) {
 
   // ── FOCUS MODE — near-black shroud + cyan HUD borders ──────────────────
   if (state === 'focus') {
-    const c = `rgba(0,245,212,`;
+    const c = `rgba(255,157,77,`;
     return (
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
         {/* Darkening overlay */}
@@ -20019,7 +20157,7 @@ function AmbientIntelligenceLayer({ ambientState }) {
 
   // ── PRODUCTIVE STREAK — electric blue energy, rising particles ──────────
   if (state === 'streak') {
-    const b = `rgba(56,189,248,`;
+    const b = `rgba(126,166,255,`;
     return (
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
         {/* Energy rising from bottom */}
@@ -20045,7 +20183,7 @@ function AmbientIntelligenceLayer({ ambientState }) {
 
   // ── GOOD DAY — soft emerald halo ─────────────────────────────────────────
   if (state === 'good') {
-    const g = `rgba(52,211,153,`;
+    const g = `rgba(111,211,154,`;
     return (
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:1, ...transStyle }}>
         <div style={{ position:'absolute', bottom:0, right:0, width:400, height:400, borderRadius:'50%',
@@ -20955,11 +21093,8 @@ export default function LifeOS() {
     {/* ── AMBIENT INTELLIGENCE LAYER — reactive to real life data ── */}
     <AmbientIntelligenceLayer ambientState={ambientState} />
     <div style={{ height:'100dvh', background:T.bg, color:T.text, fontFamily:T.fD, display:'flex', overflow:'hidden' }}>
-      {/* Ambient glow */}
-      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0, overflow:'hidden' }}>
-        <div style={{ position:'absolute', top:-200, left:T.sw, width:600, height:600, borderRadius:'50%', background:`radial-gradient(circle,${T.accent}05 0%,transparent 70%)` }} />
-        <div style={{ position:'absolute', bottom:-200, right:100, width:500, height:500, borderRadius:'50%', background:`radial-gradient(circle,${T.violet}04 0%,transparent 70%)` }} />
-      </div>
+      {/* Ambient glow — Constellation star field */}
+      <StarField />
 
       {/* Command Palette — Phase 1 */}
       <CommandPalette open={cmdOpen} onClose={()=>setCmdOpen(false)} data={data} onNav={(p)=>{setPage(p);setCmdOpen(false);}} onModal={handleGlobalModal} />
