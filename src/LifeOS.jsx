@@ -14095,12 +14095,13 @@ function LifeHubPage({ data, actions }) {
         domain={lang==='fr'?'Hub Vie':'Life Hub'}
         domainColor={T.amber}
         title={lang==='fr'?'Hub Vie':'Life Hub'}
-        subtitle={lang==='fr'?'Carrière · Calendrier · Journal · Archives · Projets':'Career · Calendar · Timeline · Archive · Projects'}
+        subtitle={lang==='fr'?'Carrière · Calendrier · Mail · Journal · Archives · Projets':'Career · Calendar · Mail · Timeline · Archive · Projects'}
       />
       <TabNav
         tabs={[
           { id:'career',   label:`💼 ${lang==='fr'?'Carrière':'Career'}` },
           { id:'calendar', label:`📅 ${lang==='fr'?'Calendrier':'Calendar'}` },
+          { id:'mail',     label:`✉️ ${lang==='fr'?'Agent Mail':'Mail Agent'}` },
           { id:'timeline', label:`🕐 ${lang==='fr'?'Chronologie':'Timeline'}` },
           { id:'archive',  label:`🗃️ ${lang==='fr'?'Archives':'Archive'}` },
           { id:'projects', label:`📋 ${lang==='fr'?'Projets':'Projects'}` },
@@ -14111,6 +14112,7 @@ function LifeHubPage({ data, actions }) {
       />
       {tab==='career'   && <CareerPage   data={data} actions={actions} embedded />}
       {tab==='calendar' && <CalendarPage data={data} actions={actions} />}
+      {tab==='mail'     && <GmailIntegrationTab data={data} />}
       {tab==='timeline' && <TimelinePage data={data} embedded />}
       {tab==='archive'  && <ArchivePage  data={data} embedded />}
       {tab==='projects' && <NotionProjectsView data={data} actions={actions} />}
@@ -18152,87 +18154,147 @@ function CustomMetricsTab({ data, actions }) {
 }
 
 
-// ── GMAIL INTEGRATION TAB ─────────────────────────────────────────────────────
+// ── GMAIL INTEGRATION TAB — AI mail agent (important vs recurring) ───────────
 function GmailIntegrationTab({ data }) {
   const {settings={}} = data;
-  const [emails, setEmails] = useState([]);
+  const [digest, setDigest] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [query, setQuery] = useState('is:unread');
   const [error, setError] = useState(null);
+  const [query, setQuery] = useState('is:unread');
+  const [expanded, setExpanded] = useState({});
 
-  const fetchEmails = async () => {
-    setLoading(true); setError(null);
+  const defaultFrom = () => { const d=new Date(Date.now()-24*60*60*1000); return d.toISOString().slice(0,16); };
+  const defaultTo   = () => new Date().toISOString().slice(0,16);
+  const [fromDate, setFromDate] = useState(defaultFrom());
+  const [toDate, setToDate]     = useState(defaultTo());
+
+  const gmailDateFmt = (isoLocal) => { const d = new Date(isoLocal); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; };
+
+  const runDigest = async () => {
+    setLoading(true); setError(null); setDigest(null); setExpanded({});
+    const fullQuery = `${query} after:${gmailDateFmt(fromDate)} before:${gmailDateFmt(toDate)}`.trim();
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key': settings.aiApiKey||'', 'anthropic-version':'2023-06-01', 'anthropic-beta':'mcp-client-2025-04-04', 'anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:1000,
-          tools:[],
+          model:'claude-sonnet-5', max_tokens:1000,
           mcp_servers:[{ type:'url', url:'https://gmail.mcp.claude.com/mcp', name:'gmail-mcp' }],
-          messages:[{ role:'user', content:`List up to 10 emails matching query "${query}". For each email return: sender name, sender email, subject, date, and first 80 chars of body. Format as JSON array with fields: from, subject, date, preview. Only respond with the JSON array, no markdown.` }]
+          messages:[{ role:'user', content:
+            `Search Gmail for messages matching "${fullQuery}". Classify every message into exactly one bucket:\n`+
+            `1. "important" — genuinely personal, actionable or time-sensitive (direct correspondence, bills, deadlines, security alerts). Limit to the 15 most important.\n`+
+            `2. "recurring" — automated/bulk mail that repeats from the same sender (newsletters, notifications, receipts). Group ALL messages from the same sender into one entry with a count.\n\n`+
+            `Respond with ONLY minified JSON, no markdown fences: {"important":[{"sender":"","subject":"","date":"","summary":"one sentence, under 20 words"}],"recurring":[{"sender":"","count":0,"label":"short pattern description","examples":["subject 1","subject 2"]}]}\n`+
+            `If nothing matches, return {"important":[],"recurring":[]}.`
+          }]
         })
       });
+      if (!res.ok) { const t = await res.text().catch(()=> ''); throw new Error(`API error ${res.status}: ${t.slice(0,160)}`); }
       const json = await res.json();
       const text = (json.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-      try {
-        const clean = text.replace(/```json|```/g,'').trim();
-        setEmails(JSON.parse(clean));
-      } catch { setEmails([]); setError('Could not parse email list. Check your MCP connection.'); }
-    } catch(e) { setError('Gmail MCP connection failed. Make sure Gmail is connected in Claude settings.'); }
+      let clean = text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+      const fb = clean.indexOf('{'), lb = clean.lastIndexOf('}');
+      if (fb!==-1 && lb!==-1) clean = clean.slice(fb, lb+1);
+      const parsed = JSON.parse(clean);
+      setDigest({ important: Array.isArray(parsed.important)?parsed.important:[], recurring: Array.isArray(parsed.recurring)?parsed.recurring:[] });
+    } catch(e) {
+      setError(e.message || 'Gmail MCP connection failed. Make sure Gmail is connected in Claude settings.');
+    }
     setLoading(false);
   };
 
-  const summarizeInbox = async () => {
-    if (!emails.length) return;
-    setSummaryLoading(true);
-    try {
-      const emailList = emails.map(e=>`From: ${e.from}\nSubject: ${e.subject}\nPreview: ${e.preview}`).join('\n---\n');
-      const text = await callAI(settings, {
-        max_tokens: 500,
-        messages:[{ role:'user', content:`Summarize these emails in 3-4 sentences. Highlight any urgent items, action needed, or financial relevance:\n${emailList}` }]
-      });
-      setSummary(text||'No summary');
-    } catch { setSummary('Error generating summary.'); }
-    setSummaryLoading(false);
-  };
+  const toggle = (i) => setExpanded(prev => ({ ...prev, [i]: !prev[i] }));
+  const hasKey = !!settings.aiApiKey;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-      <div><SectionLabel>Gmail Integration</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Read and summarize your inbox. Requires Gmail MCP connected in Claude settings.</div></div>
+      <div><SectionLabel>✉️ AI Mail Agent</SectionLabel><div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub }}>Reads your Gmail for a chosen window, keeps what's important, groups the rest by sender. Requires Gmail MCP connected in Claude settings.</div></div>
+
       <GlassCard style={{ padding:'18px 22px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>From</div>
+            <input type="datetime-local" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text }} />
+          </div>
+          <div>
+            <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:4 }}>To</div>
+            <input type="datetime-local" value={toDate} onChange={e=>setToDate(e.target.value)} style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text }} />
+          </div>
+        </div>
         <div style={{ display:'flex', gap:8, marginBottom:10 }}>
           <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Gmail search (e.g. is:unread, from:bank, label:bills)" style={{ flex:1, padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:12, color:T.text }} />
-          <Btn onClick={fetchEmails} color={T.sky}>{loading?'Loading…':'Fetch'}</Btn>
+          <Btn onClick={runDigest} color={T.sky} disabled={loading}>{loading?'Reading inbox…':'Generate digest'}</Btn>
         </div>
-        {error && <div style={{ fontSize:11, fontFamily:T.fM, color:T.rose, padding:'8px 12px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33`, marginBottom:8 }}>{error}</div>}
-        {(!settings.aiApiKey && settings.aiProvider !== 'ollama') && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:4 }}>⚠️ Add API key in Settings and connect Gmail MCP to use this feature.</div>}
-        {['is:unread','label:bills','label:finance','from:bank','is:important'].map(q=>(
-          <button key={q} onClick={()=>setQuery(q)} style={{ marginRight:6, marginBottom:6, padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:query===q?T.skyDim:T.surface, color:query===q?T.sky:T.textSub, border:`1px solid ${query===q?T.sky+'33':T.border}` }}>{q}</button>
+        {['is:unread','label:bills','label:finance','from:bank','is:important',''].map(q=>(
+          q!=='' && <button key={q} onClick={()=>setQuery(q)} style={{ marginRight:6, marginBottom:6, padding:'3px 10px', borderRadius:99, fontSize:9, fontFamily:T.fM, background:query===q?T.skyDim:T.surface, color:query===q?T.sky:T.textSub, border:`1px solid ${query===q?T.sky+'33':T.border}` }}>{q}</button>
         ))}
+        {error && <div style={{ fontSize:11, fontFamily:T.fM, color:T.rose, padding:'8px 12px', borderRadius:T.r, background:T.roseDim, border:`1px solid ${T.rose}33`, marginTop:4 }}>{error}</div>}
+        {!hasKey && <div style={{ fontSize:10, fontFamily:T.fM, color:T.amber, marginTop:8 }}>⚠️ Add an Anthropic API key in Settings → AI Provider, and connect Gmail MCP in your Claude settings, to use this feature.</div>}
       </GlassCard>
-      {emails.length > 0 && (
-        <GlassCard style={{ padding:'18px 22px' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-            <SectionLabel>{emails.length} Emails</SectionLabel>
-            <Btn onClick={summarizeInbox} color={T.violet} style={{ fontSize:11, padding:'5px 12px' }}>{summaryLoading?'Summarizing…':'AI Summary'}</Btn>
-          </div>
-          {summary && <div style={{ fontSize:12, fontFamily:T.fM, color:T.text, lineHeight:1.7, borderLeft:`3px solid ${T.violet}55`, paddingLeft:12, marginBottom:14 }}>{summary}</div>}
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {emails.map((e,i)=>(
-              <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                  <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:600, color:T.text, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'70%' }}>{e.subject||'(no subject)'}</div>
-                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, flexShrink:0 }}>{e.date||''}</div>
-                </div>
-                <div style={{ fontSize:10, fontFamily:T.fM, color:T.sky }}>{e.from||''}</div>
-                {e.preview && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:4, lineHeight:1.4 }}>{e.preview}</div>}
+
+      {!digest && !loading && !error && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:T.textMuted, fontSize:11, fontFamily:T.fM }}>Set a range above and generate your first digest.</div>
+      )}
+
+      {digest && (
+        <>
+          <GlassCard style={{ padding:'18px 22px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:T.accent }} />
+              <SectionLabel>Important — <AnimatedNumber value={digest.important.length} /></SectionLabel>
+            </div>
+            {digest.important.length===0 ? (
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, paddingLeft:14 }}>Nothing important in this window.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {digest.important.map((m,i)=>(
+                  <div key={i} style={{ padding:'12px 14px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', gap:10, marginBottom:3 }}>
+                      <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{m.sender}</div>
+                      {m.date && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, flexShrink:0 }}>{m.date}</div>}
+                    </div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.sky, marginBottom:4 }}>{m.subject}</div>
+                    <div style={{ fontSize:11, fontFamily:T.fM, color:T.textSub, lineHeight:1.5 }}>{m.summary}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </GlassCard>
+            )}
+          </GlassCard>
+
+          <GlassCard style={{ padding:'18px 22px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:T.textMuted }} />
+              <SectionLabel>Recurring — <AnimatedNumber value={digest.recurring.length} /> sender{digest.recurring.length===1?'':'s'}</SectionLabel>
+            </div>
+            {digest.recurring.length===0 ? (
+              <div style={{ fontSize:11, fontFamily:T.fM, color:T.textMuted, paddingLeft:14 }}>No recurring senders in this window.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {digest.recurring.map((r,i)=>(
+                  <div key={i} style={{ borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, overflow:'hidden' }}>
+                    <button onClick={()=>toggle(i)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'11px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.sender}</div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{r.label}</div>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                        <span style={{ fontSize:9, fontFamily:T.fM, fontWeight:700, color:T.textSub, background:T.bg2, padding:'3px 9px', borderRadius:99 }}><AnimatedNumber value={r.count} /> new</span>
+                        <IcoChevR size={12} stroke={T.textMuted} style={{ transform: expanded[i]?'rotate(90deg)':'none', transition:'transform 0.15s' }} />
+                      </div>
+                    </button>
+                    {expanded[i] && r.examples && r.examples.length>0 && (
+                      <div style={{ padding:'0 14px 12px 14px', borderTop:`1px solid ${T.border}`, marginTop:-1 }}>
+                        {r.examples.map((ex,j)=>(
+                          <div key={j} style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, padding:'6px 0', borderBottom: j<r.examples.length-1?`1px solid ${T.border}`:'none', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>• {ex}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </>
       )}
     </div>
   );
