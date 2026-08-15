@@ -6576,6 +6576,111 @@ function BackToMore({ onBack, label='← More' }) {
 
 // Collapsible sub-section used inside the Investments tab for Trade History / Watchlist
 // and inside Tools tab for Data Import. Persists open/closed state per key.
+// ── SAVINGS LOG — monthly rollup of the '💰 Savings' category, editable, cumulative ─
+function calcAccumulatedSavings(expenses) {
+  return (expenses||[]).filter(e => e.category === '💰 Savings').reduce((s,e) => s + Number(e.amount||0), 0);
+}
+function SavingsLogSection({ data, actions, cur, onEditExpense }) {
+  const { expenses=[], incomes=[], goals=[], settings={} } = data;
+  const [expandedMonth, setExpandedMonth] = useState(null);
+
+  const monthlyRows = useMemo(() => {
+    const savingsEntries = (expenses||[]).filter(e => e.category === '💰 Savings' && e.date);
+    const byMonth = {};
+    savingsEntries.forEach(e => {
+      const m = e.date.slice(0,7);
+      if (!byMonth[m]) byMonth[m] = { month:m, entries:[], total:0 };
+      byMonth[m].entries.push(e);
+      byMonth[m].total += Number(e.amount||0);
+    });
+    const incByMonth = {};
+    (incomes||[]).forEach(i => { const m=i.date?.slice(0,7); if(!m) return; incByMonth[m]=(incByMonth[m]||0)+Number(i.amount||0); });
+    const rows = Object.values(byMonth).sort((a,b)=>a.month<b.month?-1:1);
+    let running = 0;
+    return rows.map(r => {
+      running += r.total;
+      const inc = incByMonth[r.month]||0;
+      return { ...r, accumulated: running, pct: inc>0 ? Math.round((r.total/inc)*1000)/10 : null, entries: r.entries.sort((a,b)=>a.date<b.date?1:-1) };
+    }).reverse(); // newest month first
+  }, [expenses, incomes]);
+
+  const totalAccumulated = monthlyRows.length ? monthlyRows[0].accumulated : 0;
+
+  const savingsGoals = useMemo(()=> (goals||[]).filter(g=>(g.cat||'other')==='finance'), [goals]);
+  const linkedGoal = (goals||[]).find(g=>g.id===settings.savingsGoalId);
+
+  return (
+    <GlassCard style={{ padding:'18px 20px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:10, marginBottom:14 }}>
+        <div>
+          <SectionLabel>💰 Savings Log</SectionLabel>
+          <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginTop:2 }}>Every expense logged under 💰 Savings, grouped by month</div>
+        </div>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.08em', textTransform:'uppercase' }}>Accumulated</div>
+          <div style={{ fontSize:22, fontFamily:T.fD, fontWeight:800, color:T.emerald }}>{cur}<AnimatedNumber value={Math.round(totalAccumulated)} /></div>
+        </div>
+      </div>
+
+      {/* Link to a goal */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, padding:'8px 12px', borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, flexWrap:'wrap' }}>
+        <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>🔗 Feed accumulated savings into:</span>
+        <select
+          value={settings.savingsGoalId||''}
+          onChange={e=>actions.updateSettings({...settings, savingsGoalId: e.target.value||null})}
+          style={{ padding:'5px 9px', background:T.bg2, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:10, color:T.text, cursor:'pointer' }}>
+          <option value="">— None —</option>
+          {savingsGoals.map(g=><option key={g.id} value={g.id}>{g.emoji||'🎯'} {g.name}</option>)}
+        </select>
+        {linkedGoal && <span style={{ fontSize:9, fontFamily:T.fM, color:T.emerald }}>✓ {linkedGoal.name} now tracks this total live</span>}
+      </div>
+
+      {monthlyRows.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'24px 0', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>
+          No 💰 Savings entries yet. Log an expense under the "💰 Savings" category to start tracking.
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {monthlyRows.map(row => (
+            <div key={row.month} style={{ borderRadius:T.r, background:T.surface, border:`1px solid ${T.border}`, overflow:'hidden' }}>
+              <button onClick={()=>setExpandedMonth(v=>v===row.month?null:row.month)} style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'11px 14px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <IcoChevR size={12} stroke={T.textMuted} style={{ transform: expandedMonth===row.month?'rotate(90deg)':'none', transition:'transform 0.15s' }} />
+                  <div>
+                    <div style={{ fontSize:12, fontFamily:T.fD, fontWeight:700, color:T.text }}>{row.month}</div>
+                    {row.pct!==null && <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{row.pct}% of income</div>}
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:13, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>+{cur}{fmtN(row.total)}</div>
+                  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{cur}{fmtN(row.accumulated)} total</div>
+                </div>
+              </button>
+              {expandedMonth===row.month && (
+                <div style={{ padding:'0 14px 12px 14px', borderTop:`1px solid ${T.border}`, marginTop:-1, display:'flex', flexDirection:'column', gap:6, paddingTop:10 }}>
+                  {row.entries.map(e=>(
+                    <div key={e.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding:'6px 0', borderBottom:`1px solid ${T.border}` }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:10.5, fontFamily:T.fM, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.note || 'Savings'}</div>
+                        <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>{e.date}</div>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+                        <span style={{ fontSize:11, fontFamily:T.fD, fontWeight:700, color:T.emerald }}>{cur}{fmtN(e.amount)}</span>
+                        <button onClick={()=>onEditExpense(e)} style={{ background:'none', border:'none', cursor:'pointer', padding:4, display:'flex' }}><IcoPencil size={12} stroke={T.textSub} /></button>
+                        <button onClick={()=>{ if(confirm('Delete this savings entry?')) actions.removeExpense(e.id); }} style={{ background:'none', border:'none', cursor:'pointer', padding:4, display:'flex' }}><IcoTrash size={12} stroke={T.rose} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 function InvestmentsSubSection({ title, storageKey, children, defaultOpen=false }) {
   const [open, setOpen] = useLocalStorage(storageKey, defaultOpen);
   return (
@@ -7004,6 +7109,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           <InvestmentsSubSection title="📥 Import Data (CSV)" storageKey="los_tools_ingest_open">
             <DataIngestTab data={data} actions={actions} />
           </InvestmentsSubSection>
+          <SavingsLogSection data={data} actions={actions} cur={cur} onEditExpense={setEditExpense} />
         </div>
       )}
 
@@ -7572,6 +7678,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
               </InvestmentsSubSection>
             );
           })()}
+          <SavingsLogSection data={data} actions={actions} cur={cur} onEditExpense={setEditExpense} />
         </div>
       )}
 
@@ -7897,6 +8004,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
         const allCats = ['all', ...new Set((goals||[]).map(g=>g.cat||'other').filter(Boolean))];
         const filteredGoals = goalCatFilter==='all' ? goals : (goals||[]).filter(g=>(g.cat||'other')===goalCatFilter);
         const catColors = { finance:T.accent, health:T.sky, growth:T.violet, career:T.amber, other:T.textSub };
+        const accumulatedSavings = calcAccumulatedSavings(expenses);
         return (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
@@ -7912,9 +8020,11 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
           ) : (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
               {filteredGoals.map((goal,i)=>{
-                const pct=Math.min(100,Math.round(((goal.current||0)/Math.max(1,goal.target))*100));
+                const isSavingsLinked = goal.id === settings.savingsGoalId;
+                const effectiveCurrent = isSavingsLinked ? accumulatedSavings : Number(goal.current||0);
+                const pct=Math.min(100,Math.round((effectiveCurrent/Math.max(1,goal.target))*100));
                 const catColors={finance:T.accent,health:T.sky,growth:T.violet,career:T.amber}; const c=catColors[goal.cat]||T.accent;
-                const remaining = Math.max(0, Number(goal.target||0) - Number(goal.current||0));
+                const remaining = Math.max(0, Number(goal.target||0) - effectiveCurrent);
                 const monthsLeft = goal.deadline ? Math.max(1, Math.round((new Date(goal.deadline)-new Date())/(1000*60*60*24*30.4))) : null;
                 const monthlyNeeded = monthsLeft ? (remaining / monthsLeft) : null;
 
@@ -7924,7 +8034,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                   const daysTotal = Math.max(1, Math.round((new Date(goal.deadline) - new Date(goal.date)) / 86400000));
                   const daysGone  = Math.round((new Date() - new Date(goal.date)) / 86400000);
                   const pctTime   = Math.min(1, daysGone / daysTotal);
-                  const pctDone   = Math.min(1, Number(goal.current||0) / Number(goal.target||1));
+                  const pctDone   = Math.min(1, effectiveCurrent / Number(goal.target||1));
                   const lag = pctTime - pctDone;
                   const daysLeft = Math.round((new Date(goal.deadline) - new Date()) / 86400000);
                   if (pctDone >= 1) {
@@ -7951,12 +8061,13 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                       <div style={{ display:'flex', gap:6, alignItems:'center', marginTop:4, flexWrap:'wrap' }}>
                         <Badge color={c}>{goal.cat||'goal'}</Badge>
                         {velocity && <Badge color={velocity.color}>{velocity.label}</Badge>}
+                        {isSavingsLinked && <Badge color={T.emerald}>🔗 Savings Log</Badge>}
                       </div>
                     </div>
                     <div style={{ width:46, height:46, borderRadius:'50%', background:`conic-gradient(${c} ${pct*3.6}deg,${T.border} 0deg)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 12px ${c}33` }}><div style={{ width:34, height:34, borderRadius:'50%', background:T.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontFamily:T.fM, fontWeight:600, color:c }}>{pct}%</div></div>
                   </div>
                   <ProgressBar pct={pct} color={c} height={5} />
-                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textSub }}><span>{cur}{fmtN(goal.current||0)}</span><span>{cur}{fmtN(goal.target)}</span></div>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginTop:6, fontSize:10, fontFamily:T.fM, color:T.textSub }}><span>{cur}{fmtN(effectiveCurrent)}</span><span>{cur}{fmtN(goal.target)}</span></div>
                   {monthlyNeeded !== null && pct < 100 && (
                     <div style={{ marginTop:10, padding:'8px 10px', borderRadius:T.r, background:`${c}11`, border:`1px solid ${c}22`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                       <span style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>💡 Save <span style={{ color:c, fontWeight:700 }}>{cur}{fmtN(monthlyNeeded)}/mo</span></span>
@@ -7970,7 +8081,8 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                     </div>
                   ) : (
                     <div style={{ display:'flex', gap:8, marginTop:10, alignItems:'center' }}>
-                      <button onClick={()=>setGoalIdx(i)} style={{ fontSize:10, fontFamily:T.fM, color:c }}>+ Add Progress</button>
+                      {!isSavingsLinked && <button onClick={()=>setGoalIdx(i)} style={{ fontSize:10, fontFamily:T.fM, color:c }}>+ Add Progress</button>}
+                      {isSavingsLinked && <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Tracked automatically from Savings Log</span>}
                       <button onClick={()=>setEditGoalMoney(goal)} style={{ fontSize:10, fontFamily:T.fM, color:T.sky, display:'flex', alignItems:'center', gap:4 }}><IcoPencil size={10} stroke={T.sky} /> Edit</button>
                       <button onClick={()=>actions.removeGoal(goal.id)} style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, marginLeft:'auto' }}>Remove</button>
                     </div>
