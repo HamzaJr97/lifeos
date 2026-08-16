@@ -8556,6 +8556,35 @@ function HealthPage({ data, actions }) {
   };
   const sorted = [...vitals].sort((a,b)=>a.date<b.date?1:-1);
   const recent7 = sorted.slice(0,7).reverse();
+  // ── Vitals month picker: only months that actually have logged data ────
+  const [vitalsMonth, setVitalsMonth] = useState(null);
+  const vitalsMonths = useMemo(() =>
+    Array.from(new Set((vitals||[]).map(v=>v.date?.slice(0,7)).filter(Boolean))).sort().reverse(),
+  [vitals]);
+  const activeVitalsMonth = vitalsMonths.includes(vitalsMonth) ? vitalsMonth : (vitalsMonths[0] || null);
+  const vitalsForMonth = useMemo(() =>
+    activeVitalsMonth ? sorted.filter(v => v.date?.startsWith(activeVitalsMonth)) : [],
+  [sorted, activeVitalsMonth]);
+  // ── Sleep history: monthly average vs recommended sleep ────────────────
+  const SLEEP_TARGET = 8; // hours — same target used by the Sleep Debt tracker above
+  const sleepByMonth = useMemo(() => {
+    const map = {};
+    (vitals||[]).forEach(v => {
+      const m = v.date?.slice(0,7);
+      if (!m || !(Number(v.sleep) > 0)) return;
+      if (!map[m]) map[m] = { month: m, total: 0, count: 0 };
+      map[m].total += Number(v.sleep);
+      map[m].count += 1;
+    });
+    return Object.values(map)
+      .sort((a,b) => a.month < b.month ? -1 : 1)
+      .map(m => ({
+        month: m.month,
+        avgSleep: Math.round((m.total / m.count) * 10) / 10,
+        target: SLEEP_TARGET,
+        nights: m.count,
+      }));
+  }, [vitals]);
   const avgSleep    = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.sleep||0),0)/recent7.length).toFixed(1) : '—';
   const avgMood     = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.mood||0),0)/recent7.length).toFixed(1) : '—';
   const avgEnergy   = recent7.length ? (recent7.reduce((s,v)=>s+Number(v.energy||0),0)/recent7.length).toFixed(1) : '—';
@@ -8929,23 +8958,50 @@ function HealthPage({ data, actions }) {
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
           <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Sleep History</SectionLabel>
-            {recent7.length>0 ? (
-              <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={recent7} barSize={28} margin={{top:4,right:0,left:0,bottom:0}}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+              <SectionLabel>Sleep History</SectionLabel>
+              <span style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted }}>Monthly avg vs {SLEEP_TARGET}h target</span>
+            </div>
+            {sleepByMonth.length>0 ? (
+              <ResponsiveContainer width="100%" height={170}>
+                <ComposedChart data={sleepByMonth} barSize={26} margin={{top:4,right:0,left:0,bottom:0}}>
                   <CartesianGrid strokeDasharray="2 4" stroke={T.border} vertical={false} />
-                  <XAxis dataKey="date" tickFormatter={d=>d.slice(5)} tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="month" tick={{fill:T.textSub,fontSize:9,fontFamily:T.fM}} axisLine={false} tickLine={false} />
                   <YAxis domain={[0,12]} hide />
                   <Tooltip content={<ChartTooltip suffix="h" />} />
-                  <Bar dataKey="sleep" name="Sleep" fill={T.sky} opacity={0.85} radius={[5,5,0,0]} />
-                </BarChart>
+                  <ReferenceLine y={SLEEP_TARGET} stroke={T.emerald} strokeDasharray="4 3" label={{ value:`Target ${SLEEP_TARGET}h`, position:'insideTopRight', fill:T.emerald, fontSize:9, fontFamily:T.fM }} />
+                  <Bar dataKey="avgSleep" name="Avg Sleep" radius={[5,5,0,0]} opacity={0.9}>
+                    {sleepByMonth.map((m,i)=>(<Cell key={i} fill={m.avgSleep>=SLEEP_TARGET?T.emerald:m.avgSleep>=SLEEP_TARGET-1?T.sky:T.rose} />))}
+                  </Bar>
+                </ComposedChart>
               </ResponsiveContainer>
             ) : <div style={{ height:80, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontFamily:T.fM, color:T.textMuted }}>Log vitals to see your sleep chart.</div>}
+            {sleepByMonth.length>0 && (
+              <div style={{ marginTop:10, display:'flex', flexWrap:'wrap', gap:8 }}>
+                {sleepByMonth.slice(-6).map(m=>(
+                  <div key={m.month} style={{ display:'flex', alignItems:'center', gap:5, padding:'3px 8px', borderRadius:99, background:T.surface, border:`1px solid ${T.border}` }}>
+                    <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>{m.month}</span>
+                    <span style={{ fontSize:9, fontFamily:T.fD, fontWeight:700, color:m.avgSleep>=SLEEP_TARGET?T.emerald:m.avgSleep>=SLEEP_TARGET-1?T.sky:T.rose }}>{m.avgSleep}h</span>
+                    <span style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted }}>{m.avgSleep>=SLEEP_TARGET?`+${(m.avgSleep-SLEEP_TARGET).toFixed(1)}`:`−${(SLEEP_TARGET-m.avgSleep).toFixed(1)}`}h vs target</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </GlassCard>
           <GlassCard style={{ padding:'20px 22px' }}>
-            <SectionLabel>Recent Vitals</SectionLabel>
-            {sorted.slice(0,8).map((v,i)=>(
-              <div key={v.id||i} style={{ display:'flex', gap:14, justifyContent:'space-between', padding:'8px 0', borderBottom:i<7?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM, alignItems:'center' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8, marginBottom:4 }}>
+              <SectionLabel>Vitals History</SectionLabel>
+              {vitalsMonths.length>0 && (
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:9, fontFamily:T.fM, color:T.textSub }}>Month:</span>
+                  <select value={activeVitalsMonth||''} onChange={e=>setVitalsMonth(e.target.value)} style={{ padding:'6px 10px', minHeight:32, background:T.surface, border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, fontSize:11, color:T.text, cursor:'pointer' }}>
+                    {vitalsMonths.map(m=><option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            {vitalsForMonth.map((v,i)=>(
+              <div key={v.id||i} style={{ display:'flex', gap:14, justifyContent:'space-between', padding:'8px 0', borderBottom:i<vitalsForMonth.length-1?`1px solid ${T.border}`:'none', fontSize:11, fontFamily:T.fM, alignItems:'center' }}>
                 <span style={{ color:T.textSub, flexShrink:0 }}>{v.date}</span>
                 <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'flex-end', alignItems:'center', flex:1 }}>
                   {v.sleep>0&&<span style={{ color:T.sky }}>😴 {v.sleep}h</span>}
@@ -8960,7 +9016,7 @@ function HealthPage({ data, actions }) {
                 </div>
               </div>
             ))}
-            {sorted.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>No vitals logged yet.</div>}
+            {vitalsForMonth.length===0 && <div style={{ textAlign:'center', padding:20, fontSize:11, fontFamily:T.fM, color:T.textMuted }}>{sorted.length===0 ? 'No vitals logged yet.' : 'No vitals logged for this month.'}</div>}
           </GlassCard>
 
           </div>
@@ -21135,7 +21191,7 @@ export default function LifeOS() {
       .filter(e=>e.date?.startsWith(_thisMonth))
       .reduce((m,e)=>{ m[e.category]=(m[e.category]||0)+Number(e.amount||0); return m; }, {});
     const topCatEntry = Object.entries(spendByCatMap).sort((a,b)=>b[1]-a[1])[0] || null;
-    const level     = Math.floor(Math.sqrt(Number(totalXP)||0)/100)+1;
+    const level     = Math.floor(Math.sqrt(Number(totalXP||0)/100))+1;
     return { monthInc, monthExp, invVal, assetVal, debtVal, nw, savRate, thisMonth:_thisMonth,
              spendByCatMap, topCatEntry, level };
   }, [_incomes, _expenses, _investments, _assets, _debts, _thisMonth, totalXP]);
@@ -21190,7 +21246,7 @@ export default function LifeOS() {
   };
 
   // ── DERIVED STATS for status bar — uses centralised computed ─────────────────
-  const level = Math.floor(Math.sqrt(Number(totalXP)||0)/100)+1;
+  const level = Math.floor(Math.sqrt(Number(totalXP||0)/100))+1;
   const bestStreak = _habits.reduce((mx,h)=>{const s=getStreak(h.id,_habitLogs);return s>mx?s:mx;},0);
   const cur = settings.currency||'$';
   const { monthInc, monthExp, invVal, nw, savRate, thisMonth } = computed;
