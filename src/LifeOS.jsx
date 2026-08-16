@@ -1,5 +1,9 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v112
+// LifeOS — Personal Life Operating System  |  v141
+// v141 — STEP 1 of "Signal" restyle: token swap (T/THEMES → navy/gold/cyan
+// palette) + shared primitives (GlassCard, ProgressBar, SectionLabel,
+// StatCard, MilestoneProgressBar). No page logic/data changed. Remaining
+// rollout steps: Home hero dial → Money → Health → Growth/Tasks/Settings.
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -336,63 +340,84 @@ import {
 })();
 
 // ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
+// v141 — "Signal" palette: navy-black canvas, gold hero accent, cyan secondary
+// accent, green/red kept strictly semantic. See THEMES.dark for the source of
+// truth; this top-level T is just the pre-mount default (overwritten via
+// Object.assign(T, THEMES[...]) once the saved theme loads).
 let T = {
   id:'dark',
-  bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
-  surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
-  border:'rgba(255,255,255,0.07)', borderLit:'rgba(0,245,212,0.3)',
-  accent:'#00f5d4', accentDim:'rgba(0,245,212,0.12)', accentLo:'rgba(0,245,212,0.06)',
+  bg:'#0a0e1a', bg1:'#0c1120', bg2:'#0e1322', card:'#0e1322',
+  surface:'rgba(255,255,255,0.035)', surfaceHi:'rgba(255,255,255,0.065)',
+  border:'rgba(255,255,255,0.08)', borderCard:'rgba(255,255,255,0.10)', borderLit:'rgba(242,169,59,0.3)',
+  accent:'#f2a93b', accentDim:'rgba(242,169,59,0.10)', accentLo:'rgba(242,169,59,0.05)', accentBright:'#ffc266',
+  gold:'#f2a93b', goldDim:'rgba(242,169,59,0.10)',
+  cyan:'#4fd1e8', cyanDim:'rgba(79,209,232,0.10)',
+  green:'#34d399', red:'#f2603c',
   violet:'#8b5cf6', violetDim:'rgba(139,92,246,0.12)',
   amber:'#fbbf24', amberDim:'rgba(251,191,36,0.12)',
-  rose:'#fb7185', roseDim:'rgba(251,113,133,0.12)',
+  rose:'#f2603c', roseDim:'rgba(242,96,60,0.12)',
   emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
-  sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
-  text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
+  sky:'#4fd1e8', skyDim:'rgba(79,209,232,0.12)',
+  text:'#f5f6fa', textSub:'#98a0b3', textMuted:'#5b6478',
   fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
   starA:'#4c5fd1', starB:'#2fa9a1', star:'#eaf1ff',
-  r:'10px', rL:'16px', sw:72,
+  r:'10px', rL:'16px', rXL:'20px', sw:72,
 };
 
 // ── S5: THEME SYSTEM ──────────────────────────────────────────────────────────
+// Accent discipline: gold = hero elements only (one dial/primary button/active
+// nav per page). cyan = secondary/supporting data. green/red stay semantic
+// (ok/attention) — never decorative. violet/amber/sky are legacy category
+// colors kept for pages not yet migrated off them (see rollout plan); new work
+// should reach for gold/cyan/green/red only.
 const THEMES = {
   dark: {
     id:'dark',
-    bg:'#040408', bg1:'#070710', bg2:'#0b0b1a',
-    surface:'rgba(255,255,255,0.028)', surfaceHi:'rgba(255,255,255,0.055)',
-    border:'rgba(255,255,255,0.07)', borderLit:'rgba(0,245,212,0.3)',
-    accent:'#00f5d4', accentDim:'rgba(0,245,212,0.12)', accentLo:'rgba(0,245,212,0.06)',
+    bg:'#0a0e1a', bg1:'#0c1120', bg2:'#0e1322', card:'#0e1322',
+    surface:'rgba(255,255,255,0.035)', surfaceHi:'rgba(255,255,255,0.065)',
+    border:'rgba(255,255,255,0.08)', borderCard:'rgba(255,255,255,0.10)', borderLit:'rgba(242,169,59,0.3)',
+    accent:'#f2a93b', accentDim:'rgba(242,169,59,0.10)', accentLo:'rgba(242,169,59,0.05)', accentBright:'#ffc266',
+    gold:'#f2a93b', goldDim:'rgba(242,169,59,0.10)',
+    cyan:'#4fd1e8', cyanDim:'rgba(79,209,232,0.10)',
+    green:'#34d399', red:'#f2603c',
     violet:'#8b5cf6', violetDim:'rgba(139,92,246,0.12)',
     amber:'#fbbf24', amberDim:'rgba(251,191,36,0.12)',
-    rose:'#fb7185', roseDim:'rgba(251,113,133,0.12)',
+    rose:'#f2603c', roseDim:'rgba(242,96,60,0.12)',
     emerald:'#34d399', emeraldDim:'rgba(52,211,153,0.12)',
-    sky:'#38bdf8', skyDim:'rgba(56,189,248,0.12)',
-    text:'#dde0f2', textSub:'#6b6b90', textMuted:'#36364e',
+    sky:'#4fd1e8', skyDim:'rgba(79,209,232,0.12)',
+    text:'#f5f6fa', textSub:'#98a0b3', textMuted:'#5b6478',
     fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
     starA:'#4c5fd1', starB:'#2fa9a1', star:'#eaf1ff',
-    r:'10px', rL:'16px', sw:72,
+    r:'10px', rL:'16px', rXL:'20px', sw:72,
   },
   light: {
     id:'light',
-    bg:'#f4f6fb', bg1:'#e8ecf4', bg2:'#ffffff',
-    surface:'rgba(0,0,0,0.04)', surfaceHi:'rgba(0,0,0,0.07)',
-    border:'rgba(0,0,0,0.10)', borderLit:'rgba(0,180,160,0.4)',
-    accent:'#00a896', accentDim:'rgba(0,168,150,0.12)', accentLo:'rgba(0,168,150,0.06)',
+    bg:'#faf7f0', bg1:'#f2ede2', bg2:'#ffffff', card:'#ffffff',
+    surface:'rgba(10,14,26,0.04)', surfaceHi:'rgba(10,14,26,0.07)',
+    border:'rgba(10,14,26,0.10)', borderCard:'rgba(10,14,26,0.12)', borderLit:'rgba(196,127,15,0.4)',
+    accent:'#c47f0f', accentDim:'rgba(196,127,15,0.12)', accentLo:'rgba(196,127,15,0.06)', accentBright:'#e0a530',
+    gold:'#c47f0f', goldDim:'rgba(196,127,15,0.12)',
+    cyan:'#0f8fa8', cyanDim:'rgba(15,143,168,0.12)',
+    green:'#059669', red:'#c23c1f',
     violet:'#7c3aed', violetDim:'rgba(124,58,237,0.12)',
     amber:'#d97706', amberDim:'rgba(217,119,6,0.12)',
-    rose:'#e11d48', roseDim:'rgba(225,29,72,0.12)',
+    rose:'#c23c1f', roseDim:'rgba(194,60,31,0.12)',
     emerald:'#059669', emeraldDim:'rgba(5,150,105,0.12)',
-    sky:'#0284c7', skyDim:'rgba(2,132,199,0.12)',
+    sky:'#0f8fa8', skyDim:'rgba(15,143,168,0.12)',
     text:'#1e1e2e', textSub:'#4a4a6a', textMuted:'#9090b0',
     fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
     starA:'#93a5f6', starB:'#7fd4cb', star:'#0a0e18',
-    r:'10px', rL:'16px', sw:72,
+    r:'10px', rL:'16px', rXL:'20px', sw:72,
   },
   constellation: {
     id:'constellation',
-    bg:'#05070c', bg1:'#0a0e18', bg2:'#0d1220',
+    bg:'#05070c', bg1:'#0a0e18', bg2:'#0d1220', card:'#0d1220',
     surface:'rgba(255,255,255,0.035)', surfaceHi:'rgba(255,255,255,0.065)',
-    border:'rgba(255,255,255,0.08)', borderLit:'rgba(255,157,77,0.35)',
-    accent:'#ff9d4d', accentDim:'rgba(255,157,77,0.14)', accentLo:'rgba(255,157,77,0.07)',
+    border:'rgba(255,255,255,0.08)', borderCard:'rgba(255,255,255,0.10)', borderLit:'rgba(255,157,77,0.35)',
+    accent:'#ff9d4d', accentDim:'rgba(255,157,77,0.14)', accentLo:'rgba(255,157,77,0.07)', accentBright:'#ffb670',
+    gold:'#ff9d4d', goldDim:'rgba(255,157,77,0.14)',
+    cyan:'#7ea6ff', cyanDim:'rgba(126,166,255,0.14)',
+    green:'#6fd39a', red:'#ff6b5b',
     violet:'#7c8ce8', violetDim:'rgba(124,140,232,0.14)',
     amber:'#f2b155', amberDim:'rgba(242,177,85,0.12)',
     rose:'#ff6b5b', roseDim:'rgba(255,107,91,0.12)',
@@ -401,7 +426,7 @@ const THEMES = {
     text:'#eef0f5', textSub:'#8b93ab', textMuted:'#4d5468',
     fD:'\"Cabinet Grotesk\", sans-serif', fM:'"DM Mono", monospace', fS:'"Fraunces", serif',
     starA:'#4c5fd1', starB:'#2fa9a1', star:'#eaf1ff',
-    r:'10px', rL:'16px', sw:72,
+    r:'10px', rL:'16px', rXL:'20px', sw:72,
   },
 };
 
@@ -1429,10 +1454,12 @@ function SyncModal({ open, onClose, syncStatus, lastSync, onPush, onPull, isConf
 }
 
 // ── SHARED UI COMPONENTS ──────────────────────────────────────────────────────
+// GlassCard — flat panel fill, no blur/corner-bracket treatment. Pass
+// style={{ borderRadius:T.rXL }} for the one hero/status card on a page.
 const GlassCard = ({ children, style={}, className='', onClick }) => (
   <div className={`los-card ${className}`} onClick={onClick} style={{
-    background:T.surface, border:`1px solid ${T.border}`,
-    borderRadius:T.rL, backdropFilter:'blur(20px)',
+    background:T.card, border:`1px solid ${T.borderCard}`,
+    borderRadius:T.rL,
     transition:'border-color 0.2s, box-shadow 0.2s', ...style
   }}>{children}</div>
 );
@@ -1455,7 +1482,9 @@ function PageSkeleton() {
     </div>
   );
 }
-const ProgressBar = ({ pct, color=T.accent, height=4 }) => (
+// ProgressBar — pill track; fill defaults to cyan (secondary-data color).
+// Only a page's single hero metric should use the gold radial dial instead.
+const ProgressBar = ({ pct, color=T.cyan, height=6 }) => (
   <div style={{ width:'100%', height, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'hidden' }}>
     <div style={{ height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99, background:`linear-gradient(90deg, ${color}aa, ${color})`, boxShadow:`0 0 6px ${color}44`, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
   </div>
@@ -1467,7 +1496,7 @@ const Select = ({ value, onChange, children, style={} }) => (
   <select value={value} onChange={onChange} className="los-input" style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:T.r, fontFamily:T.fM, color:T.text, transition:'border-color 0.2s', ...style }}>{children}</select>
 );
 const SectionLabel = ({ children }) => (
-  <div style={{ fontSize:9, fontFamily:T.fM, color:T.textSub, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:12 }}>{children}</div>
+  <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.14em', textTransform:'uppercase', marginBottom:12 }}>{children}</div>
 );
 
 // ── PAGE INFO TOOLTIP ─────────────────────────────────────────────────────────
@@ -1645,16 +1674,19 @@ const TierLabel = ({ children, color=T.textMuted }) => (
   </div>
 );
 
-// StatCard — uniform KPI card with optional trend indicator
-const StatCard = ({ label, val, sub, color=T.accent, trend=null, onClick=null }) => (
-  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.surface, border:`1px solid ${T.border}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3 }}
+// StatCard — uniform KPI card with optional trend indicator.
+// color defaults to white (T.text) — pass T.gold only for a page's one hero
+// stat; every other number on a page should read as plain white per the
+// accent-discipline rule (gold = hero only).
+const StatCard = ({ label, val, sub, color=T.text, trend=null, onClick=null }) => (
+  <div onClick={onClick} style={{ padding:'14px 16px', borderRadius:T.rL, background:T.card, border:`1px solid ${T.borderCard}`, cursor:onClick?'pointer':'default', transition:'border-color 0.2s', display:'flex', flexDirection:'column', gap:3 }}
     onMouseEnter={e=>{ if(onClick) e.currentTarget.style.borderColor=color+'44'; }}
-    onMouseLeave={e=>{ if(onClick) e.currentTarget.style.borderColor=T.border; }}>
-    <div style={{ fontSize:8, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase' }}>{label}</div>
+    onMouseLeave={e=>{ if(onClick) e.currentTarget.style.borderColor=T.borderCard; }}>
+    <div style={{ fontSize:9, fontFamily:T.fM, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase' }}>{label}</div>
     <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
       <div style={{ fontSize:20, fontFamily:T.fD, fontWeight:800, color, lineHeight:1.1 }}>{typeof val === 'number' ? <AnimatedNumber value={val} /> : val}</div>
       {trend !== null && (
-        <span style={{ fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.emerald : trend < 0 ? T.rose : T.textMuted, fontWeight:600 }}>
+        <span style={{ fontSize:9, fontFamily:T.fM, color: trend > 0 ? T.green : trend < 0 ? T.red : T.textMuted, fontWeight:600 }}>
           {trend > 0 ? '↑' : trend < 0 ? '↓' : '→'}{Math.abs(trend)}%
         </span>
       )}
@@ -1699,7 +1731,7 @@ const TabNav = ({ tabs, active, onChange, accentColor=T.accent }) => (
 );
 
 // ── MILESTONE PROGRESS BAR ─────────────────────────────────────────────────────
-const MilestoneProgressBar = ({ pct, color=T.accent, height=4, milestones=[] }) => (
+const MilestoneProgressBar = ({ pct, color=T.cyan, height=6, milestones=[] }) => (
   <div style={{ position:'relative', width:'100%', paddingBottom: milestones.length ? 14 : 0 }}>
     <div style={{ width:'100%', height, borderRadius:99, background:'rgba(255,255,255,0.06)', overflow:'visible', position:'relative' }}>
       <div style={{ height:'100%', width:`${Math.min(Math.max(pct||0,0),100)}%`, borderRadius:99, background:`linear-gradient(90deg,${color}aa,${color})`, boxShadow:`0 0 6px ${color}44`, transition:'width 0.6s cubic-bezier(0.34,1.56,0.64,1)' }} />
