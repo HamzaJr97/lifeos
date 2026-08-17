@@ -1,9 +1,17 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v141
-// v141 — STEP 1 of "Signal" restyle: token swap (T/THEMES → navy/gold/cyan
-// palette) + shared primitives (GlassCard, ProgressBar, SectionLabel,
-// StatCard, MilestoneProgressBar). No page logic/data changed. Remaining
-// rollout steps: Home hero dial → Money → Health → Growth/Tasks/Settings.
+// LifeOS — Personal Life Operating System  |  v142
+// v142 — STEPS 1+2 of "Signal" restyle:
+//  Step 1: token swap (T/THEMES → navy/gold/cyan palette) + shared primitives
+//          (GlassCard, ProgressBar, SectionLabel, StatCard, MilestoneProgressBar)
+//  Step 2: Home page — new HeroDial component wired to Life Score, briefing
+//          greeting header, + fixed several hardcoded legacy hex values that
+//          bypassed the token system entirely (AI orb glow states, logo icon,
+//          corner-trace brackets, status pill, PWA meta/app-icon colors).
+// No page logic/data/calculations changed anywhere — visual layer only.
+// Remaining rollout steps: Money hero dial → Health → Growth/Tasks/Settings.
+// Also still outstanding: legacy hardcoded hex in chart palettes / Life Graph
+// / Sticky Notes (COLORS, CAT_COLORS, GROUP_COLORS etc.) — untouched, will be
+// addressed when their respective pages/features are restyled.
 // ──────────────────────────────────────────────────────────────────────────────
 // ARCHITECTURE NOTE (Problem 6): This is intentionally a single-file app for
 // portability and zero-build deployment. When complexity exceeds ~10k lines or
@@ -52,7 +60,7 @@ import {
   });
   // theme-color — colors browser chrome / status bar on Android Chrome
   if (!document.querySelector('meta[name="theme-color"]')) {
-    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#040408';
+    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#0a0e1a';
     document.head.appendChild(tc);
   }
   // ── App icon: generate PNG via canvas (iOS requires PNG, not SVG, for home screen icons) ──
@@ -61,24 +69,24 @@ import {
     canvas.width = size; canvas.height = size;
     const ctx = canvas.getContext('2d');
     // Background
-    ctx.fillStyle = '#040408';
+    ctx.fillStyle = '#0a0e1a';
     const r = size * 0.22;
     ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(size-r, 0); ctx.quadraticCurveTo(size, 0, size, r);
     ctx.lineTo(size, size-r); ctx.quadraticCurveTo(size, size, size-r, size);
     ctx.lineTo(r, size); ctx.quadraticCurveTo(0, size, 0, size-r);
     ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0); ctx.closePath(); ctx.fill();
     // Accent bar
-    ctx.fillStyle = '#00f5d4'; ctx.globalAlpha = 0.7;
+    ctx.fillStyle = '#f2a93b'; ctx.globalAlpha = 0.7;
     const bx = size*0.165, by = size*0.27, bw = size*0.022, bh = size*0.445;
     ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bw/2); ctx.fill();
     ctx.globalAlpha = 1;
     // "OS" text
-    ctx.fillStyle = '#00f5d4';
+    ctx.fillStyle = '#f2a93b';
     ctx.font = `800 ${size*0.355}px system-ui,sans-serif`;
     ctx.textBaseline = 'alphabetic';
     ctx.fillText('OS', size*0.24, size*0.635);
     // "Life" small text
-    ctx.fillStyle = '#00f5d4'; ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#f2a93b'; ctx.globalAlpha = 0.55;
     ctx.font = `600 ${size*0.13}px system-ui,sans-serif`;
     ctx.fillText('Life', size*0.245, size*0.79);
     ctx.globalAlpha = 1;
@@ -104,8 +112,8 @@ import {
       scope: '/lifeos/',
       display: 'standalone',
       orientation: 'portrait',
-      background_color: '#040408',
-      theme_color: '#040408',
+      background_color: '#0a0e1a',
+      theme_color: '#0a0e1a',
       icons: [
         { src: png192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
         { src: png512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
@@ -266,7 +274,7 @@ import {
     button { cursor:pointer; border:none; background:none; font-family:inherit; transition:all 0.18s ease; }
     button:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 6px; }
     a:focus-visible { outline: 2px solid rgba(0,245,212,0.7); outline-offset: 2px; border-radius: 4px; }
-    select option { background:#0b0b1a; color:#dde0f2; }
+    select option { background:#0e1322; color:#f5f6fa; }
     /* Battery / accessibility: suppress looping ambient animations for users
        who prefer reduced motion or on any device that opts in */
     @media (prefers-reduced-motion: reduce) {
@@ -858,9 +866,9 @@ function useAmbientIntelligence(data) {
         intensity: activeFocusSession ? 1.0 : 0.65,
         label: activeFocusSession ? '⚡ Focus Session' : '🎯 Peak Focus',
         description: "Minimal mode. You're locked in.",
-        glowColor: '#00f5d4',
-        pillBg: 'rgba(0,245,212,0.10)',
-        pillBorder: 'rgba(0,245,212,0.30)',
+        glowColor: '#f2a93b',
+        pillBg: 'rgba(242,169,59,0.10)',
+        pillBorder: 'rgba(242,169,59,0.30)',
       };
     }
 
@@ -872,9 +880,9 @@ function useAmbientIntelligence(data) {
         intensity,
         label: `🔥 ${bestStreak}d Streak`,
         description: `Momentum is real. ${habitsCompletedToday}/${habits.length} habits done.`,
-        glowColor: '#38bdf8',
-        pillBg: 'rgba(56,189,248,0.10)',
-        pillBorder: 'rgba(56,189,248,0.30)',
+        glowColor: '#4fd1e8',
+        pillBg: 'rgba(79,209,232,0.10)',
+        pillBorder: 'rgba(79,209,232,0.30)',
       };
     }
 
@@ -890,9 +898,9 @@ function useAmbientIntelligence(data) {
         intensity: Math.max(0.3, Math.min(1, severity)),
         label: isBadFocus ? '😩 Rough Focus' : isLowSleep ? '😴 Sleep Debt' : '🌧 Rough Day',
         description: 'Take it easy. Recovery is progress too.',
-        glowColor: '#fb7185',
-        pillBg: 'rgba(251,113,133,0.10)',
-        pillBorder: 'rgba(251,113,133,0.30)',
+        glowColor: '#f2603c',
+        pillBg: 'rgba(242,96,60,0.10)',
+        pillBorder: 'rgba(242,96,60,0.30)',
       };
     }
 
@@ -915,7 +923,7 @@ function useAmbientIntelligence(data) {
       intensity: 0,
       label: null,
       description: null,
-      glowColor: '#00f5d4',
+      glowColor: '#f2a93b',
       pillBg: 'transparent',
       pillBorder: 'transparent',
     };
@@ -1748,6 +1756,33 @@ const MilestoneProgressBar = ({ pct, color=T.cyan, height=6, milestones=[] }) =>
     )}
   </div>
 );
+
+// HeroDial — the ONE gold radial gauge per page, reserved for that page's
+// single most important number (Home = Life Score, Money = Financial Health
+// Score, Health = Body Score, Growth = Level, etc). Every other metric on the
+// page should be a bar row or plain stat — never a second dial.
+const HeroDial = ({ value, max=100, size=136, label, sub, color=T.gold }) => {
+  const stroke = size * 0.075;
+  const rad = (size - stroke) / 2;
+  const c = 2 * Math.PI * rad;
+  const pct = Math.min(Math.max((value||0) / (max||100), 0), 1);
+  return (
+    <div style={{ position:'relative', width:size, height:size, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ position:'absolute', inset:size*0.08, borderRadius:'50%', background:color, opacity:0.16, filter:`blur(${size*0.18}px)` }} />
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position:'relative', transform:'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={rad} fill="none" stroke={T.border} strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={rad} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          style={{ transition:'stroke-dashoffset 0.8s cubic-bezier(0.34,1.56,0.64,1)' }} />
+      </svg>
+      <div style={{ position:'absolute', display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
+        <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:size*0.26, color:T.text, lineHeight:1 }}><AnimatedNumber value={value} /></div>
+        {sub && <div style={{ fontFamily:T.fM, fontSize:size*0.065, color:T.textSub, letterSpacing:'0.04em' }}>{sub}</div>}
+      </div>
+      {label && <div style={{ position:'absolute', bottom:-18, fontFamily:T.fM, fontSize:9, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', whiteSpace:'nowrap' }}>{label}</div>}
+    </div>
+  );
+};
 
 // ── XP POP CONTAINER ──────────────────────────────────────────────────────────
 function XPPopContainer({ pops }) {
@@ -5114,6 +5149,7 @@ class ErrorBoundary extends React.Component {
 
 function HomePage({ data, actions, onNav, onOpenPatterns=()=>{}, onOpenGraph=()=>{}, onOpenParallel=()=>{}, onOpenAmbient=()=>{}, onOpenWeeklyReview=()=>{} }) {
   const lang = useLang();
+  const isMobile = useMobile();
   const {expenses=[], incomes=[], assets=[], investments=[], debts=[], habits=[], habitLogs={}, goals=[], vitals=[], totalXP=0, settings={}, notes=[], budgets={}, bills=[]} = data;
   const [modal, setModal] = useState(null);
   const [showDecision, setShowDecision] = useState(false);
@@ -5541,8 +5577,8 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         @keyframes ncOrbRotate { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
         @keyframes ncOrbRotateRev { from { transform:rotate(0deg); } to { transform:rotate(-360deg); } }
         @keyframes ncOrbScanner { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
-        @keyframes ncCoreGlow { 0%,100% { filter:drop-shadow(0 0 14px rgba(0,245,212,0.3)); } 50% { filter:drop-shadow(0 0 32px rgba(0,245,212,0.7)); } }
-        @keyframes ncCoreGlowWarn { 0%,100% { filter:drop-shadow(0 0 14px rgba(251,113,133,0.3)); } 50% { filter:drop-shadow(0 0 40px rgba(251,113,133,0.8)); } }
+        @keyframes ncCoreGlow { 0%,100% { filter:drop-shadow(0 0 14px rgba(242,169,59,0.3)); } 50% { filter:drop-shadow(0 0 32px rgba(242,169,59,0.7)); } }
+        @keyframes ncCoreGlowWarn { 0%,100% { filter:drop-shadow(0 0 14px rgba(242,96,60,0.3)); } 50% { filter:drop-shadow(0 0 40px rgba(242,96,60,0.8)); } }
         @keyframes ncCoreGlowAnalyze { 0%,100% { filter:drop-shadow(0 0 14px rgba(139,92,246,0.3)); } 50% { filter:drop-shadow(0 0 36px rgba(139,92,246,0.75)); } }
         @keyframes ncThreatIn { from { opacity:0; transform:translateX(-14px); } to { opacity:1; transform:translateX(0); } }
         @keyframes ncProjIn { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
@@ -5550,8 +5586,8 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
         @keyframes ncRingPulse { 0%,100% { opacity:0.4; } 50% { opacity:0.9; } }
         .nc-grid { display:grid; grid-template-columns:1fr 1.55fr 1fr; gap:18px; align-items:start; }
         .nc-panel { position:relative; }
-        .nc-panel::before { content:''; position:absolute; top:6px; left:6px; width:8px; height:8px; border-top:1.5px solid rgba(0,245,212,0.5); border-left:1.5px solid rgba(0,245,212,0.5); pointer-events:none; z-index:2; border-radius:1px 0 0 0; animation:cornerTrace 3s ease-in-out infinite; }
-        .nc-panel::after  { content:''; position:absolute; bottom:6px; right:6px; width:8px; height:8px; border-bottom:1.5px solid rgba(0,245,212,0.5); border-right:1.5px solid rgba(0,245,212,0.5); pointer-events:none; z-index:2; border-radius:0 0 1px 0; animation:cornerTrace 3s ease-in-out infinite 1.5s; }
+        .nc-panel::before { content:''; position:absolute; top:6px; left:6px; width:8px; height:8px; border-top:1.5px solid rgba(242,169,59,0.5); border-left:1.5px solid rgba(242,169,59,0.5); pointer-events:none; z-index:2; border-radius:1px 0 0 0; animation:cornerTrace 3s ease-in-out infinite; }
+        .nc-panel::after  { content:''; position:absolute; bottom:6px; right:6px; width:8px; height:8px; border-bottom:1.5px solid rgba(242,169,59,0.5); border-right:1.5px solid rgba(242,169,59,0.5); pointer-events:none; z-index:2; border-radius:0 0 1px 0; animation:cornerTrace 3s ease-in-out infinite 1.5s; }
         @media (max-width:767px) {
           .nc-grid { grid-template-columns:1fr; gap:14px; }
           .nc-orb-col { order:-1; }
@@ -5566,10 +5602,10 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
 
           {/* Logo */}
           <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-            <div style={{ width:30, height:30, borderRadius:9, background:`linear-gradient(135deg,rgba(0,245,212,0.12),rgba(139,92,246,0.12))`, border:`1.5px solid rgba(0,245,212,0.3)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <div style={{ width:30, height:30, borderRadius:9, background:`linear-gradient(135deg,rgba(242,169,59,0.14),rgba(79,209,232,0.10))`, border:`1.5px solid rgba(242,169,59,0.3)`, display:'flex', alignItems:'center', justifyContent:'center' }}>
               <svg width="15" height="15" viewBox="-8 -8 16 16">
-                <polygon points="0,-7 6.06,-3.5 6.06,3.5 0,7 -6.06,3.5 -6.06,-3.5" fill="none" stroke="#00f5d4" strokeWidth="1.5"/>
-                <circle r="3" fill="#00f5d4" opacity="0.85"/>
+                <polygon points="0,-7 6.06,-3.5 6.06,3.5 0,7 -6.06,3.5 -6.06,-3.5" fill="none" stroke="#f2a93b" strokeWidth="1.5"/>
+                <circle r="3" fill="#f2a93b" opacity="0.85"/>
               </svg>
             </div>
             <span style={{ fontFamily:T.fD, fontWeight:800, fontSize:15, color:T.text, letterSpacing:'-0.025em' }}>LifeOS</span>
@@ -5591,8 +5627,8 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
           {/* AI Status pill */}
           <div style={{
             display:'flex', alignItems:'center', gap:6, padding:'5px 12px', borderRadius:99,
-            background: orbState==='warning'?`rgba(251,113,133,0.08)`:orbState==='analyzing'?`rgba(139,92,246,0.08)`:`rgba(0,245,212,0.06)`,
-            border:`1px solid ${orbState==='warning'?'rgba(251,113,133,0.25)':orbState==='analyzing'?'rgba(139,92,246,0.25)':'rgba(0,245,212,0.18)'}`,
+            background: orbState==='warning'?`rgba(242,96,60,0.08)`:orbState==='analyzing'?`rgba(139,92,246,0.08)`:`rgba(242,169,59,0.08)`,
+            border:`1px solid ${orbState==='warning'?'rgba(242,96,60,0.25)':orbState==='analyzing'?'rgba(139,92,246,0.25)':'rgba(242,169,59,0.22)'}`,
             flexShrink:0,
           }}>
             <div className="cyber-ring" style={{ width:5, height:5, borderRadius:'50%', background:orbState==='warning'?T.rose:orbState==='analyzing'?T.violet:T.accent, animation:`dotPulse ${orbState==='warning'?'0.9s':orbState==='analyzing'?'0.6s':'2s'} infinite` }}/>
@@ -5610,6 +5646,16 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
             </div>
             <span style={{ fontFamily:T.fM, fontSize:9, color:T.textSub }}>{settings.name||'You'}&thinsp;<span style={{ color:T.violet }}>·&thinsp;Lv{level}</span></span>
           </button>
+        </div>
+
+        {/* ─── BRIEFING GREETING ──────────────────────────────────────── */}
+        <div style={{ marginBottom:20 }}>
+          <h1 style={{ fontFamily:T.fD, fontWeight:800, fontSize:isMobile?28:40, lineHeight:1.08, letterSpacing:'-0.01em', color:T.text, margin:0 }}>
+            {greeting}{settings.name ? `, ${settings.name}` : ''}.
+          </h1>
+          <div style={{ fontFamily:T.fM, fontSize:12, color:T.textSub, marginTop:6, lineHeight:1.7 }}>
+            {todayGregorian} · You're a <span style={{ color:T.gold }}>{personaLabel}</span> at {lifeScore}/100 today.
+          </div>
         </div>
 
         {/* ─── THREE-PANEL ────────────────────────────────────────────── */}
@@ -5651,29 +5697,23 @@ Return exactly: ["bullet 1","bullet 2","bullet 3"]`;
               </div>
             ))}
 
-            {/* Life score capsule */}
-            <div style={{ marginTop:'auto', padding:'14px 16px', borderRadius:12, background:T.surface, border:`1px solid ${T.border}`, animation:'ncThreatIn 0.45s ease 0.35s both' }}>
-              <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:8 }}>Life Score</div>
+            {/* Life score capsule — page hero dial (Home's one gold gauge) */}
+            <div style={{ marginTop:'auto', padding:'16px', borderRadius:T.rXL, background:T.card, border:`1px solid ${T.borderCard}`, animation:'ncThreatIn 0.45s ease 0.35s both', display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
               {T.id === 'constellation' ? (
-                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:8 }}>
-                  <StarCluster value={lifeScore} max={100} size={44} color={lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose} />
-                  <div style={{ display:'flex', alignItems:'flex-end', gap:5 }}>
-                    <div style={{ fontFamily:T.fS, fontWeight:600, fontSize:28, color: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, lineHeight:1 }}><AnimatedNumber value={lifeScore} /></div>
-                    <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, paddingBottom:3 }}>/ 100</div>
-                  </div>
-                </div>
-              ) : (
                 <>
-                  <div style={{ display:'flex', alignItems:'flex-end', gap:6, marginBottom:8 }}>
-                    <div style={{ fontFamily:T.fD, fontWeight:800, fontSize:28, color: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, lineHeight:1 }}><AnimatedNumber value={lifeScore} /></div>
-                    <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, paddingBottom:4 }}>/ 100</div>
-                  </div>
-                  <div style={{ height:3, borderRadius:99, background:T.border, overflow:'hidden', marginBottom:6 }}>
-                    <div style={{ height:'100%', width:`${lifeScore}%`, borderRadius:99, background: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, transition:'width 0.8s ease' }}/>
+                  <div style={{ fontFamily:T.fM, fontSize:8, color:T.textMuted, letterSpacing:'0.12em', textTransform:'uppercase', alignSelf:'flex-start' }}>Life Score</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                    <StarCluster value={lifeScore} max={100} size={44} color={lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose} />
+                    <div style={{ display:'flex', alignItems:'flex-end', gap:5 }}>
+                      <div style={{ fontFamily:T.fS, fontWeight:600, fontSize:28, color: lifeScore>=70?T.emerald:lifeScore>=50?T.amber:T.rose, lineHeight:1 }}><AnimatedNumber value={lifeScore} /></div>
+                      <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, paddingBottom:3 }}>/ 100</div>
+                    </div>
                   </div>
                 </>
+              ) : (
+                <HeroDial value={lifeScore} max={100} size={112} label="Life Score" sub="/ 100" />
               )}
-              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub }}>{personaLabel}</div>
+              <div style={{ fontFamily:T.fM, fontSize:9, color:T.textSub, marginTop: T.id==='constellation'?0:10 }}>{personaLabel}</div>
             </div>
           </div>
 
@@ -13643,7 +13683,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>{lang==='fr'?'Thème':'Theme'}</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
               {[
-                { id:'dark',  label:'🌑 Dark',  preview:'#040408' },
+                { id:'dark',  label:'🌑 Dark',  preview:'#0a0e1a' },
                 { id:'light', label:'☀️ Light', preview:'#f4f6fb' },
                 { id:'constellation', label:'✨ Constellation', preview:'#05070c' },
               ].map(th => (
