@@ -1,5 +1,18 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v143
+// LifeOS — Personal Life Operating System  |  v144
+// v144 — Groq model fix + OpenAI setup guide + true-black dark theme:
+//  - Groq retired llama-3.3-70b-versatile in 2026 (causing "model does not
+//    exist" errors) — switched to their recommended replacement,
+//    openai/gpt-oss-120b, same free tier. Updated all UI copy referencing
+//    the old model name.
+//  - Added a "Get your OpenAI key" setup guide to Settings → AI Provider
+//    (platform.openai.com/api-keys, billing requirement, sk-… key), matching
+//    the existing GitHub/Groq guides — this was missing entirely before.
+//  - Dark theme bg/card recolored to #151515/#1e1e1e (matches Claude.ai's
+//    own dark background) instead of the navy #0a0e1a from the Signal
+//    restyle — applied to T/THEMES.dark, the pre-mount splash canvas, and
+//    PWA theme-color/background-color meta so first paint matches too.
+//
 // v143 — Bugfix: recurring expenses were invisible and un-editable.
 //  - Expense table ("All Expenses" in Money) had no Recurring column at all
 //    (Income table did) — you couldn't tell which expenses were set to recur.
@@ -70,7 +83,7 @@ import {
   });
   // theme-color — colors browser chrome / status bar on Android Chrome
   if (!document.querySelector('meta[name="theme-color"]')) {
-    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#0a0e1a';
+    const tc = document.createElement('meta'); tc.name = 'theme-color'; tc.content = '#151515';
     document.head.appendChild(tc);
   }
   // ── App icon: generate PNG via canvas (iOS requires PNG, not SVG, for home screen icons) ──
@@ -79,7 +92,7 @@ import {
     canvas.width = size; canvas.height = size;
     const ctx = canvas.getContext('2d');
     // Background
-    ctx.fillStyle = '#0a0e1a';
+    ctx.fillStyle = '#151515';
     const r = size * 0.22;
     ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(size-r, 0); ctx.quadraticCurveTo(size, 0, size, r);
     ctx.lineTo(size, size-r); ctx.quadraticCurveTo(size, size, size-r, size);
@@ -122,8 +135,8 @@ import {
       scope: '/lifeos/',
       display: 'standalone',
       orientation: 'portrait',
-      background_color: '#0a0e1a',
-      theme_color: '#0a0e1a',
+      background_color: '#151515',
+      theme_color: '#151515',
       icons: [
         { src: png192, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
         { src: png512, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
@@ -364,7 +377,7 @@ import {
 // Object.assign(T, THEMES[...]) once the saved theme loads).
 let T = {
   id:'dark',
-  bg:'#0a0e1a', bg1:'#0c1120', bg2:'#0e1322', card:'#0e1322',
+  bg:'#151515', bg1:'#1a1a1a', bg2:'#1e1e1e', card:'#1e1e1e',
   surface:'rgba(255,255,255,0.035)', surfaceHi:'rgba(255,255,255,0.065)',
   border:'rgba(255,255,255,0.08)', borderCard:'rgba(255,255,255,0.10)', borderLit:'rgba(242,169,59,0.3)',
   accent:'#f2a93b', accentDim:'rgba(242,169,59,0.10)', accentLo:'rgba(242,169,59,0.05)', accentBright:'#ffc266',
@@ -391,7 +404,7 @@ let T = {
 const THEMES = {
   dark: {
     id:'dark',
-    bg:'#0a0e1a', bg1:'#0c1120', bg2:'#0e1322', card:'#0e1322',
+    bg:'#151515', bg1:'#1a1a1a', bg2:'#1e1e1e', card:'#1e1e1e',
     surface:'rgba(255,255,255,0.035)', surfaceHi:'rgba(255,255,255,0.065)',
     border:'rgba(255,255,255,0.08)', borderCard:'rgba(255,255,255,0.10)', borderLit:'rgba(242,169,59,0.3)',
     accent:'#f2a93b', accentDim:'rgba(242,169,59,0.10)', accentLo:'rgba(242,169,59,0.05)', accentBright:'#ffc266',
@@ -504,7 +517,10 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
   }
 
   // ── GROQ (free tier) ────────────────────────────────────────────────────────
-  // Free API key at console.groq.com — Llama 3.3 70B, very fast.
+  // Free API key at console.groq.com — GPT-OSS 120B, very fast.
+  // NOTE: Groq deprecated llama-3.3-70b-versatile (announced June 17, 2026);
+  // openai/gpt-oss-120b is their recommended replacement — same free tier,
+  // comparable quality, faster inference. See console.groq.com/docs/deprecations.
   if (provider === 'groq') {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -513,7 +529,7 @@ async function callAI(settings, { system, messages, max_tokens = 1000 }) {
         'Authorization': `Bearer ${settings?.aiApiKey || ''}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         max_tokens,
         messages: [
           ...(system ? [{ role: 'system', content: system }] : []),
@@ -13701,7 +13717,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub, marginBottom:2 }}>{lang==='fr'?'Thème':'Theme'}</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
               {[
-                { id:'dark',  label:'🌑 Dark',  preview:'#0a0e1a' },
+                { id:'dark',  label:'🌑 Dark',  preview:'#151515' },
                 { id:'light', label:'☀️ Light', preview:'#f4f6fb' },
                 { id:'constellation', label:'✨ Constellation', preview:'#05070c' },
               ].map(th => (
@@ -13731,7 +13747,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
             <div style={{ fontSize:10, fontFamily:T.fM, color:T.textSub }}>Select your AI backend for all AI features</div>
             {[
               { id:'github', label:'GitHub Models (Free ✦)', icon:'🐙', desc:'Use your existing GitHub token — GPT-4o, no credit card, free' },
-              { id:'groq',   label:'Groq (Free ✦)',          icon:'⚡', desc:'Free Llama 3.3 70B — very fast, no credit card needed' },
+              { id:'groq',   label:'Groq (Free ✦)',          icon:'⚡', desc:'Free GPT-OSS 120B — very fast, no credit card needed' },
               { id:'claude', label:'Claude (Anthropic)',      icon:'🟣', desc:'Best quality — requires a paid Anthropic API key' },
               { id:'openai', label:'GPT-4o (OpenAI)',         icon:'🟢', desc:'Requires an OpenAI API key' },
               { id:'ollama', label:'Ollama (Local)',           icon:'🖥', desc:'Run locally with llama3, mistral, etc.' },
@@ -13761,7 +13777,17 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
                 1. Go to <code style={{ color:T.accent }}>console.groq.com</code> → sign up free<br/>
                 2. Go to <strong>API Keys</strong> → <strong>Create API Key</strong><br/>
                 3. Copy the <code style={{ color:T.accent }}>gsk_…</code> key and paste below<br/>
-                Model used: <code style={{ color:T.accent }}>llama-3.3-70b-versatile</code>
+                Model used: <code style={{ color:T.accent }}>openai/gpt-oss-120b</code> (Groq retired llama-3.3-70b-versatile in 2026 — if you were getting a "model does not exist" error, updating LifeOS fixes it, no action needed on your end)
+              </div>
+            )}
+            {aiProvider === 'openai' && (
+              <div style={{ fontSize:9, fontFamily:T.fM, color:T.amber, padding:'8px 10px', borderRadius:T.r, background:T.amberDim, border:`1px solid ${T.amber}33`, lineHeight:1.7 }}>
+                🟢 <strong>Get your OpenAI key:</strong><br/>
+                1. Go to <code style={{ color:T.accent }}>platform.openai.com/api-keys</code> → sign in<br/>
+                2. Add a payment method under <strong>Settings → Billing</strong> (required — this is a paid API, separate from a ChatGPT Plus subscription)<br/>
+                3. Click <strong>Create new secret key</strong>, name it, copy it immediately — it's only shown once<br/>
+                4. Paste the <code style={{ color:T.accent }}>sk-…</code> key below<br/>
+                Model used: <code style={{ color:T.accent }}>gpt-4o</code>
               </div>
             )}
             {aiProvider !== 'ollama' && (
@@ -13802,7 +13828,7 @@ function SettingsPage({ data, actions, gistSync={}, onOpenSyncModal, onThemeChan
                 )}
                 {keyTestStatus === 'ok' && (
                   <div style={{ fontSize:10, fontFamily:T.fM, color:T.emerald, padding:'8px 12px', borderRadius:T.r, background:T.emeraldDim, border:`1px solid ${T.emerald}33`, lineHeight:1.5 }}>
-                    ✅ Connected — {aiProvider==='github'?'GitHub Models (GPT-4o)':aiProvider==='groq'?'Groq (Llama 3.3 70B)':aiProvider==='openai'?'OpenAI':'Anthropic'} key is valid. Hit Save to apply.
+                    ✅ Connected — {aiProvider==='github'?'GitHub Models (GPT-4o)':aiProvider==='groq'?'Groq (GPT-OSS 120B)':aiProvider==='openai'?'OpenAI':'Anthropic'} key is valid. Hit Save to apply.
                   </div>
                 )}
                 {/* Security notice */}
