@@ -1,5 +1,15 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// LifeOS — Personal Life Operating System  |  v142
+// LifeOS — Personal Life Operating System  |  v143
+// v143 — Bugfix: recurring expenses were invisible and un-editable.
+//  - Expense table ("All Expenses" in Money) had no Recurring column at all
+//    (Income table did) — you couldn't tell which expenses were set to recur.
+//  - EditExpenseModal didn't expose the recurring/frequency fields, so once
+//    an expense was flagged recurring there was no way to turn it off short
+//    of deleting it. Both fixed: table now shows a cyan "Recurring" badge +
+//    frequency, and the edit modal has the same recurring checkbox/frequency
+//    picker as the Add Expense modal, with a note clarifying that unchecking
+//    stops future auto-logs without deleting past entries.
+//
 // v142 — STEPS 1+2 of "Signal" restyle:
 //  Step 1: token swap (T/THEMES → navy/gold/cyan palette) + shared primitives
 //          (GlassCard, ProgressBar, SectionLabel, StatCard, MilestoneProgressBar)
@@ -7,7 +17,7 @@
 //          greeting header, + fixed several hardcoded legacy hex values that
 //          bypassed the token system entirely (AI orb glow states, logo icon,
 //          corner-trace brackets, status pill, PWA meta/app-icon colors).
-// No page logic/data/calculations changed anywhere — visual layer only.
+// No page logic/data/calculations changed anywhere else — visual layer only.
 // Remaining rollout steps: Money hero dial → Health → Growth/Tasks/Settings.
 // Also still outstanding: legacy hardcoded hex in chart palettes / Life Graph
 // / Sticky Notes (COLORS, CAT_COLORS, GROUP_COLORS etc.) — untouched, will be
@@ -3523,9 +3533,10 @@ function BudgetModal({ open, onClose, budgets, onSave, settings }) {
 function EditExpenseModal({ open, onClose, expense, onSave, settings }) {
   const [amt, setAmt] = useState(''); const [cat, setCat] = useState('🍽️ Food');
   const [note, setNote] = useState(''); const [date, setDate] = useState(today());
+  const [recurring, setRecurring] = useState(false); const [frequency, setFrequency] = useState('monthly');
   const activeCats = useMemo(() => getActiveCats(settings?.customCats), [settings?.customCats]);
-  useEffect(() => { if (expense && open) { setAmt(String(expense.amount||'')); setCat(expense.category||'🍽️ Food'); setNote(expense.note||''); setDate(expense.date||today()); } }, [expense, open]);
-  const save = () => { if (!amt) return; onSave(expense.id, { amount:Number(amt), category:cat, note, date }); onClose(); };
+  useEffect(() => { if (expense && open) { setAmt(String(expense.amount||'')); setCat(expense.category||'🍽️ Food'); setNote(expense.note||''); setDate(expense.date||today()); setRecurring(!!expense.recurring); setFrequency(expense.frequency||'monthly'); } }, [expense, open]);
+  const save = () => { if (!amt) return; onSave(expense.id, { amount:Number(amt), category:cat, note, date, recurring, frequency:recurring?frequency:null }); onClose(); };
   return (
     <Modal open={open} onClose={onClose} title="✏️ Edit Expense">
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -3533,6 +3544,12 @@ function EditExpenseModal({ open, onClose, expense, onSave, settings }) {
         <Select value={cat} onChange={e=>setCat(e.target.value)}>{activeCats.map(c=><option key={c}>{c}</option>)}</Select>
         <Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" />
         <Input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, fontFamily:T.fM, color:T.text, cursor:'pointer' }}>
+          <input type="checkbox" checked={recurring} onChange={e=>setRecurring(e.target.checked)} style={{ accentColor:T.cyan }} />
+          <span>Recurring</span>
+          {recurring && <Select value={frequency} onChange={e=>setFrequency(e.target.value)} style={{ marginLeft:4, padding:'2px 6px', fontSize:10 }}>{['weekly','bi-weekly','monthly','quarterly','yearly'].map(f=><option key={f}>{f}</option>)}</Select>}
+        </label>
+        {recurring && <div style={{ fontSize:10, fontFamily:T.fM, color:T.textMuted, lineHeight:1.5 }}>A new expense will keep being auto-logged every {frequency==='bi-weekly'?'2 weeks':frequency.replace('ly','')} from this date. Uncheck to stop future auto-logging — this won't delete past entries.</div>}
         <Btn full onClick={save} color={T.rose}>💾 Save Changes</Btn>
       </div>
     </Modal>
@@ -7562,6 +7579,7 @@ function MoneyPage({ data, actions, onOpenMonthlyReview }) {
                 )},
                 { key:'note', label:'Description', render:(v,row)=><span style={{ color:T.text, fontFamily:T.fD }}>{v||row.category}</span> },
                 { key:'date', label:'Date', mono:true, color:T.textSub, width:90 },
+                { key:'frequency', label:'Recurring', width:90, render:(v,row)=>row.recurring?<span style={{ fontSize:9, fontFamily:T.fM, color:T.cyan, background:T.cyanDim, padding:'2px 6px', borderRadius:4 }}>{v}</span>:'—' },
                 { key:'amount', label:'Amount', mono:true, align:'right', color:T.rose, width:90, render:(v)=>`-${cur}${fmtN(v)}` },
               ]}
               rows={visibleExpenses}
